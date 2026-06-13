@@ -1,3 +1,43 @@
+v8.12.11 (2026-06-13) -- Slice E: analyst_worklist_v1 (LLM triage queue)
+=========================================================================
+New modules:
+- gem_analyst_worklist.py -- build_analyst_worklist() turns the analyzer's
+  candidate surfaces into ONE prioritized triage queue for the LLM analyst
+  pass. PROPOSALS, not final verdicts. 5 buckets (must_review / review_if_time
+  / aggregate_only / auto_clear / drill_candidate); 8 schema additions per
+  item (canonical_action_line, decision_node, range_membership, bounty_context,
+  source_truth, llm_prompt_hint, dedupe_group, review_outcome). Write-only
+  artifact analyst_worklist_<dates>.json; never fatal, never touches the report.
+- gem_chart_labels.py -- chart_display_label(): internal chart ids
+  (REJAM_SBvsHJ, OPEN_100BB_UTG+1, ...) -> human labels, no raw IDs leak.
+
+Policies baked in (Ron 2026-06-13): revealed-hand equity is luck context only,
+never the decision basis; marginal opens are NOT errors (bottom-5% buffer ->
+aggregate_only, never must_review); decision-effective stack vs the RELEVANT
+villain; automation emits proposals + a reviewer question.
+
+Hardened across six GPT review rounds (all blockers fixed, 921 tests):
+- decision_kind {preflop_deviation / preflop_allin / postflop_call_fold /
+  villain_exploit / low_signal_drill}; preflop items anchor to the PREFLOP
+  decision (street, clean stack, ledger line stops at Hero's reviewed action).
+- preflop_allin anchors to Hero's LAST action (the jam / call-off), not the
+  first open; reviewed-event selector names the raise/jam faced.
+- decision price is facing-aware: first-in open/fold/jam carries no call price
+  (price_not_applicable); call-offs carry the actual capped price.
+- raw all-in size vs decision-effective stack are SEPARATED
+  (action_size_bb / jam_size_bb, decision_effective_bb, risk_bb, overjam_bb);
+  call_amount_bb is never > the effective stack without an overjam/side-pot
+  explanation; unreconcilable multiway prices are nulled with a failure mode.
+- narrow auto_clear gate; null-safe call amounts; split PKO bounty context;
+  multiway detection by pot participation, not table seat count.
+
+Release machinery: verify_release.py tracks both new modules (manifest +
+canaries); _build_bundle.py unions repo gem_*.py modules so new modules are
+never silently dropped from a release bundle.
+
+Not wired yet (gated): report UX / Hand Review Queue (Slice F) -- pending the
+source_truth.price_engine cleanup. No Chat-Project change in this release.
+
 v8.12.10 (2026-06-13) -- Slices A/B/C from the GPT-audit + pipeline handoffs
 =========================================================================
 SLICE A -- QA harness invariants (permanent regression net):

@@ -6508,6 +6508,63 @@ check('T-1233-PA-8: first-in deviation w/ contaminated opener -> facing first-in
       _wl_pa8['items']['TM_PA8']['decision_node']['hero_action_facing'] == 'first-in (folds to Hero)',
       _wl_pa8['items']['TM_PA8']['decision_node']['hero_action_facing'])
 
+# --- v8.12.11 GPT review #5 pins: raw size vs decision-effective stack ---
+# clean overjam call-off: call capped to eff (never > eff), overjam present.
+_sz1_hand = {'id': 'TM_SZ1', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 44.5, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 44.5}]}
+_sz1_cand = _mk_cand(id='TM_SZ1', cards='AhKh', position='BB', pf_allin=True,
+    jammer_position='SB', jammer_stack_bb=44.5, eff_stack_at_decision_bb=26.2,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz1 = _awl.build_analyst_worklist({'all_in_review': [_sz1_cand]}, {}, {}, [_sz1_hand], '20260101')
+_sz1 = _wl_sz1['items']['TM_SZ1']['decision_node']
+check('T-1233-SZ-1: clean overjam call-off capped to eff (call<=eff, overjam present)',
+      _sz1['call_amount_bb'] == 26.2 and _sz1['effective_bb_vs_relevant_villain'] == 26.2
+      and _sz1['call_amount_bb'] <= _sz1['effective_bb_vs_relevant_villain']
+      and _sz1['overjam_bb'] and _sz1['action_size_bb'] == 44.5, str(_sz1))
+# multiway call-off, raw > eff, cannot reconcile -> null + price unavailable + failure mode.
+_sz2_hand = {'id': 'TM_SZ2', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'raises', 'amount_bb': 16.9, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 14.1, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 32.0}]}
+_sz2_cand = _mk_cand(id='TM_SZ2', cards='7h7s', position='BB', pf_allin=True,
+    eff_stack_at_decision_bb=19.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz2 = _awl.build_analyst_worklist({'all_in_review': [_sz2_cand]}, {}, {}, [_sz2_hand], '20260101')
+_sz2_it = _wl_sz2['items']['TM_SZ2']; _sz2 = _sz2_it['decision_node']
+check('T-1233-SZ-2: multiway call-off raw>eff -> null + price unavailable + failure mode',
+      _sz2['call_amount_bb'] is None and _sz2['price_unavailable'] is True
+      and any('side-pot/overjam reconciliation' in f for f in _sz2_it['failure_modes']), str(_sz2))
+# first-in overjam jam: jam_size and decision_effective separated.
+_sz3_hand = {'id': 'TM_SZ3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'raises', 'amount_bb': 77.4, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_sz3_cand = _mk_cand(id='TM_SZ3', cards='Qh5h', position='BTN', pf_allin=True, first_in=True,
+    eff_stack_at_decision_bb=13.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz3 = _awl.build_analyst_worklist({'bestplay_screening': [_sz3_cand]}, {}, {}, [_sz3_hand], '20260101')
+_sz3_it = _wl_sz3['items']['TM_SZ3']; _sz3 = _sz3_it['decision_node']
+check('T-1233-SZ-3: first-in overjam shows jam_size and decision_effective separately',
+      _sz3['jam_size_bb'] == 77.4 and _sz3['decision_effective_bb'] == 13.0
+      and _sz3['risk_bb'] == 13.0 and _sz3['overjam_bb'] == 64.4
+      and _sz3['call_amount_bb'] is None and _sz3['price_not_applicable'] is True, str(_sz3))
+check('T-1233-SZ-4: reviewer question uses decision-effective stack, not raw jam size',
+      '13BB' in _sz3_it['reviewer_question'] and '77' not in _sz3_it['reviewer_question'],
+      _sz3_it['reviewer_question'])
+check('T-1233-SZ-5: why_review reconciles raw jam vs effective (no contradiction with action)',
+      'raw all-in' in _sz3_it['why_review'] and 'effective' in _sz3_it['why_review']
+      and _sz3['hero_actual_action'] == 'raises 77.4 all-in', _sz3_it['why_review'])
+
+
+def _no_overprice(_w):
+    for _it in _w['items'].values():
+        _dn = _it['decision_node']
+        _ca, _ef = _dn.get('call_amount_bb'), _dn.get('effective_bb_vs_relevant_villain')
+        if _ca and _ef and _ca > _ef + 0.05 and not (_dn.get('overjam_bb') or _dn.get('side_pot_context')):
+            return False
+    return True
+check('T-1233-SZ-INV: no item has call_amount_bb > effective stack without overjam/side_pot',
+      all(_no_overprice(_w) for _w in [_wl_sz1, _wl_sz2, _wl_sz3, _wl_pa1, _wl_pa2, _wl_pa3]), '')
+
 # ============================================================
 # SUMMARY
 # ============================================================

@@ -162,6 +162,48 @@ def _preflop_allin_event(hand):
     return pf[last], faced, limped
 
 
+def _allin_sizing(is_call, raw, eff, faced_amt, faced_allin, hero_allin):
+    """v8.12.11 (GPT review #5): separate the RAW ledger commitment from the
+    decision-effective stack so the worklist never shows a price/size above
+    the effective stack without an overjam / side-pot explanation.
+
+    Returns (call_amount_bb, price_unavailable, price_failure_reason, fields):
+      fields = action_size_bb, decision_effective_bb, risk_bb, overjam_bb
+      (+ jam_size_bb for a jam). decision_effective_bb is reconciled from
+      Hero's all-in commitment when that is the authoritative number."""
+    tol = 0.05
+    raw = _f(raw); faced_amt = _f(faced_amt); eff = _f(eff)
+    # An all-in CALL-OFF commits Hero's whole stack, so his side of the
+    # effective stack IS raw. Reconcile against the villain's ALL-IN jam
+    # (a non-all-in raise size is NOT the villain's stack). This fixes the
+    # contaminated eff (88: 18.9 -> 23.7) without trusting eff_stack blindly.
+    if is_call and hero_allin and raw and faced_allin and faced_amt:
+        eff = round(min(raw, faced_amt), 1)
+    eligible = round(min(raw, eff), 1) if (raw and eff) else (
+        round(raw, 1) if raw else (round(eff, 1) if eff else None))
+    big = max(raw, faced_amt)
+    overjam = round(big - eligible, 1) if (eligible and big > eligible + tol) else None
+    fields = {
+        'action_size_bb': round(raw, 1) if raw else None,
+        'decision_effective_bb': round(eff, 1) if eff else None,
+        'risk_bb': eligible,
+        'overjam_bb': overjam,
+    }
+    if not is_call:                       # Hero jams: no call price
+        fields['jam_size_bb'] = round(raw, 1) if raw else None
+        return None, False, None, fields
+    if not raw:
+        return None, True, 'decision price unavailable', fields
+    if raw <= eff + tol:                  # within the effective stack: clean
+        return round(raw, 1), False, None, fields
+    if faced_amt and faced_amt + tol >= raw and eff:
+        # clean overjam: a single villain shoved >= Hero's raw, so the
+        # eligible price is Hero's effective stack; overjam_bb explains the gap.
+        return round(eff, 1), False, None, fields
+    # cannot reconcile (multiway / dead money / contaminated eff)
+    return None, True, 'decision price requires side-pot/overjam reconciliation', fields
+
+
 def _hero_faces_preflop_raise(hand):
     """v8.12.11 (GPT review #3): True iff a voluntary raise/all-in occurred
     BEFORE Hero's first preflop action — i.e. Hero is FACING a price (BB
@@ -313,38 +355,35 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         evt, faced, limped = _preflop_allin_event(hand)
         if evt is not None:
             is_call = (evt.get('action') == 'calls')
+            faced_amt = _f(faced.get('amount_bb')) if faced else 0.0
+            faced_allin = bool(faced.get('is_all_in')) if faced else False
+            hero_allin = bool(evt.get('is_all_in'))
             if faced is not None:
                 fp = faced.get('position') or 'villain'
-                fa = _f(faced.get('amount_bb'))
-                fword = 'jam' if faced.get('is_all_in') else 'raise'
-                facing = (f"{fp} {fword} {fa:.1f}BB" if fa else f"{fp} {fword}")
+                fword = 'jam' if faced_allin else 'raise'
+                facing = (f"{fp} {fword} {faced_amt:.1f}BB" if faced_amt
+                          else f"{fp} {fword}")
             else:
                 facing = 'vs limper(s)' if limped else 'first-in'
-            price_unavailable = price_not_applicable = False
-            if is_call:                 # call-off vs a jam: real price applies
-                # evt.amount_bb is Hero's actual ledger commitment (an all-in
-                # call is already <= his stack), so trust it. Only the stblock
-                # fallback is eff-capped, since that can be the uncapped jam.
-                call_bb = _f(evt.get('amount_bb')) or None
-                if not call_bb:
-                    call_bb = (_f(stblock.get('hero_call_amount_bb'))
-                               or _f(c.get('hero_committed_bb')) or None)
-                    if call_bb and eff and call_bb > eff * 1.05:
-                        call_bb = None
-                        price_unavailable = True
-            else:                       # Hero jams (aggressor): no call price
-                call_bb = None
-                price_not_applicable = True
-            return {
+            # GPT review #5: split the raw ledger size from the decision-
+            # effective stack; never show a price above the effective stack
+            # without an overjam/side-pot explanation.
+            call_bb, price_unavailable, price_fail, szf = _allin_sizing(
+                is_call, _f(evt.get('amount_bb')), eff, faced_amt,
+                faced_allin, hero_allin)
+            node = {
                 'street': 'preflop', 'decision_kind': kind,
                 'hero_action_facing': facing or 'unknown',
                 'hero_actual_action': _fmt_action(evt),
-                'call_amount_bb': round(call_bb, 1) if call_bb else None,
+                'call_amount_bb': call_bb,
                 'price_unavailable': price_unavailable,
-                'price_not_applicable': price_not_applicable,
-                'effective_bb_vs_relevant_villain': eff,
+                'price_not_applicable': (not is_call),
+                'price_failure_reason': price_fail,
+                'effective_bb_vs_relevant_villain': szf.get('decision_effective_bb') or eff,
                 'players_behind': None, 'closing_action': closing,
             }
+            node.update(szf)
+            return node
         # no ledger -> fall through to the generic logic (uses first_in etc.)
 
     # ===== generic (preflop deviation / postflop / no-ledger all-in) =========
@@ -599,6 +638,12 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
         eff = dn.get('effective_bb_vs_relevant_villain') or 0
         risked_pct = (call_bb / eff * 100) if (call_bb and eff) else 0
         tiny = (call_bb and call_bb <= 2.0) or (risked_pct and risked_pct <= 8)
+        # GPT review #5: when the raw ledger all-in size differs from the
+        # decision-effective stack, say BOTH so a 77BB jam is not read as a
+        # 13BB decision (and the eff stack stays the reviewed basis).
+        _asz, _ovj = dn.get('action_size_bb'), dn.get('overjam_bb')
+        size_note = (f" [raw all-in {_asz:.0f}BB vs ~{eff:.0f}BB effective; "
+                     f"overjam {_ovj:.0f}BB]" if (_ovj and _asz and eff) else "")
         covers = bnt.get('hero_covers_relevant_villain')
         # collectible_tiny also demands a certain bounty + no side-pot/multiway
         collectible_tiny = bool(
@@ -621,7 +666,8 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
             return ('must_review', 'Review required', 'medium',
                     'analyst_required', fm, rq,
                     f"Monster-action stack-off: jam + cold-call, Hero risks "
-                    f"{call_bb:.1f}BB ({risked_pct:.0f}% stack).", grp, 72)
+                    f"{call_bb:.1f}BB ({risked_pct:.0f}% stack)." + size_note,
+                    grp, 72)
         # standard get-in -> auto_clear ONLY through the narrow multi-condition
         # gate (GPT-3): known node, real engines, decision-basis evidence, no
         # ICM/multiway/side-pot/bounty ambiguity, and a positive qualifying
@@ -633,7 +679,8 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
             return ('auto_clear', 'Justified', 'medium', 'auto_clear',
                     ['range could dominate if villain very tight'], rq,
                     f"Standard get-in: {cards} {pos} at {eff:.0f}BB inside the "
-                    "jam/continue range — result is variance.", grp, 24)
+                    "jam/continue range — result is variance." + size_note,
+                    grp, 24)
         # ordinary all-in: range equity decides; revealed result is luck. If
         # the auto_clear gate blocked on a specific ambiguity, name it.
         fm = ['range model confidence low']
@@ -642,7 +689,7 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
         return ('review_if_time', 'Review required', 'low', 'analyst_required',
                 fm, rq,
                 f"All-in {pos} {cards} at {eff:.0f}BB — verify range equity "
-                "vs threshold (result was luck, not the basis).",
+                "vs threshold (result was luck, not the basis)." + size_note,
                 grp, 48)
 
     # --- Wide / Missed BB defend (chart-backed) --------------------------
@@ -749,10 +796,14 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
                            sources_by_id.get(hid, []), src_truth, action_line)
-        # v8.12.11 (GPT-4): surface the unavailable-price failure mode wherever
-        # the decision node could not produce a capped call amount.
-        if dn.get('price_unavailable') and 'decision price unavailable' not in fmodes:
-            fmodes = fmodes + ['decision price unavailable']
+        # v8.12.11 (GPT-4/#5): surface the price failure mode wherever the
+        # decision node could not produce a usable capped call amount. A
+        # specific reason (e.g. side-pot/overjam reconciliation) wins over the
+        # generic one.
+        _pfr = dn.get('price_failure_reason') or (
+            'decision price unavailable' if dn.get('price_unavailable') else None)
+        if _pfr and _pfr not in fmodes:
+            fmodes = fmodes + [_pfr]
 
         po = pot_odds_by_hand.get(hid) or pot_odds_by_hand.get(_short(hid)) or {}
         items[hid] = {

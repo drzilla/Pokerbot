@@ -262,6 +262,21 @@ def _is_monster_action(c):
                 and not c.get('pfr', False) is True and c.get('cold_called'))
 
 
+def _pot_is_multiway(c):
+    """v8.12.11 (GPT-3 follow-up): True iff 3+ players contested the pot
+    (side-pot / field-equity ambiguity). Uses the all-in decomposition
+    (n_opponents >= 2 -> Hero + 2 = 3-way) or postflop entrants
+    (players_at_flop >= 3). NEVER n_players -- that is the table seat count
+    (e.g. 6 at a 6-max table), which would flag every hand as multiway."""
+    md = c.get('multiway_decomposition') or {}
+    n_opp = md.get('n_opponents')
+    if isinstance(n_opp, (int, float)) and n_opp >= 2:
+        return True
+    if int(_f(c.get('players_at_flop'), 0)) >= 3:
+        return True
+    return bool(c.get('multiway_pot'))
+
+
 def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
                      bestplay_only, is_premium, eff):
     """v8.12.11 (GPT-3): narrow, multi-condition gate for auto_clear on an
@@ -283,7 +298,7 @@ def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
     if _is_monster_action(c):
         return False, 'monster_action'
     # req: no multiway / side-pot uncertainty
-    if c.get('multiway_pot') or int(_f(c.get('n_players'), 0)) > 2:
+    if _pot_is_multiway(c):
         return False, 'multiway'
     if c.get('side_pot') or c.get('has_side_pot'):
         return False, 'side_pot'
@@ -356,7 +371,7 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
         # collectible_tiny also demands a certain bounty + no side-pot/multiway
         collectible_tiny = bool(
             tiny and bnt.get('is_pko') and covers
-            and not (c.get('multiway_pot') or int(_f(c.get('n_players'), 0)) > 2)
+            and not _pot_is_multiway(c)
             and not (c.get('side_pot') or c.get('has_side_pot')))
         grp = 'monster_action_allin' if _is_monster_action(c) else 'pf_allin'
         rq = (f"Do not use the revealed hand as the verdict basis. Decide "

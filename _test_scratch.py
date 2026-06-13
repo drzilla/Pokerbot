@@ -6242,6 +6242,29 @@ _wl_ps = _awl.build_analyst_worklist({'bestplay_screening': [_cand_pshort]}, {},
 check('T-1233-AC-3: narrow premium short-stack (AA 15BB) -> auto_clear',
       _wl_ps['items']['TM_PSHORT']['bucket'] == 'auto_clear',
       str(_wl_ps['items']['TM_PSHORT']['bucket']))
+# multiway gate must read pot participation, NOT table seat count: a heads-up
+# all-in at a 6-max table (n_players=6, n_opponents=1) still auto_clears.
+_cand_hu6 = _mk_cand(id='TM_HU6', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0, n_players=6,
+    multiway_decomposition={'n_opponents': 1}, players_at_flop=2,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_hu6 = _awl.build_analyst_worklist({'bestplay_screening': [_cand_hu6]}, {}, {}, [], '20260101')
+check('T-1233-AC-4: table seat count (n_players=6) does NOT flag multiway',
+      _wl_hu6['items']['TM_HU6']['bucket'] == 'auto_clear',
+      str(_wl_hu6['items']['TM_HU6']['bucket']))
+# a genuine 3-way all-in (n_opponents=2) IS multiway -> not auto_clear.
+_cand_3way = _mk_cand(id='TM_3WAY', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0, n_players=6,
+    multiway_decomposition={'n_opponents': 2},
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_3way = _awl.build_analyst_worklist({'bestplay_screening': [_cand_3way]}, {}, {}, [], '20260101')
+check('T-1233-AC-5: genuine 3-way all-in (n_opponents=2) -> NOT auto_clear',
+      _wl_3way['items']['TM_3WAY']['bucket'] != 'auto_clear',
+      str(_wl_3way['items']['TM_3WAY']['bucket']))
 
 # ============================================================
 # SUMMARY

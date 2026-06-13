@@ -34,7 +34,7 @@ MANIFEST = {
     # --- Updated in v8.8.9 + v8.9.0 ---
     "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11-preview: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("155a8abf98ce0103e8d1a2f5536a4f9dc0af93fc72227225558bcd5b6144c01d", 299142, "v8.12.11-preview: 892 tests (+T-1233 Slice E)"),
+    "_test_scratch.py":                     ("e5b010058f07f040dc3ccd5007a04f7f84a646d9874b138047a0a0f4a77ce7b0", 300668, "v8.12.11-preview: 894 tests (+T-1233 Slice E)"),
     "GEM_Changelog.txt":                    ("6f78ba4fb1f0b2ca3ef9f6be68582d88f6ec214761c348552e64de55d6fcc10a", 38239, "changelog through v8.12.10"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
@@ -73,7 +73,7 @@ MANIFEST = {
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
     # --- New in v8.12.11-preview (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("fd43e16a4c5a809470daa417de6334e0801890974b8196e9b617f9210a8f2b1a", 27296, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
+    "gem_analyst_worklist.py": ("c9f140c0185ab9016d0a6d6c9fe08a34dd0b41d01b2af7170064ff5be2635c12", 27865, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
     "gem_chart_labels.py":     ("ed1a842e3e5dd2b9eef64673ed0908a0163c05b6875971f27034e12879958683", 3324, "v8.12.11-preview: chart-id -> human label registry (no raw IDs)"),
 }
 

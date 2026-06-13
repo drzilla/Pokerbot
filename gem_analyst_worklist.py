@@ -106,25 +106,60 @@ def _preflop_effective_bb(c, dev):
     return round(s, 1)
 
 
-def _hero_preflop_action(hand):
-    """Hero's FIRST voluntary preflop action (the reviewed decision for a
-    preflop deviation): 'calls 2.2', 'folds', 'raises 2.0 all-in', ''."""
+def _fmt_action(a):
+    """'raises 1.2', 'calls 8.6 all-in', 'folds', ''. Takes a ledger entry."""
+    if not a:
+        return ''
+    act = a.get('action', '')
+    seg = act
+    amt = a.get('amount_bb')
+    if act in ('raises', 'bets', 'calls') and amt:
+        seg += ' %.1f' % _f(amt)
+    if a.get('is_all_in'):
+        seg += ' all-in'
+    return seg
+
+
+def _hero_preflop_action(hand, which='first'):
+    """Hero's first (default) or last voluntary preflop action as a string.
+    Deviations are graded on Hero's FIRST action (the open/call/fold); a
+    preflop all-in is graded on Hero's LAST action (the jam / call-off)."""
     if not hand:
         return ''
     hero = hand.get('hero', 'Hero')
-    for a in (hand.get('action_ledger') or []):
-        if a.get('street') != 'preflop' or a.get('action') == 'posts':
-            continue
+    acts = [a for a in (hand.get('action_ledger') or [])
+            if a.get('street') == 'preflop' and a.get('action') != 'posts'
+            and a.get('player') == hero]
+    if not acts:
+        return ''
+    return _fmt_action(acts[-1] if which == 'last' else acts[0])
+
+
+def _preflop_allin_event(hand):
+    """v8.12.11 (GPT review #4): the reviewed event for a preflop all-in is
+    Hero's LAST preflop action (the jam or call-off), NOT the first open.
+    Returns (hero_action_entry, faced_entry, limped_before):
+      - hero_action_entry: Hero's last preflop ledger entry
+      - faced_entry: the LAST villain raise/all-in BEFORE it (what Hero faced)
+      - limped_before: a villain limped (called) before Hero with no raise."""
+    if not hand:
+        return None, None, False
+    hero = hand.get('hero', 'Hero')
+    pf = [a for a in (hand.get('action_ledger') or [])
+          if a.get('street') == 'preflop' and a.get('action') != 'posts']
+    hero_idx = [i for i, a in enumerate(pf) if a.get('player') == hero]
+    if not hero_idx:
+        return None, None, False
+    last = hero_idx[-1]
+    faced, limped = None, False
+    for a in pf[:last]:
         if a.get('player') == hero:
-            act = a.get('action', '')
-            seg = act
-            amt = a.get('amount_bb')
-            if act in ('raises', 'bets', 'calls') and amt:
-                seg += ' %.1f' % _f(amt)
-            if a.get('is_all_in'):
-                seg += ' all-in'
-            return seg
-    return ''
+            continue
+        if a.get('action') in ('raises', 'bets') or a.get('is_all_in'):
+            faced = a
+        elif a.get('action') == 'calls':
+            limped = True
+    return pf[last], faced, limped
 
 
 def _hero_faces_preflop_raise(hand):
@@ -163,15 +198,16 @@ def _hero_preflop_call_amount(hand):
     return None
 
 
-def _line_from_ledger(hand, decision_street, stop_after_hero=False):
+def _line_from_ledger(hand, decision_street, stop=None):
     """v8.12.11 (GPT-5): build a real compact action line from the hand's
     action_ledger up to & including the decision street, so the analyst can
     reason without opening the replay. Marks Hero. Returns '' if no ledger.
 
-    GPT review #2: when stop_after_hero is set (a preflop chart/range
-    deviation), stop right after Hero's FIRST action on the decision street so
-    the line never bleeds into later villain action (e.g. an SB shove AFTER
-    Hero already folded) or postflop streets."""
+    `stop` controls where the line ends on the decision street so it never
+    bleeds past the reviewed decision (GPT reviews #2/#4):
+      - 'first': stop after Hero's FIRST action (preflop chart/range deviation)
+      - 'last' : stop after Hero's LAST action (preflop all-in / call-off)
+      - None   : full line through the decision street (postflop)."""
     if not hand:
         return ''
     led = hand.get('action_ledger') or []
@@ -179,27 +215,27 @@ def _line_from_ledger(hand, decision_street, stop_after_hero=False):
         return ''
     hero = hand.get('hero', 'Hero')
     order = ['preflop', 'flop', 'turn', 'river']
-    stop = order.index(decision_street) if decision_street in order else 3
-    keep = set(order[:stop + 1])
+    si = order.index(decision_street) if decision_street in order else 3
+    keep = set(order[:si + 1])
+    seq = [a for a in led if a.get('street') in keep and a.get('action') != 'posts']
+    stop_i = None
+    if stop in ('first', 'last'):
+        hpos = [i for i, a in enumerate(seq)
+                if a.get('player') == hero and a.get('street') == decision_street]
+        if hpos:
+            stop_i = hpos[0] if stop == 'first' else hpos[-1]
     parts = []
-    for a in led:
-        st = a.get('street')
-        if st not in keep:
-            continue
-        act = a.get('action', '')
-        if act == 'posts':
-            continue
-        is_hero = (a.get('player') == hero)
-        who = 'Hero' if is_hero else (a.get('position') or '?')
+    for i, a in enumerate(seq):
+        who = 'Hero' if a.get('player') == hero else (a.get('position') or '?')
+        seg = f"{who} {a.get('action', '')}"
         amt = a.get('amount_bb')
-        seg = f"{who} {act}"
-        if act in ('raises', 'bets', 'calls') and amt:
+        if a.get('action') in ('raises', 'bets', 'calls') and amt:
             seg += f" {_f(amt):.1f}"
         if a.get('is_all_in'):
             seg += " all-in"
         parts.append(seg)
-        if stop_after_hero and is_hero and st == decision_street:
-            break   # Hero's reviewed decision is made; do not read further
+        if stop_i is not None and i == stop_i:
+            break   # reviewed decision made; do not read further
     if not parts:
         return ''
     return ' | '.join(parts)[:300]
@@ -214,13 +250,15 @@ def _canonical_action_line(c, hand=None, kind=None):
     preflop deviation additionally stops at Hero's preflop decision."""
     if _is_preflop_kind(kind):
         street = 'preflop'
-        stop_after_hero = (kind == 'preflop_deviation')
+        # deviation -> Hero's first action (the chart decision); all-in ->
+        # Hero's last action (the jam / call-off commitment).
+        stop = 'last' if kind == 'preflop_allin' else 'first'
     else:
         dm = c.get('decision_math') or {}
         street = dm.get('key_decision_street') or (
             'preflop' if c.get('pf_allin') else 'flop')
-        stop_after_hero = False
-    led_line = _line_from_ledger(hand, street, stop_after_hero=stop_after_hero)
+        stop = None
+    led_line = _line_from_ledger(hand, street, stop=stop)
     if led_line:
         return led_line
     for k in ('line_actions', 'action_sequence'):
@@ -260,27 +298,76 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         street = dm.get('key_decision_street') or (
             'preflop' if c.get('pf_allin') else 'flop')
     stblock = (dm.get('streets') or {}).get(street, {}) or {}
-    facing = ''
-    if kind == 'preflop_deviation' and dev:
-        dtype = dev.get('type') or ''
-        opener = dev.get('opener_position') or dev.get('opener') or ''
-        if 'Open' in dtype:           # first-in: there is no opener Hero faced
-            facing = 'first-in (folds to Hero)'
-        elif opener:
-            facing = f"{opener} open"
-    elif c.get('pf_allin') and c.get('jammer_position'):
-        facing = f"{c['jammer_position']} jam"
-    elif stblock.get('villain_bet_bb'):
-        facing = f"bet {_f(stblock.get('villain_bet_bb')):.1f}BB"
+    pos = c.get('position') or ''
+    closing = bool(pos == 'BB' and not c.get('hero_3bet'))
     # effective stack: preflop deviations use the clean preflop stack (the
     # K6s first-in-open bug had eff_stack_at_decision_bb overwritten to 12BB).
     eff = _preflop_effective_bb(c, dev) if kind == 'preflop_deviation' \
         else _decision_effective_bb(c)
+
+    # ===== preflop ALL-IN: anchor to Hero's reviewed event (GPT review #4) ===
+    # The reviewed event is Hero's LAST preflop action — the jam or the
+    # call-off — NOT the first open. A jam (Hero aggressor) carries no call
+    # price; a call-off carries the actual capped call amount.
+    if kind == 'preflop_allin':
+        evt, faced, limped = _preflop_allin_event(hand)
+        if evt is not None:
+            is_call = (evt.get('action') == 'calls')
+            if faced is not None:
+                fp = faced.get('position') or 'villain'
+                fa = _f(faced.get('amount_bb'))
+                fword = 'jam' if faced.get('is_all_in') else 'raise'
+                facing = (f"{fp} {fword} {fa:.1f}BB" if fa else f"{fp} {fword}")
+            else:
+                facing = 'vs limper(s)' if limped else 'first-in'
+            price_unavailable = price_not_applicable = False
+            if is_call:                 # call-off vs a jam: real price applies
+                # evt.amount_bb is Hero's actual ledger commitment (an all-in
+                # call is already <= his stack), so trust it. Only the stblock
+                # fallback is eff-capped, since that can be the uncapped jam.
+                call_bb = _f(evt.get('amount_bb')) or None
+                if not call_bb:
+                    call_bb = (_f(stblock.get('hero_call_amount_bb'))
+                               or _f(c.get('hero_committed_bb')) or None)
+                    if call_bb and eff and call_bb > eff * 1.05:
+                        call_bb = None
+                        price_unavailable = True
+            else:                       # Hero jams (aggressor): no call price
+                call_bb = None
+                price_not_applicable = True
+            return {
+                'street': 'preflop', 'decision_kind': kind,
+                'hero_action_facing': facing or 'unknown',
+                'hero_actual_action': _fmt_action(evt),
+                'call_amount_bb': round(call_bb, 1) if call_bb else None,
+                'price_unavailable': price_unavailable,
+                'price_not_applicable': price_not_applicable,
+                'effective_bb_vs_relevant_villain': eff,
+                'players_behind': None, 'closing_action': closing,
+            }
+        # no ledger -> fall through to the generic logic (uses first_in etc.)
+
+    # ===== generic (preflop deviation / postflop / no-ledger all-in) =========
+    facing = ''
+    if kind == 'preflop_deviation':
+        # Use the ledger (authoritative) to decide first-in vs facing — the
+        # candidate's opener_position can be a LATER raiser (e.g. an SB shove
+        # after Hero already folded), so never trust it alone for a first-in.
+        _faces = _hero_faces_preflop_raise(hand)
+        if _faces is None:
+            _faces = not bool(c.get('first_in'))
+        opener = ((dev.get('opener_position') or dev.get('opener')) if dev else '') or ''
+        if not _faces:
+            facing = 'first-in (folds to Hero)'
+        else:
+            facing = f"{opener} open" if opener else 'facing a raise'
+    elif c.get('pf_allin') and c.get('jammer_position'):
+        facing = f"{c['jammer_position']} jam"
+    elif stblock.get('villain_bet_bb'):
+        facing = f"bet {_f(stblock.get('villain_bet_bb')):.1f}BB"
     # --- decision price (GPT review #3: kind/facing aware) ----------------
     # A call price exists ONLY when Hero faces a prior bet/raise. A first-in
-    # open / fold-first-in / open-jam has NO call amount -> null + N/A (not a
-    # failure). The K6s bug populated 0.1; wide opens leaked the open/limp or a
-    # LATER opponent all-in into the price field.
+    # open / fold-first-in / open-jam has NO call amount -> null + N/A.
     faces_raise = _hero_faces_preflop_raise(hand) if preflop else None
     if preflop and faces_raise is None:
         faces_raise = not bool(c.get('first_in'))   # no ledger: use first_in
@@ -293,15 +380,11 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         call_bb = (_f(stblock.get('hero_call_amount_bb'))
                    or (_hero_preflop_call_amount(hand) if preflop else None)
                    or _f(c.get('hero_committed_bb')) or None)
-        # v8.12.11 (GPT-4): a call can never exceed Hero's effective stack;
-        # an uncapped value (> eff) means the price is unknown -> null + flag.
         if call_bb and eff and call_bb > eff * 1.05:
             call_bb = None
             price_unavailable = True
         elif not call_bb and not preflop:
             price_unavailable = True
-    pos = c.get('position') or ''
-    closing = bool(pos == 'BB' and not c.get('hero_3bet'))
     if preflop and hand:
         hero_act = _hero_preflop_action(hand) or stblock.get('hero_action') or ''
     else:

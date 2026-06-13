@@ -34,7 +34,7 @@ MANIFEST = {
     # --- Updated in v8.8.9 + v8.9.0 ---
     "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11-preview: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("182929b13480f107497a783462607b616344b1d9e1f4e8cb1b73bd3622ac11ba", 311212, "v8.12.11-preview: 907 tests (+T-1233 Slice E)"),
+    "_test_scratch.py":                     ("e2d29dd5d1fed9594b15e8601de53ad4d15c32577e81d3ccab7859a7b96661de", 318827, "v8.12.11-preview: 915 tests (+T-1233 Slice E)"),
     "GEM_Changelog.txt":                    ("6f78ba4fb1f0b2ca3ef9f6be68582d88f6ec214761c348552e64de55d6fcc10a", 38239, "changelog through v8.12.10"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
@@ -73,7 +73,7 @@ MANIFEST = {
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
     # --- New in v8.12.11-preview (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("15c053bbf0d15f0283dd0acb97ad5a6cdf1cbae4fd7f2e1c088c7eb4fe578a96", 35490, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
+    "gem_analyst_worklist.py": ("4ef240a82ad1ba0f986992ed2c4c5f52582e7360e0674923f428367dbc4c1eda", 39668, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
     "gem_chart_labels.py":     ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11-preview: chart-id -> human label registry (no raw IDs)"),
 }
 
@@ -882,6 +882,8 @@ CANARIES = [
      "v8.12.11-preview GPT#3: first-in decisions carry no call price"),
     ("gem_analyst_worklist.py", "def _hero_faces_preflop_raise(",
      "v8.12.11-preview GPT#3: facing-vs-first-in price detector"),
+    ("gem_analyst_worklist.py", "def _preflop_allin_event(",
+     "v8.12.11-preview GPT#4: reviewed-event selector (last action, not first open)"),
     ("gem_chart_labels.py", "def chart_display_label(",
      "v8.12.11-preview: chart-id -> human label registry"),
     ("gem_analyzer.py", "build_analyst_worklist",

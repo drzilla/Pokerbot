@@ -1075,24 +1075,21 @@ def _emit_section_xiii(doc, s, rd, hands):
                 _oce, _oct = _outcome_label(analyst.get(hid, {}),
                                             default=('👍', 'justified'))
                 verdict = f"{_oce} {_oct} — {_xref('sec-13-3', label='S13.3')}"
-            elif hid in cooler_ids_full:
+            elif hid in i7_ids_full:
+                # analyst-CONFIRMED cooler (I.7) — a real decision verdict.
                 verdict = f"❄️ cooler — {_xref('sec-1-7', label='S1.7')}"
-            elif hid in (rd.get('auto_resolved_ids') or []):
-                # Issue 6 + auto-resolve expansion (Ron 2026-05-30)
-                _ar_label = (rd.get('auto_resolved_labels') or {}).get(hid)
-                verdict = _ar_label or "✅ auto-resolved"
             else:
-                # Issue 4: variance-outcome fallback before "awaiting"
+                # v8.12.12 Obj-B: NO analyst verdict — never imply justified /
+                # cooler / variance for an unreviewed large loss. Lead with
+                # review status, attach auto signal / showdown context apart.
+                from gem_report_draft.sections_financial import (
+                    _neutral_unreviewed_large_loss_verdict as _neutral_llv)
                 _voc_raw = rd.get('variance_outcomes', {}).get(hid)
                 _voc = _voc_raw['outcome'] if isinstance(_voc_raw, dict) else _voc_raw
-                _voc_map = {
-                    'lost_flip': '🪙 lost flip',
-                    'suckout': '🤢 suckout',
-                    'top_of_range': '🪤 vs top-of-range',
-                    'semi_bluff_cooler': '🎲 variance',
-                }
-                # BUG-7: suppress "awaiting analyst" in published reports
-                verdict = _voc_map.get(_voc, "🎲 unclassified variance")
+                _auto_cooler = hid in cooler_ids_full     # auto-only (i7 above)
+                _auto_label = ((rd.get('auto_resolved_labels') or {}).get(hid)
+                               if hid in (rd.get('auto_resolved_ids') or []) else None)
+                verdict = _neutral_llv(_voc, _auto_cooler, _auto_label)
             cards = _cards_str_to_pills(''.join(h.get('cards', [])))
             netbb = h.get('net_bb', 0)
             board_raw = h.get('board') or []

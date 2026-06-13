@@ -560,22 +560,50 @@ def _emit_opening_dashboard(doc, s, rd):
     # (it did on 2026-06-13 and shipped without verdicts).
     _rc = rd.get('report_completeness') or {}
     _rc_state = _rc.get('state', '')
+    # v8.12.12 Obj-D: make the coverage state obvious and quantified, and name
+    # which buckets remain unreviewed. Single doc source -> MD and HTML agree.
+    def _awaiting_buckets_phrase(_rcd):
+        _abb = _rcd.get('awaiting_by_bucket') or {}
+        if not _abb:
+            return ''
+        _pretty = {'punts': 'punts', 'mistakes': 'mistakes',
+                   'all_in_review': 'all-in reviews', 'coolers': 'coolers',
+                   'big_river_calldowns': 'river call-downs',
+                   'bust_audit': 'bust audit', 'read_dependent_screening': 'read-dependent',
+                   'iii4_screening': 'read-dependent', 'bestplay_screening': 'best-play screen',
+                   'blindspot_sample': 'blind-spot sample'}
+        parts = [f"{_n} {_pretty.get(_bk, _bk)}" for _bk, _n in
+                 sorted(_abb.items(), key=lambda kv: -kv[1])]
+        return ' — remaining: ' + ', '.join(parts)
     if _rc_state == 'AUTO_ONLY':
         doc.w("<div style='margin:0 0 14px;padding:12px 16px;border:2px "
               "solid #f59e0b;border-radius:12px;background:#fffbeb;"
               "color:#92400e;font-weight:700'>"
               "⚠️ AUTO-ONLY REPORT — no analyst file loaded. "
               f"{_rc.get('awaiting_candidates', '?')} candidate hands are "
-              "awaiting review and carry no verdicts. Do not treat this as "
-              "the final analyst report.</div>")
+              "awaiting analyst review and carry no verdicts; the verdict "
+              "sections (punts / mistakes / large-loss) are INCOMPLETE. Do not "
+              "treat this as the final analyst report.</div>")
         doc.w("")
     elif _rc_state == 'ANALYST_PARTIAL':
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
               "solid #bfdbfe;border-radius:12px;background:#eff6ff;"
               "color:#1e40af'>"
-              f"ℹ️ Analyst coverage: {_rc.get('reviewed_hands', '?')} hands "
-              f"reviewed · {_rc.get('awaiting_markers', '?')} still awaiting "
-              "analyst review in this report.</div>")
+              f"ℹ️ Analyst coverage — PARTIAL: {_rc.get('reviewed_hands', '?')} "
+              f"hand(s) reviewed of {_rc.get('candidate_need', '?')} worklist "
+              f"candidate(s); {_rc.get('awaiting_candidates', '?')} still "
+              "awaiting review"
+              f"{_awaiting_buckets_phrase(_rc)}. Verdict sections are "
+              "partially complete.</div>")
+        doc.w("")
+    elif _rc_state == 'ANALYST_COMPLETE':
+        doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
+              "solid #bbf7d0;border-radius:12px;background:#f0fdf4;"
+              "color:#166534'>"
+              f"✅ Analyst coverage — COMPLETE: all "
+              f"{_rc.get('candidate_need', '?')} worklist candidate(s) reviewed "
+              f"({_rc.get('reviewed_hands', '?')} hand verdict(s) in this "
+              "report).</div>")
         doc.w("")
     # Game-summary absence: cash/ROI/finish fields degrade silently
     _usd_st = (rd.get('usd_overlay') or {}).get('status', '')

@@ -1,3 +1,45 @@
+v8.12.12 (2026-06-13) -- Slice E.1: analyst report trust + source-truth cleanup
+=========================================================================
+Report-trust fixes surfaced by the 2026-06-12/13 GPT-vs-Claude analyst
+comparison (verdicts converged; the bugs were in how the report LABELLED them):
+
+A. Analyst verdict street/type label. A preflop analyst punt with no `spot`
+   text no longer renders "Postflop punt (analyst)". New street-aware
+   _analyst_punt_street_label() reflects the REVIEWED decision street (analyst
+   `street` -> spot 'PF ALL-IN' marker -> a preflop all-in), never the final
+   all-in/showdown street; unknown degrades to a neutral "Punt (analyst)".
+
+B. Neutral AUTO_ONLY / unreviewed large-loss labels. In an AUTO_ONLY report
+   (or for any hand with no analyst verdict) the Large-Loss Audit (S1.3 + S17.6)
+   no longer shows showdown/situation labels (🪤 vs top-of-range, 🎲
+   unclassified variance, auto ❄️ cooler) as if they were decision-quality
+   verdicts. Such rows now lead with "⏳ awaiting analyst" and attach the auto
+   detector signal / showdown result context SEPARATELY. Only an analyst-
+   confirmed I.7 still renders "❄️ cooler". An unreviewed punt can no longer
+   read as "unlucky" or "justified".
+
+C. source_truth.price_engine provenance. Never 'none' when a price/sizing
+   exists. The decision node owns the source: not_applicable (no call price:
+   first-in open/fold/jam), action_ledger, sidepot_reconciled (capped overjam
+   call-off), candidate_decision_math, pot_odds_v8_12, or unavailable (price
+   needed but unsafe/missing -> price_unavailable + failure mode). v8.12.11
+   all-in sizing invariants preserved (no call_amount_bb > effective without
+   overjam/side-pot; raw jam size vs decision-effective stay separate).
+
+D. Analyst coverage clarity. The TL;DR banner now states the coverage state
+   explicitly: AUTO_ONLY (candidates awaiting; verdict sections INCOMPLETE),
+   ANALYST_PARTIAL (reviewed / worklist-candidate / unreviewed counts + which
+   buckets remain), ANALYST_COMPLETE (all candidates reviewed). compute_report_
+   completeness() stamps awaiting_by_bucket (persisted for --quick). MD and HTML
+   read the same single source. Filename tokens unchanged (AUTO_ONLY when no
+   analyst file; none when loaded).
+
+E. Doc: SESSION_START_STEP0 verify expectation corrected (38/38 files, 280
+   canaries, 7 anti-canaries; extract ~87 files).
+
+No new UI, no Hand Review Queue, no detector/strategy/taxonomy changes. Tests
+939->; verify 38 files + canaries + anti-canaries.
+
 v8.12.11 (2026-06-13) -- Slice E: analyst_worklist_v1 (LLM triage queue)
 =========================================================================
 New modules:

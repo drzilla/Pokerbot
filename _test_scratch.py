@@ -6566,6 +6566,111 @@ check('T-1233-SZ-INV: no item has call_amount_bb > effective stack without overj
       all(_no_overprice(_w) for _w in [_wl_sz1, _wl_sz2, _wl_sz3, _wl_pa1, _wl_pa2, _wl_pa3]), '')
 
 # ============================================================
+# v8.12.12 / Slice E.1 — report trust + source-truth cleanup (T-1234)
+# ============================================================
+# --- Objective A: analyst punt street/type label ---
+from gem_report_draft.sections_mistakes import _analyst_punt_street_label as _apsl
+check('T-1234-A-1: analyst street=preflop -> Preflop punt (not Postflop)',
+      _apsl({'verdict': 'III.1 Punt', 'street': 'preflop'}, None) == 'Preflop punt (analyst)', '')
+check('T-1234-A-2: analyst street=turn -> Postflop punt',
+      _apsl({'verdict': 'III.1 Punt', 'street': 'turn'}, None) == 'Postflop punt (analyst)', '')
+check('T-1234-A-3: preflop all-in hand (no street/spot) -> Preflop punt, not Postflop',
+      _apsl({'verdict': 'III.1 Punt'}, {'pf_allin': True, 'went_to_sd': True}) == 'Preflop punt (analyst)', '')
+check('T-1234-A-4: spot PF ALL-IN marker -> Preflop punt',
+      _apsl({'verdict': 'III.1 Punt', 'spot': 'BTN 40BB, PF ALL-IN, SD lost'}, None) == 'Preflop punt (analyst)', '')
+check('T-1234-A-5: legacy/unknown street degrades to neutral Punt (not Postflop)',
+      _apsl({'verdict': 'III.1 Punt'}, {'pf_allin': False}) == 'Punt (analyst)', '')
+_sm_src = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-1234-A-6: hardcoded "Postflop punt" fallback removed from the punt table',
+      "type_label = 'Postflop punt (analyst)'" not in _sm_src
+      and '_analyst_punt_street_label(cmt, h)' in _sm_src, '')
+
+# --- Objective B: neutral AUTO_ONLY / unreviewed large-loss labels ---
+from gem_report_draft.sections_financial import _neutral_unreviewed_large_loss_verdict as _nllv
+check('T-1234-B-1: top-of-range loss w/o verdict -> neutral status, no exculpatory verdict',
+      _nllv('top_of_range').startswith('⏳ awaiting analyst')
+      and 'showdown' in _nllv('top_of_range')
+      and '🪤' not in _nllv('top_of_range')
+      and 'vs top-of-range' not in _nllv('top_of_range'), _nllv('top_of_range'))
+check('T-1234-B-2: no signal/context -> plain "awaiting analyst review"',
+      _nllv(None) == '⏳ awaiting analyst review', _nllv(None))
+check('T-1234-B-3: auto-detected cooler -> auto-signal context, not a cooler verdict',
+      _nllv(None, auto_cooler=True).startswith('⏳ awaiting analyst')
+      and 'auto signal' in _nllv(None, auto_cooler=True)
+      and '❄️' not in _nllv(None, auto_cooler=True), _nllv(None, auto_cooler=True))
+_sf_src = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+_x13_src = open('gem_report_draft/sections_xiii.py', encoding='utf-8').read()
+check('T-1234-B-4: S1.3 no longer renders exculpatory variance/cooler as a verdict default',
+      '🎲 unclassified variance' not in _sf_src
+      and '🪤 vs top-of-range' not in _sf_src
+      and 'elif hid in i7_ids:' in _sf_src
+      and '_neutral_unreviewed_large_loss_verdict(' in _sf_src, '')
+check('T-1234-B-5: S17.6 large-loss audit neutralized the same way',
+      '🎲 unclassified variance' not in _x13_src
+      and '🪤 vs top-of-range' not in _x13_src
+      and 'elif hid in i7_ids_full:' in _x13_src, '')
+
+# --- Objective C: source_truth.price_engine provenance (no 'none' w/ a price) ---
+def _pe(_w, _hid):
+    return _w['items'][_hid]['source_truth']['price_engine']
+# reuse PA/SZ/DK fixtures built above
+check('T-1234-C-1: no item with a populated call_amount_bb has price_engine none',
+      all(not (it['decision_node'].get('call_amount_bb')
+               and it['source_truth']['price_engine'] in ('none', None))
+          for _w in [_wl_pa1, _wl_pa2, _wl_pa3, _wl_sz1, _wl_sz2, _wl_sz3,
+                     _wl_dk3, _wl_pol6]
+          for it in _w['items'].values()), '')
+check('T-1234-C-2: first-in open/fold -> price_engine not_applicable (never none)',
+      _pe(_wl_dk3, 'TM_DK3') == 'not_applicable', _pe(_wl_dk3, 'TM_DK3'))
+check('T-1234-C-3: ledger call-off -> action_ledger',
+      _pe(_wl_pa1, 'TM_PA1') == 'action_ledger', _pe(_wl_pa1, 'TM_PA1'))
+check('T-1234-C-4: capped overjam call-off -> sidepot_reconciled',
+      _pe(_wl_sz1, 'TM_SZ1') == 'sidepot_reconciled', _pe(_wl_sz1, 'TM_SZ1'))
+check('T-1234-C-5: unsafe multiway call-off -> unavailable + failure mode',
+      _pe(_wl_sz2, 'TM_SZ2') == 'unavailable'
+      and any('side-pot/overjam reconciliation' in f
+              for f in _wl_sz2['items']['TM_SZ2']['failure_modes']), _pe(_wl_sz2, 'TM_SZ2'))
+check('T-1234-C-6: first-in open-jam (no call price) -> not_applicable, not none',
+      _pe(_wl_sz3, 'TM_SZ3') == 'not_applicable', _pe(_wl_sz3, 'TM_SZ3'))
+_aw_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check('T-1234-C-7: price_engine driven by decision-node price_source (no static none)',
+      "src_truth['price_engine'] = dn['price_source']" in _aw_src
+      and "'price_source':" in _aw_src, '')
+
+# --- Objective D: analyst coverage/status clarity (banners + counts) ---
+from gem_report_data import compute_report_completeness as _crc12
+_cands_d = {'punts': [{'id': 'HD1'}], 'mistakes': [{'id': 'HD2'}]}
+_rc_auto = _crc12({'analyst_commentary': {}}, _cands_d)
+check('T-1234-D-1: no analyst -> AUTO_ONLY, all candidates awaiting',
+      _rc_auto['state'] == 'AUTO_ONLY' and _rc_auto['awaiting_candidates'] == 2
+      and _rc_auto['candidate_need'] == 2, str(_rc_auto))
+_rc_part = _crc12({'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'}}}, _cands_d)
+check('T-1234-D-2: partial -> reviewed/candidate/unreviewed counts + remaining bucket named',
+      _rc_part['state'] == 'ANALYST_PARTIAL' and _rc_part['reviewed_hands'] == 1
+      and _rc_part['candidate_need'] == 2 and _rc_part['awaiting_candidates'] == 1
+      and _rc_part['awaiting_by_bucket'].get('mistakes') == 1, str(_rc_part))
+_rc_done = _crc12({'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'},
+                   'HD2': {'verdict': 'III.5 Justified'}}}, _cands_d)
+check('T-1234-D-3: all candidates reviewed -> ANALYST_COMPLETE, none awaiting',
+      _rc_done['state'] == 'ANALYST_COMPLETE' and _rc_done['awaiting_candidates'] == 0
+      and not _rc_done['awaiting_by_bucket'], str(_rc_done))
+# --quick path: need-bucket persisted, awaiting recomputed without candidates
+_rd_q = {'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'}},
+         '_candidate_need_ids': ['HD1', 'HD2'],
+         '_candidate_need_bucket': {'HD1': 'punts', 'HD2': 'mistakes'}}
+_rc_q12 = _crc12(_rd_q, None)
+check('T-1234-D-4: --quick (no candidates) still names remaining bucket from persisted map',
+      _rc_q12['state'] == 'ANALYST_PARTIAL'
+      and _rc_q12['awaiting_by_bucket'].get('mistakes') == 1, str(_rc_q12))
+_tldr_src = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+check('T-1234-D-5: TLDR banner covers all three states with counts + remaining buckets',
+      "_rc_state == 'AUTO_ONLY'" in _tldr_src
+      and "_rc_state == 'ANALYST_PARTIAL'" in _tldr_src
+      and "_rc_state == 'ANALYST_COMPLETE'" in _tldr_src
+      and "candidate_need" in _tldr_src and "_awaiting_buckets_phrase" in _tldr_src
+      and "INCOMPLETE" in _tldr_src, '')
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')

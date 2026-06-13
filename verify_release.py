@@ -10,7 +10,7 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.12.11"   # Slice E: analyst_worklist_v1 (merged to main)
+VERSION = "v8.12.12-preview"   # Slice E.1: report trust + source-truth (GPT review)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
@@ -20,25 +20,25 @@ MANIFEST = {
     "gem_report_draft/sections_iv_xii.py":  ("487cbb4bb9d37f6b4c3e993bbe3d92f3366f0d02b427f9f691e240837c311fe2", 229064, "v8.12.0: S5.7 language fix"),
     "gem_report_draft/_helpers.py":         ("47a3008eadb90ca3f0ce8931bbd901086e122f3c764a0b1a16ad43e71978d0c1", 53961, "v8.12.8 QA-GPT: pot ledger increment fix"),
     "gem_report_draft/_hand_grid.py":      ("fe26f55dd92828e405238c3183bd0279745febf8c8281d2da59e2e9401da59a3", 70098, "v8.12.8 QA-GPT: grid pot deltas + eff-call cap"),
-    "gem_report_draft/sections_xiii.py":    ("0e6321ba1ce758c98e8d28a51dc4e9173a55b4c42592f032a51d63a5b3a289fe", 66472, "v8.12.2: nowrap revert (md whitelist)"),
-    "gem_report_draft/sections_mistakes.py": ("1f790589a19e8e7a5e6439d6bebf72bdf5234cd2d51feb09b976a2bda4393594", 122662, "v8.12.9: roman strip"),
+    "gem_report_draft/sections_xiii.py":    ("c13dc428fbcf83e62583dfb5a7b26d0f9b1fe9d46c3bdceda293c92aabe8e092", 66496, "v8.12.2: nowrap revert (md whitelist)"),
+    "gem_report_draft/sections_mistakes.py": ("d3ee3f757cc1f86976b94fdca07ff28433df6f8349d79d8f921466068e4eaf20", 123681, "v8.12.9: roman strip"),
     "gem_report_draft/_state.py":           ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/sections_issue_explorer.py": ("aea126a0aa3682d366b58170e3370a02951f026157b5925f42cf11b2a7ed0be8", 49493, "v8.9.4: IE mobile cards/bottom-sheet + BUG-3 raw string"),
     "gem_parser.py":                        ("81a255eddf4b5065c9b38d92c3e255571e455bf220d0171a1cb79485362a7735", 103111, "v8.12.0a B150: table_size = dealt players (+table_capacity)"),
     "gem_analyst_villain.py":               ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
 
     # --- New in v8.11.0b ---
-    "gem_report_data.py":                   ("fbda46b1e5364d7a9b7a532d949d09af0b174ff9175c2078bc84fb85182d8055", 219150, "v8.12.10: completeness owner + recon wording"),
+    "gem_report_data.py":                   ("f6056ef61f391dc778cbfb1659eb0bdbd15a003d24a5202af6dad50746e08bea", 219778, "v8.12.10: completeness owner + recon wording"),
     "gem_pot_odds.py":                      ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
 
     # --- Updated in v8.8.9 + v8.9.0 ---
     "gem_analyzer.py":                      ("9f12e6ef3c396ae89a0fda7280044bc615d13a0c8c5d6836c1b35ad87c3bf2bf", 563708, "v8.12.11: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("92692b7051332caa5c15263d153026b8d31863f91438fd03c21635e56a92cfb8", 329787, "v8.12.11: 921 tests (+T-1233 Slice E)"),
-    "GEM_Changelog.txt":                    ("0737f550debe0526e876ade2da7c0db5aa21826de7fd5b2065755526d884e6ca", 40744, "changelog through v8.12.11"),
+    "_test_scratch.py":                     ("e385c5f778345c1225933f487a540a82d5d6bb4a228d79127658a257224f8164", 336935, "v8.12.11: 921 tests (+T-1233 Slice E)"),
+    "GEM_Changelog.txt":                    ("7a5716aaaa92767e4121aaa92e7ccc36772557a6e96daeee54de690726987f86", 43304, "changelog through v8.12.11"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
-    "gem_report_draft/sections_financial.py": ("573b2c7f26f498f13cbb139de47ca83b621616614862971ace184a916bd86b2b", 127137, "v8.12.2: nowrap revert (md whitelist)"),
+    "gem_report_draft/sections_financial.py": ("1382e637f33297a8d1a10da4586735751a1f6c78b9d57fec421839cc4d68943e", 128029, "v8.12.2: nowrap revert (md whitelist)"),
     "gem_report_draft/sections_xiv.py":     ("860286a25f8b2e2d3cffb23e4c613849aefb1a7d8079e93dfeb45febe8124977", 170404, "v8.12.9: eff disclosure + no-replay reason"),
 
     # --- New in v8.9.0 ---
@@ -59,7 +59,7 @@ MANIFEST = {
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
 
     # --- New in v8.12.0 ---
-    "SESSION_START_STEP0_package_rebuild.txt": ("7e6bb945efe9063e8e184897bca9ef861d0d2a2d06335ea55448d935a7c54350", 4076, "v8.12.8: + phevaluator install"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("20521360d844bbb4e3e1ce43b977065cc70973642cae873096ecfa0114b1be1a", 4168, "v8.12.12: 38/38 verify expectation"),
     "gem_pko_research.py":           ("432107e7475ed2e1897c50822e26f4df4c88a4e5bc7289edbb9de95ae74eca66", 40497, "v8.12.9: partial-coverage seat naming"),
 
     # --- New in v8.12.0 ---
@@ -68,12 +68,12 @@ MANIFEST = {
     # --- New in v8.9.9 ---
     "gem_coverage_builder.py":              ("2580723a3f818fe571db6ba0b2f08ebacab574b6e521011b7d0da4dd5bc9146f", 121455, "v8.12.9: result-equity luck label"),
     # --- New in v8.12.4 ---
-    "gem_report_draft/tldr.py": ("96ffb4a962b3b0195a3cd3d864dd9482a3b03a418de8357f70f2631f86b90727", 136374, "v8.12.10: completeness/summary banners"),
+    "gem_report_draft/tldr.py": ("c8025302c2401fd00c2731756640c96615b76e6de57da56dfdbdfdfc63faa31f", 138074, "v8.12.10: completeness/summary banners"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
     # --- New in v8.12.11 (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("263d4bf3066873c25f00c2a51d86977e0cf4f87a03d1a52b74e4eefec0b64289", 43334, "v8.12.11: analyst worklist triage engine (proposals)"),
+    "gem_analyst_worklist.py": ("0e202ae536a0c911880d719b7aaf52064cd95e4e416568ac52fc2e27832c2995", 44869, "v8.12.11: analyst worklist triage engine (proposals)"),
     "gem_chart_labels.py":     ("bf6da5586e9ef444f52a8710b9ac5e710355ee335b4441f04879a6674db4a389", 3418, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
 }
 
@@ -894,6 +894,20 @@ CANARIES = [
      "v8.12.11: chart-id -> human label registry"),
     ("gem_analyzer.py", "build_analyst_worklist",
      "v8.12.11: worklist emit hook wired in pipeline"),
+
+    # v8.12.12 / Slice E.1 — report trust + source-truth cleanup
+    ("gem_report_draft/sections_mistakes.py", "def _analyst_punt_street_label(",
+     "v8.12.12 Obj-A: preflop-vs-postflop punt street label"),
+    ("gem_report_draft/sections_financial.py", "def _neutral_unreviewed_large_loss_verdict(",
+     "v8.12.12 Obj-B: neutral AUTO_ONLY/unreviewed large-loss labels"),
+    ("gem_report_draft/sections_financial.py", "elif hid in i7_ids:",
+     "v8.12.12 Obj-B: only analyst I.7 renders as a cooler verdict"),
+    ("gem_analyst_worklist.py", "'price_source':",
+     "v8.12.12 Obj-C: decision-node price provenance"),
+    ("gem_report_data.py", "'awaiting_by_bucket'",
+     "v8.12.12 Obj-D: per-bucket unreviewed breakdown"),
+    ("gem_report_draft/tldr.py", "ANALYST_COMPLETE",
+     "v8.12.12 Obj-D: complete-coverage banner"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).
@@ -917,6 +931,13 @@ ANTI_CANARIES = [
     # v8.12.8 QA3: the thumbs-down "Good move" pill must stay dead
     ("gem_report_draft/_hand_grid.py", "👎<sup>",
      "v8.12.8 QA3: positive marker is thumbs-down again"),
+    # v8.12.12 Obj-B: the exculpatory "unclassified variance" verdict default
+    # must stay retired in BOTH large-loss audits (an unreviewed loss is not
+    # graded "variance" as if it were a decision verdict).
+    ("gem_report_draft/sections_financial.py", "🎲 unclassified variance",
+     "v8.12.12 Obj-B: exculpatory variance verdict resurfaced in S1.3 large-loss"),
+    ("gem_report_draft/sections_xiii.py", "🎲 unclassified variance",
+     "v8.12.12 Obj-B: exculpatory variance verdict resurfaced in S17.6 large-loss"),
     ("gem_villain_intel.py", "+ ('s' if suited else 'o')",
      "v8.12.9: JJo-producing label builder resurfaced"),
     # v8.12.11 GPT-3: the old broad auto_clear gate must stay retired.

@@ -2142,6 +2142,28 @@ def _emit_deep_runs(doc, s, hands):
         doc.w("")
 
 
+def _neutral_unreviewed_large_loss_verdict(voc, auto_cooler=False, auto_label=None):
+    """v8.12.12 Obj-B: a large-loss hand with NO analyst verdict must not read
+    as an exculpatory decision verdict (cooler / vs top-of-range / variance).
+    Lead with the review STATUS and attach the auto-detector signal or the
+    showdown result context SEPARATELY, so an unreviewed punt is never shown as
+    justified / cooler / variance. (Reverses BUG-7's variance-as-default for
+    unreviewed rows; analyst-confirmed verdicts are handled before this.)"""
+    _ctx = {
+        'top_of_range': 'ran into top of range',
+        'suckout': 'lost as favourite (suckout)',
+        'lost_flip': 'lost a flip',
+        'semi_bluff_cooler': 'all-in variance',
+    }
+    if voc and voc in _ctx:
+        return '⏳ awaiting analyst — showdown: ' + _ctx[voc]
+    if auto_cooler:
+        return '⏳ awaiting analyst — auto signal: cooler-shape'
+    if auto_label:
+        return '⏳ awaiting analyst — auto signal: ' + str(auto_label)
+    return '⏳ awaiting analyst review'
+
+
 def _emit_sub_large_loss_audit(doc, s, rd, hands):
     """Extracted from S1: sec-1-3 Large-Loss Audit. Moves to Top Hands (S2)."""
     # I.3 Bust-Hand Audit (with _hand_ref everywhere)
@@ -2261,35 +2283,23 @@ def _emit_sub_large_loss_audit(doc, s, rd, hands):
                 verdict = f"📖 read-dep — {_xref('sec-13-2', label='S13.2')}"
             elif hid in iii5_ids:
                 verdict = f"👍 justified — {_xref('sec-13-3', label='S13.3')}"
-            elif hid in cooler_ids:
+            elif hid in i7_ids:
+                # analyst-CONFIRMED cooler (I.7) — a real decision verdict.
                 verdict = f"❄️ cooler — {_xref('sec-1-7', label='S1.7')}"
-            elif hid in (rd.get('auto_resolved_ids') or []):
-                # Issue 6 + auto-resolve expansion (Ron 2026-05-30):
-                # chart-standard, pf-variance, cooler-detected
-                _ar_label = (rd.get('auto_resolved_labels') or {}).get(hid)
-                verdict = _ar_label or "✅ auto-resolved"
             else:
-                # Issue 4: fall back to variance-outcome classifier before
-                # showing "awaiting analyst" — most busts are pure variance
-                # already classified by the equity engine.
+                # v8.12.12 Obj-B: NO analyst verdict. Never imply justified /
+                # cooler / variance for an unreviewed large loss — lead with
+                # review status and attach the auto signal / showdown result
+                # context separately (an auto-detected cooler is a SIGNAL, not
+                # a verdict). Reverses BUG-7's variance-as-verdict default.
                 _voc_raw = rd.get('variance_outcomes', {}).get(hid)
                 _voc = _voc_raw['outcome'] if isinstance(_voc_raw, dict) else _voc_raw
-                _voc_map = {
-                    'lost_flip': '🪙 lost flip',
-                    'suckout': '🤢 suckout',
-                    'top_of_range': '🪤 vs top-of-range',
-                    'semi_bluff_cooler': '🎲 variance',
-                }
-                if _voc and _voc in _voc_map:
-                    verdict = _voc_map[_voc]
-                else:
-                    # BUG-7 (Ron review 2026-05-31): suppress "awaiting analyst"
-                    # in published reports. A hand that was not surfaced as a
-                    # candidate but renders a verdict cell should show a neutral
-                    # variance label, not a stub that looks like the build is
-                    # broken. The coverage check (gem_report_lint) catches any
-                    # genuine gaps.
-                    verdict = "🎲 unclassified variance"
+                _auto_cooler = hid in cooler_ids          # auto-only (i7 handled above)
+                _auto_label = ((rd.get('auto_resolved_labels') or {}).get(hid)
+                               if hid in (rd.get('auto_resolved_ids') or []) else None)
+                verdict = _neutral_unreviewed_large_loss_verdict(
+                    _voc, _auto_cooler, _auto_label)
+                any_awaiting = True
 
             cards = _cards_str_to_pills(''.join(h.get('cards', [])))
             netbb = h.get('net_bb', 0)
@@ -2323,10 +2333,14 @@ def _emit_sub_large_loss_audit(doc, s, rd, hands):
             # B187 (Ron 2026-05-25): only surface the awaiting-marker note when
             # a row actually carries it — otherwise the footnote reads as a
             # phantom "pending analyst" on a fully-resolved table.
+            # v8.12.12 Obj-B: separate decision verdict from auto signal /
+            # showdown context, and never present an unreviewed loss as luck.
             doc.w("")
-            doc.w("*Hands marked ⚠️ awaiting analyst weren't classified into "
-                  "I.7/III.0/III.4/III.5 by the analyst step — ask Claude to fill "
-                  "them in.*")
+            doc.w("*⏳ awaiting analyst = no decision verdict yet for that hand. "
+                  "Any \"auto signal\" (e.g. cooler-shape) or \"showdown\" note "
+                  "is detector/result context, NOT a decision-quality verdict — "
+                  "an unreviewed loss is not 'unlucky' or 'justified' until the "
+                  "analyst grades it. Ask Claude to classify these.*")
     doc.w("")
 
     # ---- BUSTOUT TABLE (under large-loss audit) ----

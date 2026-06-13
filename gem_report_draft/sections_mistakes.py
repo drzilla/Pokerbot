@@ -33,6 +33,28 @@ from gem_report_draft._blocks import (leak_bucket_overview_block,
 import gem_made_hands as mh
 import gem_coaching as _coach
 
+
+def _analyst_punt_street_label(cmt, h):
+    """v8.12.12 Obj-A: street-aware Type label for an analyst III.1 punt that
+    has no `spot` text. Reflects the REVIEWED decision street, NOT the final
+    all-in / showdown street. Order of trust: analyst `street` -> an explicit
+    'PF ALL-IN'/'preflop' marker in the spot -> a preflop all-in (the all-in
+    WAS preflop, so this is not final-street inference). Unknown -> neutral
+    'Punt (analyst)' so a preflop punt is never mislabelled 'Postflop'."""
+    cmt = cmt if isinstance(cmt, dict) else {}
+    st = (cmt.get('street') or '').strip().lower()
+    if st.startswith('pre') or st == 'pf':
+        return 'Preflop punt (analyst)'
+    if st in ('flop', 'turn', 'river', 'postflop'):
+        return 'Postflop punt (analyst)'
+    spot = (cmt.get('spot') or '').upper()
+    if 'PF ALL-IN' in spot or 'PREFLOP' in spot:
+        return 'Preflop punt (analyst)'
+    if h and h.get('pf_allin'):
+        return 'Preflop punt (analyst)'
+    return 'Punt (analyst)'
+
+
 def _emit_mental_game(doc, s, rd, hands):
     """Mental game analysis derived from session metrics."""
     # B55 (v7.47, Ron 2026-05-12): use analyst-overridden punt count.
@@ -442,7 +464,7 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
                     type_label = (spot.split('. ')[0][:80]
                                   if '. ' in spot else spot[:80])
                 else:
-                    type_label = 'Postflop punt (analyst)'
+                    type_label = _analyst_punt_street_label(cmt, h)
                 ev_str = (f"{h.get('net_bb', 0):+.1f} BB" if h
                           else (ph.get('ev', '—') if ph else '—'))
                 source = 'analyst'

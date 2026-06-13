@@ -127,6 +127,42 @@ def _hero_preflop_action(hand):
     return ''
 
 
+def _hero_faces_preflop_raise(hand):
+    """v8.12.11 (GPT review #3): True iff a voluntary raise/all-in occurred
+    BEFORE Hero's first preflop action — i.e. Hero is FACING a price (BB
+    defend, cold-call, a re-jam spot, calling a jam). False = Hero is first-in
+    (open / fold-first-in / open-jam) and faces NO call amount. None if there
+    is no ledger to read (caller falls back to the first_in field)."""
+    if not hand:
+        return None
+    hero = hand.get('hero', 'Hero')
+    raised = False
+    for a in (hand.get('action_ledger') or []):
+        if a.get('street') != 'preflop' or a.get('action') == 'posts':
+            continue
+        if a.get('player') == hero:
+            return raised            # decision reached
+        if a.get('action') in ('raises', 'bets') or a.get('is_all_in'):
+            raised = True
+    return raised
+
+
+def _hero_preflop_call_amount(hand):
+    """The BB amount of Hero's preflop CALL (the price Hero actually faced),
+    from the ledger. None if Hero's first preflop action was not a call."""
+    if not hand:
+        return None
+    hero = hand.get('hero', 'Hero')
+    for a in (hand.get('action_ledger') or []):
+        if a.get('street') != 'preflop' or a.get('action') == 'posts':
+            continue
+        if a.get('player') == hero:
+            if a.get('action') == 'calls':
+                return _f(a.get('amount_bb')) or None
+            return None
+    return None
+
+
 def _line_from_ledger(hand, decision_street, stop_after_hero=False):
     """v8.12.11 (GPT-5): build a real compact action line from the hand's
     action_ledger up to & including the decision street, so the analyst can
@@ -240,18 +276,30 @@ def _decision_node(c, kind=None, dev=None, hand=None):
     # K6s first-in-open bug had eff_stack_at_decision_bb overwritten to 12BB).
     eff = _preflop_effective_bb(c, dev) if kind == 'preflop_deviation' \
         else _decision_effective_bb(c)
-    call_bb = (_f(stblock.get('hero_call_amount_bb'))
-               or _f(c.get('hero_committed_bb')) or None)
-    # v8.12.11 (GPT-4): a call can never exceed Hero's effective stack. When
-    # the source value is the uncapped villain bet (> eff) -> null it + flag.
-    # A MISSING call price is only a failure for call-type decisions; a
-    # preflop open/re-jam/fold deviation simply has no call to price.
+    # --- decision price (GPT review #3: kind/facing aware) ----------------
+    # A call price exists ONLY when Hero faces a prior bet/raise. A first-in
+    # open / fold-first-in / open-jam has NO call amount -> null + N/A (not a
+    # failure). The K6s bug populated 0.1; wide opens leaked the open/limp or a
+    # LATER opponent all-in into the price field.
+    faces_raise = _hero_faces_preflop_raise(hand) if preflop else None
+    if preflop and faces_raise is None:
+        faces_raise = not bool(c.get('first_in'))   # no ledger: use first_in
     price_unavailable = False
-    if call_bb and eff and call_bb > eff * 1.05:
+    price_not_applicable = False
+    if preflop and not faces_raise:
         call_bb = None
-        price_unavailable = True
-    elif not call_bb and not preflop:
-        price_unavailable = True
+        price_not_applicable = True
+    else:
+        call_bb = (_f(stblock.get('hero_call_amount_bb'))
+                   or (_hero_preflop_call_amount(hand) if preflop else None)
+                   or _f(c.get('hero_committed_bb')) or None)
+        # v8.12.11 (GPT-4): a call can never exceed Hero's effective stack;
+        # an uncapped value (> eff) means the price is unknown -> null + flag.
+        if call_bb and eff and call_bb > eff * 1.05:
+            call_bb = None
+            price_unavailable = True
+        elif not call_bb and not preflop:
+            price_unavailable = True
     pos = c.get('position') or ''
     closing = bool(pos == 'BB' and not c.get('hero_3bet'))
     if preflop and hand:
@@ -266,6 +314,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         'hero_actual_action': hero_act,
         'call_amount_bb': round(call_bb, 1) if call_bb else None,
         'price_unavailable': price_unavailable,
+        'price_not_applicable': price_not_applicable,
         'effective_bb_vs_relevant_villain': eff,
         'players_behind': None,           # needs full ledger; left explicit
         'closing_action': closing,
@@ -438,18 +487,22 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
     # "Best-play-only" = screened as a clean play with no error/cooler flag.
     bestplay_only = (sources == ['bestplay_screening'])
     is_premium = _hand_label(c.get('cards')) in _PREMIUM_GETIN
+    # safe chart label (GPT polish): never emit empty parens / dangling text.
+    _lbl = (rng.get('display_label') if rng else '') or ''
+    _lbl_txt = _lbl or 'your range chart'          # for "... for X" / "core X"
+    _lbl_paren = (' (%s)' % _lbl) if _lbl else ''   # for "(X)" suffixes
 
     # --- policy 1: marginal opens are NOT errors -------------------------
     if rng and rng['is_marginal'] and rng['hero_hand_status'] in (
             'inside_extended', 'flagged'):
         grp = ('missed_%s_extended_open' % pos
-               if 'open' in (rng['display_label'] or '').lower()
+               if 'open' in _lbl.lower()
                else 'marginal_preflop')
         return ('aggregate_only', 'Aggregate only', 'low', 'aggregate_only',
                 ['bottom-of-range / extended hand'],
-                f"{cards} is bottom-of-range ({rng['display_label']}); "
+                f"{cards} is bottom-of-range{_lbl_paren}; "
                 "confirm it is NOT graded an error.",
-                f"Marginal open/defend ({rng['display_label']}) — bottom-5% "
+                f"Marginal open/defend{_lbl_paren} — bottom-5% "
                 "buffer applied; not an error.",
                 grp, 18)
 
@@ -513,9 +566,9 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
     if rng and rng['hero_hand_status'] == 'outside_core':
         return ('review_if_time', 'Review required', 'medium',
                 'analyst_required', ['pot odds / bounty may justify'],
-                f"Is {cards} genuinely too wide for {rng['display_label']}, "
+                f"Is {cards} genuinely too wide for {_lbl_txt}, "
                 "or do price/bounty/reads justify it?",
-                f"Possible too-wide defend/open ({rng['display_label']}).",
+                f"Possible too-wide defend/open{_lbl_paren}.",
                 'wide_%s' % pos, 40)
     if rng and rng['hero_hand_status'] == 'inside_core':
         dtype = rng.get('dev_type') or ''
@@ -529,9 +582,9 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
             did = "passed up the spot"
         return ('must_review', 'Mistake', 'medium', 'analyst_required',
                 ['ICM/satellite may excuse the decision'],
-                f"{cards} is inside the core {rng['display_label']}; Hero "
+                f"{cards} is inside the core {_lbl_txt}; Hero "
                 f"{did} preflop — confirm this is a real leak, not ICM-driven.",
-                f"Missed core spot ({rng['display_label']}).",
+                f"Missed core spot{_lbl_paren}.",
                 'missed_core_%s' % pos, 60)
 
     # --- coolers: justified variance, low learning -----------------------
@@ -606,6 +659,10 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         bnt = _bounty_context(c, pko)
         action_line = _canonical_action_line(c, hand, kind)
         src_truth = _source_truth(c, pko, dev)
+        # GPT review #3: a first-in decision has no price -> the price engine is
+        # not_applicable (so the reader never treats null as a missing price).
+        if dn.get('price_not_applicable'):
+            src_truth['price_engine'] = 'not_applicable'
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
                            sources_by_id.get(hid, []), src_truth, action_line)

@@ -6086,6 +6086,10 @@ check('T-1233-LABEL-1: chart ids resolve to human labels, no raw leak',
       and _cdl33('OPEN_20-40BB_SB') == 'SB open, 20-40BB'
       and _cdl33('PUSH_10BB_CO') == 'CO open-shove, 10BB'
       and 'REJAM_' not in _cdl33('REJAM_XXvsYY_30BB'), '')
+check('T-1233-LABEL-2: UTG+1/UTG+2 positions format (no lowercase fallback)',
+      _cdl33('OPEN_100BB_UTG+1') == 'UTG+1 open, ~100BB'
+      and _cdl33('PUSH_12BB_UTG+2') == 'UTG+2 open-shove, 12BB'
+      and _cdl33('') == '', _cdl33('OPEN_100BB_UTG+1'))
 
 import gem_analyst_worklist as _awl
 check('T-1233-HAND-1: _hand_label canonical (list+str), pairs bare',
@@ -6337,6 +6341,78 @@ check('T-1233-DK-5: BB defend preflop item does not inherit river/fold context',
       and _dk5['decision_node']['hero_actual_action'] == 'folds'
       and _dk5['canonical_action_line'] == 'BTN raises 2.2 | Hero folds',
       _dk5['canonical_action_line'] + ' / ' + _dk5['decision_node']['hero_actual_action'])
+
+# --- v8.12.11 GPT review #3 pins: decision price is kind/facing aware ---
+# A first-in open/fold/jam has NO call price. call_amount_bb must be null with
+# price_not_applicable=true (NOT price_unavailable). The K6s/_dk3 fixture also
+# proves a later opponent all-in (SB shoves 18.6 after Hero folds) is not bled
+# into the price field.
+check('T-1233-PNA-1: missed-open first-in fold -> call_amount_bb None + N/A',
+      _dk3['decision_node']['call_amount_bb'] is None
+      and _dk3['decision_node']['price_not_applicable'] is True
+      and _dk3['decision_node']['price_unavailable'] is False, str(_dk3['decision_node']))
+check('T-1233-PNA-6: first-in deviation does not inherit a later all-in as price',
+      _dk3['decision_node']['call_amount_bb'] is None
+      and _dk3['source_truth']['price_engine'] == 'not_applicable',
+      str(_dk3['source_truth']['price_engine']))
+# wide-open first-in raise: a bogus stblock call price MUST be ignored.
+_pna2_dev = [{'id': 'TM_PNA2', 'type': 'Wide Open', 'cards': 'A7s', 'pos': 'CO',
+              'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR', 'stack_bb': 100}]
+_pna2_hand = {'id': 'TM_PNA2', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'UTG', 'position': 'UTG', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 2.2}]}
+_pna2_cand = _mk_cand(id='TM_PNA2', cards='Ah7h', position='CO', first_in=True,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 3.4}}})  # bogus price -> ignored
+_wl_pna2 = _awl.build_analyst_worklist({'mistakes': [_pna2_cand]},
+    {'preflop_deviations': _pna2_dev}, {}, [_pna2_hand], '20260101')
+_pna2 = _wl_pna2['items']['TM_PNA2']['decision_node']
+check('T-1233-PNA-2: wide-open first-in raise -> call_amount_bb None (ignores bogus price)',
+      _pna2['call_amount_bb'] is None and _pna2['price_not_applicable'] is True, str(_pna2))
+# first-in open jam: still no call price.
+_pna3_dev = [{'id': 'TM_PNA3', 'type': 'Wide Open', 'cards': 'A4o', 'pos': 'BTN',
+              'chart': 'PUSH_15BB_BTN', 'confidence': 'CLEAR', 'stack_bb': 15}]
+_pna3_hand = {'id': 'TM_PNA3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'raises', 'amount_bb': 15.0, 'is_all_in': True}]}
+_pna3_cand = _mk_cand(id='TM_PNA3', cards='Ad4c', position='BTN', pf_allin=True, first_in=True,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 7.9}}})  # bogus price -> ignored
+_wl_pna3 = _awl.build_analyst_worklist({'bestplay_screening': [_pna3_cand]},
+    {'preflop_deviations': _pna3_dev}, {}, [_pna3_hand], '20260101')
+_pna3 = _wl_pna3['items']['TM_PNA3']['decision_node']
+check('T-1233-PNA-3: first-in open-jam -> call_amount_bb None',
+      _pna3['call_amount_bb'] is None and _pna3['price_not_applicable'] is True, str(_pna3))
+# BB defend where Hero CALLS keeps the real call amount (a facing decision).
+_pna4_dev = [{'id': 'TM_PNA4', 'type': 'Wide', 'cards': 'K9o', 'pos': 'BB',
+              'chart': 'OPEN_20-40BB_BB', 'confidence': 'CLEAR',
+              'opener_position': 'BTN', 'stack_bb': 40}]
+_pna4_hand = {'id': 'TM_PNA4', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.5},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 2.5}]}
+_pna4_cand = _mk_cand(id='TM_PNA4', cards='Kh9d', position='BB', first_in=False,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pna4 = _awl.build_analyst_worklist({'mistakes': [_pna4_cand]},
+    {'preflop_deviations': _pna4_dev}, {}, [_pna4_hand], '20260101')
+_pna4 = _wl_pna4['items']['TM_PNA4']['decision_node']
+check('T-1233-PNA-4: BB defend (Hero calls) keeps real call_amount_bb',
+      _pna4['call_amount_bb'] == 2.5 and _pna4['price_not_applicable'] is False, str(_pna4))
+# missed rejam where Hero called instead keeps the real call amount (facing).
+check('T-1233-PNA-5: missed-rejam (Hero called) keeps real call amount',
+      _dk['decision_node']['call_amount_bb'] == 2.2
+      and _dk['decision_node']['price_not_applicable'] is False,
+      str(_dk['decision_node']['call_amount_bb']))
+# polish: an empty/unmapped chart label must not emit "()" or dangling text.
+_pol6_dev = [{'id': 'TM_POL6', 'type': 'Missed Open', 'cards': '77', 'pos': 'CO',
+              'chart': '', 'confidence': 'MARGINAL'}]
+_pol6_cand = _mk_cand(id='TM_POL6', cards='7h7s', position='CO', first_in=True,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pol6 = _awl.build_analyst_worklist({'mistakes': [_pol6_cand]},
+    {'preflop_deviations': _pol6_dev}, {}, [], '20260101')
+_pol6 = _wl_pol6['items']['TM_POL6']
+check('T-1233-POL-6: empty chart label -> no empty parens / dangling text',
+      '()' not in _pol6['reviewer_question'] and '()' not in _pol6['why_review']
+      and '( )' not in _pol6['why_review'], _pol6['reviewer_question'])
 
 # ============================================================
 # SUMMARY

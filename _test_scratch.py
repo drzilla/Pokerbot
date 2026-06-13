@@ -6079,6 +6079,492 @@ check('T-1232-BANNER-1: TLDR emits AUTO_ONLY + no-summary banners',
       'AUTO-ONLY REPORT' in _tldr32
       and 'No tournament game-summary files found' in _tldr32, '')
 
+# --- v8.12.11 pins (Slice E: analyst_worklist_v1) ---
+from gem_chart_labels import chart_display_label as _cdl33
+check('T-1233-LABEL-1: chart ids resolve to human labels, no raw leak',
+      _cdl33('REJAM_SBvsHJ') == 'SB re-jam vs HJ open'
+      and _cdl33('OPEN_20-40BB_SB') == 'SB open, 20-40BB'
+      and _cdl33('PUSH_10BB_CO') == 'CO open-shove, 10BB'
+      and 'REJAM_' not in _cdl33('REJAM_XXvsYY_30BB'), '')
+check('T-1233-LABEL-2: UTG+1/UTG+2 positions format (no lowercase fallback)',
+      _cdl33('OPEN_100BB_UTG+1') == 'UTG+1 open, ~100BB'
+      and _cdl33('PUSH_12BB_UTG+2') == 'UTG+2 open-shove, 12BB'
+      and _cdl33('') == '', _cdl33('OPEN_100BB_UTG+1'))
+
+import gem_analyst_worklist as _awl
+check('T-1233-HAND-1: _hand_label canonical (list+str), pairs bare',
+      _awl._hand_label('4hAs') == 'A4o'
+      and _awl._hand_label(['Jc','Jd']) == 'JJ'
+      and _awl._hand_label('TdAd') == 'ATs', '')
+
+def _mk_cand(**kw):
+    base = {'id': 'TM1', 'cards': kw.pop('cards', 'AhKs'), 'position': 'CO',
+            'format': 'BOUNTY', 'tournament_phase': 'mid', 'action_summary': 'x',
+            'decision_math': {'key_decision_street': 'preflop', 'streets': {}}}
+    base.update(kw); return base
+
+# marginal open NEVER must_review (bottom-5% policy)
+_st = {'preflop_deviations': [
+    {'id': 'TM_MARG', 'type': 'Missed Open', 'cards': 'K6s', 'pos': 'CO',
+     'chart': 'OPEN_100BB_CO', 'confidence': 'MARGINAL'},
+    {'id': 'TM_CORE', 'type': 'Missed Open', 'cards': 'AQo', 'pos': 'CO',
+     'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR'}]}
+_cands = {'mistakes': [_mk_cand(id='TM_MARG', cards='K6s'),
+                       _mk_cand(id='TM_CORE', cards='AhQs')]}
+_wl = _awl.build_analyst_worklist(_cands, _st, {}, [], '20260101')
+check('T-1233-POL-1: marginal open routes aggregate_only, NEVER must_review',
+      _wl['items']['TM_MARG']['bucket'] == 'aggregate_only'
+      and _wl['items']['TM_MARG']['range_membership']['bottom_5pct_buffer_applied'] is True, str(_wl['items']['TM_MARG']['bucket']))
+check('T-1233-POL-2: CLEAR core miss routes must_review',
+      _wl['items']['TM_CORE']['bucket'] == 'must_review', str(_wl['items']['TM_CORE']['bucket']))
+
+# revealed-equity is luck-only, never the basis
+_cand_allin = _mk_cand(id='TM_AI', cards='7h7s', position='BB', pf_allin=True,
+                       jammer_position='CO', jammer_stack_bb=19.0,
+                       eff_stack_at_decision_bb=19.0,
+                       hero_realized_eq_at_allin=0.0,
+                       decision_math={'key_decision_street': 'preflop',
+                       'streets': {'preflop': {'required_equity': 0.48,
+                       'hero_equity_vs_range': 0.52, 'hero_call_amount_bb': 17.0}}})
+_wl2 = _awl.build_analyst_worklist({'all_in_review': [_cand_allin]}, {}, {}, [], '20260101')
+_ai = _wl2['items']['TM_AI']
+check('T-1233-POL-3: revealed equity labeled luck-only, not the basis',
+      any('luck only' in e for e in _ai['evidence'])
+      and 'Do not use the revealed hand' in _ai['reviewer_question'], str(_ai['evidence']))
+check('T-1233-POL-4: decision-effective stack vs relevant villain (19, not nominal)',
+      _ai['decision_node']['effective_bb_vs_relevant_villain'] == 19.0, '')
+
+# tiny PKO call Hero can collect -> auto_clear (call-any-two protection)
+_cand_tiny = _mk_cand(id='TM_TINY', cards='9h2d', position='BTN', pf_allin=True,
+                      jammer_position='SB', jammer_stack_bb=12.0,
+                      eff_stack_at_decision_bb=80.0, bounty_discount_pp=8.0,
+                      decision_math={'key_decision_street': 'preflop',
+                      'streets': {'preflop': {'hero_call_amount_bb': 1.0}}})
+_rd_tiny = {'pko_research': {'by_hand': {'TM_TINY': {'enabled': True,
+            'can_collect_bounty': True, 'coverage_label': 'covers SB',
+            'bounty_value_bb_est': 4.0}}}}
+_wl3 = _awl.build_analyst_worklist({'bestplay_screening': [_cand_tiny]}, {}, _rd_tiny, [], '20260101')
+check('T-1233-POL-5: tiny collectible PKO call -> auto_clear (not a punt)',
+      _wl3['items']['TM_TINY']['bucket'] == 'auto_clear'
+      and _wl3['items']['TM_TINY']['bounty_context']['hero_covers_relevant_villain'] is True, str(_wl3['items']['TM_TINY']['bucket']))
+
+# schema: all 8 additions + proposals (never final verdicts) + buckets valid
+check('T-1233-SCHEMA-1: all 8 additions + review_outcome unreviewed + valid bucket',
+      all(all(k in it for k in ('canonical_action_line','decision_node',
+          'range_membership','bounty_context','source_truth','llm_prompt_hint',
+          'dedupe_group','review_outcome'))
+          and it['review_outcome']['status'] == 'unreviewed'
+          and it['bucket'] in _awl.BUCKETS
+          and it['finality'] in ('auto_clear','analyst_required','aggregate_only')
+          for it in _wl2['items'].values()), '')
+check('T-1233-SCHEMA-2: no Roman numerals in any proposal/why text',
+      not any(__import__('re').search(r'[IVX]+\.\d', it['auto_proposal'] + it['why_review'])
+              for it in _wl['items'].values()), '')
+_ga_1233 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-1233-EMIT-1: full pipeline emits analyst_worklist artifact',
+      'build_analyst_worklist' in _ga_1233
+      and 'analyst_worklist_{_wl_dc}.json' in _ga_1233, '')
+
+# --- v8.12.11 GPT-revision pins (findings 3/4/5/6) ---
+# GPT-4: a call price that exceeds Hero's effective stack is impossible ->
+# null it and surface a 'decision price unavailable' failure mode.
+_cand_badprice = _mk_cand(id='TM_BADPRICE', cards='QhQd', position='BB',
+    pf_allin=True, jammer_position='CO', jammer_stack_bb=12.0,
+    eff_stack_at_decision_bb=12.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 117.5}}})
+_wl_bp = _awl.build_analyst_worklist({'all_in_review': [_cand_badprice]}, {}, {}, [], '20260101')
+_bp = _wl_bp['items']['TM_BADPRICE']
+check('T-1233-PRICE-1: call > eff nulls call_amount_bb + failure mode',
+      _bp['decision_node']['call_amount_bb'] is None
+      and _bp['decision_node']['price_unavailable'] is True
+      and 'decision price unavailable' in _bp['failure_modes'],
+      str(_bp['decision_node']) + ' / ' + str(_bp['failure_modes']))
+
+# GPT-5: canonical_action_line is built from the hand's action_ledger, not the
+# terse 'preflop_only' / action_summary fallback.
+_hand_led = {'id': 'TM_LED', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'V1', 'position': 'UTG', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'calls', 'amount_bb': 2.2},
+    {'street': 'flop', 'player': 'V1', 'position': 'UTG', 'action': 'bets', 'amount_bb': 3.0}]}
+_cand_led = _mk_cand(id='TM_LED', cards='AhKh', position='BTN',
+    decision_math={'key_decision_street': 'flop', 'streets': {}})
+_wl_led = _awl.build_analyst_worklist({'mistakes': [_cand_led]}, {}, {}, [_hand_led], '20260101')
+_line = _wl_led['items']['TM_LED']['canonical_action_line']
+check('T-1233-LINE-1: canonical_action_line built from ledger (not terse)',
+      'Hero' in _line and '|' in _line and 'raises 2.2' in _line
+      and _line != 'preflop_only', _line)
+
+# GPT-6: bounty_context split — adjustment NOT applied while collectibility is
+# unknown, even if a discount_pp is flagged.
+_cand_bnt = _mk_cand(id='TM_BNT', cards='AhKs', format='BOUNTY', bounty_discount_pp=6.0)
+_wl_bnt = _awl.build_analyst_worklist({'mistakes': [_cand_bnt]}, {}, {}, [], '20260101')
+_bc = _wl_bnt['items']['TM_BNT']['bounty_context']
+check('T-1233-BNT-1: bounty split — no adjustment while collectibility unknown',
+      _bc['is_pko'] is True and _bc['collectibility_known'] is False
+      and _bc['adjustment_applied_to_decision'] is False
+      and 'estimated_bounty_exists' in _bc, str(_bc))
+_rd_bnt2 = {'pko_research': {'by_hand': {'TM_BNT2': {'enabled': True,
+    'can_collect_bounty': True, 'coverage_label': 'covers CO',
+    'bounty_value_bb_est': 3.0}}}}
+_cand_bnt2 = _mk_cand(id='TM_BNT2', cards='AhKs', format='BOUNTY', bounty_discount_pp=6.0)
+_wl_bnt2 = _awl.build_analyst_worklist({'mistakes': [_cand_bnt2]}, {}, _rd_bnt2, [], '20260101')
+_bc2 = _wl_bnt2['items']['TM_BNT2']['bounty_context']
+check('T-1233-BNT-2: bounty adjustment applied only when coverage known+covers',
+      _bc2['collectibility_known'] is True
+      and _bc2['hero_covers_relevant_villain'] is True
+      and _bc2['adjustment_applied_to_decision'] is True
+      and _bc2['estimated_bounty_exists'] is True, str(_bc2))
+
+# GPT-3: auto_clear gate is narrow. Deep premium and short non-premium all-ins
+# no longer auto_clear; only a narrow premium short-stack get-in does.
+_cand_deep = _mk_cand(id='TM_DEEP', cards='AhKd', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=100.0,
+    eff_stack_at_decision_bb=100.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'required_equity': 0.45, 'hero_equity_vs_range': 0.46,
+    'hero_call_amount_bb': 100.0}}})
+_wl_deep = _awl.build_analyst_worklist({'bestplay_screening': [_cand_deep]}, {}, {}, [], '20260101')
+check('T-1233-AC-1: deep premium all-in (AKo 100BB) is NOT auto_clear',
+      _wl_deep['items']['TM_DEEP']['bucket'] != 'auto_clear',
+      str(_wl_deep['items']['TM_DEEP']['bucket']))
+_cand_shortnp = _mk_cand(id='TM_SNP', cards='Ad4c', position='SB', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=18.0,
+    eff_stack_at_decision_bb=18.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 18.0}}})
+_wl_snp = _awl.build_analyst_worklist({'bestplay_screening': [_cand_shortnp]}, {}, {}, [], '20260101')
+check('T-1233-AC-2: short NON-premium all-in (A4o 18BB) is NOT auto_clear',
+      _wl_snp['items']['TM_SNP']['bucket'] != 'auto_clear',
+      str(_wl_snp['items']['TM_SNP']['bucket']))
+_cand_pshort = _mk_cand(id='TM_PSHORT', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_ps = _awl.build_analyst_worklist({'bestplay_screening': [_cand_pshort]}, {}, {}, [], '20260101')
+check('T-1233-AC-3: narrow premium short-stack (AA 15BB) -> auto_clear',
+      _wl_ps['items']['TM_PSHORT']['bucket'] == 'auto_clear',
+      str(_wl_ps['items']['TM_PSHORT']['bucket']))
+# multiway gate must read pot participation, NOT table seat count: a heads-up
+# all-in at a 6-max table (n_players=6, n_opponents=1) still auto_clears.
+_cand_hu6 = _mk_cand(id='TM_HU6', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0, n_players=6,
+    multiway_decomposition={'n_opponents': 1}, players_at_flop=2,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_hu6 = _awl.build_analyst_worklist({'bestplay_screening': [_cand_hu6]}, {}, {}, [], '20260101')
+check('T-1233-AC-4: table seat count (n_players=6) does NOT flag multiway',
+      _wl_hu6['items']['TM_HU6']['bucket'] == 'auto_clear',
+      str(_wl_hu6['items']['TM_HU6']['bucket']))
+# a genuine 3-way all-in (n_opponents=2) IS multiway -> not auto_clear.
+_cand_3way = _mk_cand(id='TM_3WAY', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0, n_players=6,
+    multiway_decomposition={'n_opponents': 2},
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_3way = _awl.build_analyst_worklist({'bestplay_screening': [_cand_3way]}, {}, {}, [], '20260101')
+check('T-1233-AC-5: genuine 3-way all-in (n_opponents=2) -> NOT auto_clear',
+      _wl_3way['items']['TM_3WAY']['bucket'] != 'auto_clear',
+      str(_wl_3way['items']['TM_3WAY']['bucket']))
+
+# --- v8.12.11 GPT review #2 pins: decision-node alignment for preflop items ---
+# A preflop chart/range deviation must anchor to the PREFLOP decision, never a
+# later-street node / full-hand action line / contaminated effective stack.
+# DK-1/2: Missed Rejam — Hero called MP's open (hand ran to a river fold). The
+# reviewed decision is the preflop re-jam, so street=preflop and the line stops
+# at Hero's call (no postflop/river bleed).
+_dk_dev = [{'id': 'TM_DK1', 'type': 'Missed Rejam', 'cards': 'QJs', 'pos': 'HJ',
+            'chart': 'REJAM_HJvsMP', 'confidence': 'CLEAR',
+            'opener_position': 'MP', 'stack_bb': 25}]
+_dk_hand = {'id': 'TM_DK1', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'MP', 'position': 'MP', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'HJ', 'action': 'calls', 'amount_bb': 2.2},
+    {'street': 'flop', 'player': 'MP', 'position': 'MP', 'action': 'bets', 'amount_bb': 5.0},
+    {'street': 'flop', 'player': 'Hero', 'position': 'HJ', 'action': 'calls', 'amount_bb': 5.0},
+    {'street': 'river', 'player': 'MP', 'position': 'MP', 'action': 'bets', 'amount_bb': 9.0, 'is_all_in': True},
+    {'street': 'river', 'player': 'Hero', 'position': 'HJ', 'action': 'folds'}]}
+_dk_cand = _mk_cand(id='TM_DK1', cards='JdQd', position='HJ',
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_wl_dk = _awl.build_analyst_worklist({'bestplay_screening': [_dk_cand]},
+    {'preflop_deviations': _dk_dev}, {}, [_dk_hand], '20260101')
+_dk = _wl_dk['items']['TM_DK1']
+check('T-1233-DK-1: preflop deviation anchors decision_node.street=preflop',
+      _dk['decision_node']['street'] == 'preflop'
+      and _dk['decision_kind'] == 'preflop_deviation', str(_dk['decision_node']['street']))
+check('T-1233-DK-2: missed-rejam line stops at Hero call (no postflop bleed)',
+      'Hero calls 2.2' in _dk['canonical_action_line']
+      and 'bets' not in _dk['canonical_action_line']
+      and 'folds' not in _dk['canonical_action_line']
+      and 're-jamming' in _dk['reviewer_question'], _dk['canonical_action_line'])
+# DK-3/4: first-in Missed Open — Hero folded, SB shoved AFTER. Line stops at
+# Hero's fold; effective stack is the clean 81BB, not the overwritten 12BB.
+_dk3_dev = [{'id': 'TM_DK3', 'type': 'Missed Open', 'cards': 'K6s', 'pos': 'CO',
+             'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR', 'stack_bb': 81}]
+_dk3_hand = {'id': 'TM_DK3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'UTG', 'position': 'UTG', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 18.6, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_dk3_cand = _mk_cand(id='TM_DK3', cards='Kc6c', position='CO',
+    eff_stack_at_decision_bb=12.36, effective_stack_bb=81.06, stack_bb=81.06,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_dk3 = _awl.build_analyst_worklist({'mistakes': [_dk3_cand]},
+    {'preflop_deviations': _dk3_dev}, {}, [_dk3_hand], '20260101')
+_dk3 = _wl_dk3['items']['TM_DK3']
+check('T-1233-DK-3: missed-open line stops at Hero fold (no later SB all-in)',
+      _dk3['canonical_action_line'].endswith('Hero folds')
+      and 'all-in' not in _dk3['canonical_action_line'], _dk3['canonical_action_line'])
+check('T-1233-DK-4: first-in open stack not overwritten by later all-in (81 not 12)',
+      _dk3['decision_node']['effective_bb_vs_relevant_villain'] == 81.0,
+      str(_dk3['decision_node']['effective_bb_vs_relevant_villain']))
+# DK-5: BB defend preflop item must not inherit later river/fold context even
+# when the candidate's key_decision_street is a later street.
+_dk5_dev = [{'id': 'TM_DK5', 'type': 'Missed Defend', 'cards': 'K9o', 'pos': 'BB',
+             'chart': 'OPEN_20-40BB_BB', 'confidence': 'CLEAR',
+             'opener_position': 'BTN', 'stack_bb': 40}]
+_dk5_hand = {'id': 'TM_DK5', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'folds'}]}
+_dk5_cand = _mk_cand(id='TM_DK5', cards='Kh9d', position='BB',
+    action_summary='Folded BB vs BTN, call turn, fold river',
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_wl_dk5 = _awl.build_analyst_worklist({'mistakes': [_dk5_cand]},
+    {'preflop_deviations': _dk5_dev}, {}, [_dk5_hand], '20260101')
+_dk5 = _wl_dk5['items']['TM_DK5']
+check('T-1233-DK-5: BB defend preflop item does not inherit river/fold context',
+      _dk5['decision_node']['street'] == 'preflop'
+      and 'river' not in _dk5['canonical_action_line']
+      and _dk5['decision_node']['hero_actual_action'] == 'folds'
+      and _dk5['canonical_action_line'] == 'BTN raises 2.2 | Hero folds',
+      _dk5['canonical_action_line'] + ' / ' + _dk5['decision_node']['hero_actual_action'])
+
+# --- v8.12.11 GPT review #3 pins: decision price is kind/facing aware ---
+# A first-in open/fold/jam has NO call price. call_amount_bb must be null with
+# price_not_applicable=true (NOT price_unavailable). The K6s/_dk3 fixture also
+# proves a later opponent all-in (SB shoves 18.6 after Hero folds) is not bled
+# into the price field.
+check('T-1233-PNA-1: missed-open first-in fold -> call_amount_bb None + N/A',
+      _dk3['decision_node']['call_amount_bb'] is None
+      and _dk3['decision_node']['price_not_applicable'] is True
+      and _dk3['decision_node']['price_unavailable'] is False, str(_dk3['decision_node']))
+check('T-1233-PNA-6: first-in deviation does not inherit a later all-in as price',
+      _dk3['decision_node']['call_amount_bb'] is None
+      and _dk3['source_truth']['price_engine'] == 'not_applicable',
+      str(_dk3['source_truth']['price_engine']))
+# wide-open first-in raise: a bogus stblock call price MUST be ignored.
+_pna2_dev = [{'id': 'TM_PNA2', 'type': 'Wide Open', 'cards': 'A7s', 'pos': 'CO',
+              'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR', 'stack_bb': 100}]
+_pna2_hand = {'id': 'TM_PNA2', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'UTG', 'position': 'UTG', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 2.2}]}
+_pna2_cand = _mk_cand(id='TM_PNA2', cards='Ah7h', position='CO', first_in=True,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 3.4}}})  # bogus price -> ignored
+_wl_pna2 = _awl.build_analyst_worklist({'mistakes': [_pna2_cand]},
+    {'preflop_deviations': _pna2_dev}, {}, [_pna2_hand], '20260101')
+_pna2 = _wl_pna2['items']['TM_PNA2']['decision_node']
+check('T-1233-PNA-2: wide-open first-in raise -> call_amount_bb None (ignores bogus price)',
+      _pna2['call_amount_bb'] is None and _pna2['price_not_applicable'] is True, str(_pna2))
+# first-in open jam: still no call price.
+_pna3_dev = [{'id': 'TM_PNA3', 'type': 'Wide Open', 'cards': 'A4o', 'pos': 'BTN',
+              'chart': 'PUSH_15BB_BTN', 'confidence': 'CLEAR', 'stack_bb': 15}]
+_pna3_hand = {'id': 'TM_PNA3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'raises', 'amount_bb': 15.0, 'is_all_in': True}]}
+_pna3_cand = _mk_cand(id='TM_PNA3', cards='Ad4c', position='BTN', pf_allin=True, first_in=True,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 7.9}}})  # bogus price -> ignored
+_wl_pna3 = _awl.build_analyst_worklist({'bestplay_screening': [_pna3_cand]},
+    {'preflop_deviations': _pna3_dev}, {}, [_pna3_hand], '20260101')
+_pna3 = _wl_pna3['items']['TM_PNA3']['decision_node']
+check('T-1233-PNA-3: first-in open-jam -> call_amount_bb None',
+      _pna3['call_amount_bb'] is None and _pna3['price_not_applicable'] is True, str(_pna3))
+# BB defend where Hero CALLS keeps the real call amount (a facing decision).
+_pna4_dev = [{'id': 'TM_PNA4', 'type': 'Wide', 'cards': 'K9o', 'pos': 'BB',
+              'chart': 'OPEN_20-40BB_BB', 'confidence': 'CLEAR',
+              'opener_position': 'BTN', 'stack_bb': 40}]
+_pna4_hand = {'id': 'TM_PNA4', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.5},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 2.5}]}
+_pna4_cand = _mk_cand(id='TM_PNA4', cards='Kh9d', position='BB', first_in=False,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pna4 = _awl.build_analyst_worklist({'mistakes': [_pna4_cand]},
+    {'preflop_deviations': _pna4_dev}, {}, [_pna4_hand], '20260101')
+_pna4 = _wl_pna4['items']['TM_PNA4']['decision_node']
+check('T-1233-PNA-4: BB defend (Hero calls) keeps real call_amount_bb',
+      _pna4['call_amount_bb'] == 2.5 and _pna4['price_not_applicable'] is False, str(_pna4))
+# missed rejam where Hero called instead keeps the real call amount (facing).
+check('T-1233-PNA-5: missed-rejam (Hero called) keeps real call amount',
+      _dk['decision_node']['call_amount_bb'] == 2.2
+      and _dk['decision_node']['price_not_applicable'] is False,
+      str(_dk['decision_node']['call_amount_bb']))
+# polish: an empty/unmapped chart label must not emit "()" or dangling text.
+_pol6_dev = [{'id': 'TM_POL6', 'type': 'Missed Open', 'cards': '77', 'pos': 'CO',
+              'chart': '', 'confidence': 'MARGINAL'}]
+_pol6_cand = _mk_cand(id='TM_POL6', cards='7h7s', position='CO', first_in=True,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pol6 = _awl.build_analyst_worklist({'mistakes': [_pol6_cand]},
+    {'preflop_deviations': _pol6_dev}, {}, [], '20260101')
+_pol6 = _wl_pol6['items']['TM_POL6']
+check('T-1233-POL-6: empty chart label -> no empty parens / dangling text',
+      '()' not in _pol6['reviewer_question'] and '()' not in _pol6['why_review']
+      and '( )' not in _pol6['why_review'], _pol6['reviewer_question'])
+
+# --- v8.12.11 GPT review #4 pins: preflop_allin reviewed-event selector ---
+# A preflop all-in is graded on Hero's LAST preflop action (jam / call-off),
+# never the initial open. A call-off carries the real (capped) price; a jam
+# carries none. facing names the raise/jam Hero faced (or limper / first-in).
+_pa1_hand = {'id': 'TM_PA1', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'MP', 'position': 'MP', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'HJ', 'action': 'raises', 'amount_bb': 1.2},
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 8.6, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'HJ', 'action': 'calls', 'amount_bb': 8.6}]}
+_pa1_cand = _mk_cand(id='TM_PA1', cards='8h8s', position='HJ', pf_allin=True,
+    jammer_position='BTN', jammer_stack_bb=11.0, eff_stack_at_decision_bb=11.0,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa1 = _awl.build_analyst_worklist({'all_in_review': [_pa1_cand]}, {}, {}, [_pa1_hand], '20260101')
+_pa1 = _wl_pa1['items']['TM_PA1']['decision_node']
+check('T-1233-PA-1: open-then-call-off -> node is the call, price applies',
+      _pa1['hero_actual_action'] == 'calls 8.6' and _pa1['call_amount_bb'] == 8.6
+      and _pa1['price_not_applicable'] is False
+      and 'BTN jam 8.6' in _pa1['hero_action_facing'], str(_pa1))
+_pa2_hand = {'id': 'TM_PA2', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 1.2},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 3.8},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 15.3, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'calls', 'amount_bb': 15.3}]}
+_pa2_cand = _mk_cand(id='TM_PA2', cards='JhJs', position='CO', pf_allin=True,
+    eff_stack_at_decision_bb=15.3, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa2 = _awl.build_analyst_worklist({'all_in_review': [_pa2_cand]}, {}, {}, [_pa2_hand], '20260101')
+_pa2 = _wl_pa2['items']['TM_PA2']['decision_node']
+check('T-1233-PA-2: open-then-4bet-jam -> node is Hero jam, facing the 3-bet',
+      _pa2['hero_actual_action'] == 'raises 15.3 all-in'
+      and 'SB raise 3.8' in _pa2['hero_action_facing']
+      and _pa2['price_not_applicable'] is True and _pa2['call_amount_bb'] is None, str(_pa2))
+_pa3_hand = {'id': 'TM_PA3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'Hero', 'position': 'UTG+1', 'action': 'raises', 'amount_bb': 1.2},
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'raises', 'amount_bb': 2.8},
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 24.1, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'UTG+1', 'action': 'calls', 'amount_bb': 22.5, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'}]}
+_pa3_cand = _mk_cand(id='TM_PA3', cards='KhKs', position='UTG+1', pf_allin=True,
+    jammer_position='BTN', jammer_stack_bb=24.1, eff_stack_at_decision_bb=22.5,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa3 = _awl.build_analyst_worklist({'all_in_review': [_pa3_cand]}, {}, {}, [_pa3_hand], '20260101')
+_pa3 = _wl_pa3['items']['TM_PA3']['decision_node']
+check('T-1233-PA-3: open-raise-jam, Hero calls off -> node is the call-off',
+      _pa3['hero_actual_action'] == 'calls 22.5 all-in'
+      and 'BTN jam 24.1' in _pa3['hero_action_facing']
+      and _pa3['call_amount_bb'] == 22.5 and _pa3['price_not_applicable'] is False, str(_pa3))
+_pa4_hand = {'id': 'TM_PA4', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'raises', 'amount_bb': 12.0, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_pa4_cand = _mk_cand(id='TM_PA4', cards='Ad9d', position='BTN', pf_allin=True, first_in=True,
+    eff_stack_at_decision_bb=12.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa4 = _awl.build_analyst_worklist({'bestplay_screening': [_pa4_cand]}, {}, {}, [_pa4_hand], '20260101')
+_pa4 = _wl_pa4['items']['TM_PA4']['decision_node']
+check('T-1233-PA-4: first-in open-jam -> call None, N/A, facing first-in',
+      _pa4['call_amount_bb'] is None and _pa4['price_not_applicable'] is True
+      and _pa4['hero_actual_action'] == 'raises 12.0 all-in'
+      and _pa4['hero_action_facing'] == 'first-in', str(_pa4))
+_pa5_hand = {'id': 'TM_PA5', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'MP', 'position': 'MP', 'action': 'calls', 'amount_bb': 1.0},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 9.0, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_pa5_cand = _mk_cand(id='TM_PA5', cards='Ah9h', position='CO', pf_allin=True,
+    eff_stack_at_decision_bb=9.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa5 = _awl.build_analyst_worklist({'all_in_review': [_pa5_cand]}, {}, {}, [_pa5_hand], '20260101')
+_pa5 = _wl_pa5['items']['TM_PA5']['decision_node']
+check('T-1233-PA-5: iso-jam over limper -> facing vs limper(s), not unknown',
+      _pa5['hero_action_facing'] == 'vs limper(s)'
+      and _pa5['hero_actual_action'] == 'raises 9.0 all-in'
+      and _pa5['call_amount_bb'] is None, str(_pa5))
+_pa6_line = _wl_pa2['items']['TM_PA2']['canonical_action_line']
+check('T-1233-PA-6: preflop_allin line stops at the reviewed all-in (no trailing caller)',
+      _pa6_line.endswith('Hero raises 15.3 all-in') and 'SB calls' not in _pa6_line, _pa6_line)
+check('T-1233-PA-7: multi-action preflop_allin never anchors to the initial open',
+      all(w['items'][h]['decision_node']['hero_actual_action'] != 'raises 1.2'
+          for w, h in [(_wl_pa1, 'TM_PA1'), (_wl_pa2, 'TM_PA2'), (_wl_pa3, 'TM_PA3')]), '')
+# first-in deviation must not surface a contaminated opener as "X open".
+_pa8_dev = [{'id': 'TM_PA8', 'type': 'Wide Open', 'cards': 'A5o', 'pos': 'CO',
+             'chart': 'PUSH_20BB_CO', 'confidence': 'CLEAR', 'opener_position': 'MP', 'stack_bb': 20}]
+_pa8_hand = {'id': 'TM_PA8', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'UTG', 'position': 'UTG', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'raises', 'amount_bb': 20.0, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'folds'}]}
+_pa8_cand = _mk_cand(id='TM_PA8', cards='Ad5c', position='CO', pf_allin=True, first_in=True,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_pa8 = _awl.build_analyst_worklist({'bestplay_screening': [_pa8_cand]},
+    {'preflop_deviations': _pa8_dev}, {}, [_pa8_hand], '20260101')
+check('T-1233-PA-8: first-in deviation w/ contaminated opener -> facing first-in',
+      _wl_pa8['items']['TM_PA8']['decision_node']['hero_action_facing'] == 'first-in (folds to Hero)',
+      _wl_pa8['items']['TM_PA8']['decision_node']['hero_action_facing'])
+
+# --- v8.12.11 GPT review #5 pins: raw size vs decision-effective stack ---
+# clean overjam call-off: call capped to eff (never > eff), overjam present.
+_sz1_hand = {'id': 'TM_SZ1', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 44.5, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 44.5}]}
+_sz1_cand = _mk_cand(id='TM_SZ1', cards='AhKh', position='BB', pf_allin=True,
+    jammer_position='SB', jammer_stack_bb=44.5, eff_stack_at_decision_bb=26.2,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz1 = _awl.build_analyst_worklist({'all_in_review': [_sz1_cand]}, {}, {}, [_sz1_hand], '20260101')
+_sz1 = _wl_sz1['items']['TM_SZ1']['decision_node']
+check('T-1233-SZ-1: clean overjam call-off capped to eff (call<=eff, overjam present)',
+      _sz1['call_amount_bb'] == 26.2 and _sz1['effective_bb_vs_relevant_villain'] == 26.2
+      and _sz1['call_amount_bb'] <= _sz1['effective_bb_vs_relevant_villain']
+      and _sz1['overjam_bb'] and _sz1['action_size_bb'] == 44.5, str(_sz1))
+# multiway call-off, raw > eff, cannot reconcile -> null + price unavailable + failure mode.
+_sz2_hand = {'id': 'TM_SZ2', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'raises', 'amount_bb': 16.9, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 14.1, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'calls', 'amount_bb': 32.0}]}
+_sz2_cand = _mk_cand(id='TM_SZ2', cards='7h7s', position='BB', pf_allin=True,
+    eff_stack_at_decision_bb=19.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz2 = _awl.build_analyst_worklist({'all_in_review': [_sz2_cand]}, {}, {}, [_sz2_hand], '20260101')
+_sz2_it = _wl_sz2['items']['TM_SZ2']; _sz2 = _sz2_it['decision_node']
+check('T-1233-SZ-2: multiway call-off raw>eff -> null + price unavailable + failure mode',
+      _sz2['call_amount_bb'] is None and _sz2['price_unavailable'] is True
+      and any('side-pot/overjam reconciliation' in f for f in _sz2_it['failure_modes']), str(_sz2))
+# first-in overjam jam: jam_size and decision_effective separated.
+_sz3_hand = {'id': 'TM_SZ3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'CO', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'raises', 'amount_bb': 77.4, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_sz3_cand = _mk_cand(id='TM_SZ3', cards='Qh5h', position='BTN', pf_allin=True, first_in=True,
+    eff_stack_at_decision_bb=13.0, decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_sz3 = _awl.build_analyst_worklist({'bestplay_screening': [_sz3_cand]}, {}, {}, [_sz3_hand], '20260101')
+_sz3_it = _wl_sz3['items']['TM_SZ3']; _sz3 = _sz3_it['decision_node']
+check('T-1233-SZ-3: first-in overjam shows jam_size and decision_effective separately',
+      _sz3['jam_size_bb'] == 77.4 and _sz3['decision_effective_bb'] == 13.0
+      and _sz3['risk_bb'] == 13.0 and _sz3['overjam_bb'] == 64.4
+      and _sz3['call_amount_bb'] is None and _sz3['price_not_applicable'] is True, str(_sz3))
+check('T-1233-SZ-4: reviewer question uses decision-effective stack, not raw jam size',
+      '13BB' in _sz3_it['reviewer_question'] and '77' not in _sz3_it['reviewer_question'],
+      _sz3_it['reviewer_question'])
+check('T-1233-SZ-5: why_review reconciles raw jam vs effective (no contradiction with action)',
+      'raw all-in' in _sz3_it['why_review'] and 'effective' in _sz3_it['why_review']
+      and _sz3['hero_actual_action'] == 'raises 77.4 all-in', _sz3_it['why_review'])
+
+
+def _no_overprice(_w):
+    for _it in _w['items'].values():
+        _dn = _it['decision_node']
+        _ca, _ef = _dn.get('call_amount_bb'), _dn.get('effective_bb_vs_relevant_villain')
+        if _ca and _ef and _ca > _ef + 0.05 and not (_dn.get('overjam_bb') or _dn.get('side_pot_context')):
+            return False
+    return True
+check('T-1233-SZ-INV: no item has call_amount_bb > effective stack without overjam/side_pot',
+      all(_no_overprice(_w) for _w in [_wl_sz1, _wl_sz2, _wl_sz3, _wl_pa1, _wl_pa2, _wl_pa3]), '')
+
 # ============================================================
 # SUMMARY
 # ============================================================

@@ -10027,6 +10027,31 @@ if __name__ == '__main__':
     from gem_report_data import compute_report_completeness as _crc_full
     _rc_full = _crc_full(report_data, candidates=candidates)
 
+    # v8.12.11 (Slice E): emit the analyst worklist — a prioritized triage
+    # queue (proposals, not verdicts) for the LLM analyst pass. Write-only
+    # artifact; does NOT affect the report. Never fatal.
+    try:
+        from gem_analyst_worklist import build_analyst_worklist
+        _wl_dc = stats.get('volume', {}).get('date_range', 'session')
+        _wl = build_analyst_worklist(candidates, stats, report_data, hands,
+                                     _wl_dc,
+                                     runtime=report_data.get('renderer_version')
+                                     or 'v8.12.11')
+        _wl_dir = '/mnt/user-data/outputs' if os.path.isdir(
+            '/mnt/user-data/outputs') else '/home/claude'
+        _wl_path = f"{_wl_dir}/analyst_worklist_{_wl_dc}.json"
+        with open(_wl_path, 'w', encoding='utf-8') as _wf:
+            json.dump(_wl, _wf, indent=2, ensure_ascii=False)
+        _wc = _wl['generated_counts']
+        print(f"\n  Analyst worklist: {_wl_path}")
+        print(f"    must_review={_wc['must_review']} "
+              f"review_if_time={_wc['review_if_time']} "
+              f"auto_clear={_wc['auto_clear']} "
+              f"aggregate_only={_wc['aggregate_only']} "
+              f"drill_candidate={_wc['drill_candidate']}")
+    except Exception as _wl_e:
+        print(f"  Analyst worklist skipped: {type(_wl_e).__name__}: {_wl_e}")
+
     # B141 (Ron 2026-05-21): the rd_path dump above happens BEFORE the
     # read-dependent screen/quant keys are added — so gem_report_data.json
     # on disk was missing read_dependent_quant / read_dependent_screen

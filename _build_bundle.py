@@ -16,7 +16,7 @@ import base64, io, os, sys, zipfile, hashlib, datetime
 REPO = os.path.dirname(os.path.abspath(__file__))
 PROJ_FALLBACK = r'C:\Users\ron\Downloads\_proj_inventory\project'
 
-BUNDLE_VERSION = 'v8.12.10-cap7'
+BUNDLE_VERSION = 'v8.12.11-worklist-preview'
 
 # gem_report_draft package members (zipped under gem_report_draft/)
 PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
@@ -42,6 +42,10 @@ KILL = {
     # presence sent the first bundle-era session down the wrong entry
     # point (skips coverage builder / pot-odds / coaching cards).
     '_run_pipeline.py',
+    # v8.12.11-preview (GPT-2): now that the file list unions repo modules
+    # (below), two repo-present gem_*.py files must be explicitly excluded:
+    'gem_src_bundle.py',          # the bundle's OWN output -- never self-include
+    'gem_auto_verdict_SPEC.py',   # a design spec, not wired into the runtime
 }
 
 # Session-data CSVs stay FLAT in the project (Ron updates them periodically
@@ -71,11 +75,24 @@ BUNDLE_ALSO = {'GEM_Quick_Reference.txt', 'GEM_Changelog.txt',
                'SESSION_START_STEP0_package_rebuild.txt'}
 
 
+def _repo_runtime_modules():
+    """v8.12.11-preview (GPT-2): the file list used to come ONLY from the
+    inventory snapshot, so new repo modules (gem_analyst_worklist.py,
+    gem_chart_labels.py) were silently dropped from release bundles. Union in
+    every repo-present gem_*.py runtime module (KILL still filters the
+    non-shippers, incl. the bundle output + design specs)."""
+    return {f for f in os.listdir(REPO)
+            if f.startswith('gem_') and f.endswith('.py')
+            and not f.endswith('_SPEC.py')
+            and os.path.isfile(os.path.join(REPO, f))}
+
+
 def build(project_dir):
     names = set()
     if os.path.isdir(project_dir):
         names = {f for f in os.listdir(project_dir)
                  if os.path.isfile(os.path.join(project_dir, f))}
+    names |= _repo_runtime_modules()   # repo-driven: pick up new modules
     names |= BUNDLE_ALSO
     bundle_names = sorted(n for n in names
                           if n not in KILL and n not in FLAT_DATA

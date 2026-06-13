@@ -6079,6 +6079,88 @@ check('T-1232-BANNER-1: TLDR emits AUTO_ONLY + no-summary banners',
       'AUTO-ONLY REPORT' in _tldr32
       and 'No tournament game-summary files found' in _tldr32, '')
 
+# --- v8.12.11 pins (Slice E: analyst_worklist_v1) ---
+from gem_chart_labels import chart_display_label as _cdl33
+check('T-1233-LABEL-1: chart ids resolve to human labels, no raw leak',
+      _cdl33('REJAM_SBvsHJ') == 'SB re-jam vs HJ open'
+      and _cdl33('OPEN_20-40BB_SB') == 'SB open, 20-40BB'
+      and _cdl33('PUSH_10BB_CO') == 'CO open-shove, 10BB'
+      and 'REJAM_' not in _cdl33('REJAM_XXvsYY_30BB'), '')
+
+import gem_analyst_worklist as _awl
+check('T-1233-HAND-1: _hand_label canonical (list+str), pairs bare',
+      _awl._hand_label('4hAs') == 'A4o'
+      and _awl._hand_label(['Jc','Jd']) == 'JJ'
+      and _awl._hand_label('TdAd') == 'ATs', '')
+
+def _mk_cand(**kw):
+    base = {'id': 'TM1', 'cards': kw.pop('cards', 'AhKs'), 'position': 'CO',
+            'format': 'BOUNTY', 'tournament_phase': 'mid', 'action_summary': 'x',
+            'decision_math': {'key_decision_street': 'preflop', 'streets': {}}}
+    base.update(kw); return base
+
+# marginal open NEVER must_review (bottom-5% policy)
+_st = {'preflop_deviations': [
+    {'id': 'TM_MARG', 'type': 'Missed Open', 'cards': 'K6s', 'pos': 'CO',
+     'chart': 'OPEN_100BB_CO', 'confidence': 'MARGINAL'},
+    {'id': 'TM_CORE', 'type': 'Missed Open', 'cards': 'AQo', 'pos': 'CO',
+     'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR'}]}
+_cands = {'mistakes': [_mk_cand(id='TM_MARG', cards='K6s'),
+                       _mk_cand(id='TM_CORE', cards='AhQs')]}
+_wl = _awl.build_analyst_worklist(_cands, _st, {}, [], '20260101')
+check('T-1233-POL-1: marginal open routes aggregate_only, NEVER must_review',
+      _wl['items']['TM_MARG']['bucket'] == 'aggregate_only'
+      and _wl['items']['TM_MARG']['range_membership']['bottom_5pct_buffer_applied'] is True, str(_wl['items']['TM_MARG']['bucket']))
+check('T-1233-POL-2: CLEAR core miss routes must_review',
+      _wl['items']['TM_CORE']['bucket'] == 'must_review', str(_wl['items']['TM_CORE']['bucket']))
+
+# revealed-equity is luck-only, never the basis
+_cand_allin = _mk_cand(id='TM_AI', cards='7h7s', position='BB', pf_allin=True,
+                       jammer_position='CO', jammer_stack_bb=19.0,
+                       eff_stack_at_decision_bb=19.0,
+                       hero_realized_eq_at_allin=0.0,
+                       decision_math={'key_decision_street': 'preflop',
+                       'streets': {'preflop': {'required_equity': 0.48,
+                       'hero_equity_vs_range': 0.52, 'hero_call_amount_bb': 17.0}}})
+_wl2 = _awl.build_analyst_worklist({'all_in_review': [_cand_allin]}, {}, {}, [], '20260101')
+_ai = _wl2['items']['TM_AI']
+check('T-1233-POL-3: revealed equity labeled luck-only, not the basis',
+      any('luck only' in e for e in _ai['evidence'])
+      and 'Do not use the revealed hand' in _ai['reviewer_question'], str(_ai['evidence']))
+check('T-1233-POL-4: decision-effective stack vs relevant villain (19, not nominal)',
+      _ai['decision_node']['effective_bb_vs_relevant_villain'] == 19.0, '')
+
+# tiny PKO call Hero can collect -> auto_clear (call-any-two protection)
+_cand_tiny = _mk_cand(id='TM_TINY', cards='9h2d', position='BTN', pf_allin=True,
+                      jammer_position='SB', jammer_stack_bb=12.0,
+                      eff_stack_at_decision_bb=80.0, bounty_discount_pp=8.0,
+                      decision_math={'key_decision_street': 'preflop',
+                      'streets': {'preflop': {'hero_call_amount_bb': 1.0}}})
+_rd_tiny = {'pko_research': {'by_hand': {'TM_TINY': {'enabled': True,
+            'can_collect_bounty': True, 'coverage_label': 'covers SB',
+            'bounty_value_bb_est': 4.0}}}}
+_wl3 = _awl.build_analyst_worklist({'bestplay_screening': [_cand_tiny]}, {}, _rd_tiny, [], '20260101')
+check('T-1233-POL-5: tiny collectible PKO call -> auto_clear (not a punt)',
+      _wl3['items']['TM_TINY']['bucket'] == 'auto_clear'
+      and _wl3['items']['TM_TINY']['bounty_context']['hero_covers_relevant_villain'] is True, str(_wl3['items']['TM_TINY']['bucket']))
+
+# schema: all 8 additions + proposals (never final verdicts) + buckets valid
+check('T-1233-SCHEMA-1: all 8 additions + review_outcome unreviewed + valid bucket',
+      all(all(k in it for k in ('canonical_action_line','decision_node',
+          'range_membership','bounty_context','source_truth','llm_prompt_hint',
+          'dedupe_group','review_outcome'))
+          and it['review_outcome']['status'] == 'unreviewed'
+          and it['bucket'] in _awl.BUCKETS
+          and it['finality'] in ('auto_clear','analyst_required','aggregate_only')
+          for it in _wl2['items'].values()), '')
+check('T-1233-SCHEMA-2: no Roman numerals in any proposal/why text',
+      not any(__import__('re').search(r'[IVX]+\.\d', it['auto_proposal'] + it['why_review'])
+              for it in _wl['items'].values()), '')
+_ga_1233 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-1233-EMIT-1: full pipeline emits analyst_worklist artifact',
+      'build_analyst_worklist' in _ga_1233
+      and 'analyst_worklist_{date_compact}.json' in _ga_1233, '')
+
 # ============================================================
 # SUMMARY
 # ============================================================

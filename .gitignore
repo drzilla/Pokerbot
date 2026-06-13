@@ -46,6 +46,7 @@ gem_hands*.json
 gem_stats_*.json
 gem_report_data*.json
 session_analysis*.json
+analyst_worklist*.json
 coverage_audit*.json
 _run_manifest*.json
 _golden_pre.json

@@ -6159,7 +6159,7 @@ check('T-1233-SCHEMA-2: no Roman numerals in any proposal/why text',
 _ga_1233 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-1233-EMIT-1: full pipeline emits analyst_worklist artifact',
       'build_analyst_worklist' in _ga_1233
-      and 'analyst_worklist_{date_compact}.json' in _ga_1233, '')
+      and 'analyst_worklist_{_wl_dc}.json' in _ga_1233, '')
 
 # ============================================================
 # SUMMARY

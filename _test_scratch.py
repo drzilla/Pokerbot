@@ -6161,6 +6161,88 @@ check('T-1233-EMIT-1: full pipeline emits analyst_worklist artifact',
       'build_analyst_worklist' in _ga_1233
       and 'analyst_worklist_{_wl_dc}.json' in _ga_1233, '')
 
+# --- v8.12.11 GPT-revision pins (findings 3/4/5/6) ---
+# GPT-4: a call price that exceeds Hero's effective stack is impossible ->
+# null it and surface a 'decision price unavailable' failure mode.
+_cand_badprice = _mk_cand(id='TM_BADPRICE', cards='QhQd', position='BB',
+    pf_allin=True, jammer_position='CO', jammer_stack_bb=12.0,
+    eff_stack_at_decision_bb=12.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 117.5}}})
+_wl_bp = _awl.build_analyst_worklist({'all_in_review': [_cand_badprice]}, {}, {}, [], '20260101')
+_bp = _wl_bp['items']['TM_BADPRICE']
+check('T-1233-PRICE-1: call > eff nulls call_amount_bb + failure mode',
+      _bp['decision_node']['call_amount_bb'] is None
+      and _bp['decision_node']['price_unavailable'] is True
+      and 'decision price unavailable' in _bp['failure_modes'],
+      str(_bp['decision_node']) + ' / ' + str(_bp['failure_modes']))
+
+# GPT-5: canonical_action_line is built from the hand's action_ledger, not the
+# terse 'preflop_only' / action_summary fallback.
+_hand_led = {'id': 'TM_LED', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'V1', 'position': 'UTG', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BTN', 'action': 'calls', 'amount_bb': 2.2},
+    {'street': 'flop', 'player': 'V1', 'position': 'UTG', 'action': 'bets', 'amount_bb': 3.0}]}
+_cand_led = _mk_cand(id='TM_LED', cards='AhKh', position='BTN',
+    decision_math={'key_decision_street': 'flop', 'streets': {}})
+_wl_led = _awl.build_analyst_worklist({'mistakes': [_cand_led]}, {}, {}, [_hand_led], '20260101')
+_line = _wl_led['items']['TM_LED']['canonical_action_line']
+check('T-1233-LINE-1: canonical_action_line built from ledger (not terse)',
+      'Hero' in _line and '|' in _line and 'raises 2.2' in _line
+      and _line != 'preflop_only', _line)
+
+# GPT-6: bounty_context split — adjustment NOT applied while collectibility is
+# unknown, even if a discount_pp is flagged.
+_cand_bnt = _mk_cand(id='TM_BNT', cards='AhKs', format='BOUNTY', bounty_discount_pp=6.0)
+_wl_bnt = _awl.build_analyst_worklist({'mistakes': [_cand_bnt]}, {}, {}, [], '20260101')
+_bc = _wl_bnt['items']['TM_BNT']['bounty_context']
+check('T-1233-BNT-1: bounty split — no adjustment while collectibility unknown',
+      _bc['is_pko'] is True and _bc['collectibility_known'] is False
+      and _bc['adjustment_applied_to_decision'] is False
+      and 'estimated_bounty_exists' in _bc, str(_bc))
+_rd_bnt2 = {'pko_research': {'by_hand': {'TM_BNT2': {'enabled': True,
+    'can_collect_bounty': True, 'coverage_label': 'covers CO',
+    'bounty_value_bb_est': 3.0}}}}
+_cand_bnt2 = _mk_cand(id='TM_BNT2', cards='AhKs', format='BOUNTY', bounty_discount_pp=6.0)
+_wl_bnt2 = _awl.build_analyst_worklist({'mistakes': [_cand_bnt2]}, {}, _rd_bnt2, [], '20260101')
+_bc2 = _wl_bnt2['items']['TM_BNT2']['bounty_context']
+check('T-1233-BNT-2: bounty adjustment applied only when coverage known+covers',
+      _bc2['collectibility_known'] is True
+      and _bc2['hero_covers_relevant_villain'] is True
+      and _bc2['adjustment_applied_to_decision'] is True
+      and _bc2['estimated_bounty_exists'] is True, str(_bc2))
+
+# GPT-3: auto_clear gate is narrow. Deep premium and short non-premium all-ins
+# no longer auto_clear; only a narrow premium short-stack get-in does.
+_cand_deep = _mk_cand(id='TM_DEEP', cards='AhKd', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=100.0,
+    eff_stack_at_decision_bb=100.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'required_equity': 0.45, 'hero_equity_vs_range': 0.46,
+    'hero_call_amount_bb': 100.0}}})
+_wl_deep = _awl.build_analyst_worklist({'bestplay_screening': [_cand_deep]}, {}, {}, [], '20260101')
+check('T-1233-AC-1: deep premium all-in (AKo 100BB) is NOT auto_clear',
+      _wl_deep['items']['TM_DEEP']['bucket'] != 'auto_clear',
+      str(_wl_deep['items']['TM_DEEP']['bucket']))
+_cand_shortnp = _mk_cand(id='TM_SNP', cards='Ad4c', position='SB', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=18.0,
+    eff_stack_at_decision_bb=18.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 18.0}}})
+_wl_snp = _awl.build_analyst_worklist({'bestplay_screening': [_cand_shortnp]}, {}, {}, [], '20260101')
+check('T-1233-AC-2: short NON-premium all-in (A4o 18BB) is NOT auto_clear',
+      _wl_snp['items']['TM_SNP']['bucket'] != 'auto_clear',
+      str(_wl_snp['items']['TM_SNP']['bucket']))
+_cand_pshort = _mk_cand(id='TM_PSHORT', cards='AhAs', position='BTN', pf_allin=True,
+    format='REGULAR', jammer_position='CO', jammer_stack_bb=15.0,
+    eff_stack_at_decision_bb=15.0,
+    decision_math={'key_decision_street': 'preflop',
+    'streets': {'preflop': {'hero_call_amount_bb': 15.0}}})
+_wl_ps = _awl.build_analyst_worklist({'bestplay_screening': [_cand_pshort]}, {}, {}, [], '20260101')
+check('T-1233-AC-3: narrow premium short-stack (AA 15BB) -> auto_clear',
+      _wl_ps['items']['TM_PSHORT']['bucket'] == 'auto_clear',
+      str(_wl_ps['items']['TM_PSHORT']['bucket']))
+
 # ============================================================
 # SUMMARY
 # ============================================================

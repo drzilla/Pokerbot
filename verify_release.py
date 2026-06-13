@@ -10,7 +10,7 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.12.10"
+VERSION = "v8.12.11-preview"   # feature/analyst-worklist-v1 (NOT a cut release)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
@@ -32,9 +32,9 @@ MANIFEST = {
     "gem_pot_odds.py":                      ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
 
     # --- Updated in v8.8.9 + v8.9.0 ---
-    "gem_analyzer.py":                      ("6f4b1513e135ad2754b14a180de7e9a3785d211cfd11f18b14c296f7b35fab39", 551925, "v8.12.10: completeness wiring + quick validation"),
+    "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11-preview: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("063a1079c15810440f345408a49d7ba9394777d8a0c6a016319ecb01b0b94c25", 288959, "v8.12.10: 875 tests"),
+    "_test_scratch.py":                     ("155a8abf98ce0103e8d1a2f5536a4f9dc0af93fc72227225558bcd5b6144c01d", 299142, "v8.12.11-preview: 892 tests (+T-1233 Slice E)"),
     "GEM_Changelog.txt":                    ("6f78ba4fb1f0b2ca3ef9f6be68582d88f6ec214761c348552e64de55d6fcc10a", 38239, "changelog through v8.12.10"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
@@ -71,6 +71,10 @@ MANIFEST = {
     "gem_report_draft/tldr.py": ("96ffb4a962b3b0195a3cd3d864dd9482a3b03a418de8357f70f2631f86b90727", 136374, "v8.12.10: completeness/summary banners"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
+
+    # --- New in v8.12.11-preview (Slice E: analyst_worklist_v1) ---
+    "gem_analyst_worklist.py": ("fd43e16a4c5a809470daa417de6334e0801890974b8196e9b617f9210a8f2b1a", 27296, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
+    "gem_chart_labels.py":     ("ed1a842e3e5dd2b9eef64673ed0908a0163c05b6875971f27034e12879958683", 3324, "v8.12.11-preview: chart-id -> human label registry (no raw IDs)"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -854,6 +858,24 @@ CANARIES = [
      "v8.12.10: completeness banner"),
     ("gem_report_draft/_html.py", "position: sticky; top: var(--v25-topbar-h, 0px); z-index: 4;",
      "v8.12.9: mobile sticky street headers"),
+
+    # v8.12.11-preview canaries (Slice E: analyst_worklist_v1)
+    ("gem_analyst_worklist.py", "def build_analyst_worklist(",
+     "v8.12.11-preview: worklist builder entry point"),
+    ("gem_analyst_worklist.py", 'SCHEMA = "analyst_worklist_v1"',
+     "v8.12.11-preview: worklist schema id"),
+    ("gem_analyst_worklist.py", "def _auto_clear_gate(",
+     "v8.12.11-preview GPT-3: narrow multi-condition auto_clear gate"),
+    ("gem_analyst_worklist.py", "def _line_from_ledger(",
+     "v8.12.11-preview GPT-5: ledger-built canonical action line"),
+    ("gem_analyst_worklist.py", "adjustment_applied_to_decision",
+     "v8.12.11-preview GPT-6: split bounty-context fields"),
+    ("gem_analyst_worklist.py", "'price_unavailable'",
+     "v8.12.11-preview GPT-4: null-safe call amount + failure mode"),
+    ("gem_chart_labels.py", "def chart_display_label(",
+     "v8.12.11-preview: chart-id -> human label registry"),
+    ("gem_analyzer.py", "build_analyst_worklist",
+     "v8.12.11-preview: worklist emit hook wired in pipeline"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).
@@ -879,6 +901,9 @@ ANTI_CANARIES = [
      "v8.12.8 QA3: positive marker is thumbs-down again"),
     ("gem_villain_intel.py", "+ ('s' if suited else 'o')",
      "v8.12.9: JJo-producing label builder resurfaced"),
+    # v8.12.11-preview GPT-3: the old broad auto_clear gate must stay retired.
+    ("gem_analyst_worklist.py", "is_premium or (eff and eff <= 22)",
+     "v8.12.11-preview GPT-3: broad auto_clear gate resurfaced (premium-OR-short)"),
 ]
 
 

@@ -69,19 +69,61 @@ def _short(hid):
     return hid[-8:] if isinstance(hid, str) and len(hid) > 8 else hid
 
 
-def _canonical_action_line(c):
+def _line_from_ledger(hand, decision_street):
+    """v8.12.11 (GPT-5): build a real compact action line from the hand's
+    action_ledger up to & including the decision street, so the analyst can
+    reason without opening the replay. Marks Hero. Returns '' if no ledger."""
+    if not hand:
+        return ''
+    led = hand.get('action_ledger') or []
+    if not led:
+        return ''
+    hero = hand.get('hero', 'Hero')
+    order = ['preflop', 'flop', 'turn', 'river']
+    stop = order.index(decision_street) if decision_street in order else 3
+    keep = set(order[:stop + 1])
+    parts = []
+    for a in led:
+        st = a.get('street')
+        if st not in keep:
+            continue
+        act = a.get('action', '')
+        if act == 'posts':
+            continue
+        who = 'Hero' if a.get('player') == hero else (a.get('position') or '?')
+        amt = a.get('amount_bb')
+        seg = f"{who} {act}"
+        if act in ('raises', 'bets', 'calls') and amt:
+            seg += f" {_f(amt):.1f}"
+        if a.get('is_all_in'):
+            seg += " all-in"
+        parts.append(seg)
+    if not parts:
+        return ''
+    # mark street boundaries lightly so the analyst sees the structure
+    return ' | '.join(parts)[:300]
+
+
+def _canonical_action_line(c, hand=None):
     """Compact street-by-street line so the LLM reasons without the replay.
-    Prefer the parser's line_actions; fall back to action_summary."""
-    for k in ('line_actions', 'action_sequence', 'pf_sequence'):
+    Prefer a real ledger walk; fall back to the parser's line_actions; only
+    then the terse action_summary (GPT-5: 'preflop_only' is not enough)."""
+    dm = c.get('decision_math') or {}
+    street = dm.get('key_decision_street') or (
+        'preflop' if c.get('pf_allin') else 'flop')
+    led_line = _line_from_ledger(hand, street)
+    if led_line:
+        return led_line
+    for k in ('line_actions', 'action_sequence'):
         v = c.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()[:240]
+        if isinstance(v, str) and v.strip() and v.strip() != 'preflop_only':
+            return v.strip()[:300]
         if isinstance(v, list) and v:
-            return ', '.join(str(x) for x in v)[:240]
+            return ', '.join(str(x) for x in v)[:300]
     base = (c.get('action_summary') or '').strip()
     pos = c.get('position') or '?'
     cards = c.get('cards') or ''
-    return (f"{pos} {cards}: {base}".strip(' :') or 'action unavailable')[:240]
+    return (f"{pos} {cards}: {base}".strip(' :') or 'action unavailable')[:300]
 
 
 def _decision_effective_bb(c):
@@ -107,10 +149,19 @@ def _decision_node(c):
         facing = f"{c['jammer_position']} jam"
     elif stblock.get('villain_bet_bb'):
         facing = f"bet {_f(stblock.get('villain_bet_bb')):.1f}BB"
+    eff = _decision_effective_bb(c)
     call_bb = (_f(stblock.get('hero_call_amount_bb'))
                or _f(c.get('hero_committed_bb')) or None)
-    n_players = int(_f(c.get('n_players'), 0))
-    # players_behind / closing best-effort: BB or last-to-act closes.
+    # v8.12.11 (GPT-4): a call can never exceed Hero's effective stack. When
+    # the source value is the uncapped villain bet (> eff) or absent, the
+    # capped call price is unknown -> null it (a downstream failure mode is
+    # added) rather than render an impossible "call 130BB at 17BB eff".
+    price_unavailable = False
+    if call_bb and eff and call_bb > eff * 1.05:
+        call_bb = None
+        price_unavailable = True
+    elif not call_bb:
+        price_unavailable = True
     pos = c.get('position') or ''
     closing = bool(pos == 'BB' and not c.get('hero_3bet'))
     return {
@@ -119,7 +170,8 @@ def _decision_node(c):
         'hero_actual_action': (stblock.get('hero_action')
                                or c.get('action_summary', '')[:40]),
         'call_amount_bb': round(call_bb, 1) if call_bb else None,
-        'effective_bb_vs_relevant_villain': _decision_effective_bb(c),
+        'price_unavailable': price_unavailable,
+        'effective_bb_vs_relevant_villain': eff,
         'players_behind': None,           # needs full ledger; left explicit
         'closing_action': closing,
     }
@@ -150,25 +202,39 @@ def _range_membership(c, dev, dev_charts):
 
 
 def _bounty_context(c, pko):
+    """v8.12.11 (GPT-6): split the three orthogonal facts so the reader never
+    sees 'adjustment applied' while collectibility is unknown:
+      - estimated_bounty_exists : the model has a $/BB estimate
+      - collectibility_known    : do we know whether Hero covers the villain
+      - adjustment_applied_to_decision : a discount was applied AND coverage
+        is known AND Hero covers (a flat discount_pp alone is NOT enough)."""
     fmt = (c.get('format') or '').upper()
     is_pko = fmt in ('BOUNTY', 'PKO', 'MYSTERY_BOUNTY')
     if not is_pko:
         return {'is_pko': False, 'hero_covers_relevant_villain': None,
-                'estimated_bounty_bb': None, 'bounty_adjustment_applied': False,
+                'collectibility_known': False, 'estimated_bounty_exists': False,
+                'estimated_bounty_bb': None,
+                'adjustment_applied_to_decision': False,
                 'reason': 'non_bounty_format'}
     covers = None
-    reason = 'unknown'
+    reason = 'collectibility_unknown'
     if pko and 'can_collect_bounty' in pko:
         covers = bool(pko.get('can_collect_bounty'))
         reason = (pko.get('coverage_label') or '')[:80] or (
             'hero_covers_relevant_villain' if covers else 'villain_covers_hero')
     est = (_f(pko.get('bounty_value_bb_est')) if pko else 0) or \
         _f(c.get('bounty_value_bb'))
+    collectibility_known = covers is not None
+    discount_flagged = _f(c.get('bounty_discount_pp')) > 0
     return {
         'is_pko': True,
-        'hero_covers_relevant_villain': covers,
+        'estimated_bounty_exists': bool(est),
         'estimated_bounty_bb': round(est, 1) if est else None,
-        'bounty_adjustment_applied': bool(_f(c.get('bounty_discount_pp')) > 0),
+        'collectibility_known': collectibility_known,
+        'hero_covers_relevant_villain': covers,
+        # only TRUE when we KNOW Hero covers AND a discount is in play
+        'adjustment_applied_to_decision': bool(
+            discount_flagged and collectibility_known and covers),
         'reason': reason,
     }
 
@@ -196,7 +262,63 @@ def _is_monster_action(c):
                 and not c.get('pfr', False) is True and c.get('cold_called'))
 
 
-def _classify(c, dn, rng, bnt, dm_block, sources):
+def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
+                     bestplay_only, is_premium, eff):
+    """v8.12.11 (GPT-3): narrow, multi-condition gate for auto_clear on an
+    all-in. ALL guards must pass; returns (ok, block_reason). The previous
+    rule (bestplay_only and (premium or eff<=22)) cleared deep premiums
+    (AKo 100BB, QQ 42BB) and any short non-premium (Q5s 13BB, A4o 18BB) —
+    none of which are deterministic. The new gate requires a known node,
+    real engines, decision-basis evidence, no multiway/side-pot/bounty/ICM
+    ambiguity, and ONE positive basis (explicit chart / equity cushion /
+    narrow premium short-stack)."""
+    if not bestplay_only:
+        return False, 'not_screened_clean'
+    # req: no ICM / satellite / bubble overlay
+    if (c.get('tournament_phase') or '') in ('bubble', 'ft_bubble'):
+        return False, 'icm_overlay'
+    if (c.get('format') or '').upper() == 'SATELLITE':
+        return False, 'satellite_overlay'
+    # req: no monster-action ambiguity
+    if _is_monster_action(c):
+        return False, 'monster_action'
+    # req: no multiway / side-pot uncertainty
+    if c.get('multiway_pot') or int(_f(c.get('n_players'), 0)) > 2:
+        return False, 'multiway'
+    if c.get('side_pot') or c.get('has_side_pot'):
+        return False, 'side_pot'
+    # req: bounty must be certain (PKO -> collectibility known)
+    if bnt.get('is_pko') and not bnt.get('collectibility_known'):
+        return False, 'bounty_uncertain'
+    # req: known action node (price available + facing known) OR a rich,
+    # ledger-built action line the analyst can read end-to-end.
+    rich_line = bool(action_line and '|' in action_line)
+    known_node = (not dn.get('price_unavailable')
+                  and dn.get('hero_action_facing') != 'unknown')
+    if not (known_node or rich_line):
+        return False, 'unknown_node'
+    # req: a real price engine must back the decision (never clear on no price)
+    if src_truth.get('price_engine') == 'none':
+        return False, 'price_engine_none'
+    # req: ONE positive qualifying basis. Each is decision-basis evidence that
+    # is NOT the revealed hand: chart membership, a computed range-equity
+    # cushion, or the push/fold-standard premium short-stack class.
+    explicit_chart = bool(rng and not rng.get('is_marginal')
+                          and rng.get('hero_hand_status') in (
+                              'inside_core', 'inside_extended'))
+    cushion = False
+    req, heq = dm_block.get('required_equity'), dm_block.get('hero_equity_vs_range')
+    if req is not None and heq is not None:
+        rv = _f(req); rv = rv * 100 if rv <= 1.5 else rv
+        hv = _f(heq); hv = hv * 100 if hv <= 1.5 else hv
+        cushion = hv >= rv + 8.0
+    narrow_premium_short = bool(is_premium and eff and eff <= 20)
+    if not (explicit_chart or cushion or narrow_premium_short):
+        return False, 'no_qualifying_basis'
+    return True, None
+
+
+def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
     """Returns (bucket, auto_proposal, auto_confidence, finality,
     failure_modes, reviewer_question, why_review, dedupe_group, priority)."""
     cards = _hand_label(c.get('cards')) or 'this hand'
@@ -228,10 +350,14 @@ def _classify(c, dn, rng, bnt, dm_block, sources):
         heq = (heq * 100 if heq is not None and heq <= 1.5 else heq)
         call_bb = dn.get('call_amount_bb') or 0
         eff = dn.get('effective_bb_vs_relevant_villain') or 0
-        risked_pct = (call_bb / eff * 100) if eff else 0
+        risked_pct = (call_bb / eff * 100) if (call_bb and eff) else 0
         tiny = (call_bb and call_bb <= 2.0) or (risked_pct and risked_pct <= 8)
         covers = bnt.get('hero_covers_relevant_villain')
-        collectible_tiny = tiny and bnt.get('is_pko') and covers
+        # collectible_tiny also demands a certain bounty + no side-pot/multiway
+        collectible_tiny = bool(
+            tiny and bnt.get('is_pko') and covers
+            and not (c.get('multiway_pot') or int(_f(c.get('n_players'), 0)) > 2)
+            and not (c.get('side_pot') or c.get('has_side_pot')))
         grp = 'monster_action_allin' if _is_monster_action(c) else 'pf_allin'
         rq = (f"Do not use the revealed hand as the verdict basis. Decide "
               f"whether {cards} {pos} has enough equity vs the jamming/"
@@ -249,20 +375,25 @@ def _classify(c, dn, rng, bnt, dm_block, sources):
                     'analyst_required', fm, rq,
                     f"Monster-action stack-off: jam + cold-call, Hero risks "
                     f"{call_bb:.1f}BB ({risked_pct:.0f}% stack).", grp, 72)
-        # standard get-in: premium hand OR short-stack shove, screened as a
-        # clean play, no monster-action ambiguity, no ICM caveat -> auto_clear
-        # (narrow per policy; revealed result remains luck, not the basis).
-        _icm = (c.get('tournament_phase') or '') in ('bubble', 'ft_bubble') \
-            or (c.get('format') or '').upper() == 'SATELLITE'
-        if (bestplay_only and not _icm
-                and (is_premium or (eff and eff <= 22))):
+        # standard get-in -> auto_clear ONLY through the narrow multi-condition
+        # gate (GPT-3): known node, real engines, decision-basis evidence, no
+        # ICM/multiway/side-pot/bounty ambiguity, and a positive qualifying
+        # basis. Deep premiums and short non-premiums no longer slip through.
+        ac_ok, ac_block = _auto_clear_gate(
+            c, dn, rng, bnt, dm_block, src_truth, action_line,
+            bestplay_only, is_premium, eff)
+        if ac_ok:
             return ('auto_clear', 'Justified', 'medium', 'auto_clear',
                     ['range could dominate if villain very tight'], rq,
                     f"Standard get-in: {cards} {pos} at {eff:.0f}BB inside the "
                     "jam/continue range — result is variance.", grp, 24)
-        # ordinary all-in: range equity decides; revealed result is luck
+        # ordinary all-in: range equity decides; revealed result is luck. If
+        # the auto_clear gate blocked on a specific ambiguity, name it.
+        fm = ['range model confidence low']
+        if ac_block and ac_block not in ('not_screened_clean', 'no_qualifying_basis'):
+            fm.append('auto_clear blocked: ' + ac_block)
         return ('review_if_time', 'Review required', 'low', 'analyst_required',
-                ['range model confidence low'], rq,
+                fm, rq,
                 f"All-in {pos} {cards} at {eff:.0f}BB — verify range equity "
                 "vs threshold (result was luck, not the basis).",
                 grp, 48)
@@ -347,9 +478,15 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         dn = _decision_node(c)
         rng = _range_membership(c, dev, dev_charts)
         bnt = _bounty_context(c, pko)
+        action_line = _canonical_action_line(c, hands_by_id.get(hid))
+        src_truth = _source_truth(c, pko, dev)
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
-                           sources_by_id.get(hid, []))
+                           sources_by_id.get(hid, []), src_truth, action_line)
+        # v8.12.11 (GPT-4): surface the unavailable-price failure mode wherever
+        # the decision node could not produce a capped call amount.
+        if dn.get('price_unavailable') and 'decision price unavailable' not in fmodes:
+            fmodes = fmodes + ['decision price unavailable']
 
         po = pot_odds_by_hand.get(hid) or pot_odds_by_hand.get(_short(hid)) or {}
         items[hid] = {
@@ -366,11 +503,11 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
                            or c.get('action_summary', '')[:60] or 'spot'),
             'tournament_context': {'format': c.get('format', ''),
                                    'phase': c.get('tournament_phase', '')},
-            'canonical_action_line': _canonical_action_line(c),
+            'canonical_action_line': action_line,
             'decision_node': dn,
             'range_membership': rng,
             'bounty_context': bnt,
-            'source_truth': _source_truth(c, pko, dev),
+            'source_truth': src_truth,
             'auto_proposal': proposal,
             'auto_confidence': conf,
             'finality': finality,

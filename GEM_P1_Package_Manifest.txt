@@ -1,0 +1,159 @@
+GEM_P1_PACKAGE_MANIFEST — gem_report_draft/ package
+=====================================================
+Created: 2026-05-23 (P1 refactor, v7.77)
+Updated: 2026-05-27 (Phase 1 render-IR: added _blocks.py → 13 files)
+
+This file documents the gem_report_draft/ package structure. It exists so a
+session has full context on the package WITHOUT the 12 package files being in
+project knowledge.
+
+WHERE THE PACKAGE LIVES — IMPORTANT
+  * gem_report_draft/ is a DIRECTORY of 13 .py files. Project knowledge stores
+    flat files only and CANNOT hold a directory — so the package is NOT in
+    project knowledge, and is NOT at /mnt/project/gem_report_draft/.
+  * The package lives on Ron's PC, in the GEM project folder, as a real
+    directory. That on-disk copy is the source of truth.
+  * Pipeline execution happens in Claude Code (which sees the real directory)
+    or in a chat session where the package directory has been uploaded.
+  * A chat session with only project knowledge can REASON about the package
+    using this manifest, but CANNOT import or run it unless the files are
+    uploaded into that session. The absence of gem_report_draft/ from
+    /mnt/project/ is EXPECTED — it is not an error or a missing upload.
+
+WHAT HAPPENED
+-------------
+The 9,797-line monolith gem_report_draft.py was split into a 12-file
+package gem_report_draft/ with zero behavior change. The public API is
+unchanged — gem_analyzer.py still does:
+    from gem_report_draft import generate_report_draft, render_html, render_md
+
+PACKAGE FILES (13)
+------------------
+__init__.py           Re-exports: generate_report_draft, render_html,
+                      render_md (public API) + internal names for test compat.
+
+_blocks.py            Phase 1 render-IR + Phase 2 raw_reference. 14 typed
+                      block types (§2 of handoff doc + raw_reference from §3),
+                      factory functions, _block_to_lines() dispatcher.
+                      Block types: coach_card, metric_table,
+                      hand_evidence_table, financial_table, variance_ledger,
+                      leak_bucket_overview, profile_matrix, action_review,
+                      raw_reference, method_note, review_control,
+                      appendix_hand, prose, heading. Standalone factory
+                      functions + _block_to_lines()
+                      renderer; emitters call factories then render to lines.
+                      metric_table renders via _stat_row/_stat_row_pct;
+                      other table types carry pre-formatted rows (Phase 2
+                      migrates to structured data with grammar enforcement).
+
+_state.py             Shared mutable state. 4 rebindable globals:
+                        _APPENDIX_HAND_IDS, _CITATIONS,
+                        _CURRENT_SECTION_ANCHOR, _CURRENT_SECTION_LABEL
+                      6 accessor functions (the ONLY way to write these):
+                        _set_appendix_hand_ids, _set_current_section,
+                        _record_citation, _reset_citations,
+                        _get_citations_for, _record_citation_explicit
+                      CRITICAL: all cross-module access MUST use module-object
+                      attribute (import _state, then _state._CITATIONS).
+                      Never "from _state import _CITATIONS" — rebinding won't
+                      propagate.
+
+_helpers.py           Wilson CI, color helpers (_clr, _clr_min, _clr_naive),
+                      stat signal classification, reference formatters
+                      (_hand_ref, _xref, _href), pot computation, range
+                      formatting, action rendering. Constants: _CI_Z_DEFAULT,
+                      _MIN_N_FOR_SIGNAL, _RANK_ORD, _OUTCOME_LABELS.
+
+_html.py              Doc class (section builder, renders to HTML or MD),
+                      card rendering (_card_html,
+                      _cards_html, _cards_str_to_pills, _cards_text_to_pills),
+                      markdown inline processor, HTML wrapper. Constants:
+                      _SUIT_HTML, _RANK_VALUES, _SUIT_VALUES,
+                      _KD_CLASS_PATTERNS, _KD_CLASS_VERB.
+
+_hand_grid.py         Hand-grid table rendering, key-decision classifier,
+                      structured argument parser, action pill rendering,
+                      _split_argument_into_notes.
+
+draft.py              Top-level orchestration. VERSION constant. _build()
+                      assembles the full Doc from all section emitters.
+                      render_html(), render_md(), generate_report_draft()
+                      (back-compat wrapper). Also: _compute_table_size_breakdown,
+                      _emit_header.
+
+tldr.py               TL;DR section, leak watchlist, legend emitters.
+
+sections_financial.py Sections I (Volume & Results) and II (Core Stats).
+                      Includes daily summary table, skill index movement,
+                      per-tourney P&L, cheat sheet.
+
+sections_mistakes.py  Section III (Mistakes & Strategic Leaks). III.1 mistake
+                      audit, III.2 strategic leaks with synthesis, III.3-III.8.
+
+sections_iv_xii.py    Sections IV through XII. Preflop deviations, c-bet
+                      analysis, aggression, board texture, coaching, progress
+                      tracker, variance, deep runs.
+
+sections_xiii.py      Section XIII (Full Deviation Lists). Drill-down
+                      reference for all flagged decisions.
+
+sections_xiv.py       Section XIV (Appendix). Hand examples with action
+                      grids, citation backlinks, per-tourney P&L helper
+                      (_compute_per_tourney_pnl), EAI one-liner, cheat sheet
+                      generator, tournament name shortener.
+
+DEPENDENCY GRAPH (acyclic — no cycles allowed)
+----------------------------------------------
+_state  <--  _helpers  <--  _html  <--  _hand_grid
+                                              |
+  tldr, sections_financial, sections_mistakes, |
+  sections_iv_xii, sections_xiii, sections_xiv |
+              |                                |
+              +--------->  draft  <------------+
+
+Cross-module imports beyond this spine:
+  sections_financial  <--  sections_xiv  (_eai_one_liner, _per_tourney_one_liner,
+                                          _short_tournament, _generate_cheat_sheet)
+  sections_financial  <--  sections_mistakes  (_emit_mental_game)
+  sections_iv_xii     <--  sections_xiv  (_generate_cheat_sheet)
+  sections_xiv        <--  _hand_grid  (_split_argument_into_notes)
+
+MONOLITH LINE-RANGE MAP
+------------------------
+Old monolith lines → new module (for archaeology):
+  L1-43       → __init__.py docstring + API
+  L44-375     → _helpers.py
+  L376-446    → _state.py
+  L448-760    → _helpers.py (second half)
+  L761-1599   → _html.py
+  L1600-2457  → _hand_grid.py
+  L2458-2624  → draft.py (orchestration part 1)
+  L2625-3843  → tldr.py
+  L3844-5038  → sections_financial.py
+  L5039-6105  → sections_mistakes.py
+  L6106-8180  → sections_iv_xii.py
+  L8181-8986  → sections_xiii.py
+  L8987-9778  → sections_xiv.py
+  L9779-end   → draft.py (orchestration part 2)
+
+ROLLBACK
+--------
+gem_report_draft_ORIG.py is the frozen pre-split monolith, retained on
+Ron's PC (NOT in project knowledge, NOT deployed). To roll back: delete the
+gem_report_draft/ directory, rename gem_report_draft_ORIG.py →
+gem_report_draft.py. Revert VERSION in the restored file if needed. Retain
+ORIG through P1b and P5; delete only after several real sessions confirm
+the package.
+
+EDITING RULES
+-------------
+1. Never "from _state import <name>" — always "import _state" then
+   "_state.<name>". Rebinding via from-import is invisible to other modules.
+2. Keep the dependency graph acyclic. If module A imports from B, B must
+   not import from A (directly or transitively).
+3. New helpers shared by 2+ section files go in _helpers.py (if pure
+   computation) or _html.py (if they emit HTML/cards).
+4. New section emitters get their own file only if >500 lines; otherwise
+   add to the nearest existing section file.
+5. Test with: python -c "import gem_report_draft" (no import cycle),
+   then run all five test suites.

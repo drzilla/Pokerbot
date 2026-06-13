@@ -1,0 +1,26 @@
+Hand,Most Common Nickname,Explanation
+AA,Pocket Rockets,"The shape of the Aces looks like rocket tips, and the initials match American Airlines."
+KK,Cowboys,"A simple, universal phonetic play on the letter K."
+QQ,Ladies,The traditional royal representation of the Queen card.
+JJ,Hooks,The visual shape of the capital letter J looks exactly like a fishhook.
+TT,Dimes,Named after the US ten-cent coin.
+99,Wayne Gretzky,Named after the legendary hockey player who famously wore jersey number 99.
+88,Snowmen,The stacked loops of the two eights visually resemble snowmen.
+77,Hockey Sticks,The angled geometric lines of the two sevens look like hockey sticks.
+66,Route 66,Named after the most famous historic highway in the United States.
+55,Speed Limit,Named after the classic 55 mph speed limit found on US highways.
+44,Sailboats,The open triangular shape of the number 4 visually resembles a boat sail.
+33,Crabs,Turning the number 3 on its side makes it look like a pair of pinching crab claws.
+22,Ducks,The curved neck and base of the number 2 look like ducks swimming on water.
+AK,Church,"A reference to 'walking back from church' because it looks great but often loses, leaving you praying."
+AQ,Big Chick,"A direct rhyming play on Ace-King's alternate nickname, ""Big Slick."""
+AJ,Ajax,A classic phonetic blend of pronouncing the letters A and J together.
+A5,High Five,A literal combination of holding the Ace (High card) and a 5.
+A8,Dead Man's Hand,The hand Wild Bill Hickok held when he was shot dead in 1876 (specifically black Aces and 8s).
+KQ,Marriage,A traditional match representing the King and Queen together.
+KJ,Kojak,A phonetic pop-culture reference to the famous 1970s TV detective show Kojak.
+QJ,Maverick,Named after the theme song of the classic TV Western show Maverick.
+J5,Jackson 5,A musical wordplay tribute to the famous Motown pop group.
+T2,Doyle Brunson,Named after the poker legend who won back-to-back WSOP Main Events hitting a full house with it.
+95,Dolly Parton,"A nod to her iconic 1980 hit song and movie, 9 to 5."
+72,The Beer Hand,Statistically the worst starting hand in Hold'em; the joke is you have to be drunk to play it.

@@ -1,0 +1,44 @@
+{
+  "computed_at": "2026-05-16T05:55:24.256467Z",
+  "n_sessions_used": 140,
+  "n_tournaments_total": 2900,
+  "reference_tier": "Mid",
+  "elo_per_logit": 200,
+  "tier_handicap_elo": {
+    "Mid": {
+      "value": 0.0,
+      "ci_lo": 0.0,
+      "ci_hi": 0.0,
+      "n": null,
+      "confidence": "reference"
+    },
+    "Micro": {
+      "value": -56.3,
+      "ci_lo": -108.1,
+      "ci_hi": -4.5,
+      "n": 67,
+      "confidence": "high"
+    },
+    "Low": {
+      "value": -83.6,
+      "ci_lo": -118.4,
+      "ci_hi": -48.8,
+      "n": 130,
+      "confidence": "high"
+    },
+    "High": {
+      "value": -71.6,
+      "ci_lo": -133.9,
+      "ci_hi": -9.3,
+      "n": 55,
+      "confidence": "high"
+    },
+    "Premium": {
+      "value": -47.4,
+      "ci_lo": -221.5,
+      "ci_hi": 126.6,
+      "n": 13,
+      "confidence": "low"
+    }
+  }
+}

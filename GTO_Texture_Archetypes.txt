@@ -1,0 +1,316 @@
+GTO TEXTURE ARCHETYPES — REFERENCE
+==================================================
+Source: Dave session 2026-05-04 + 2026-05-06 + 2026-05-13 follow-ups
+Schema: v1.2
+
+NOTES:
+  - Solver-derived c-bet strategy by board archetype.
+  - Frequencies and sizings are GTO baselines; not population/exploit-based.
+  - Each archetype maps to one of the existing parser board_texture buckets via groups_into.
+  - Scenarios are ordered by depth band; classifier picks the band whose [min_bb, max_bb] contains the effective stack.
+  - freq_pct is [low, high] inclusive. sizings_pct lists acceptable bet sizes as % of pot.
+  - Empty scenarios array means TODO (data not yet captured).
+  - If Hero is OOP and oop_cbet.scenarios is empty, no OOP compliance finding is produced for that hand.
+  - v1.1 (2026-05-06): added High-Low-Low Two-Tone (K62 archetype) with OOP cbet; added Broadway Two-Tone (KQJ) skeleton; added _dave_note OOP CR detail to Broadway Coordinated.
+  - v1.2 (2026-05-13): added OOP scenarios across 9 archetypes; added IP scenarios for paired_dry/paired_coordinated/tripleton/high_low_low_two_tone/broadway_two_tone; renamed two_tone_mixed → high_mid_low_two_tone (id changed, content filled); added new archetype low_two_tone (5-3-2 two-tone, sibling to low_ragged with backdoor straight potential).
+
+==================================================
+ARCHETYPES
+==================================================
+
+## Ace-High Dry  [ace_high_dry]
+   Example: A-7-2 rainbow
+   Maps to existing parser bucket: dry_ahigh
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     40+ BB: freq=95-100%, sizing=B25
+        Range bet 25% at 100BB depth
+     25-40BB: freq=95-100%, sizing=B20
+        Range bet 20% at shallower depth
+     0-25BB (DUAL): freq=95-100%, sizing=B20/B75
+        At ~24BB switch to dual: B20 with whole range, B75 heavier on Ax-in-hand
+        to build pot
+
+   OOP C-BET:
+     0+ BB: freq=30-50%, sizing=B25/B33
+        Range & nuts adv but doesn't require protection — high check freq, low bet
+        sizing (B25/B33). Bet mainly with pure bluffs or hands that want to build
+        a pot.
+
+## Ace-High Coordinated  [ace_high_coordinated]
+   Example: A-J-9 two-tone
+   Maps to existing parser bucket: dynamic
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     40+ BB (DUAL): freq=75-85%, sizing=B50/B100
+        100BB: ~80% freq dual sizing. B100 with strong Ax/sets/weak made
+        (protection); B50 with weak Ax + non-Ax with BDFD
+     0-40BB (DUAL): freq=90-99%, sizing=B30/B50
+        Shallower: freq up to ~95%, sizing shifts down to B30/B50 split
+
+   OOP C-BET:
+     0+ BB (DUAL): freq=50-70%, sizing=B40/B100
+        Range & nuts adv but very dynamic so requires protection — heavy on bet
+        AND check-raise vs check-call. Two buckets: (1) bluffs + monsters + strong
+        draws; (2) marginal made hands + weak draws + strong made hands. Bet B40,
+        CR B100. Need to charge for many draws hence sizing is big.
+
+## Broadway Disconnected  [broadway_disconnected]
+   Example: K-Q-4 rainbow
+   Maps to existing parser bucket: dynamic
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     40+ BB (DUAL): freq=no freq target, sizing=B33/B85/B100
+        UTG vs BB pattern: bluffs + semi-bluffs + super-strong (two pair+) go big
+        B85-B100; everything else B33. Polarized.
+
+   OOP C-BET:
+     40+ BB (DUAL): freq=no freq target, sizing=B33/B100
+        SB vs BB pattern: low overall freq (neither has range adv). Bet big with
+        strong TP+ or pure air (nuts adv only). B33 with ~1/3 of hands — top-card
+        connectors (non-ultra-strong) + some sets.
+
+   📝 3BP note: 3-bet pots are smaller c-bets vs the SRP B33/B85/B100 polarized pattern. From Dave 2026-05-13.
+
+## Broadway Coordinated  [broadway_coordinated]
+   Example: Q-J-T
+   Maps to existing parser bucket: dynamic
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=95-100%, sizing=B33/B66
+        Range adv → 100% c-bet. No real bluffs available → single sizing 33-66%.
+        Optional dual with pure bluffs (gutters like A2 with gutter) + monsters
+        (sets, flopped nuts) if splitting.
+
+   OOP C-BET:
+     0+ BB (DUAL): freq=40-60%, sizing=B33/B66
+        Range & nuts adv on a dynamic board. Two-sizing B33 + B66. B33 with
+        marginal made hands and some nuts mixes; B66 with stronger value. On a
+        hyper-dynamic board there's no real CR strategy — higher freq blocker
+        c-bet or check-call to not bloat the pot.
+
+## Middling Connected  [middling_connected]
+   Example: 9-8-7
+   Maps to existing parser bucket: connected_mid
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=75-85%, sizing=B50
+        No range adv, no nuts adv, equity shifts easily. NOT low-freq — GTO c-bets
+        ~80% with single sizing ~50%. Bet flopped monsters + bluffs that don't
+        mind getting CR-folded (gutters). Check marginal made hands and complete
+        rubbish (give up).
+
+   OOP C-BET:
+     0+ BB: freq=40-60%, sizing=B25
+        Nuts adv-ish, range disadv, dynamic with equity shifts → lowish freq cbets
+        (~50%) with small bets (B25) using basically the whole range except
+        complete give-ups. In reality population over-stabs so it's better to bet
+        LESS than GTO recommends — closer to 25% freq is the exploit.
+
+## Middling Disconnected  [middling_disconnected]
+   Example: 9-5-2 rainbow
+   Maps to existing parser bucket: other
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     60+ BB: freq=80-95%, sizing=B100/B125/B150
+        Range AND nuts adv. High freq big bet (100-150% pot) with overcards (top
+        two ranks above board) and made hands. Check marginal middling made hands
+        and pure-SDV hands like AKo/AQo/AJo/ATo that just want to run to showdown.
+     0-60BB: freq=60-80%, sizing=B75/B100
+        Shallower: check more often, smaller sizes.
+
+   OOP C-BET:
+     0+ BB: freq=20-30%, sizing=B85
+        Nuts adv-ish, range meaningless, static board (no protection needed). B85
+        with ~25% freq. Range: decent made hands + draws + overcards like Qx/Jx.
+
+## Low Connected  [low_connected]
+   Example: 6-5-4
+   Maps to existing parser bucket: low_dry
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=0-10%, sizing=B50/B66
+        Zero range adv, no nuts adv. ~95% check. Only bet when can sustain a CR /
+        need protection / don't care about CR. Checkable ~66% of the time easy.
+        Note: villain (BB) should LEAD ~50% of the time on these textures.
+
+   OOP C-BET:
+     0+ BB: freq=25-40%, sizing=B25
+        Similar pattern to 9-5-2: low freq, low bets (B25). Range & nuts adv
+        depend on opening position (SB-vs-BB OOP context). Same principles: made
+        hands + draws + Qx/Jx. Given equity shifts and range density for villain,
+        it's not big bets.
+
+## Low Ragged  [low_ragged]
+   Example: 7-3-2 rainbow
+   Maps to existing parser bucket: low_dry
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     60+ BB (DUAL): freq=90-100%, sizing=B50/B100
+        Massive range adv, no nuts adv → high freq, low base bet. ~95% bet with
+        dual sizing B50 + B100. B100 reserved for strong made hands, strong draws,
+        and some random draws. Bluffs are 'fold-equivalent' Ax/Kx with two
+        overcards (Q-max).
+     30-60BB (DUAL): freq=70-90%, sizing=B50/B100
+        Shallower: more selective. ~40BB: bet B100 ~40% of the time.
+
+   OOP C-BET:
+     0+ BB: freq=20-30%, sizing=B85
+        OOP plays the same as middling_disconnected: nuts adv-ish, static board,
+        B85 with ~25% freq using decent made hands + draws + overcards like Qx/Jx.
+
+## Monotone  [monotone]
+   Example: J-6-2 monotone
+   Maps to existing parser bucket: monotone
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=85-95%, sizing=B25/B50
+        Very high freq (~90%): any flush draw, any made hand, any hand that wants
+        to fold weak made hands. Only check shitty made hands (e.g., A2 on AJ8m).
+        Sizing 25-50% sized to fold floaters — the goal is to charge naked
+        one-card flush draws and fold air.
+
+   OOP C-BET:
+     0+ BB: freq=20-30%, sizing=B25
+        Nuts adv but not range density adv, very dynamic. Low freq (~25%) with low
+        bet (B25). Some hands that don't want to check-call go in infrequently —
+        mix of made hands or strong draws.
+
+## High-Middle-Low Two-Tone  [high_mid_low_two_tone]
+   Example: K-8-3 two-tone
+   Maps to existing parser bucket: other
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=80-100%, sizing=B25/B33/B50/B55
+        Range & nuts adv → high freq, low bet size. One size on the flop B25-B55.
+
+   OOP C-BET:
+     0+ BB: freq=40-60%, sizing=B33
+        Range adv, nuts adv, static-ish — a bit of protection is needed. ~50% bet
+        freq, B33 mix with the whole range.
+
+## Paired Dry  [paired_dry]
+   Example: 8-8-3 rainbow
+   Maps to existing parser bucket: paired
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=70-95%, sizing=B25/B33/B50/B75/B100
+        Range adv & nuts adv-or-disadv depending on the pair. High freq, one size
+        on flop B25-B100 (size depends on the pair: lower pair = smaller, higher
+        pair with overcard = bigger to charge).
+
+   OOP C-BET:
+     0+ BB: freq=40-60%, sizing=B66
+        Depends on the pair (range adv/disadv, nuts adv/disadv). Less shitty
+        hands. ~50% bet freq, B66 with any made hand or hands that would benefit
+        from folding higher cards (Qx/Jx/Tx).
+
+## Paired Coordinated  [paired_coordinated]
+   Example: 9-9-8 two-tone
+   Maps to existing parser bucket: paired
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=40-80%, sizing=B25/B33/B66/B100
+        Depends on the board (range adv/disadv, nuts adv usually present).
+        High/low freq depends on range adv. Sizing big since nuts adv (B25-B100).
+        SDV hands that don't want to face CR should check.
+
+   OOP C-BET:
+     0+ BB: freq=30-50%, sizing=B66
+        Equal range or slight disadv, nuts adv. ~40% bet freq, B66 with made hands
+        + draws + hands that want to fold higher cards.
+
+## Tripleton  [tripleton]
+   Example: 5-5-5
+   Maps to existing parser bucket: paired
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-04
+
+   IP C-BET:
+     0+ BB: freq=70-90%, sizing=B25/B33
+        Range & nuts adv/disadv depending on the board card (low trip vs high
+        trip), but FH adv is always there → bet frequently, small sizing.
+
+   OOP C-BET:
+     0+ BB: freq=60-80%, sizing=B66
+        Range/nuts adv depending on the tripleton. ~70% bet freq, B66.
+
+## High-Low-Low Two-Tone  [high_low_low_two_tone]
+   Example: K-6-2 two-tone
+   Maps to existing parser bucket: other
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-06
+
+   IP C-BET:
+     0+ BB: freq=80-95%, sizing=B25/B33
+        Nuts & range adv → high freq, one size (B25 or B33). Can have a check
+        range and becoming shallow not a must — should be marginal made hands like
+        low pair, or high pair, or Ax-strong that doesn't want to face CR but
+        isn't benefiting from betting.
+
+   OOP C-BET:
+     0+ BB: freq=25-40%, sizing=B33
+        Heavy check frequency — equal ranges + lots of turn equity shifts. Bet
+        only strong made hands or strong pairs needing protection. Sizing 1/3 pot
+        when betting. Cross-ref Hand 66 from 2026-05-06 session.
+
+## Broadway Two-Tone  [broadway_two_tone]
+   Example: K-Q-J two-tone
+   Maps to existing parser bucket: dynamic
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-06 (placeholder — no targets captured)
+
+   IP C-BET:
+     0+ BB: freq=80-95%, sizing=B66
+        Range and nuts adv → high freq. More dynamic than QJTo so bigger sizing
+        (B66).
+
+   OOP C-BET:
+     0+ BB: freq=40-60%, sizing=B25
+        Range & nuts adv on a dynamic board. Because more dynamic than QJTo, we
+        DECREASE bet size — B25 with ~50% of hands of many types.
+
+## Low Two-Tone  [low_two_tone]
+   Example: 5-3-2 two-tone
+   Maps to existing parser bucket: low_dry
+   Status: ✅ COMPLETE (IP + OOP)
+   Source: Dave session 2026-05-13
+
+   IP C-BET:
+     0+ BB: freq=0-10%, sizing=B25
+        Nuts/range adv on paper, but MASSIVE potential equity shift. Only ~5% freq
+        with B25. Equity is essentially identical and villain's range is more
+        condensed than on a low_ragged board — the two-tone + connection adds
+        backdoor straight and FD potential that destroys range adv. Sibling to
+        low_ragged but more dynamic.
+
+   OOP C-BET:
+     0+ BB: freq=20-30%, sizing=B100
+        Low freq, polarized. B100 — when you bet, you bet big
+        (overpair-for-protection or strong nut-blocker bluff).
+
+   📝 Note: Sibling to low_ragged but two-tone with backdoor straight potential. Classifier should distinguish 5-3-2 two-tone from 7-3-2 rainbow.

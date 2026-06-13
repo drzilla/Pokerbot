@@ -1,0 +1,133 @@
+{
+ "schema_version": 1,
+ "_notes": [
+  "Coaching-rule registry (v7.67). Maps a rule/leak code to its coaching",
+  "source and a concise plain-language meaning so reports can render codes",
+  "as 'Source - meaning' instead of an opaque code.",
+  "Source convention (an invariant enforced by gem_coaching.rule_source):",
+  "  J* = Dave, N* = Amit, K* = Jaka. L* (leak codes) carry an explicit tier.",
+  "Extend by adding an entry here - no code change needed. Only add a code",
+  "once its definition is verified; gem_coaching.describe() falls back to the",
+  "bare code for anything unregistered, so omissions never regress output.",
+  "Seeded with the verified Dave/Amit/Jaka rule + leak set; M/HH/MDA/V codes",
+  "are intentionally not yet included (different sources, pending verification)."
+ ],
+ "rules": {
+  "J14": {
+   "source": "Dave",
+   "label": "Monotone flop: c-bet only when you hold none of that suit"
+  },
+  "J29": {
+   "source": "Dave",
+   "label": "SB blind-vs-blind entry is limp-heavy - roughly 80% limp / 10% raise / 10% fold"
+  },
+  "J34": {
+   "source": "Dave",
+   "label": "ICM short-stack MP: raise or 3-bet AQo/AJs/ATs/AJo - never flat-call"
+  },
+  "J35": {
+   "source": "Dave",
+   "label": "At <=30BB facing a small jam: call or fold - no profitable reshove range exists"
+  },
+  "J36": {
+   "source": "Dave",
+   "label": "ICM open-jams at 30-37BB can be oversized - a normal 3-bet captures the same EV"
+  },
+  "J43": {
+   "source": "Dave",
+   "label": "In ICM phases, raise or fold from out-of-position seats - don't flat-call"
+  },
+  "J44": {
+   "source": "Dave",
+   "label": "IP 3-bet sizing scales with depth - larger 3-bets as stacks get deeper"
+  },
+  "N1": {
+   "source": "Amit",
+   "label": "Weak Ax (A2-A8) facing a 3-bet or squeeze: fold or shove - never flat"
+  },
+  "N3": {
+   "source": "Amit",
+   "label": "Don't fold JTs to a BB jam at <=30BB in blind-vs-blind"
+  },
+  "N8": {
+   "source": "Amit",
+   "label": "At <=8BB from CO/BTN, open-shove offsuit Kx (K2o-K9o) rather than folding"
+  },
+  "N9": {
+   "source": "Amit",
+   "label": "MP facing a UTG/UTG+1 open: don't flat-call ATo at >=25BB - 3-bet or fold"
+  },
+  "N12": {
+   "source": "Amit",
+   "label": "KTs in MP vs a UTG open: 3-bet, don't flat-call"
+  },
+  "N13": {
+   "source": "Amit",
+   "label": "SB with a pair vs a late-position open at <=30BB: shove - don't 3-bet then fold"
+  },
+  "K1": {
+   "source": "Jaka",
+   "label": "Raising c-bets in position: value is overpair+ and top-pair-best-kicker; bluff flush draws over straight draws"
+  },
+  "K2": {
+   "source": "Jaka",
+   "label": "Out-of-position as PFR, default to checking - keep a genuine checking range"
+  },
+  "K3": {
+   "source": "Jaka",
+   "label": "As the in-position caller, stab 40-60% when the PFR checks - stable across textures"
+  },
+  "K4": {
+   "source": "Jaka",
+   "label": "Single-raised-pot c-bet frequency vs the SB scales with opener position and stack depth"
+  },
+  "K5": {
+   "source": "Jaka",
+   "label": "Range advantage -> bet wide and small; only-nut advantage -> narrow and big; monotone -> narrow and small"
+  },
+  "K6": {
+   "source": "Jaka",
+   "label": "Flop leading (donking) is rare - about 2.5% baseline, reserved for specific spots"
+  },
+  "L1": {
+   "source": "Dave/Jaka",
+   "label": "Stop barreling a check-raised flop once your equity dies - bet-or-fold the turn"
+  },
+  "L2": {
+   "source": "Dave/Amit",
+   "label": "Don't jam to skip postflop play - if a small bet won't get value, a jam isn't value either"
+  },
+  "L3": {
+   "source": "Dave",
+   "label": "In multiway 3-bet pots, read villains' prior action before jamming - a cold flat caps their range"
+  },
+  "L4": {
+   "source": "Dave/Jaka",
+   "label": "Don't raise a dominated second-best hand into a narrow polarized range - call or fold instead"
+  },
+  "L5": {
+   "source": "Dave",
+   "label": "On low dry boards in position as PFR, take the range-bet - don't under-c-bet"
+  },
+  "N14": {
+   "source": "Amit",
+   "label": "SB facing an open (incl. EP) at ~30BB+ eff: 3-bet AXs and KQo rather than flat-call - flatting builds a capped, dominated SB range"
+  },
+  "N15": {
+   "source": "Amit",
+   "label": "Facing a UTG open from outside CO/BTN: 3-bet or fold weak Ax (kicker <8, A2s-A7s) - don't cold-flat into a dominated spot / dead money"
+  },
+  "N16": {
+   "source": "Amit",
+   "label": "Choose bet size by the bottom of villain's calling range - that fraction is what you keep. Oversizing value denies the calls that pay you; especially OOP, size to the hands you want to call"
+  },
+  "N17": {
+   "source": "Amit",
+   "label": "IP c-betting air on dynamic boards: use one small size, not the GTO big/dual sizing - the pool calls 2BB and 3BB with the same hands, so the big size only loses more when called"
+  },
+  "N18": {
+   "source": "Amit",
+   "label": "vs good regs in capped lines (check/check flop and turn): bet big on the river for thin value - they call with bluff-catchers"
+  }
+ }
+}

@@ -1,0 +1,136 @@
+================================================================================
+GTOWizard SB DEFEND Range Extraction
+================================================================================
+Copy everything below into a fresh Chrome extension session.
+You MUST already be logged in to GTOWizard (Elite/Wizard).
+
+PREREQUISITE: You know the basics from the original extraction guide
+(GTOW_Chrome_Extension_Extraction_Guide.txt) — .ra_table_cell CSS gradients,
+splitTop parser, the ICM library filter method.
+
+PURPOSE: Extract SB defend ranges — the CALL action frequency per hand when
+SB faces a single open from BTN/CO/HJ. This gives us call vs 3-bet vs fold
+split for SB defense at 20BB, 35BB, and 50BB.
+================================================================================
+
+# SB Defend Range Extraction — Operating Manual
+
+You are extracting **SB defend action frequencies** from GTOWizard. For each
+spot, SB faces one open raise with no other callers. The decision is:
+fold / call / raise (3-bet) / allin (jam).
+
+We already extracted the RAISE+ALLIN (aggressive) action as 3BF_* charts.
+Now we need the CALL action to build the complete defend range.
+
+## The JS Extractor (CALL frequency — green action)
+
+The CALL action is green in GTOW. After previous extractions, we know the
+raise (orange, 240,98,0) and allin (purple, 114,0,141) colors. The CALL
+action uses a green gradient — identify it by elimination (any gradient
+layer that isn't orange, purple, or blue/fold).
+
+Run this AFTER the spot loads and CELLS=169:
+
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.rtc_strategy_range_normalized .ra_table_cell, .ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);
+    let raise=0,allin=0,fold=0,other=0;
+    imgs.forEach((im,i)=>{
+      const pct=parseFloat((sz[i]||'0%').split(' ')[0]);
+      if(im.includes('240, 98, 0'))raise=pct;
+      else if(im.includes('114, 0, 141'))allin=pct;
+      else if(im.includes('10, 146, 207')||im.includes('45, 134, 199'))fold=pct;
+      else other+=pct;
+    });
+    const call=other; // green = everything that isn't raise/allin/fold
+    m[l]={r:raise,a:allin,c:call,f:fold};});
+  const c70=Object.entries(m).filter(([k,v])=>v.c>=70).map(([k])=>k);
+  const c50=Object.entries(m).filter(([k,v])=>v.c>=50).map(([k])=>k);
+  const cmx=Object.entries(m).filter(([k,v])=>v.c>=20&&v.c<70)
+    .map(([k,v])=>k+':C'+Math.round(v.c));
+  const a50=Object.entries(m).filter(([k,v])=>(v.r+v.a)>=50).map(([k])=>k);
+  return 'CELLS='+Object.keys(m).length+
+    '\nCALL_GE70('+c70.length+'): '+c70.join(' ')+
+    '\nCALL_GE50('+c50.length+'): '+c50.join(' ')+
+    '\nCALL_20_70: '+(cmx.length?cmx.join(' '):'none')+
+    '\nAGG_GE50('+a50.length+'): '+a50.join(' ')+
+    '\nmax_call='+Math.max(...Object.values(m).map(v=>v.c)).toFixed(1)+
+    ' max_raise='+Math.max(...Object.values(m).map(v=>v.r)).toFixed(1);
+})()
+```
+
+### Output explanation
+- CALL_GE70: hands that CALL >= 70% — clear flat hands
+- CALL_GE50: hands that CALL >= 50%
+- CALL_20_70: mixed call frequency hands
+- AGG_GE50: hands that 3-bet/jam >= 50% (cross-check vs existing 3BF charts)
+
+## Navigation
+
+Use **ICM gametype** (MTTGeneral_ICM8m1000PTPCT50) — same as the 3BF extraction.
+Use the library filter method to find situations with the Hero seat (SB) at
+the target depth. Then navigate to the correct node:
+
+For "SB facing BTN open":
+  - Set SB filter to target depth (e.g., Min=27 Max=33 for 30BB)
+  - Pick closest situation, click it
+  - Navigate: everyone folds to BTN, BTN raises, SB's turn to act
+  - preflop_actions = F-F-F-F-F-R, history_spot = 6
+
+For "SB facing CO open":
+  - preflop_actions = F-F-F-F-R-F, history_spot = 6
+
+For "SB facing HJ open":
+  - preflop_actions = F-F-F-R-F-F, history_spot = 6
+
+## Extraction Tasks (9 spots)
+
+ #  | Chart name              | Depth | Opener | PA             | HS
+----|-------------------------|-------|--------|----------------|----
+ 1  | SBD_20BB_vsBTN          |  20BB | BTN    | F-F-F-F-F-R    | 6
+ 2  | SBD_20BB_vsCO           |  20BB | CO     | F-F-F-F-R-F    | 6
+ 3  | SBD_20BB_vsHJ           |  20BB | HJ     | F-F-F-R-F-F    | 6
+ 4  | SBD_35BB_vsBTN          |  35BB | BTN    | F-F-F-F-F-R    | 6
+ 5  | SBD_35BB_vsCO           |  35BB | CO     | F-F-F-F-R-F    | 6
+ 6  | SBD_35BB_vsHJ           |  35BB | HJ     | F-F-F-R-F-F    | 6
+ 7  | SBD_50BB_vsBTN          |  50BB | BTN    | F-F-F-F-F-R    | 6
+ 8  | SBD_50BB_vsCO           |  50BB | CO     | F-F-F-F-R-F    | 6
+ 9  | SBD_50BB_vsHJ           |  50BB | HJ     | F-F-F-R-F-F    | 6
+
+Note: 20BB spots will likely show very little call action (mostly
+3-bet/jam or fold). That's expected — confirm it.
+
+## Output Format
+
+For each spot, record in Poker_Ranges_Text.txt format:
+
+  SBD_{depth}_vs{opener}_CALL: <CALL_GE50 hands> [X%]
+  SBD_{depth}_vs{opener}_CALL_HF: <CALL_GE70 hands> [X%]
+  SBD_{depth}_vs{opener}_3BET: <AGG_GE50 hands> [X%]
+  SBD_{depth}_vs{opener}: <all defend = CALL_GE50 + AGG_GE50> [X%]
+
+Also record mixed-call hands as comments:
+  # SBD_35BB_vsBTN mixed-call: A8s:C45, 76s:C35, ...
+
+## Expected Ranges
+
+20BB: Total defend ~30-40% vs BTN, ~20-30% vs CO, ~12-18% vs HJ.
+      Almost all 3-bet/jam, very little calling.
+35BB: Total defend ~35-45% vs BTN, ~28-35% vs CO, ~20-28% vs HJ.
+      Mix of call (~10-15%) and 3-bet (~20-25%).
+50BB: Total defend ~38-48% vs BTN, ~30-38% vs CO, ~22-30% vs HJ.
+      More calling (~15-25%), polarized 3-bet (~12-20%).
+
+## Workflow per spot
+1. Open library, set SB filter to target depth
+2. Pick closest situation, navigate to SB facing [opener] raise
+3. Wait CELLS=169, run the extractor
+4. Cross-check CALL% and RAISE% against Actions panel
+5. Record results
+
+When done, output the complete block ready to append to Poker_Ranges_Text.txt.
+================================================================================

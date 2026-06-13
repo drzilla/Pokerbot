@@ -1,0 +1,456 @@
+{
+  "_meta": {
+    "version": "7.79",
+    "description": "Field documentation for GEM parser/analyzer output files. Read this at session start to avoid field-name guessing.",
+    "changelog_7_15": "v7.15 parser+analyzer updates: (1) BUGFIX - Jam attribution in line_actions. Previously 'jam' was assigned whenever Hero's final street action was all-in, conflating Hero-initiated shoves with Hero-called bluffcatches. Fixed: 'jam' = Hero bet/raised all-in (aggressive); 'xr-ai' = check-raise all-in; 'callAI' = Hero called villain's all-in (bluffcatch); 'xc-ai' = Hero check-called villain's all-in. Downstream: Top Losing Lines now distinguishes bluffcatch lines (xc-xc-xc-ai, call-call-callAI) from aggressive-jam lines. (2) New format tag 'MYSTERY_BOUNTY' - tournaments with 'Mystery Bounty' in name tagged distinctly from generic BOUNTY. Used by V15b to relax 5-jam threshold when Hero covers villain (6-fig mystery prize EV). (3) New detections: 'V15a 4BP Flat-Call Non-Premium' (Hero flats 4-bet at 40+ BB eff with <JJ, CLEAR), 'V15b 5-Bet Jam Non-Premium Deep' (Hero 5-jams at 40+ BB eff with <QQ, CLEAR or MARGINAL if MYSTERY_BOUNTY+covers), 'V15c Flat 5-Bet+ OOP Multiway' (Hero flats 5-bet+ OOP 3+way with <KK, CLEAR). V15c catches the 'QQ flat 6-bet + checkdown' pattern.",
+    "changelog_7_14": "Two-pass v7.14: (1) Dave rules J33-J40 added to mistake detection. (2) Analyzer optimizations: hand_time field; stats_by_phase + intra_session_arc + eai_ev_adjusted; leak_persistence progress-vs-target; GTO export capped 30 with EV-delta sort; gem_hands_lean.json additive output.",
+    "files": [
+      "gem_hands.json",
+      "gem_hands_lean.json",
+      "gem_stats.json",
+      "gem_report_data.json"
+    ]
+  },
+  "gem_hands_json": {
+    "_description": "List of hand dicts. Key field is 'id'. All 981+ hands in session.",
+    "fields": {
+      "id": {
+        "type": "str",
+        "example": "TM5806005261",
+        "description": "Unique hand ID from GGPoker"
+      },
+      "tournament": {
+        "type": "str",
+        "example": "32 Bounty King",
+        "description": "Tournament name"
+      },
+      "format": {
+        "type": "str",
+        "enum": [
+          "BOUNTY",
+          "MYSTERY_BOUNTY",
+          "FREEZEOUT",
+          "SATELLITE"
+        ],
+        "description": "Tournament format. v7.15: MYSTERY_BOUNTY tagged distinctly - massive 6-fig mystery prize EV relaxes covering-stack jam thresholds."
+      },
+      "buyin": {
+        "type": "int",
+        "example": 32,
+        "description": "Buy-in in dollars (may be 0 if not parsed)"
+      },
+      "level": {
+        "type": "int",
+        "example": 17,
+        "description": "Blind level number"
+      },
+      "sb_blind": {
+        "type": "int",
+        "description": "Small blind in chips"
+      },
+      "bb_blind": {
+        "type": "int",
+        "description": "Big blind in chips"
+      },
+      "ante": {
+        "type": "int",
+        "description": "Ante in chips"
+      },
+      "date": {
+        "type": "str",
+        "example": "2026-04-09",
+        "description": "Hand date"
+      },
+      "hand_time": {
+        "type": "str",
+        "example": "14:32:05",
+        "description": "v7.14 NEW. Time-of-day (HH:MM:SS) from HH header. Used for intra-session arc / tilt detection. Empty string if unparseable."
+      },
+      "table_size": {
+        "type": "int",
+        "enum": [
+          2,
+          6,
+          8,
+          9
+        ],
+        "description": "Max seats at table"
+      },
+      "n_players": {
+        "type": "int",
+        "description": "Actual players dealt in this hand"
+      },
+      "hero": {
+        "type": "str",
+        "example": "Hero",
+        "description": "Hero's screen name"
+      },
+      "cards": {
+        "type": "list[str]",
+        "example": [
+          "Ah",
+          "Kd"
+        ],
+        "description": "Hero's hole cards"
+      },
+      "position": {
+        "type": "str",
+        "enum": [
+          "UTG",
+          "UTG+1",
+          "MP",
+          "HJ",
+          "CO",
+          "BTN",
+          "SB",
+          "BB"
+        ],
+        "description": "Hero's raw position"
+      },
+      "eff_pos": {
+        "type": "str",
+        "description": "Effective position normalized for table size"
+      },
+      "stack_bb": {
+        "type": "float",
+        "description": "Hero's stack in BB at hand start"
+      },
+      "eff_stack_bb": {
+        "type": "float",
+        "description": "Effective stack (min of Hero and relevant villain) in BB"
+      },
+      "board": {
+        "type": "list[str]",
+        "example": [
+          "Qh",
+          "8s",
+          "Kc",
+          "Js",
+          "9c"
+        ],
+        "description": "Community cards dealt"
+      },
+      "board_texture": {
+        "type": "str",
+        "enum": [
+          "dynamic",
+          "monotone",
+          "paired",
+          "other",
+          "low_dry",
+          "dry_ahigh",
+          "none"
+        ],
+        "description": "Flop texture classification"
+      },
+      "pf_action": {
+        "type": "str",
+        "enum": [
+          "fold",
+          "call",
+          "raise",
+          "3bet",
+          "4bet+"
+        ],
+        "description": "Hero's preflop action"
+      },
+      "vpip": {
+        "type": "bool",
+        "description": "Hero voluntarily put money in pot"
+      },
+      "pfr": {
+        "type": "bool",
+        "description": "Hero was preflop raiser"
+      },
+      "first_in": {
+        "type": "bool",
+        "description": "Hero was first to voluntarily enter (no prior raises)"
+      },
+      "opener_position": {
+        "type": "str",
+        "description": "Position of first raiser (empty if Hero opened)"
+      },
+      "hero_faced_raise": {
+        "type": "bool",
+        "description": "Hero faced a raise preflop"
+      },
+      "hero_3bet": {
+        "type": "bool",
+        "description": "Hero 3-bet preflop"
+      },
+      "fold_to_3bet": {
+        "type": "bool",
+        "description": "Hero folded to a 3-bet"
+      },
+      "fold_to_4bet": {
+        "type": "bool",
+        "description": "Hero folded to a 4-bet"
+      },
+      "pf_raise_count": {
+        "type": "int",
+        "description": "Total preflop raises in the hand"
+      },
+      "pf_sequence": {
+        "type": "list[str]",
+        "example": [
+          "UTG:folds",
+          "MP(H):raises"
+        ],
+        "description": "Full preflop action sequence"
+      },
+      "is_squeeze": {
+        "type": "bool",
+        "description": "Hero squeezed (3-bet with caller in between)"
+      },
+      "villain_jammed": {
+        "type": "bool",
+        "description": "A villain went all-in preflop"
+      },
+      "jammer_position": {
+        "type": "str",
+        "description": "Position of preflop jammer"
+      },
+      "jammer_stack_bb": {
+        "type": "int",
+        "description": "Stack of preflop jammer in BB"
+      },
+      "stacks_behind": {
+        "type": "dict",
+        "example": {
+          "BTN": 40.8,
+          "SB": 30.0
+        },
+        "description": "Stacks of players yet to act"
+      },
+      "pf_allin": {
+        "type": "bool",
+        "description": "Hand was all-in preflop"
+      },
+      "players_at_flop": {
+        "type": "int",
+        "description": "Number of players who saw the flop"
+      },
+      "spr": {
+        "type": "float",
+        "description": "Stack-to-pot ratio at flop"
+      },
+      "hero_ip": {
+        "type": "bool",
+        "description": "Hero is in position postflop"
+      },
+      "hero_bets": {
+        "type": "list",
+        "description": "Hero's bets: [[street, size_pct, type, position], ...]"
+      },
+      "facing_bets": {
+        "type": "list",
+        "description": "Bets Hero faced: [[street, size_pct, action], ...]"
+      },
+      "hero_street_actions": {
+        "type": "dict",
+        "example": {
+          "flop": "cbet",
+          "turn": "x",
+          "river": "xf"
+        },
+        "description": "Hero's action per street (cbet/bet/x/xc/xf/xr/call/fold/jam)"
+      },
+      "check_raises": {
+        "type": "list[str]",
+        "example": [
+          "flop"
+        ],
+        "description": "Streets where Hero check-raised"
+      },
+      "hero_check_raised_flop": {
+        "type": "bool",
+        "description": "Hero check-raised on the flop"
+      },
+      "villain_bet_flop_first": {
+        "type": "bool",
+        "description": "Villain bet the flop before Hero acted"
+      },
+      "villain_folded_to_flop_cbet": {
+        "type": "bool",
+        "description": "Villain folded to Hero's flop c-bet"
+      },
+      "flop_allin": {
+        "type": "bool",
+        "description": "All-in occurred on the flop"
+      },
+      "river_action": {
+        "type": "str|null",
+        "enum": [
+          "value_bet",
+          "check_sdv",
+          "bluff",
+          "call",
+          "fold_to_bet",
+          "check_giveup",
+          null
+        ],
+        "description": "Hero's river action classification"
+      },
+      "pot_type": {
+        "type": "str",
+        "enum": [
+          "SRP",
+          "3BP",
+          "4BP"
+        ],
+        "description": "Pot type (Single Raised / 3-Bet / 4-Bet)"
+      },
+      "line": {
+        "type": "str",
+        "example": "SRP_PFR_OOP_cbet-jam-x_SD_lost",
+        "description": "Full action line classification"
+      },
+      "line_actions": {
+        "type": "str",
+        "example": "cbet-jam-x",
+        "description": "Action sequence portion of line. Codes: 'cbet' (Hero c-bet flop as PFR), 'bet' (Hero bet non-cbet), 'raise' (Hero raised), 'call' (Hero called villain bet), 'x' (check through), 'xc' (check-call), 'xr' (check-raise), 'xf' (check-fold), 'fold' (fold after check-less), 'jam' (v7.15: Hero INITIATED all-in by bet/raise), 'xr-ai' (v7.15: Hero check-raise all-in), 'callAI' (v7.15: Hero CALLED villain's all-in = bluffcatch), 'xc-ai' (v7.15: Hero check-called villain's all-in = bluffcatch). The distinction between 'jam' and 'callAI'/'xc-ai' matters for losing-line analysis: bluffcatch lines are not aggression leaks."
+      },
+      "action_summary": {
+        "type": "str",
+        "description": "Human-readable action summary"
+      },
+      "hand_strength": {
+        "type": "str",
+        "enum": [
+          "high_card",
+          "pair",
+          "two_pair",
+          "trips",
+          "straight",
+          "flush",
+          "full_house",
+          "quads",
+          "straight_flush"
+        ],
+        "description": "Best hand at showdown"
+      },
+      "draw_type": {
+        "type": "str",
+        "enum": [
+          "none",
+          "bdfd",
+          "fd",
+          "oesd",
+          "oesd+fd",
+          "gutshot",
+          "gutshot+fd",
+          "combo"
+        ],
+        "description": "Draw classification on flop/turn"
+      },
+      "went_to_sd": {
+        "type": "bool",
+        "description": "Hand went to showdown"
+      },
+      "won": {
+        "type": "bool",
+        "description": "Hero won the hand"
+      },
+      "net_bb": {
+        "type": "float",
+        "description": "Hero's net profit/loss in BB"
+      },
+      "hero_committed_bb": {
+        "type": "float",
+        "description": "Total BB Hero invested"
+      },
+      "one_and_done": {
+        "type": "bool",
+        "description": "Hero bet one street then gave up"
+      },
+      "missed_river_value": {
+        "type": "bool",
+        "description": "Flagged as missed river value opportunity"
+      },
+      "missed_probe": {
+        "type": "bool",
+        "description": "Flagged as missed probe opportunity"
+      },
+      "tournament_phase": {
+        "type": "str",
+        "enum": [
+          "late_reg",
+          "post_reg",
+          "bubble_zone",
+          "post_bubble",
+          "ft_zone"
+        ],
+        "description": "Estimated tournament phase"
+      }
+    }
+  },
+  "gem_stats_json": {
+    "_description": "Aggregated session stats. Top-level keys below.",
+    "top_level_keys": {
+      "volume": "Session metadata (hands, tournaments, bullets, formats, date)",
+      "tournament_list": "List of {name, format, hands, buyin} per tournament",
+      "card_quality": "Premium/strong/suited/pair percentages and card_cold flag",
+      "core": "Core stats: vpip, pfr, ats, af, vpip_pfr_gap, vpip_pfr_gap_nonblind, wwsf, non_sd_win, sd_aggressor_pct, caller_ip_flop_agg, ftb, check_raises, one_and_done. v7.13 Appendix K: ip_stab_rate (K3, target 40-60%), ip_stab_n/bet_n, float_turn_attack_rate (K3, target >50%), ip_caller_xr_rate/mw_rate (K1, MW target 0-5%), flop_lead_rate (K6, baseline 2-5%), flop_lead_n/bet_n, flop_lead_acceptable_boards",
+      "ip_stab_by_board": "K3: IP stab rate split by board type. board_kind -> {total, bet, pct}. Boards: two_high, low_paired, high_paired, mid_paired, low_straight, low_dry, connected_mid, a_high_dry, monotone, other",
+      "flop_lead_by_board": "K6: Flop lead rate (BB/SB caller) split by board type. Same board_kinds as ip_stab_by_board. Acceptable leads: low_paired (35-48%), low_straight (20-40%), connected_mid in 3BP shallow",
+      "k4_srp_cbet_by_pos_depth": "K4: HU SRP c-bet by Hero position x depth. Key = '{MP|CO|BTN}_{60BB+|30-45BB|<25BB}' -> {total, bet, pct}",
+      "k4_targets": "K4: Target c-bet% by position x depth for K4 comparison. Same key format as k4_srp_cbet_by_pos_depth",
+      "k2_oop_pfr_matchup": "K2: OOP PFR c-bet by matchup archetype. Warrior (EP/MP vs LP), Gentleman (LP vs LP), BvB. Each -> {total, bet, pct}",
+      "positions": "Per-position: {hands, vpip, pfr, open_pct, fi, opens}",
+      "positional_pnl": "Per-position: {hands, net_bb, bb_per_hand, bb_per_100, vpip_hands, vpip_net_bb, vpip_bb_per_hand}",
+      "cbet": "C-bet rates: hu_pct, hu_ip_pct, hu_oop_pct, mw_pct, turn_pct + opps/bets counts",
+      "cr_frequency": "Check-raise: flop_cr/opp/pct, turn_cr/opp/pct, river_cr/opp/pct, total_cr/opp/pct",
+      "threebet_by_opener": "3-bet rate by opener position: EP/MP/LP/Blinds \u2192 {opps, bets, rate}",
+      "threebet_by_hero_pos": "3-bet rate by Hero position: BTN/SB/BB/CO/HJ etc \u2192 {opps, bets, rate}",
+      "bluff_profile": "Value/semi/pure counts and percentages",
+      "stack_depth": "By depth tier (<12BB/12-25/25-40/40+): {hands, vpip, pfr, rfi}",
+      "sizing": "Bet sizing by spot: {avg_pct, n, min_pct, max_pct} per flop_cbet_IP etc",
+      "facing_bets": "Hero facing bets: by street_size \u2192 {fold, call, raise counts}",
+      "river_audit": "River action counts: value_bet, check_sdv, bluff, call, fold_to_bet, check_giveup",
+      "sb_bvb_preflop": "SB BvB: limp/raise/fold counts and percentages, total",
+      "board_texture": "C-bet by texture: dynamic/monotone/paired/other/low_dry/dry_ahigh \u2192 {opps, bets, pct}",
+      "eai": "Equity All-In: preflop/postflop \u2192 ahead/flip/behind \u2192 {count, won, pct}. Also hands list.",
+      "coolers": "Cooler list: {count, rate, hands: [{id, hero, villain, board}]}",
+      "mistakes": "Mistake list: [{id, cards, pos, stack_bb, type, confidence, action_summary, tournament}]",
+      "marginal_mistakes": "Marginal mistake list (same schema as mistakes)",
+      "preflop_deviations": "Full deviation list: [{id, cards, pos, stack_bb, type, confidence, tournament, action_summary, chart, opener}]",
+      "deviation_summary": "By type: {count, clear, marginal, hands[top5]}",
+      "deep_runs": "Deep run list: [{tournament, hands, start, peak, low, final, premiums_pct, eai_total/won/expected}]",
+      "top_losing_lines": "Top losing lines: [{line, count, net_bb, avg_bb, confidence, example_ids}]",
+      "top_winning_lines": "Top winning lines: [{line, count, net_bb, avg_bb}]",
+      "showdown": "Showdown stats: wtsd, wsd, saw_flop_vol, went_sd, won_sd",
+      "table_size_mix": "Dict of table_size \u2192 hand_count",
+      "csv_row": "Pre-formatted CSV row for session_history",
+      "phases": "Early/Mid/Late phase stats",
+      "tournament_phases": "By phase: {late_reg, post_reg, bubble_zone, post_bubble, ft_zone} \u2192 hand count",
+      "stats_by_phase": "v7.14 NEW. Per-phase stat breakdown keyed by phase name (late_reg, post_reg, bubble_zone, post_bubble, ft_zone, unknown) + '_overall' comparison row. Each phase entry: {n_hands, vpip, pfr, three_bet, three_bet_opps, fold_to_3bet, cbet_flop, wwsf, saw_flop, mistakes, mistakes_per_100, net_bb, bb_per_100}. '_overall' is a light subset: {vpip, pfr, mistakes_per_100, bb_per_100}. Used by report Del 2A++ to surface phase-specific leaks (ICM-critical phases often have low volume but high mistake rates).",
+      "intra_session_arc": "v7.14 NEW. Quartile-based session arc for tilt/fatigue detection. {quartiles: [{quartile, n_hands, mistakes, mistakes_per_100, vpip, net_bb, bb_per_100, first_hand_id, last_hand_id, first_time, last_time}], tilt_flag: bool, tilt_note: str}. tilt_flag raised when Q4 mistakes/100 >= 2x Q1 with n>=20 per quartile. Computed from hands sorted by (date, hand_time). Empty quartiles + tilt_note='insufficient volume' when N<20.",
+      "eai_ev_adjusted": "v7.14 NEW. EV-adjusted wins vs expectation for EAI hands. {preflop: {expected_wins, actual_wins, total_spots, delta_wins, expected_win_pct, actual_win_pct}, postflop: same shape, avg_eai_pot_bb: float (avg stack as pot proxy), approx_bb_variance_pf: float, approx_bb_variance_post: float, note: caveat string}. Negative delta = ran below EV (variance, not necessarily a leak). Positive delta = results flattered skill. Uses Quick Ref expected rates: PF ahead 80/flip 55/behind 20, Post ahead 85/flip 50/behind 25."
+    }
+  },
+  "gem_report_data_json": {
+    "_description": "Pre-staged data for report generation. Produced by generate_report_data(). Eliminates need to query gem_hands.json during report writing.",
+    "top_level_keys": {
+      "avg_buyin": "Average buy-in per bullet in dollars",
+      "total_invested": "Total dollars invested across all bullets",
+      "buyin_breakdown": "List of {tournament, bullets, cost} per tournament",
+      "dates": "List of unique dates in session",
+      "sb_bvb_by_table_size": "BvB split: full_ring (n>=6) vs short_handed (n<6) \u2192 {n, limp/raise/fold count+pct, hands[]}",
+      "cbet_all_textures_hu_ip": "C-bet by all 6 textures across ALL PFR HU IP (not just SRP): {texture \u2192 {opps, bets, pct}}",
+      "cr_evidence_hands": "All check-raise hands: [{id, date, tournament, cards, position, street, board, holding, net_bb}]",
+      "deviation_evidence": "2-3 hands per deviation type: {type \u2192 [{id, date, tournament, cards, pos, bb, severity, detail}]}",
+      "deviation_base_rates": "Denominators per type: {type \u2192 {total, clear, marginal, base, base_label, clear_pct, marginal_pct}}",
+      "deep_run_trajectories": "Per deep run: [{tournament, levels: [{level, stack_bb}], key_moments: [{id, level, cards, net_bb, line}]}]",
+      "clinical_candidates": "Pre-selected clinical hands: [{id, date, tournament, cards, pos, bb, net_bb, line, reason, raw_hh}]",
+      "gto_shortlist": "GTO review candidates: [{id, date, tournament, cards, pos, bb, spot, question, raw_hh}]",
+      "gto_export_path": "Path to auto-generated GTO Wizard export file",
+      "gto_export_count": "v7.14 NEW. Number of hands actually exported (<=gto_export_cap)",
+      "gto_export_cap": "v7.14 NEW. Max hands in GTO export (currently 30). Sorted by EV-delta: tier 0 = mistakes with EV estimate (|EV| desc), tier 1 = missed river/probe, tier 2 = coolers/big pots, tier 3 = others.",
+      "mistake_ev_estimates": "EV estimate per mistake: [{id, type, estimated_ev_bb, reasoning}]. v7.14: J33-J37 rule-specific EV amounts added.",
+      "trend_data": "Last 5 sessions from session_history: [{date, key_metrics...}]",
+      "hero_classification": "Hero type based on phase distribution: {label, emoji, ft_pct, reasoning}",
+      "tournament_phase_dist": "Phase distribution with hand counts + percentages",
+      "leak_persistence": "Cross-session leak tracker: {current_leaks[], tracker: [{leak, status (\ud83c\udd95New/\ud83d\udd34Recurring/\ud83d\udfe1Returned/\u2705Resolved), note, current (v7.14), target (v7.14), gap (v7.14), direction (v7.14: in_range/below/above)}], timeline: [{date, leaks[]}], summary: {new, recurring, returned, resolved}}. v7.14: each tracker entry now carries progress-vs-target fields. Applies to Non-SD Win, SD Aggressor, VPIP-PFR Gap, Caller IP Agg, HU C-Bet, MW C-Bet, BTN/CO Open, SB Steal, WWSF."
+    }
+  }
+}

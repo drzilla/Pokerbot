@@ -1,0 +1,34 @@
+{
+  "_doc": "GG tournament structure reference for cEV/stack starting-stack resolution. Used by gem_cev.py. Two sections: 'ladders' maps a series fingerprint to its L1 starting stack (for tier-2 extrapolation when Hero late-registered and L1 was never observed); 'name_overrides' is a hand-corrected name -> starting_chips table (tier-3 fallback). Conflict handling: if the same tournament name legitimately has different starting stacks across dates, replace the scalar with a list of {date_from, starting_chips} entries and gem_cev will flag any ambiguous lookup as unresolved rather than guessing.",
+  "_schema_version": 1,
+  "_updated": "2026-05-20",
+  "ladders": {
+    "_doc": "Keyed by the L1 (small/big) blind string. Value: standard starting stack for any GG series that opens on that blind level. When the earliest observed hand is L2+, gem_cev matches the observed level's blinds against a known ladder progression to identify L1 and read the start. These are GG's standard regular-speed structures. NOTE: blind level alone does not uniquely fix the starting stack (a 50/100 Deepstack starts deeper than a 50/100 regular) — the 'snap standards' below list every known GG starting stack so an L1-observed read snaps to the nearest real value.",
+    "25/50":   {"starting_chips": 5000,  "note": "Satellite standard (e.g. $55 Satellite to $525)"},
+    "50/100":  {"starting_chips": 10000, "note": "Standard regular-speed MTT / Takedown / Turbo open level"},
+    "100/200": {"starting_chips": 25000, "note": "Bounty Bonanza / Big Bounties standard open level"},
+    "100/200_deep": {"starting_chips": 50000, "note": "Deepstack 100/200 open (v8.6.3 R1 — needs name disambiguation)"}
+  },
+  "snap_standards": {
+    "_doc": "Every known GG starting-stack value. gem_cev snaps an l1_observed chip read to the nearest of these if within 5%. Covers Deepstack (20000) which shares the 50/100 open level with regular 10000 structures.",
+    "values": [5000, 10000, 20000, 25000, 30000, 50000]
+  },
+  "ladder_progressions": {
+    "_doc": "Observed GG blind progressions, used to identify the L1 of a structure from a later level. Each list is (level, sb, bb) in order. gem_cev matches an observed (level, sb, bb) against these to back-solve L1.",
+    "deepstack_50_100": [[1,50,100],[2,60,120],[3,75,150],[4,100,200],[5,125,250],[6,150,300]],
+    "takedown_L_50_100": [[1,50,100],[2,60,120],[3,80,160],[4,100,200],[5,125,250],[6,150,300]],
+    "bonanza_100_200": [[1,100,200],[2,125,250],[3,150,300],[4,200,400],[5,250,500],[6,300,600]],
+    "satellite_25_50": [[1,25,50],[2,50,100],[3,75,150],[4,100,200],[5,125,250],[6,150,300]],
+    "classic_250_500_at_L5": [[5,250,500],[6,300,600],[7,350,700],[8,400,800],[9,450,900],[10,500,1000]],
+    "deep_100_200_50k": [[1,100,200],[2,125,250],[3,150,300],[4,175,350],[5,200,400],[6,250,500],[7,300,600],[8,400,800]]
+  },
+  "name_overrides": {
+    "_doc": "Hand-corrected name -> starting_chips. Use only when tiers 1-2 cannot resolve. Tournament name alone is NOT a safe key across dates; if a name needs different values on different dates, replace the integer with a list of {\"date_from\": \"YYYY-MM-DD\", \"starting_chips\": N} and gem_cev flags ambiguous matches as unresolved. Entries below are marked 'unverified' until Ron confirms — gem_cev treats unverified overrides as low-confidence.",
+    "165-M 55 Bounty Hunters Daily Main [Deepstack]": {"starting_chips": 25000, "confidence": "unverified", "note": "Deepstack format; standard GG bounty start assumed 25000 — Ron to confirm"},
+    "166-L 25 Tuesday Classic": {"starting_chips": 25000, "confidence": "ladder_confirmed", "note": "L5 250/500 matches classic_250_500_at_L5 ladder"},
+    "166-M 150 Tuesday Classic": {"starting_chips": 25000, "confidence": "ladder_confirmed", "note": "L5 250/500 matches classic_250_500_at_L5 ladder"},
+    "GGMasters Bounty": {"starting_chips": 10000, "confidence": "verified", "note": "v8.6.3 R1: GGMasters Bounty family opens 25/50 but starts 10000 (not satellite 5000)"},
+    "GGMasters Bounty Turbo": {"starting_chips": 10000, "confidence": "verified", "note": "v8.6.3 R1"},
+    "GGMasters Bounty King": {"starting_chips": 10000, "confidence": "verified", "note": "v8.6.3 R1"}
+  }
+}

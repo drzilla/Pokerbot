@@ -1,0 +1,97 @@
+# 3-BET RANGES — Extracted from RYE Flatting/3Betting Charts (2026-06-03)
+# Source: Ron's RYE chart package (4 depth tiers × 5 opener scenarios)
+# Format: 3BET_<depth>_<hero>vs<opener>: hands [approx %]
+#
+# Legend from charts:
+#   Value 3-bet (dark red) = 3-bet for value, call if 4-bet (at deeper stacks)
+#   3-bet bluff (yellow/gold) = 3-bet as bluff, fold to 4-bet
+#   3-bet jam (pink) = 3-bet all-in (short stacks)
+#   3-bet + broke (dark red at 30bb) = 3-bet, call 4-bet jam
+#
+# This file merges value + bluff into ONE 3-bet range per spot.
+# The FLAT range (green/brown) is NOT included — that goes in FLAT3B_ charts.
+
+# ============================================================
+# 30BB+ DEPTH (most common MTT stack)
+# ============================================================
+
+# SB vs BTN 30bb+
+# Value: AA-TT, AKs-ATs, AKo-AQo, KQs-KJs
+# Bluff: A5s-A2s, K9s, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s
+3BET_30BB_SBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, KJs, K9s, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo [~28%]
+
+# BB vs BTN 30bb+
+# Value: AA-QQ, AKs-AQs, AKo
+# (BB mostly defends via flat at 30bb+ vs BTN — 3-bet range is tighter)
+3BET_30BB_BBvsBTN: AA, KK, QQ, AKs, AQs, AKo, 92s, 82s, 72s [~8%]
+
+# BTN vs CO 30bb+
+# Value: AA-JJ, AKs-AJs, AKo-AQo, KQs
+# Bluff: A5s, A4s, A3s, A2s, 65s, 54s
+3BET_30BB_BTNvsCO: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 65s, 54s [~12%]
+
+# SB vs CO 30bb+
+# Similar to SB vs BTN but tighter
+3BET_30BB_SBvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 76s, 65s [~15%]
+
+# BTN vs MP 30bb+
+3BET_30BB_BTNvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [~8%]
+
+# SB vs MP 30bb+
+3BET_30BB_SBvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [~8%]
+
+# SB vs UTG 30bb+
+3BET_30BB_SBvsUTG: AA, KK, QQ, AKs, AQs, AKo [~5%]
+
+# BTN vs UTG 30bb+ (from UTG+1/MP/BTN chart)
+3BET_30BB_BTNvsUTG: AA, KK, QQ, AKs, AQs, AKo, A5s, A4s [~6%]
+
+# ============================================================
+# 50BB+ DEPTH (deep stack)
+# ============================================================
+
+# BTN vs CO 50bb+
+# Value: AA-JJ, AKs-AJs, AKo-AQo, KQs
+# Bluff: A5s, A4s, A3s, A2s, K5s, 65s, 54s
+3BET_50BB_BTNvsCO: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, K5s, 65s, 54s [~13%]
+
+# SB vs BTN 50bb+ (similar structure to 30bb but slightly wider bluff)
+3BET_50BB_SBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo, AJo [~30%]
+
+# BTN vs MP 50bb+
+3BET_50BB_BTNvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [~8%]
+
+# SB vs CO 50bb+
+3BET_50BB_SBvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 87s, 76s, 65s [~16%]
+
+# SB vs MP 50bb+
+3BET_50BB_SBvsMP: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, A5s, A4s, A3s [~9%]
+
+# SB vs UTG 50bb+
+3BET_50BB_SBvsUTG: AA, KK, QQ, AKs, AQs, AKo [~5%]
+
+# ============================================================
+# 20BB DEPTH (short stack — mostly jam/fold, overlaps with PUSH charts)
+# ============================================================
+# At 20bb, the 3-bet is typically an all-in jam.
+# These overlap heavily with PUSH_10BB charts.
+# SB vs BTN is essentially PUSH range (very wide).
+# Use PUSH_10BB charts for <20bb; these for 20-25bb.
+
+3BET_20BB_SBvsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 54s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, KQo, KJo, KTo, QJo, QTo, JTo [~55%]
+
+3BET_20BB_SBvsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo, AJo, ATo, KQo [~35%]
+
+3BET_20BB_BBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, AKo, AQo, 92s, 82s, 72s, 62s [~12%]
+
+# ============================================================
+# NOTES
+# ============================================================
+# - These ranges are from RYE (RaiseYourEdge.com) GTO charts
+# - "3-bet" at 20bb is effectively an all-in jam
+# - "3-bet" at 30-50bb is a sized 3-bet (~2.5-3x the open)
+# - Flat portions NOT included here — see FLAT3B_ if created
+# - Bluff 3-bets are intentionally included (A5s-A2s, low SCs)
+#   because the detector needs to know the FULL 3-bet range,
+#   not just the value portion
+# - Ron/Dave to verify exact cutoffs against their coaching notes

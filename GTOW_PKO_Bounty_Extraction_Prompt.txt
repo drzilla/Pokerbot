@@ -1,0 +1,265 @@
+================================================================================
+GTOWizard PKO BOUNTY Range Extraction — Chrome Extension Prompt
+================================================================================
+Created: 2026-06-11. Copy everything below the line into a fresh Chrome
+extension session. You MUST already be logged in to GTOWizard (Elite/Wizard).
+
+PREREQUISITE: You already know the basics from the first extraction guide
+(GTOW_Chrome_Extension_Extraction_Guide.txt). Same site mechanics —
+.ra_table_cell CSS gradients, splitTop parser, etc.
+
+PURPOSE: Extract preflop ranges from GTOWizard's PKO (Progressive Knockout /
+Bounty) solver to compare against standard ChipEV/ICM ranges. The downstream
+system currently uses hardcoded heuristics (flat 8pp equity discount, static
+PKO bonus hand list). We need real GTO data showing WHERE and HOW MUCH
+bounty equity changes decisions.
+================================================================================
+
+# GTOWizard PKO Bounty Range Extraction — Operating Manual
+
+You are extracting **preflop ranges from the PKO solver** on GTOWizard and
+comparing them to the equivalent non-PKO (ChipEV) ranges we already have.
+The goal is to capture the DELTA — spots where PKO ranges diverge from
+standard ranges.
+
+## Step 0: Discover the PKO gametype
+
+Before extracting anything, we need to find the correct gametype string.
+
+1. Navigate to: https://app.gtowizard.com/solutions
+2. Click **Change** to open the Solutions library.
+3. In the left rail, look for format/gametype options. Find any option
+   labeled "PKO", "Bounty", "Progressive Knockout", or "Mystery Bounty."
+4. Note the exact gametype ID from the URL after selecting it (e.g. if
+   ChipEV 8-max = `MTTGeneral_8m`, PKO might be `MTTGeneral_PKO8m` or
+   `PKO8mGeneral` or similar).
+5. Check what bounty parameters are available (e.g. bounty fraction,
+   starting bounty size). Note any configurable values.
+6. Check what stack depth options exist. Note the range (e.g. 5BB-100BB).
+7. Report back what you find before proceeding with extractions.
+
+**If PKO is not available as a separate gametype:**
+   - Check under "Format" or "Type" filters
+   - Try searching for "bounty" in any search/filter box
+   - Check if there's a "Bounty" tab alongside "ChipEV" / "ICM"
+   - Take a screenshot of the available options
+
+**IMPORTANT:** Do NOT proceed to extraction until you have confirmed the
+PKO gametype and reported the available parameters. The exact gametype
+string, bounty configuration, and available depths determine everything
+that follows.
+
+## What to extract
+
+Once you've confirmed the PKO gametype and parameters, we need ranges
+for these scenarios, organized by the key question: **does bounty equity
+change the decision?**
+
+### Priority 1: OPEN RANGES (folded to Hero)
+Compare PKO open ranges vs ChipEV open ranges at matched depths.
+
+Positions to extract (same as existing ChipEV opens):
+  UTG, HJ, CO, BTN, SB
+
+Depths to extract:
+  10BB, 20BB, 30BB, 50BB (or whatever depths are available)
+
+For each spot, record:
+  - Full open range (raise + allin >= 50%)
+  - Hands that are opens in PKO but NOT in ChipEV (the "PKO bonus" hands)
+  - Hands that are opens in ChipEV but NOT in PKO (if any exist)
+
+### Priority 2: BB DEFEND vs BTN/CO OPEN
+The biggest PKO impact is on calling ranges when covering the opener.
+
+Positions: BB facing BTN open, BB facing CO open
+Depths: 15BB, 20BB, 30BB, 50BB
+
+For each spot, record:
+  - Call range (call action >= 50%)
+  - 3-bet range (raise action >= 50%)
+  - Fold range
+  - Compare to existing BBD_ charts
+
+### Priority 3: SB DEFEND / 3-BET vs OPEN
+Positions: SB facing BTN open, SB facing CO open
+Depths: 20BB, 30BB, 50BB
+
+### Priority 4: PUSH/FOLD — ALL-IN RANGES
+At short stacks, the bounty widens push ranges significantly.
+Positions: All (UTG through SB)
+Depths: 5BB, 8BB, 10BB, 15BB
+
+Compare to existing PUSH_10BB_* charts.
+
+### Priority 5: COVERING vs COVERED (if solver supports this)
+Some PKO solvers let you configure stack asymmetry or bounty-to-stack
+ratio. If GTOW's PKO solver has this:
+  - Extract for "covering" scenario (Hero has 2x villain stack)
+  - Extract for "being covered" scenario (Villain has 2x Hero stack)
+  - Extract for "equal stacks" baseline
+
+This is the most valuable data — it tells us when to widen vs tighten
+based on the specific cover relationship.
+
+## The JS Extractor
+
+Same extractor as previous sessions. Run AFTER the spot fully loads
+and CELLS=169 is confirmed:
+
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);let raise=0,allin=0,call=0,fold=0;
+    imgs.forEach((im,i)=>{
+      const pct=parseFloat((sz[i]||'0%').split(' ')[0]);
+      if(im.includes('240, 98, 0'))raise=pct;
+      if(im.includes('114, 0, 141'))allin=pct;
+      if(im.includes('98, 228, 90')||im.includes('98,228,90'))call=pct;
+      if(im.includes('10, 146, 207')||im.includes('45, 134, 199'))fold=pct;
+    });
+    m[l]={r:raise,a:allin,c:call,f:fold,agg:raise+allin};});
+  const opens=Object.entries(m).filter(([k,v])=>v.agg>=50).map(([k])=>k);
+  const calls=Object.entries(m).filter(([k,v])=>v.c>=50).map(([k])=>k);
+  const mixed=Object.entries(m).filter(([k,v])=>v.agg>=20&&v.agg<50)
+    .map(([k,v])=>k+':R'+Math.round(v.r)+(v.a>0?'+A'+Math.round(v.a):''));
+  return 'CELLS='+Object.keys(m).length+
+    '\nOPEN/RAISE('+opens.length+'): '+opens.join(' ')+
+    '\nCALL('+calls.length+'): '+calls.join(' ')+
+    '\nMIXED_AGG: '+(mixed.length?mixed.join(' '):'none')+
+    '\nmax_r='+Math.max(...Object.values(m).map(v=>v.r)).toFixed(1)+
+    ' max_a='+Math.max(...Object.values(m).map(v=>v.a)).toFixed(1)+
+    ' max_c='+Math.max(...Object.values(m).map(v=>v.c)).toFixed(1);
+})()
+```
+
+### Cross-check
+After running the JS, take a screenshot of the Actions panel on the right.
+Verify counts and percentages match.
+
+## Output format
+
+For each extracted spot, output in this format:
+
+```
+PKO_OPEN_{depth}BB_{POSITION}: hand1, hand2, ... [X.X%]
+```
+
+And separately note the DELTA vs the equivalent non-PKO chart:
+
+```
+# PKO_OPEN_20BB_BTN delta vs OPEN_20-40BB_BTN:
+#   Added in PKO: A6o, K8o, Q9o, J9o, T8o, 97o, 86o (7 hands)
+#   Removed in PKO: (none)
+#   Net: +7 hands wider (PKO widens BTN open at 20BB)
+```
+
+For defend spots:
+
+```
+PKO_BBD_{depth}BB_vs{OPENER}_CALL: hand1, hand2, ... [X.X%]
+PKO_BBD_{depth}BB_vs{OPENER}_3BET: hand1, hand2, ... [X.X%]
+```
+
+With delta vs equivalent non-PKO BBD chart.
+
+If covering/covered data is available:
+
+```
+PKO_OPEN_{depth}BB_{POSITION}_COVERING: hand1, hand2, ... [X.X%]
+PKO_OPEN_{depth}BB_{POSITION}_COVERED: hand1, hand2, ... [X.X%]
+```
+
+## Navigation
+
+Use the URL template from the original guide, replacing the gametype with
+whatever the PKO gametype turns out to be:
+
+```
+https://app.gtowizard.com/solutions?gametype={PKO_GAMETYPE}&depth={D}.125&solution_type=gwiz&gmfs_solution_tab=ai_sols&soltab=strategy&history_spot={HS}&stacks={D}.125-{D}.125-{D}.125-{D}.125-{D}.125-{D}.125-{D}.125-{D}.125&preflop_actions={PA}
+```
+
+Seat map: UTG=0, UTG+1=1, LJ=2, HJ=3, CO=4, BTN=5, SB=6, BB=7
+
+Folded-to-Hero preflop_actions:
+  UTG: (empty)
+  HJ:  F-F-F
+  CO:  F-F-F-F
+  BTN: F-F-F-F-F
+  SB:  F-F-F-F-F-F
+
+Facing-open preflop_actions (for defend spots):
+  BB vs BTN open:  F-F-F-F-F-R-F
+  BB vs CO open:   F-F-F-F-R-F-F
+  SB vs BTN open:  F-F-F-F-F-R
+  SB vs CO open:   F-F-F-F-R-F
+
+## Workflow
+
+1. **FIRST:** Complete Step 0 (discover PKO gametype). Report what you find.
+2. Start with Priority 1 (open ranges) at 20BB — this is the depth where
+   bounty equity has the most impact relative to stack size.
+3. For EACH extracted spot, immediately calculate the delta vs the
+   equivalent non-PKO chart. This is the key deliverable.
+4. Move to Priority 2 (BB defend) — the largest bounty impact on calling.
+5. Complete Priorities 3-5 as time allows.
+
+## What we're looking for (domain context)
+
+The downstream system (GEM poker analyzer) currently uses crude heuristics:
+  - Flat 8pp equity discount for all PKO spots (line 197 of gem_analyzer.py)
+  - Static bonus hand set for iso-jam detection (lines 1225-1228)
+  - No position- or depth-specific PKO adjustments
+
+Real GTO PKO data should show:
+  1. The bounty discount varies by stack depth (bigger impact at 10-20BB
+     than at 50BB)
+  2. The discount varies by position (BTN/SB get more bounty equity from
+     wider steal ranges)
+  3. Covering vs covered creates ASYMMETRIC range adjustments (covering =
+     wider, covered = tighter for the shorter stack)
+  4. BB defend ranges widen significantly in PKO when covering the opener
+     (bounty incentive to see flops + potentially stack them)
+  5. Some hands flip from fold to open/call purely because of bounty equity
+     (the "bounty bonus" hands)
+
+## Important gotchas
+
+1. PKO solver stacks may NOT be uniform. Like ICM, the library may only
+   have specific stack configurations. Use the same library-filter method:
+   Change -> set Hero position Min/Max -> pick closest row.
+
+2. The bounty size/structure may vary between configurations. Always
+   record what bounty parameters are set for each extraction.
+
+3. If the PKO solver shows a "bounty-to-stack ratio" or "bounty fraction"
+   parameter, the most relevant ratio for our data is the STARTING ratio
+   (typically 50% of buyin = initial bounty). Don't change this unless
+   you've extracted the baseline first.
+
+4. GTOW's green CALL color may differ slightly from non-PKO. The JS
+   extractor handles the common greens (98,228,90). If you see a different
+   green, identify it from the CSS gradient and update the extractor.
+
+5. Some depths may not exist in the PKO solver. If 20BB isn't available,
+   use the closest depth and note the actual depth. If only 15BB and 25BB
+   exist, extract both.
+
+6. Work through priorities in order. If the PKO solver turns out to have
+   limited depth/position coverage, focus on the spots that exist rather
+   than trying to force unavailable configurations.
+
+## Validation checklist (per chart)
+[ ] CELLS = 169
+[ ] max_r or max_a or max_c > 0
+[ ] Actions panel screenshot matches aggregate counts
+[ ] Chart name matches the spot (correct position, opener, depth)
+[ ] Delta vs non-PKO chart is calculated and recorded
+[ ] Bounty parameters are noted
+
+When a batch of charts is done, output the complete block of ranges
+ready to append to Poker_Ranges_Text.txt, with delta comments.
+================================================================================

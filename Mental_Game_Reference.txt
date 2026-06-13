@@ -1,0 +1,299 @@
+MENTAL GAME OF POKER — GEM REFERENCE
+============================================================
+Source: Jared Tendler, "The Mental Game of Poker"
+Purpose: Compact reference for punt pattern analysis,
+  tilt classification, and mental game flags in GEM reports.
+============================================================
+
+
+--- ADULT LEARNING MODEL (ALM) ---
+
+Four levels of skill acquisition:
+
+L1 UNCONSCIOUS INCOMPETENCE: Don't know what you don't know.
+   Blind to weaknesses. "Ignorance is bliss."
+
+L2 CONSCIOUS INCOMPETENCE: Recognize a weakness exists but
+   can't fix it yet. First-time mistake recognition lives here.
+
+L3 CONSCIOUS COMPETENCE: Can execute correctly but ONLY when
+   actively thinking about it. Under pressure/tilt, reverts
+   to old habits. Most coaching concepts live here.
+
+L4 UNCONSCIOUS COMPETENCE: Fully automatic, no thought needed.
+   Survives tilt. Includes BOTH mastered strengths AND
+   mastered bad habits ("flaws are skills").
+
+GEM APPLICATION:
+- When Hero makes a known mistake under pressure = L3 skill
+  collapsed. Not a knowledge gap, it's a mastery gap.
+- "Know too much, mastered too little" = too many L3 concepts
+  competing for limited mental bandwidth. Simplify focus.
+- Tilt strips L3 skills, exposing L4 floor (best AND worst
+  habits). Punt analysis should ask: "Was this an L4 bad
+  habit surfacing, or an L3 skill failing under pressure?"
+
+
+--- INCHWORM MODEL ---
+
+Your skill range is a bell curve:
+  Left tail = C-game (worst play under pressure)
+  Peak = B-game (average session)
+  Right tail = A-game (best play when focused)
+
+Improvement works from BOTH ends:
+  - Learning new concepts extends A-game (right tail)
+  - Fixing weaknesses/bad habits raises C-game (left tail)
+
+COMMON MISTAKE: Only learning new things while ignoring
+weaknesses. A-game improves but C-game stays terrible.
+Creates huge variance in play quality.
+
+GEM APPLICATION:
+- Track punt severity across sessions. If C-game punts are
+  getting less severe = left tail rising = real improvement.
+- If A-game stats hit targets but punt rate stays flat =
+  learning without mastering = inchworm not moving.
+
+
+--- PERFORMANCE CURVE (Yerkes-Dodson) ---
+
+Performance = f(emotional arousal):
+  Too low (bored/tired) → poor decisions, autopilot leaks
+  Optimal zone → peak performance, full access to L3 skills
+  Too high (tilt/fear) → L3 shuts down, L4 floor exposed
+
+THRESHOLD: The point where emotion overwhelms thinking.
+Each player's threshold is different. Accumulated emotion
+from prior sessions LOWERS the threshold (less room before
+tilt). A player who ran bad for 5 sessions straight will
+tilt faster on session 6.
+
+GEM APPLICATION:
+- "Regression Under Pressure" pattern = crossing threshold
+  mid-session. Track WHEN punts occur (early vs late).
+- If punts cluster in later tournaments = fatigue/accumulated
+  emotion lowering threshold.
+
+
+--- SEVEN TYPES OF TILT ---
+
+1. INJUSTICE TILT
+   Trigger: Bad beats, coolers, suck-outs
+   Belief: "Poker is unfair / I'm cursed"
+   Signs: Complaining about luck, citing specific beats
+   Fix: Recognize good variance too. You can't control
+   cards, only decisions.
+   GEM FLAG: High cooler sessions + rising punt rate
+
+2. HATE-LOSING TILT
+   Trigger: Any loss, even small ones
+   Belief: "I should be winning / losing = failing"
+   Signs: Forcing action to get unstuck, refusing to quit
+   when losing, booking a win matters more than playing well
+   Fix: Separate decision quality from results.
+   GEM FLAG: VPIP/aggression spike after losing big pots
+
+3. MISTAKE TILT
+   Trigger: Making an error you "should know better" about
+   Belief: "I shouldn't make mistakes / perfection expected"
+   Signs: Tilting after own mistake, not opponent's action.
+   Overworking on study but still making same errors.
+   Fix: Mistakes are L3→L4 transition signals, not failures.
+   "Know too much, mastered too little" is the root cause.
+   GEM FLAG: Punt followed by escalating punts in same session
+
+4. ENTITLEMENT TILT
+   Trigger: Losing to weaker players, fish sucking out
+   Belief: "I deserve to win because I'm better"
+   Signs: "How can they call with THAT?" Overplaying vs fish.
+   Fix: Opponents are allowed to play in ways that exploit
+   your weaknesses. Entitlement blinds you to real leaks.
+   GEM FLAG: Larger bets/raises vs identified recreational players
+
+5. REVENGE TILT
+   Trigger: Specific opponent disrespecting/aggressing you
+   Belief: "I need to get them back / show I'm better"
+   Signs: Targeting one villain, ignoring table dynamics
+   Fix: Vengeance is -EV. Exploiting is +EV. Know the diff.
+   GEM FLAG: Repeated confrontations with same villain
+
+6. DESPERATION TILT
+   Trigger: Big losses, fear of not recovering
+   Belief: "I MUST win it back NOW"
+   Signs: Playing too many tables, jumping stakes, marathon
+   sessions, wider opens, bigger bluffs
+   Fix: Non-negotiable stop-loss. Session time limits.
+   GEM FLAG: Session volume spike + widening ranges late
+
+7. RUNNING BAD TILT
+   Trigger: Extended negative variance across sessions
+   Belief: "This will never end / I've forgotten how to play"
+   Signs: Accumulated anger from prior sessions. Insta-tilt.
+   Cup analogy: each session adds water, never fully drains.
+   Fix: Work through emotions AWAY from the table. The anger
+   is real but the belief that you can't play is false.
+   GEM FLAG: Multi-session punt rate trend, premium drought
+   correlation with decision quality decline
+
+WINNER'S TILT: Running hot → overconfidence → loose play →
+giving back winnings. Same mechanism, positive trigger.
+GEM FLAG: VPIP spike in winning sessions, value bet % drop
+
+
+--- FIVE FEAR SYMPTOMS ---
+
+1. OVERTHINKING: Mind races, can't decide, tank-folds obvious
+   spots. Root = unanswered questions creating uncertainty.
+
+2. NOT TRUSTING YOUR GUT: Correct instinct exists (L4) but
+   fear overrides it with doubt. Hero "knows" the fold but
+   calls anyway because uncertainty feels worse than losing.
+
+3. SECOND-GUESSING: Replaying previous hands during current
+   play. Distraction → more mistakes → more second-guessing.
+
+4. PERFORMANCE ANXIETY: Pressure to prove skill → mind
+   malfunctions → plays worse → confirms fear. Self-fulfilling.
+
+5. NEGATIVE FUTURE: "I know I'm going to run bad today."
+   Prediction treated as fact → plays defensively → loses →
+   "See? I knew it." Poker players make shitty psychics.
+
+GEM APPLICATION:
+- "Regression Under Pressure" maps to symptoms 1+4.
+- If Hero checks back strong hands = symptom 2 (not trusting
+  gut) or fear of being check-raised.
+- If Hero folds to small bets with equity = symptom 5
+  (assuming the worst outcome).
+
+
+--- COMMON FEARS IN POKER ---
+
+FEAR OF FAILURE: Failing = identity threat, not just money.
+  Signs: Not trying hard, not putting in volume.
+  Fix: Failure is data. Real failure = quitting.
+
+FEAR OF MISTAKES: Perfectionism → paralysis.
+  Signs: Rushing decisions, quitting after first mistake.
+  Fix: Mistakes are L3 learning signals, not proof of
+  incompetence. Focus on playing well NOW, learn later.
+
+FEAR OF BAD RUN: Prior trauma from extended downswings.
+  Signs: Anxiety before sitting down, reduced volume.
+  Fix: You survived before. Decision quality is in your
+  control; variance is not.
+
+FEAR OF MOVING UP: Uncertainty about competence at next level.
+  Signs: Staying at lower stakes despite adequate bankroll.
+  Fix: Moving up is a test, not a permanent commitment.
+
+
+--- ACCUMULATED EMOTION ---
+
+Anger/fear from prior sessions carries over. Each session
+starts with a partially full "cup." If the cup doesn't fully
+drain between sessions, the threshold is lower next time.
+
+Signs of accumulated tilt:
+- Insta-tilt (bomb goes off with minimal trigger)
+- Tilt escalates faster each session
+- Pre-session anxiety or dread
+- Emotional hangover from previous session's bad beats
+
+Resolution: Must work through emotions AWAY from the table.
+In-game strategies (deep breaths, logic injection) can't
+overcome accumulated emotion — they only manage it in the
+moment. Journaling, physical exercise, talking it out.
+
+GEM APPLICATION:
+- If punt rate trends UP across consecutive sessions despite
+  no change in card quality or cooler rate = accumulated tilt.
+- Recommend session breaks or mental game reset.
+
+
+--- TILT CONTROL STRATEGY (In-Game) ---
+
+1. RECOGNITION: Identify signs of tilt WHILE PLAYING.
+   Build the skill of recognizing triggers in real-time.
+   (Study tilt profile before sessions)
+
+2. DEEP BREATH: Physiological reset. Buys time for step 3.
+
+3. INJECTING LOGIC: Use pre-prepared logic statements.
+   Examples:
+   - "I can't control cards, only decisions."
+   - "This mistake is an L3 signal, not failure."
+   - "Variance is math, not punishment."
+   - "What calls that I beat? What folds that has equity?"
+   (The "Jam Question" from GEM = injecting logic)
+
+4. STRATEGIC REMINDER: Return to specific poker strategy.
+   Review focus card for this session. Refocus on the
+   process, not results.
+
+5. REPEAT: Steps 2-4 as needed.
+
+6. QUIT: Non-negotiable. If steps 1-5 fail, stop playing.
+   Quitting is not weakness — it's the last line of defense
+   against L4 bad habits taking over.
+
+
+--- RESOLUTION (Long-term) ---
+
+Resolution ≠ management. Management = controlling symptoms
+in-game. Resolution = eliminating the ROOT CAUSE so the
+emotion doesn't arise in the first place.
+
+MENTAL HAND HISTORY: Post-session analysis of mental game,
+parallel to analyzing poker hands.
+  1. What triggered the emotion?
+  2. What belief/flaw was exposed?
+  3. What's the corrected logic?
+  4. What's the injecting logic statement for next session?
+
+GEM APPLICATION:
+- Deliverable 4 (punt analysis) should include mental hand
+  history for pattern punts.
+- Deliverable 8 (action card) should include 1-2 injecting
+  logic statements based on the session's mental patterns.
+
+
+--- CONFIDENCE FRAMEWORK ---
+
+STABLE CONFIDENCE: Based on accurate assessment of skill.
+  Not shaken by bad runs, not inflated by good ones.
+  Built from: recognizing variance, recognizing your skill
+  honestly, recognizing opponents' skill honestly.
+
+UNSTABLE CONFIDENCE: Result-dependent. Soars when winning,
+  crashes when losing. Creates boom-bust emotional cycles.
+
+Three illusions that undermine confidence:
+1. ILLUSION OF CONTROL: Believing you can control outcomes.
+2. ILLUSION OF PERMANENCE: Thinking current state (good/bad)
+   will last forever.
+3. ILLUSION OF LEARNING: Thinking L3 skills are already L4
+   because you ran hot while using them.
+
+GEM APPLICATION:
+- If Hero's play quality tracks results (plays well when
+  winning, poorly when losing) = unstable confidence.
+- Premium drought + maintained play quality = stable
+  confidence signal (positive flag in report).
+
+
+--- RON-SPECIFIC MENTAL GAME PATTERNS ---
+
+Confirmed pattern: "REGRESSION UNDER PRESSURE"
+  = Escalating commitment after villain resistance.
+  Maps to: Mistake Tilt + Performance Anxiety + L3 collapse.
+  Manifests as: VPIP/PFR contraction, value bet % spike when
+  flip win rates drop sharply.
+  Root: Fear of being wrong → doubles down to "prove" the
+  read → turns a small loss into a punt.
+
+Injecting logic statement:
+  "Villain raised. My plan was X. Has the information changed,
+  or am I just reacting to resistance? If the plan was right
+  before the raise, is it still right?"

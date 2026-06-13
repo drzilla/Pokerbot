@@ -1,0 +1,634 @@
+{
+ "_doc": "Pipeline bug tracker — read by gem_report_draft._emit_section_x. Single source of truth replacing the hardcoded list. Status: open|mitigated|retracted|fixed. Severity: P1 (correctness)|P2 (presentation)|P3 (cosmetic).",
+ "_schema_version": "1.0",
+ "_cleanup_note_v7_39": "2026-05-09 cleanup: 11 cosmetic/mitigated bugs (B2/B3/B5/B11-B16/B19/B20) moved to `fixed` because the renderer never displays the underlying drift to the user. B4/B6/B8/B9/B17/B18/B21/B22 stay open because the analyzer-side fix is still pending and the mitigation lives only in the renderer (downstream consumers still see the buggy field). New: B31 (cbet_4bp_opps over-counts), B32 (range chart OCR corruption). Genuinely-open list is now 10 items, all with concrete analyzer-side work pending.",
+ "open_bugs": [
+  {
+   "id": "B33",
+   "summary": "M6 detector false-positive on single-FD turns",
+   "severity": "P2",
+   "status": "open",
+   "detail": "M6 'wet/multi-tone turn double barrel with medium equity' fires on any turn with backdoor draws including single-FD/2-tone turns where the rule shouldn't apply. Should require >=2 distinct FD suits on turn. Triggered TM5944934652 (KJs BTN 3BP, single-FD turn 3h on 8h-Ts-Td flop) incorrectly classifying defensible turn barrel as M6 violation. Fix: gem_aggression_detector.py M6 trigger needs `len(set(s for s in turn_board if same_suit_with_flop)) >= 2` check.",
+   "introduced": "v7.48",
+   "discovered": "2026-05-12 session review",
+   "discovered_via": "Ron pushback on KJs hand classification"
+  },
+  {
+   "id": "B34",
+   "summary": "Cooler vs Punt routing — bust audit doesn't audit line before classifying",
+   "severity": "P1",
+   "status": "mitigated",
+   "detail": "Bust audit verdict routing classifies pair-over-pair losses as I.7 coolers regardless of whether Hero's LINE was a punt. TM5944926324 (JJ x/r-AI flop in sat vs polar 3-bettor, -95 BB) and TM5944037855 (ATs 4-bet jam over squeeze+UTG-flat-of-squeeze, -57 BB) both auto-tagged cooler when both lines were structural punts before villain's specific cards mattered. Mitigated by PREFLIGHT-3 (Claude must audit line first); analyzer-side fix pending. The cooler classifier needs to evaluate decision quality BEFORE running pair-over-pair shape detection.",
+   "introduced": "Pre-v7.38 (B23-B26 fixes addressed PF shape but not line-quality)",
+   "discovered": "2026-05-12 session review",
+   "discovered_via": "Analyst pass on 9 new bust hands"
+  },
+  {
+   "id": "B35",
+   "summary": "Appendix hand-reference rendering missing cards/tournament/back-link",
+   "severity": "P2",
+   "status": "open",
+   "detail": "Appendix hand examples surface hand IDs (e.g., TM5945711178) without inline cards, board context, or tournament name, and without anchor links back to the metric/table that cited them. User-reported as 'unreadable + no link back'. Affected hand references in stat tables across sections III, V, VII, IX. Fix tracked under feature F2: renderer needs to emit hero_cards + tournament name + back-anchor on every appendix entry.",
+   "introduced": "v7.46 restructuring (appendix-based hand examples)",
+   "discovered": "2026-05-13",
+   "discovered_via": "User feedback during session review"
+  },
+  {
+   "id": "B36",
+   "summary": "Appendix postflop section missing full per-street action + villain showdown cards",
+   "severity": "P2",
+   "status": "partial",
+   "detail": "Appendix full-render shows preflop in rich detail (per-position fold/raise/call with sizings) but postflop collapses to a one-liner. Now includes board cards inline at each street boundary (v7.49.3 partial fix), but still missing: (a) villain per-street actions and sizings, (b) villain showdown cards when hand went to SD. Requires parser-side `villain_showdown` field + per-street action sequence preservation in gem_hands.json. Currently the data isn't preserved past parse-time. Fix needs gem_parser.py to add `villain_showdown_cards` and `street_actions_full` fields.",
+   "introduced": "v7.45 (rich appendix render added)",
+   "discovered": "2026-05-13 session review",
+   "discovered_via": "Ron pushback on TM5949862142 and TM5950410436 appendix entries"
+  },
+  {
+   "id": "B37",
+   "summary": "Per-street thumbs-up indicators inconsistent with aggregate verdict",
+   "severity": "P3",
+   "status": "open",
+   "detail": "Per-street action indicators reflect whether that street's category-of-action matched policy (PF open ✓, flop x-back ✓), independently of the aggregate verdict. When the aggregate verdict is III.x (punt / misapplied heuristic / read-dependent), per-street ✓ indicators on streets that contained the problematic decision are confusing — TM5949368753 A7s shows ✓ at the river despite the river-jam being the III.3 sizing error. Fix: when verdict is III.x, replace ✓ with ⚠️ on the problematic street(s) identified in the analyst summary.",
+   "introduced": "v7.45",
+   "discovered": "2026-05-13 session review",
+   "discovered_via": "Ron pushback on A7s ICM hand"
+  },
+  {
+   "id": "B52",
+   "summary": "Cards rendered as plain text in hand grid — hard to scan suits visually",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Visual grid (B48) showed cards as plain text like '6s 7d As' — readable but no visual suit differentiation. Ron asked for colored suit pills with white symbols so the reader can pattern-match boards instantly.",
+   "fix": "v7.55 (Ron 2026-05-18): _card_html() helper renders each card as a colored pill via .card.card-{s,h,d,c} CSS — spades black, hearts red, diamonds blue, clubs green, all with white rank+suit symbol. Used in grid header cards, hero hand display, and result row villain cards.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B53",
+   "summary": "Bet/raise sizes in grid missing pot % context",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Postflop bets/raises showed only absolute BB amounts (e.g. 'Bet 8.0BB'). Ron asked for pot % in brackets so sizing intent is immediately readable.",
+   "fix": "v7.55 (Ron 2026-05-18): bets and raises now show '(N%)' alongside the BB amount, computed against the running pot at the moment of the action. Preflop skipped (pot % less meaningful for raises against blinds).",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B54",
+   "summary": "Hero actions with no analyst note had no visual confirmation",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Substantive hero actions (raise/bet/call/jam) with no analyst commentary attached looked the same as actions with notes — just no annotation pill. Ron asked for a 👍 thumbs-up to confirm 'analyst saw this, fine, no comment needed'.",
+   "fix": "v7.55 (Ron 2026-05-18): hero actions on raise/bet/call/jam with no note attached get an inline 👍 yellow pill. Folds and checks don't trigger it (silent OK).",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B55",
+   "summary": "No result summary row at bottom of hand grid",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Hand grid stopped at the last action — reader had to scroll up to the heading to find net BB result and check showdown. Ron asked for a result row at the bottom with Hero BB won/lost in a distinct color + SD villain hand inline.",
+   "fix": "v7.55 (Ron 2026-05-18): <tfoot> row added to each grid showing 'Hero result: ±N BB · WON/LOST/TIED' (green/red colored). When SD occurred, villain's hand appears as colored suit pills in the same row.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B57",
+   "summary": "No way to mark 'good move with explanatory comment' distinct from 'critical note'",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "All numbered (N) pills looked identical regardless of whether the note was confirming ('GTO-standard') or critical ('punt, should have folded'). Reader couldn't tell at a glance whether the analyst was praising or correcting.",
+   "fix": "v7.55 (Ron 2026-05-18): added tone detector in _split_argument_into_notes(). Notes containing positive markers ('GTO-standard', '100% GTO call', 'standard play', 'mandatory', 'defensible', 'justified', 'cooler', 'variance', etc.) and lacking negative markers ('punt', 'leak', 'mistake', 'should have folded') get the 'positive' tone. Renderer uses 👎 red marker (per Ron's spec: counterintuitive but distinguishes 'good move + comment' from silent 👍).",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B58",
+   "summary": "Hand heading duplicated tournament name and action sequence already in meta line and grid",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Heading was `Hand X — cards (pos stack) · net BB · <tournament_name> · _action_brief_`. Both were already in (a) the italic meta line below, (b) the grid table action cells. Ron flagged the redundancy.",
+   "fix": "v7.55 (Ron 2026-05-18): Heading reduced to `Hand X — cards (pos stack) · net BB`. XIV.B stubs keep tournament name (no grid available) but drop action_brief.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B59",
+   "summary": "Hero hand only visible in heading text and Showdown line — hard to scan visually",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "When scanning a hand block, hero's hole cards were buried in the small-text heading. Ron asked for a prominent display above the action grid.",
+   "fix": "v7.55 (Ron 2026-05-18): added <div class='hero-hand'>Hero: [pills]</div> rendering above each grid. Uses the colored suit pills for instant visual recognition.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B60",
+   "summary": "Daily Summary Top1/Top5 used count-based filter (place==1, place<=5) — wrong for large fields",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "327th of 24,611 (= 1.33% of field) showed as 0% in Top1/B AND 0% in Top5/B because place > 5. Top1 and Top5 are percentile-of-field metrics, not absolute-place metrics.",
+   "fix": "v7.55 (Ron 2026-05-18): _emit_daily_summary_table now computes pctile = place/total_players*100 and counts t1 if pctile<=1.0, t5 if pctile<=5.0. 327/24611 = 1.33% correctly registers in Top5/B.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B61",
+   "summary": "*Showdown:* meta line redundant after B55 result row and B59 hero hand display",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "The meta line `*Showdown:* MP(H) [Jh Ah] vs BB [Ad Kd]` duplicated the new grid result row's villain display AND the new hero hand display.",
+   "fix": "v7.55 (Ron 2026-05-18): Removed the Showdown meta line. Hero hand shows above grid; villain hand shows in grid result row.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B62",
+   "summary": "<tfoot> tag escaped to literal text in HTML output",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "B55 added <tfoot><tr><td> result row but _md_to_html() whitelist didn't include <tfoot>. Same class of bug as B51 (which missed thead/tbody/tr/th/td). User saw escaped &lt;tfoot&gt;&lt;tr&gt;... markup in the report.",
+   "fix": "v7.55 (Ron 2026-05-18): Added <tfoot> and </tfoot> to the _md_to_html() pass-through whitelist.",
+   "fixed_in": "v7.55"
+  },
+  {
+   "id": "B63",
+   "summary": "Top%/B strict percentile underrepresents small-field wins",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "1st of 99 = 1.01 percentile → currently 0% Top1/B. The aggregate metric should capture both 'deep in big field' and 'outright win in small field'.",
+   "fix": "v7.56: hybrid rule. Top1 = pctile ≤ 1.0% OR place == 1. Top5 = pctile ≤ 5.0% OR place ≤ 3. Captures absolute-place wins in any field size.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B64",
+   "summary": "FT/B inflated by satellite final tables — sat FTs aren't MTT-depth achievements",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "5/17 showed 5.4% FT/B = 3 FTs across 56 bullets. All 3 were satellite final tables (3/26 sat bullets = 11.5%). 0/30 MTT bullets actually reached an MTT FT.",
+   "fix": "v7.56: FT/B counts only non-satellite tournaments in both numerator and denominator. Sat FTs no longer inflate the deep-run metric.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B65",
+   "summary": "Black spade glyph invisible against near-black pill background",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "card-s pill bg was #1a1a1a near-black. The ♠ symbol on white-color rendered fine but the spade shape itself blended into the pill.",
+   "fix": "v7.56: card-s bg lightened to dark gray #3a3a3a so the ♠ glyph silhouette reads cleanly while still feeling 'spades black'.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B66",
+   "summary": "Thumbs-up/down emojis too small inside annotation pills",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Emojis inside (N)-style pills used 0.78em font-size for consistency with numbered pills. At that size 👍/👎 were hard to spot.",
+   "fix": "v7.56: added .ann-emoji class for pills containing only emoji. font-size 1.15em + padding tweaks. Row height grows ~2-3px which is acceptable trade for noticeability.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B67",
+   "summary": "Heading dot conflated chip outcome with verdict signal",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "🔴 -17.7 BB on cooler hand was confusing — red dot read as 'bad play' but the verdict was I.7 Cooler (clean). The dot was doing double duty: chip outcome AND verdict signal.",
+   "fix": "v7.56: heading uses ➕/➖ for chip outcome (or ◯ for zero). Verdict line uses 👍 (clean/cooler/justified) / 🟡 (read-dep) / 👎 (punt) as a clearly different visual signal. Cooler hand reads ➖ -17.7 BB · 👍 I.7 Cooler.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B68",
+   "summary": "Analyst notes were monolithic blobs mixing frame, math, range, and Ron's quotes",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Single notes contained all of: action recap (redundant with grid), strategic framing, range construction, math, Ron's quoted reasoning. Hard to read, math buried, Ron's quote blended in.",
+   "fix": "v7.56: _structure_note() splits each note into emoji-tagged sub-rows: 🧠 frame (default) / 🎯 range / 🧮 math / 🗒️ Ron's note. Each sub-row is a separate <p>. Pure action restatements ('BB checks. Hero bets.') and chip-amount parentheticals ('2,795 into 2,895') are stripped. First sub-row carries the numbered pill; continuation rows are indented under it.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B69",
+   "summary": "<p class='note-cont'> tag escaped to literal text in HTML output",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "B68 introduced structured-note continuation rows using <p class='note-cont'>. The _md_to_html() whitelist only matched <p> (without class) so <p class='...'> fell through to the else branch and got escaped. Same bug class as B51/B62.",
+   "fix": "v7.56: extended whitelist to match s.startswith('<p ') (with trailing space, catches all <p class='...'> variants).",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B70",
+   "summary": "Hero/villain hole cards displayed in source order, not rank-sorted",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Cards came out as written in the HH file (e.g. '3hAh' for AJhh-suited shown as '3h Ah'). Standard poker convention is rank-high first.",
+   "fix": "v7.56: _sort_cards_desc() helper. _cards_html() accepts sort_desc=True. Applied to hero hand display + SD villain hand display. Boards NOT sorted (temporal order matters).",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B71",
+   "summary": "Plain-text card tokens inside analyst notes rendered as raw 's/h/d/c' text",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Notes like 'flop Kd2d5sTs3s rainbow' showed the raw 'Kd2d5sTs3s' instead of colored pills. Inconsistent with the grid render.",
+   "fix": "v7.56: _cards_text_to_pills() scans note text for 2-7 consecutive card tokens and replaces with pills. Skips text that already contains pills (no double-replacement).",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B72",
+   "summary": "Showdown villain hand shown but didn't explain WHY they won (forced reader to read board+hand)",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Result row showed 'Showdown vs BB: A♦ K♦' — reader had to scan board+hand and reconstruct the made hand. For a flush vs two-pair runout this was non-obvious.",
+   "fix": "v7.56: _describe_made_hand() evaluates the best 5-of-7 from hole+board and produces a human-readable description ('two pair, Aces and Kings', 'straight, Ten-high', 'flush, Ace-high', 'set of Queens'). Rendered in italic yellow next to villain cards.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B73",
+   "summary": "No visual indicator of which villain card connected to the board at SD",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Hard to spot which villain card paired with the board to win the hand.",
+   "fix": "v7.56: villain cards whose rank appears on the board get a small yellow dot marker (.board-match) above-right of the pill. Quick visual: 'this card hit'.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B74",
+   "summary": "➕/➖ heading emojis both rendered purple on some fonts — no chip-outcome contrast",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "B67 used ➕/➖ to split chip outcome from verdict signal but both glyphs render purple in most fonts, defeating the visual signal.",
+   "fix": "v7.56: heading BB number wrapped in colored pill spans (.hand-net-pos green bg, .hand-net-neg red bg, .hand-net-neu gray). Scannable at-a-glance, no emoji dependency.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B75",
+   "summary": "Verdict thumbs-up emoji overused — cooler, cleared, justified all rendered same",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "After B67 split chip-vs-verdict, three verdict types (I.7 Cooler, III.3 Cleared, III.5 Justified) all used 👍. Reader couldn't distinguish them at a glance.",
+   "fix": "v7.56: distinctive emojis per verdict class. ❄️ I.7 Cooler (frozen runout). 📖 III.4 Read-dependent (depends on read). 👍 III.3 Cleared / III.5 Justified (analyst-confirmed standard play). 👎 III.1 Punt.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B76",
+   "summary": "Card-display columns across report (I.3, III.4, III.6) still used plain text format",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Tables with a Cards column showed '3hAh' / 'AhJh' as plain text — inconsistent with the visual grid render and harder to scan.",
+   "fix": "v7.56: _cards_str_to_pills() converts legacy card strings to sorted-DESC colored pills. Applied to all table cell renders that use the cards field (8 sites). Boards in I.3 audit table also pillified (no sort).",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B77",
+   "summary": "III.4 hands appeared twice — once in III.4 section with verbose prose, once in XIV.A appendix",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Hand 64965010 (KQo SB) and similar showed up in III.4 Read-Dep with full argument text, then again in XIV.A with grid + structured notes. Reader had to read same content twice.",
+   "fix": "v7.56: III.4 section is now a compact 5-column table (Hand link / Cards pills / Net BB / Spot summary / Axis). Full grid + notes live exclusively in XIV.A appendix. Section caption says 'full grid + commentary in appendix'.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B78",
+   "summary": "Card-text-to-pills regex consumed trailing whitespace causing pills to mash into adjacent words",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "B71's regex used \\\\b((?:[2-9TJQKA][shdc]\\\\s*){2,7})\\\\b which captured trailing spaces inside the group. Replacement joined tokens with ' ' but didn't re-emit the trailing space. Source 'AhJh HJ' became 'A♥ J♥HJ' — pills mashed into HJ position label.",
+   "fix": "v7.56: rewrote regex with explicit lookahead/lookbehind for non-alphanumeric boundaries: (?<![A-Za-z0-9])((?:[2-9TJQKA][shdc])(?:\\\\s*[2-9TJQKA][shdc]){1,6})(?![A-Za-z0-9]). Doesn't consume surrounding whitespace. Tested with 7 cases including the original failure mode.",
+   "fixed_in": "v7.56"
+  },
+  {
+   "id": "B79",
+   "summary": "Pre-rendered HTML spans escaped to literal text inside table cells and headings",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "The visual layer emits <span class='card card-s'>, <span class='hand-net-neg'>, etc. before the markdown renderer runs. The _md_inline() helper calls _html_escape() on all text, which clobbered these pre-rendered HTML fragments into literal <span class='card card-s'>... markup. Affected: every table cell with cards (I.3 Large-Loss Audit board column, III.4 table, XIII.3 missed opens, III.6 clinical examples) AND the appendix-hand heading BB pills.",
+   "fix": "v7.57: stash placeholder mechanism in _md_inline. Before _html_escape, regex-match known span classes (card pills, hand-net pills, villain-card, made-hand, board-match, pot-pct, note-num, note-tag, ann variants, hero-pos, grid-action) + <sup> tags, replace with \\x00HTMLSPAN{N}\\x00 placeholders. After escape, restore placeholders. 0 escaped HTML tags across both reports now.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B80",
+   "summary": "Same-rank cards (KK, JJ etc) had unstable suit ordering",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "_sort_cards_desc used (rank,) as sort key; cards of the same rank kept source-order suits. KdKc displayed as Kd Kc, KsKh as Ks Kh — but the convention is ♠ > ♥ > ♦ > ♣.",
+   "fix": "v7.57: secondary sort by suit value. ♠=4, ♥=3, ♦=2, ♣=1. KdKcKsKh → KsKhKdKc.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B81",
+   "summary": "Hero hand display lacked position context",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "Reader saw 'Hero: K♦ K♣' with no position. Ron asked for natural-language 'Hero: K♦ K♣ in the BB'.",
+   "fix": "v7.57: appended <span class='hero-pos'>in the {pos}</span> to hero hand div. Muted gray styling.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B82",
+   "summary": "v7.56 distinctive verdict emojis (❄️/📖/👍/👎) not propagated to TLDR + body",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "B75 introduced ❄️ cooler / 📖 read-dep / 👍 cleared/justified / 👎 punt in the appendix Verdict line, but I.3 Large-Loss Audit verdict column AND TLDR bullets still used the old 🟢/🟡/🔴 dots. Inconsistency across the report.",
+   "fix": "v7.57: propagated new emojis to TLDR III.1/III.4/III.3 bullets, I.3 audit verdict column, walk-backs Legend. Single source-of-truth verdict-to-emoji mapping across the report.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B83",
+   "summary": "Structured-note splitter misaligned notes for long-narrative analyst commentary",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "When an analyst argument was one long blob covering all streets (e.g. JJ jam hand: 'Hero opens JJ to 4x. BB calls. Flop 7-2-6. BB checks. Hero overbets... BB XR. Hero 4-bet-jams.'), the keyword-based per-street bucketer routed sentences by ANY street-keyword match. 'BB's XR range on 7-2-6 vs a 4x open' matched 'open' → routed to preflop, but the sentence was about the flop. Result: (1) marker on PF raise showed content actually about the flop jam.",
+   "fix": "v7.57: when argument is >250 chars AND mentions 2+ streets, override the per-street splitter — collapse everything to the key-decision street (latest hero action street). Preserves narrative ordering within that street. Sentences about earlier streets aren't artificially attached to earlier actions when the verdict is about the later decision.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B84",
+   "summary": "B84 chip-amount stripper was too aggressive and broke sentences",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Initial B84 regex stripped any 'to N,NNN' or 'N,NNN chip' references which produced 'BB check-raises to .' (missing amount AND surrounding context broken). 'BB snap-calls with 77 (set)' became 'BB snap-calls with (set)'.",
+   "fix": "v7.57: restricted to chip-amount PARENTHETICAL asides only ('(2,795 into 2,895)' and '(1,200)'). Inline amounts kept intact — they're context. Long-term fix is to make the analyst (me) write in BB from the start.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B85",
+   "summary": "Ron's-quote regex broke on inner apostrophes (didn't, can't)",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "The regex 'Ron\\'s note: \\\\'([^\\\\'\\\"]+)\\\\'' used a character class that stopped at any apostrophe — so 'Ron's note: \\'super early, didn\\'t care\\'' captured only 'super early, didn' (stopping at the inner apostrophe).",
+   "fix": "v7.57: rewrote regex to match balanced quote pairs, allowing inner apostrophes that are followed by lowercase letters (typical contractions). Falls through to double-quote-matching variant.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B86",
+   "summary": "XIV.B Quick Lookups had 263 hands with no notes, no clear purpose, inconsistent format from XIV.A",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Section listed every cited hand as a flat list with bare preflop action — no analyst notes, no purpose if uncited. Format was different from XIV.A grid render.",
+   "fix": "v7.57: complete redesign. (a) Hands not cited from any section are EXCLUDED (104 such hands in 5/17 session, 0 of them had any reason to be in the appendix). (b) Cited hands are grouped by their FIRST citing section into collapsible <details> blocks. (c) Within each section group, hands render with the SAME visual grid format as XIV.A — hero hand display, full action grid with color-coded pills, result row. Now: '159 hands across 16 section(s)' replaces '263 hand stubs'.",
+   "fixed_in": "v7.57"
+  },
+  {
+   "id": "B87",
+   "summary": "Tournament name leaked from spot field into analyst note text",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "_split_argument_into_notes prepended the `spot` field to full_text before sentence-splitting. spot contains tournament/level/buyin meta-info ('$100 Grand Prix Europe Level 2 (DEEP)') which is ALREADY shown in the appendix heading + meta line above the grid. Result: every note (1) opened with redundant tournament details.",
+   "fix": "v7.58: dropped spot from full_text. Heading + meta line carry tournament context; note text starts at argument prose.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B88",
+   "summary": "Chip amounts ('to 10,350', '1,200') leaked into note text instead of BB",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Analyst JSON entries written in prior sessions contained chip amounts ('Hero opens JJ HJ to 4x (1,200)... BB check-raises to 10,350'). The report works in BB throughout — chips force the reader to mentally convert. B84 stripped parenthetical asides only.",
+   "fix": "v7.58: comprehensive chip cleanup. Strips parenthetical chip asides, inline 'to N,NNN' amounts, trailing chip mentions. Preserves BB references (181BB), percentages (22%), hand combos (77, 87s). Drops sentences that become too thin (<12 chars) after stripping.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B89",
+   "summary": "Orphan numbered notes — (3) in notes block with no (3) marker on any action",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Note emission loop used enumerate(notes, 1) which numbered every note 1, 2, 3... regardless of whether any hero action carried that pill. When matchup math was appended as a final note with no action to attach to, it got numbered (3) but no (3) pill existed anywhere in the grid — orphan number.",
+   "fix": "v7.58: only number notes that have an action bound to them (in action_to_note_num.values()). Orphan notes render as continuation rows without numbers — matchup math now appears as a 🧮 row under the last bound note.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B90",
+   "summary": "Chart notation (AKo, JTo, 44, TT) rendered 0 or 1 card pills, not 2",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "_cards_str_to_pills used regex [2-9TJQKA][shdc] which only matched rank+suit tokens. Chart notation like 'AKo' (offsuit), 'AKs' (suited), '44' (pair) doesn't have suit chars in positions 2/4, so the function returned the raw string or matched only one pseudo-token. XIII.3 missed-opens and First-10-deviations tables showed empty/single pills.",
+   "fix": "v7.58: chart-notation detection branch before concrete-card regex. Pair (XX) → X♠+X♥; Suited (XYs) → X♠+Y♠; Offsuit (XYo or XY) → X♠+Y♥. Sort DESC by rank (suit tiebreak ♠>♥>♦>♣) so AKo renders as A♠ K♥, T9s as T♠ 9♠.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B91",
+   "summary": "III.4 Read-Dep cards wrapped to two rows when column narrow",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Card pills (Q♠ J♠) in narrow table cells (III.4 Cards column) wrapped vertically — Q♠ on top row, J♠ on second. Reader couldn't tell they were one hand.",
+   "fix": "v7.58: wrap multi-card output in <span style='white-space:nowrap'>...</span>. Pair stays together as a unit. Added style='white-space:nowrap' to _md_inline span whitelist so it survives the table-cell escape pass.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B92",
+   "summary": "MDA Note column rendered '—' on every row in many tables",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "When no deviations in the session had an mda_overlay value, the MDA Note column was '—' for every row — pure noise across XIII.1, XIII.3 grouped position tables.",
+   "fix": "v7.58: _emit_table_compact helper drops columns whose values are all '—'/empty across rows. Hand Reference (col 0) is always kept. Per-position tables now omit the MDA Note column when it has no data.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B93",
+   "summary": "MDA notes were cryptic (`MDA-17` +1.5 BB) with no human-readable label",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "When an mda_overlay value did exist, it rendered as backtick-rec-id `MDA-17` which means nothing to a reader scanning the table.",
+   "fix": "v7.58: _row_data uses short_label from overlay if present, falls back to rec_id. Renders as 'short_label · ±EV (CONF)'. Needs MDA overlay data to populate short_label field at the gem_mda_overlay.py source (analyzer-side work).",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B94",
+   "summary": "Useless board-recap sentences ('Flop 7♠ 2♠ 6♣ rainbow.') leaked into note text",
+   "severity": "P3",
+   "status": "fixed",
+   "detail": "When analyst argument contained a standalone 'Flop X X X rainbow.' sentence, it was emitted as note text — adding zero value since the grid header already shows the board. Made the (1) marker on the flop bet show useless board recap.",
+   "fix": "v7.58: _structure_note now skips sentences matching board_recap_re: '^(?:Flop|Turn|River) (rank+suit){3,5} (texture)?\\\\.?$'. Companion to B68 action-recap filter.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B95",
+   "summary": "Single-narrative override attached narrative to FIRST hero action on key street, not last",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "B83 added single-narrative override to dump narrative to one street's bucket. The per-street emission loop used hero_acts[0] (first action), which for the JJ hand attached the WHOLE narrative to the flop bet, not the flop jam (the actual key decision). Result: (1) marker on the flop bet showed content describing the jam.",
+   "fix": "v7.58: when override is in effect (is_long_narrative=True), use hero_acts[-1] (LAST hero action on key street). For JJ jam-flop punt: (1) now sits on the flop jam, flop bet gets 👍 silent.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B96",
+   "summary": "Notes block was a flat numbered list — Ron asked for grouping BY STREET with headers",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "All notes rendered as a flat 1/2/3/4 list. With grid markers like 👍/(1)/(2)/(3), reader had to mentally map note numbers back to which street had which marker.",
+   "fix": "v7.58: notes block now has PRE-FLOP / FLOP / TURN / RIVER headers (only for streets that had hero action). Under each header, only notes attached to that street's hero actions appear, keeping their original (N) numbering. Empty streets show 'no critical comment'. Unbound notes (matchup math) go under the last street with action. Scannable: a (1) marker on a flop action is immediately findable under the FLOP header.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B97",
+   "summary": "No test caught action-grid↔notes-block misalignment when it happened",
+   "severity": "P1 (process)",
+   "status": "fixed",
+   "detail": "Ron repeatedly flagged misalignment between (N) action grid markers and (N) note markers. No test existed to catch this class of bug.",
+   "fix": "v7.58: added 6 tests to test_report_draft.py: (1) chart-notation 2-pill rendering, (2) pocket-pair 2-pill rendering, (3) nowrap wrapper, (4) every grid (N) has matching note (N), (5) no orphan notes (no (N) in notes without grid match), (6) no duplicate grid markers. Tests parse rendered HTML from /mnt/user-data/outputs/Pokerbot_Report_*.html, run against first 50 hand sections of each. 20/20 tests pass.",
+   "fixed_in": "v7.58"
+  },
+  {
+   "id": "B131",
+   "summary": "Read-dependent (III.4) calls excluded from Top Leaks as a watch-block",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "First pass excluded III.4 calls with a 'not a confirmed leak / loss-selected' caveat — itself an assumption not backed by data (Ron). Revised: read-dependent calls are now a leak BUCKET row IN the Top Leaks table (next_session_items), sort weight 0 ('impact under review'), every hand listed with the specific read it hinges on. Resolves to confirmed/cleared only once each hand is gone over vs the standard line. gem_report_draft.py."
+  },
+  {
+   "id": "B132",
+   "summary": "USD summary cash parser truncated cents + missed re-entry phrasing",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "_parse_game_summaries_usd cash regex 'You received a total of\\\\s+(.+?)(?:\\\\.|$)' stopped at the decimal point ($542.59 -> $542, $0.59 lost) and did not match the re-entry variant '...and received a total of'. Fixed to 'received a total of\\\\s+(.+?)\\\\.?\\\\s*$' with re.M. gem_report_data.py."
+  },
+  {
+   "id": "B133",
+   "summary": "MDA missed-exploit list not analyst-gated; III.2 synthesis example handling",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "(a) MDA 'missed exploit' lane counted every population-frequency deviation even when the analyst reviewed the hand and rejected the recommendation as wrong for the spot — now filtered by mda_review=='rejected', with an 'N rejected on review' note. (b) III.2 __synthesis__ example rendering crashed on bare-string hand-ids — now tolerates str or dict. (c) III.2 synthesis example hand-ids promoted into appendix_hand_ids_all so XIV.B stubs exist (no dead links). gem_report_draft.py."
+  },
+  {
+   "id": "B134",
+   "summary": "Tournaments keyed by name (merged same-named instances); bullets = file count",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "parse_session keyed the tournaments dict by tournament NAME, so two distinct tournament instances sharing a name (e.g. the same satellite entered twice) merged into one — undercounting tournaments. volume.bullets used n_files = ALL files in the dir incl. game summaries (36) instead of HH-file/bullet count (21). Fixed: parse_one_hand captures tournament_id from the HH header; tournaments dict keyed by tournament_id; per-tournament 'files' set drives volume.bullets. gem_parser.py + gem_analyzer.py."
+  },
+  {
+   "id": "B135",
+   "summary": "Daily Summary split one Bangkok-time session into two GG-date rows",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "_emit_daily_summary_table grouped by GG game-summary start date; a Bangkok-time session crossing GG/UTC midnight landed on two GG calendar dates and rendered as two rows. Ron views sessions in Bangkok time (PokerCraft's timezone): one upload = one session. Fixed: two adjacent GG dates are collapsed into the single session row. gem_report_draft.py."
+  },
+  {
+   "id": "B136",
+   "summary": "Skill-movement 'today' window keyed to a single GG date, not the session",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "session_movement_summary's today_rows fell back to filtering per-tournament CSV rows by rd['dates'][0]. HH files use UTC timestamps so a Bangkok-time session straddles two GG dates and PokerCraft rows land on either — the date filter kept ~1 tournament, showing 'Today n=1/1 low sample'. Fixed: today_rows is now built from every tournament_id in the session's usd_overlay (the actual uploaded session), date filter only as last-resort fallback. gem_report_data.py."
+  },
+  {
+   "id": "B137",
+   "summary": "finish_pct percent/fraction scale mismatch silently corrupted ALL skill-index windows",
+   "severity": "P0",
+   "status": "fixed",
+   "detail": "_compute_skill_index_for_rows / monthly-trend / session-context all guarded finish_pct with `0 < fp < 1`. session_financials_per_tournament.csv stores finish_pct PERCENT-scaled (0.57 .. 79.98) while the session-summary-parser dict path produces a fraction. The guard silently dropped every CSV row with finish_pct >= 1% — i.e. all but sub-1%-finish deep runs — so anchor/responsive/today skill_index were computed from a tiny biased subset (today showed 2/3 instead of 16/23; anchor 282/431 instead of 323/500). Fixed: all three sites normalize `fp/100` when fp>1. test_skill_index.py T3 now asserts percent-scale == fraction-scale parity. gem_summary_parser.py."
+  },
+  {
+   "id": "B148",
+   "summary": "eff_stack_bb fed to GTOW builder wrong with no shorter villain present",
+   "severity": "P1",
+   "status": "refuted",
+   "detail": "Hands TM..61023366 (Hero 90.6bb, builder received ~34) and TM..59114406 (Hero 50.7bb, received ~38) produced GTOW URLs at the wrong depth; extension confirmed no shorter active villain justified the lower effective stack. snap_depth itself is correct (5 hands confirmed; ~17 other suspects were verified as CORRECT effective-stack tracking, e.g. 250->35 vs a 33bb jammer). Root cause is upstream: whatever populates hand['eff_stack_bb'] (gem_report_data.py / gem_analyzer.py) computed an effective stack far below min(Hero, shortest active opponent) for these hands. Investigate whether eff is taken vs a folded player, vs committed chips, or vs a stale snapshot.",
+   "introduced": "unknown",
+   "discovered": "2026-06-11 GTOW URL verification pass",
+   "discovered_via": "Chrome extension live load check vs expected definitions",
+   "handover_id_note": "handover 2026-06-11 used id B138; renumbered — B138 already denotes a fixed v8.9.x bug in code comments/changelog",
+   "resolution": "REFUTED 2026-06-11 (Claude Code re-verification on raw HH): both evidence hands have a legitimate shorter ACTIVE villain at the flop — TM6061023366: opener f12ccafa 6,720 chips = 33.6bb (eff 33.6 correct vs Hero 90.6); TM6059114406: BB caller 83f28b04 5,637 = 37.6bb (eff 37.6 correct vs Hero 50.7). eff_stack_bb = min(Hero, shortest active at flop) is working as designed; the extension pass missed the short opener/caller."
+  },
+  {
+   "id": "B149",
+   "summary": "pf_allin flag misses jam-over-jam preflop all-ins; flop-root URL emitted for a no-flop spot",
+   "severity": "P1",
+   "status": "fixed",
+   "detail": "Hand TM..61459519 (R2-R4 jam-over-jam at ~11bb) carried hand['pf_allin'] falsy, so build_gtow_schema took the flop-root branch and emitted board+preflop_actions; GTOW returned 'There is no solution for this spot' (spot reached preflop all-in, no postflop ranges). The v8.8.9 BUG-5 gate works only when pf_allin is set. Fix is in the analytics layer: pf_allin must be true whenever the preflop betting ends with an all-in raise that is called (including raise-over-raise jams where neither actor is Hero). Builder cannot infer this (pf_sequence carries no amounts).",
+   "introduced": "v8.8.9 gate present; detection gap upstream",
+   "discovered": "2026-06-11 GTOW URL verification pass",
+   "discovered_via": "Chrome extension live load check",
+   "handover_id_note": "handover 2026-06-11 used id B139; renumbered — B139 already denotes a fixed v8.9.x bug in code comments/changelog",
+   "resolution": "FIXED 2026-06-11 in gem_gtow v2.2.1: flop-root gate now also checks hand['pf_settled'] (parser has exported it since v7.15.1) — covers jam-over-jam preflop all-ins regardless of actors. pf_allin keeps its hero-centric semantics (equity/push verdicts depend on it)."
+  },
+  {
+   "id": "B150",
+   "summary": "table_size=8 fed for a 7-seat hand -> GTOW position labels shifted",
+   "severity": "P2",
+   "status": "fixed",
+   "detail": "Hand TM..60418787: 7 active seats but hand['table_size']/n_players carried 8, so the URL used MTTGeneral_8m and the loaded 8-max grid had shifted position labels. Likely cause: table_size taken from table max-seats while one seat was empty/sitting-out, instead of the dealt-player count. Decide the convention (dealt players, not table capacity) and apply where the lean hand record is built.",
+   "introduced": "unknown",
+   "discovered": "2026-06-11 GTOW URL verification pass",
+   "discovered_via": "Chrome extension live load check",
+   "handover_id_note": "handover 2026-06-11 used id B140; renumbered — B140 already denotes a fixed v8.9.x bug in code comments/changelog",
+   "resolution": "FIXED 2026-06-11 in gem_parser: table_size = DEALT players (was capacity from the \"-max\" label); capacity preserved as new field table_capacity. Consumers audited: gem_gtow + gem_flag_reviewer both want dealt count."
+  },
+  {
+   "id": "B151",
+   "summary": "GTOW open/3bet R-code tables unvalidated at 21bb and 27bb tiers (live 'invalid sequence' / backend errors)",
+   "severity": "P2",
+   "status": "open",
+   "detail": "Confirmed failing paths: TM..60857260 F-R2-F-C-C-F-F at depth 21 ('Preflop action sequence is invalid'), TM..41017626 R2-R5 at 27, TM..59744030 at 56. The _OPEN_RAISE/_THREBET tables use nearest-LOWER tier interpolation (20->R2, 25->R5) but GTOW's actual trees at 21/27bb appear to use different size codes. Needs a targeted extension micro-pass: for each failing depth x position, binary-search the accepted R-code on app.gtowizard.com and patch the tier tables. Limp-then-raise paths are no longer emitted (gem_gtow v2.2.0 falls back to preflop root), so TM..41017571 is mitigated, not fixed.",
+   "introduced": "v2.0 validation coverage gap",
+   "discovered": "2026-06-11 GTOW URL verification pass",
+   "discovered_via": "Chrome extension live load check",
+   "handover_id_note": "handover 2026-06-11 used id B141; renumbered — B141 already denotes a fixed v8.9.x bug in code comments/changelog"
+  }
+ ],
+ "retracted": [
+  {
+   "id": "B1",
+   "summary": "bb_per_100 aggregation",
+   "note": "Fixed in v7.33 round 1; analyzer correct"
+  },
+  {
+   "id": "B10",
+   "summary": "Cooler detector wrongly flags value-shoves as coolers",
+   "note": "Reconsidered v7.35 D24: if matchup math is roughly break-even, the loss IS structurally a cooler regardless of who initiated the AI"
+  }
+ ],
+ "_session_note_v7_49": "2026-05-13 (v7.49): Three new bugs added (B33 M6 false-positive, B34 cooler-vs-punt routing, B35 appendix rendering). B34 is P1 — affected the 2026-05-12 session verdict classification on 2 hands and motivated PREFLIGHT-3. Open list now 3 items; all have analyzer-side or renderer-side work pending.",
+ "known_caveats": [
+  {
+   "id": "C5",
+   "summary": "EAI expected-win-rate baselines miscalibrated for pool",
+   "severity": "P3",
+   "status": "open",
+   "detail": "Current baselines (ahead 80% preflop / 85% postflop, flip 55/50%, behind 20/25%) are textbook numbers. Empirical session data after F10 fix shows systematic ~5 BB/100 mean offset, suggesting true preflop ahead-rate in Ron's MTT pool is closer to 73-78% (AKs vs random ~70%, AA vs random ~85%, average ~75%). Doesn't affect session-to-session variation (which is what triangulation uses) but does affect absolute level. To fix: derive empirical baselines from Ron's all-in spot data across all 2,880 tournaments and replace constants in gem_analyzer.py.",
+   "discovered": "2026-05-14",
+   "discovered_via": "F10 fix verification — mean EV_gap should center near zero across 57 sessions, but centers at -5.36",
+   "next_step": "Recalibrate when convenient; not blocking current work"
+  }
+ ],
+ "versions": [
+  {
+   "version": "7.49.10",
+   "date": "2026-05-14",
+   "changes": [
+    "C5 — EAI baseline recalibration deployed",
+    "Extended variance attribution to 4 components",
+    "ROI forecast sidebar wired",
+    "Methodology report v3 with layman TLDR"
+   ]
+  },
+  {
+   "version": "7.49.11",
+   "date": "2026-05-14",
+   "changes": [
+    "Leak watchlist added to daily report (20 actionable metrics, p25/p75 targets)",
+    "gem_meta_analysis.py — on-demand re-fit tool for all analytics layers",
+    "gem_leak_watchlist.py — new pipeline module",
+    "Documented re-trigger cadence and criteria for meta-analysis"
+   ]
+  }
+ ],
+ "features": [
+  {
+   "id": "F12",
+   "title": "Meta-Analysis Tool",
+   "date_added": "2026-05-14",
+   "status": "ACTIVE",
+   "description": "Single-script entry point for periodic re-fitting of the analytics layers (forecast model coefficients, leak targets, variance attribution, full metric scan). On-demand via --rebuild flag; --check warns when refit is warranted.",
+   "files": [
+    "/mnt/project/gem_meta_analysis.py"
+   ],
+   "usage": "python3 gem_meta_analysis.py --check | --rebuild | --refit-quiet"
+  },
+  {
+   "id": "F11",
+   "title": "Daily Leak Watchlist",
+   "date_added": "2026-05-14",
+   "status": "ACTIVE",
+   "description": "New report section comparing 20 actionable session metrics against data-derived target ranges (p25/p75 from 64-session cohort). Three-level status (red/amber/green) per metric with prioritized action phrases. Renders between TLDR and Legend.",
+   "files": [
+    "/mnt/project/gem_leak_watchlist.py",
+    "/mnt/project/gem_report_data.py (leak_watchlist wiring)",
+    "/mnt/project/gem_report_draft.py (_emit_leak_watchlist)"
+   ],
+   "refresh": "Re-fit targets via gem_meta_analysis.py --rebuild"
+  }
+ ],
+ "_archive_note": "fixed + fixed_bugs history (55KB) archived 2026-06-11 to archive/gem_known_bugs_fixed_ARCHIVE.json (source repo only). open_bugs / retracted / known_caveats remain live.",
+ "fixed": [],
+ "fixed_bugs": []
+}

@@ -1,0 +1,1979 @@
+**STEP 0 — REBUILD THE PACKAGE FIRST (DO THIS BEFORE ANYTHING ELSE)**
+
+Before reading further in this file, and before running any pipeline
+step, read `SESSION_START_STEP0_package_rebuild.txt` and follow it: the
+`gem_report_draft` renderer ships as **16** loose files and must be
+reassembled into a `gem_report_draft/` package. The 16th file is
+`sections_issue_explorer.py` (v8.1.0). Verify the rebuild —
+`import gem_report_draft` and `import gem_analyzer` must both print OK —
+before continuing with the rest of this Quick Reference.
+
+---
+
+**DEFAULT ACTION — HAND-HISTORY FILE ATTACHED WITH NO INSTRUCTION**
+
+A hand-history file attached on its own, with no other text, IS the
+instruction: run the full GEM pipeline end-to-end — `gem_run.py`
+(parse → analyze → render HTML + MD) — then the analyst pass per
+`Analyst_Writing_Checklist.md`, then return the finished report and its
+output file locations. No need to ask what to do.
+
+---
+
+**ANALYST WRITING CHECKLIST — READ FIRST**
+
+Before writing any session_analysis_*.json entry, read
+`Analyst_Writing_Checklist.md`. Catches the recurring mistakes:
+TPTK vs TPGK, flush-count miscounts, range definitions missing or
+prose-blob format, equity computed vs starting range instead of
+narrowed range, blockers stated as buckets instead of specific
+combos, "Ron asked" reclassification attribution.
+
+Hard rule: ≤300 words per argument. No tournament name. No chip
+amounts. No restated grid info.
+
+---
+
+GEM QUICK REFERENCE v8.9.6
+============================
+Read THIS file every session. Full details in GEM_Report_v7_Instructions.txt
+and the leak playbook in Knockman_Leaks_Index.md.
+Changelog history lives in GEM_Changelog.txt.
+
+v8.9.6 — EAI Perf + V25 Layout Overhaul + Evidence Compact (2026-06-10)
+v8.9.4 — Render QA + Analytics Fixes + Mobile Table Usability (2026-06-10)
+  3 render bug fixes (BUG-D data-street routing, BUG-E cross-dedup, stackEl),
+  3 analytics fixes (BUG-D stamp, BUG-2 date_compact, BUG-3 SyntaxWarning),
+  mobile table usability (gated CSS, scroll/compact enhance, IE cards/bottom-sheet,
+  evidence preview priority, bottom controls padding). cEV math verified.
+
+v8.9.3 — V25.4 QA Triage — 18 Fixes (P0/P1/P2) (2026-06-10)
+  18 fixes from 3 QA docs: mobile blank table safety, dynamic sticky vars,
+  metadata skip hardening, verdict xref stripping, analyst_learning routing,
+  exploit fallback labels, villain normalization, review pill CSS, trigger
+  label clarity, search placeholder, reset de-emphasis, queue/modal polish.
+  TESTS: 481 total (74 new).
+
+v8.9.2 — V25.3 Modal Cleanup + Mobile Tables + Villain Archetype Fix (2026-06-10)
+  BUG FIX: Villain archetype label/exploit note in result cells read from wrong
+    data source (app_details, always empty). Fixed to read from hand dict h.
+  FEATURE: Mobile table readability system — 4 modes (scroll, hand-list,
+    evidence-card, compact) with auto-classification. Evidence-card auto-detect
+    via header keyword heuristic. Desktop unchanged. 335 tables covered.
+  V25.3 PASS A: 11 V25 modal fixes (queue, metadata, columns, padding, titles).
+  V25.3 PASS B: Hand audit canonicalization, suckout queue-group, IE onclick fix.
+  V25.3 PASS C: Hero hand strength in result cell (showdown only).
+  TESTS: 407 total (188 new since v8.8.6).
+
+v8.9.1 — Drop Audit Regression Fix + UX Pass (2026-06-09)
+  RENDERER: Restored 8 hand-detail features deleted in v8.8.2 refactor:
+    board-tex, draw-profile, villain-mini, push-verdict, EAI equity,
+    villain archetype, ICM context, call-jam verdict. All fail-soft.
+  RENDERER: 3 empty-state section fallbacks (sec-5-5, sec-5-6, sec-11-4b).
+  RENDERER: Raw Stats filter no longer drops zero-value fields.
+  RENDERER: Flop board cards sorted descending (Ac5s4s not 5s4sAc).
+  BUG FIXES: J43 ICM Flat Alert gate restored (phase check). GAP-14 stale
+    JS comment fixed. 8 GPT UX items applied (cell truncation, pill sizing,
+    search default-open, touch targets, sticky panel offset, bottom padding).
+
+v8.9.0 — Push/Fold Range-Gated Verdicts + V25 Modal (2026-06-09)
+  RENDERER: Hand-detail modal redesigned — streets stacked vertically with
+    3-column grid (Board | Action | Commentary). Dark topbar with hero cards,
+    result pill, review status. Legacy fallback on error. Zero data changes.
+  BUG FIXES: S1.4 all-in count mismatch (BUG-1), modal missing verdict
+    block (BUG-3), spurious Note badge on clean all-ins (BUG-4), GTOW flop-
+    root for pf all-ins (BUG-5), III.5 on out-of-range jams (BUG-6).
+  FEATURE: Arrow key nav skips when focus is in textarea/input.
+
+v8.8.8 — PLO/Non-NLH Exclusion from Strategic Analysis (2026-06-09)
+  BUG FIX (BUG-1): Non-NLH hands contaminated all strategic collectors.
+    Shadowed hands/N with NLH-only after volume block. Financial metrics
+    keep full set. ~160 collectors fixed with zero individual changes.
+  UX: Mobile sticky header — only nav tabs sticky on phones (≤768px).
+    Title/stats scroll away. display:contents trick, no JS needed.
+
+v8.8.7 — HA3 Budget Planner / Universal-Pill Reconciliation (2026-06-08)
+  BUG FIX: HA3 budget planner contradicted universal-pill guarantee — trimmed
+    cited hands crashed render (141 orphan pills). Fixed: build gate, B4 lint,
+    and XIV.C anchor stubs all exclude budget-trimmed hands gracefully.
+
+v8.8.6 — GPT V2 QA Bug Fixes + Satellite Caveat (2026-06-07)
+  BUG FIX: B1 context-pill whitelist, B2 P&L DOMContentLoaded init,
+    B3 assumption atom count threading (4-tuple), B4 subtotal cEV/100,
+    B5 gate reason street-suffix scrub, B6 Bustouts filter.
+  FEATURE: S1 satellite/ICM caveat (display-only, no auto downgrade).
+
+v8.8.5 — Evidence Quality + GPT Feedback Omnibus (2026-06-07)
+  BUG FIX: P0.1 dimension in popup atoms, P0.2 silent fallback removed.
+  FEATURE: P0.3 structured context (9 fields on all atoms, JS rendering).
+  FIX: Card notation (J3s not 3Js), cEV/100 total, %Lost/Result exits,
+    vague diagnostic now names failing gate (AMBIGUOUS verdicts).
+  FEATURE: Tournament context (RACER detection, Satellite/ICM/Mystery pills),
+    villain assumption transparency (source + confidence on all exploits),
+    sortable per-tournament P&L table.
+
+v8.8.4 — Evidence quality + good exploit tracking (2026-06-07)
+  FEATURE: 2 good exploit detectors (good_fold_vs_passive_aggro,
+    good_steal_vs_nit) + Good column in Matrix + evidence drilldown
+    partition (Supporting/Other signals) + coaching one-liners.
+  ENHANCEMENT: All 5 exploit fields serialized to JS. Dead matrix stub
+    removed. vi-badge edge cases verified acceptable.
+
+v8.8.3 — Fix exploit read semantics (Matrix grouping bug) (2026-06-07)
+  FIX: Opponent Adjustment Matrix grouped exploits by villain's overall
+    session read instead of the detector's read dimension. Exploits now
+    stamped at detection time with canonical read label via _stamp_exploit_read.
+    Unknown labels excluded from Matrix, surfaced in QA line.
+  ENHANCEMENT: QA log uses exploit_detector field, profiler QA block added.
+
+v8.8.2 — Made-hand categorizer: pocket pair on paired board fix (2026-06-07)
+  FIX: pocket pair + board pair was labelled two_pair; now overpair/underpair
+    (board-paired). Affects strength label, river one-pair-class leak routing.
+
+v8.8.1 — BUG-A/B fixes + Opponent Intel V3 wiring + Dossier (2026-06-06)
+  FIX (BUG-A): NameError crash at gem_analyzer.py:10958 (every analyze pass).
+  FIX (BUG-B): Opponent profiler identity corruption — VPIP==PFR for all
+    villains. 6 defects: re-keyed to player hash, VPIP counts calls/limps,
+    denominator per-player, Hero excluded, VPIP deduped per hand.
+    320 profiles now (was 71 position-merged), 173 classified.
+  FIX: 6 Opponent Intel V3 wiring issues — queue header, back-to-list
+    routing, villain evidence Detail column, exploit counts, colspan,
+    vi-badge tooltips on all 3 code paths.
+  NEW: S5.9b Villain Evidence Dossier (per-villain example hands).
+  FIX: cooler_ids UnboundLocalError in sections_financial.py.
+  FIX: _run_pipeline.py now runs profiler + villain_intel.
+
+v8.8.0 — V15 allin gate + coverage gate + survived exit hand (2026-06-06)
+  FIX: V15a/V15c no longer fire on preflop all-in calls.
+  FIX: coverage gate checks metric-flagged leaks have analyst judgment.
+  FIX: survived tournament exit shows biggest-loss or last-VPIP hand.
+
+v8.7.9 — Read-level reviewability + Stack Context fix (2026-06-06)
+  FIX: drilldown has Detail column, reviewable/evidence-only split, filters.
+  FIX: non-appendix evidence rows don't open dead hand detail.
+  FIX: Stack Context Read Context populated (position→player mapping).
+  Includes v8.7.8 (E5 separator + template exclusion).
+
+v8.7.8 — E5 separator fix + template exclusion (2026-06-06)
+  FIX: EAI variance ledger 9-vs-10 column mismatch (persistent 1 ERROR).
+  FIX: resolver skips *_TEMPLATE* files (no more W-POT from auto-load).
+
+v8.7.7 — Board-state augmentation + contradiction lint (2026-06-06)
+  NEW: gem_board_state.py — per-street board facts for analyst feed.
+  NEW: B-BOARD-FLUSH / B-BOARD-STRAIGHT lint rules — ERROR if analyst
+    argument contradicts computed board state (flush/straight completion).
+  Includes v8.7.5 (bullet fix) + v8.7.6 (stats re-save).
+
+v8.7.6 — Stats re-save — villain_intel persistence (2026-06-06)
+  CRITICAL: stats saved before villain_intel ran → empty on --render-only.
+  Fixed: re-save stats after villain_intel with set→list conversion.
+
+v8.7.5 — Per-tournament bullet count fix (2026-06-06)
+  FIX: P&L table shows correct bullets for re-entries (was always 1).
+
+v8.7.4 — Handover bug fixes (2026-06-06)
+  FIX: ABI uses bullet count not tournament count (reconciles with stat strip).
+  FIX: sections_xiv.py string mistakes_review guard (was only in xiii).
+  FIX: scalar analyst keys (session_date) filtered to prevent crash.
+
+v8.7.3 — Opponent Intel UX Wiring Complete (2026-06-06)
+  FIX: facing strip above Stack Context in hand modal.
+  FIX: villain taxonomy drift (read_state canonical source).
+  FIX: signal column shows signal_label (Multiway Donk, not just Note).
+  FIX: evidence queue reasonByHand populated from atoms.
+  FIX: matrix table data-label for mobile.
+
+v8.7.2 — Look-ahead closed + V-number dedup (2026-06-06)
+  FIX: residual look-ahead via ungated read_states fully closed.
+  FIX: V-number duping (V163 · V163 → V163) for no-name-pool villains.
+
+v8.7.1 — Opponent Intel UX Wiring Fix + Calibration (2026-06-06)
+  CRITICAL: villain popups/mini-cards now work (JS escaping fixed).
+  FIX: archetype labels populated from read_states (not empty).
+  FIX: mini-card race, V-number duping, filter empty state.
+  FIX: exploit look-ahead leakage (temporal gate on reads).
+  FIX: dead aggro/sticky exploit gates (mapped dimension scoring).
+  POLISH: Matrix vs Mirror clarification text.
+
+v8.7.0 — Opponent Intelligence System (2026-06-06)
+  NEW MODULE: gem_villain_intel.py
+    108 neutral villain aliases (stable_hash, deterministic per tournament).
+    Villain key: tournament_id|player_hash (tracks players across seats).
+    18 detectors: 10 tagging evidence + 8 exploit opportunity.
+    Read state aggregation + line story construction.
+
+  NEW UI:
+    Compact facing strip — one-line villain context in hand detail.
+    Badge pills — ❗ Note / ⚠ Pivot / ❌ Miss inline on action grid.
+    Villain evidence popup — click "Evidence (N)" on facing strip.
+    Mini-card — click villain alias in grid for quick summary.
+    Opponent Adjustment Matrix — S5.9, rows by read/archetype.
+    Queue navigation — Prev/Next from evidence popup.
+    Yellow notes opponent context — street-grouped evidence + exploit.
+
+  TAGGING DETECTORS (10):
+    open_limp, limp_call, weak_showdown_call, passive_aggro_pivot,
+    repeated_blind_overfold, multiway_donk, weird_minbet,
+    cold_call_3bet_oop, river_bluff_shown, calldown_weak_pair.
+
+  EXPLOIT DETECTORS (8):
+    bluffed_sticky, paid_off_passive, missed_steal_nit,
+    missed_thin_value, opened_loose_vs_aggro, overfolded_vs_aggro,
+    ego_fought_maniac, pivot_overplayed.
+
+  PIPELINE QA LOG: "Opponent Intel QA:" block with evidence atoms by
+    detector, hero_involved=false count, Hero-as-villain guard,
+    exploit opportunities, read-state distribution, top 5 villains.
+
+  CALIBRATED THRESHOLDS:
+    missed_steal requires first-in. pivot excludes BB/SB check→bet.
+    blind overfold threshold = 6. cold-call excludes original raiser.
+    donk requires OOP to PFR. read scoring diversified.
+
+  REGRESSION GUARD: _resolve_hero() ensures hero-name match between
+    analyzer display name and parsed action-ledger name. Pipeline warns
+    if hero_involved=false is 0 or Hero appears as villain.
+
+  INSTALL: Copy 7 files from GEM_v8.7.0_opponent_intel/REPLACE/ over project.
+    1 new (gem_villain_intel.py), 6 modified (gem_analyzer.py, draft.py,
+    _html.py, _hand_grid.py, sections_xiv.py, sections_iv_xii.py).
+
+v8.1.0 — Issue Explorer + Coverage Report (2026-06-03)
+  NEW MODULES (7 files — must exist in project):
+    gem_dp_extractor.py     — Decision Point Extractor (Stage 2, runs after parser)
+    gem_qa_gate.py          — QA gate: parser/analyzer/render sanity checks
+    gem_report_draft/_adapters.py — Renderer adapter layer (package file)
+    gem_range_estimator.py  — Population-level range width estimation
+    gem_population_exploits.py — 10 population exploit heuristics
+    gem_coaching_trees.py   — 7 leak decision trees
+    gem_auto_narrative.py   — Auto-generated session narrative draft
+    gem_issue_collector.py  — Issue Explorer: collect issues from all sources (v8.1.0)
+    gem_report_draft/sections_issue_explorer.py — Issue Explorer renderer (16th package file, v8.1.0)
+
+  NEW RANGE CHARTS (67 charts in Poker_Ranges_Text.txt):
+    17 × 3BET ranges (RYE charts, 20/30/50BB)
+    18 × 4BET ranges (GTOW MTT ChipEV 8-max, 30/50BB)
+    16 × CALLJAM ranges (GTOW, 12/15/20/30BB)
+     8 × SQUEEZE ranges (GTOW, 30/50BB)
+     8 × PUSH ranges (preflop open-shove)
+
+  PIPELINE CHANGES:
+    - decision_points[] extracted on every hand immediately after parsing
+    - primary_villain set by analyzer (not parser) from key decision
+    - Two-pass appendix harvest: popup IDs registered during section render
+      are re-synced before appendix build (fixes 411 dropped popup hands)
+    - --quick mode refreshes discipline_tier after loading analyst file
+    - Candidate emission before slow equity (survives timeout)
+    - Game-type quarantine: NLH/PLO/ShortDeck detection + detector gating
+    - Disconnection/timeout hand filtering
+    - Forbidden token scan in QA gate
+    - Renderer reads through _adapters.py helpers (not direct field access)
+    - Issue Explorer v3: table-based master-detail triage system with
+      sortable columns, filter chips, expandable drawers, training objects
+    - Coverage trust chip in IE header; full table moved to QA (collapsed)
+    - Auto-verdict engine: role-aware preflop rules (R0-R14) in _prefill_verdict.
+      76/98 hands automatable. SUPPRESS verdicts excluded from worksheet.
+    - Depth-flexible push range lookup: auto-discovers PUSH_*BB_{pos} charts
+    - Session-specific cache filenames (prevents cross-session pollution)
+
+  HAND CARD ENRICHMENT:
+    - Board texture label on flop headers
+    - Pot odds "need X%" on ALL hero calls (not just river)
+    - IP/OOP badge on postflop street headers
+    - Villain archetype + exploit note on result footer
+    - ICM context flag on result footer
+    - Push verdict on <=15BB open-shoves (chart + boundary)
+    - Call-jam verdict on <=30BB calls of jams (CALLJAM range check)
+    - Emoji verdicts in popups (not roman numerals)
+    - User review additive (not override) in popup verdict column
+    - Villain position shown in showdown line
+    - WON/LOST uses net_bb (not hand['won'] which can be wrong on side pots)
+
+  NEW REPORT SECTIONS:
+    - Missed 3-Bets column (S8.4) — range-gated from 3BET charts
+    - Missed 4-Bets column (S8.6) — range-gated from 4BET charts
+    - C-Bet by Board Texture matrix (S9.1) — clickable per texture
+    - Bustout Table (under Large-Loss Audit) — per-tournament exit hands
+    - EV Impact column in S3 Strategic Leaks
+    - Metric Drilldown breakdowns (expandable under watchlist)
+    - "Before your next session" study summary
+    - Recurring -EV patterns (habitual line classes)
+    - Stack trajectories (collapsible per tournament)
+    - Counterexamples (clean/boundary/counter per leak)
+    - Coaching decision trees in S3 leak details
+    - Missed bluff-raise detector (zero SDV spots)
+    - Over-folding by position analysis
+    - Lucky mistakes / all-ins won with low equity
+    - [New] badges on new features (auto-expire after 14 days)
+
+  KEY BUG FIXES:
+    - Mistake count SSOT: all 4 surfaces read canonical count
+    - B258: confirmed-mistake union unified across 3 sites
+    - verdict_ci: green only when point estimate IN band
+    - SB vs EP: "3-bet/fold (flat~0)" not "defend"
+    - 0BB in hand grid: seat_stacks_bb_all fallback
+    - FT/B denominator: consistent n_b across all /B metrics
+    - Defend matrix: per-opener targets (not flat aggregate)
+    - Cold-call missed: range-gated (trash folds excluded)
+    - Phantom boards nulled on fold_preflop hands
+    - J14 OOP guard: hero_ip check
+    - Gate jargon scrubbed (HERO_AGGRESSIVE etc.)
+    - Schema instructions removed from rendered output
+    - Deep call-off: pairwise eff stack vs jammer
+
+v7.99.44 — Review Polish (2026-06-01)
+  True EV replaces EV BB/100 in stat strip (single fully variance-adjusted
+  metric). Per-Tournament P&L: all tournaments shown (cap 50), BI from USD
+  overlay, total row uses overlay totals. QA/Raw Stats/Glossary/Deviation/
+  Appendix collapsed by default. S11.11 evidence tables collapsed. Suckout
+  ledger Direction → group headers. "Why here" moved below hand grid.
+  Popup coverage: all hand-list-trigger IDs in appendix. Post-render
+  validation check 8 (popup→appendix). "metric-flagged patterns" wording.
+
+v7.99.43 — B256 Handover Fixes (2026-05-31)
+  _pname_file hoisted above _quick_mode. Cache tournaments as dict +
+  unscoped gem_hands.json alias. test_report_draft sys.path order fixed.
+  Empty S11.11 anchors. Pre-write surrogate guard. Template prefill with
+  real draft arguments for HIGH-confidence hands.
+
+v7.99.42 — CoinPoker + Pipeline Efficiency + Opponent Profiler (2026-05-31)
+  CoinPoker XML auto-detect + converter. Hero-name self-healing. Multi-player
+  --player CLI + versioned filenames. Cash$ + total row in P&L. Draw profile
+  wired into hand grids (BDSD detection). 5 renderer link bug fixes.
+  Auto-notes on every hand. Pipeline: pre-filled verdicts, structured
+  template, coverage dry-run, --quick re-render, parallel equity, cache,
+  auto-detect platform. 10-archetype 4D opponent profiler. Post-render
+  validation + analyst handover prompt.
+
+v7.99.41 — Backlog Complete: BUG-6/10/11 + FEAT-1–11 (2026-05-31)
+  Hand-ref placeholder for missing details. Expected defend ranges + linked
+  counts. Gate condition enumeration. Fix items link to sections. Wide
+  defends column. Cold-call hand-list columns. 3-bet totals + J44 links.
+  Sizing profile Street→Position→Type. AF breakdown 3-column cross-slice.
+
+v7.99.40 — Backlog Part A: BUG-4/7/8/9/12 (2026-05-31)
+  Defend matrix filtered to steal positions. Multiway showdown decomposition.
+  S11.11 popup isolation. AWAITING ANALYST suppressed. Pot odds + bounty
+  in hand detail.
+
+v7.99.39 — Backlog Part A: BUG-1/2/3/5 (2026-05-31)
+  draw_profile() function. Flip/cooler/suckout priority. 3BP c-bet filter
+  fixed (4BP excluded, pf_settled guard). Steal-defense excludes 3bet.
+
+v7.99.38 — Equity Layer + Upstream Data Wiring (2026-05-30)
+  Range-based equity in pot_odds (preflop jam range MC). Per-street calls.
+  Multiway pot detection. Texture + CR hand IDs into appendix.
+
+v7.99.37 — Report Polish — Classification Fixes + Display Bugs (2026-05-30)
+  TL;DR section renamed to "Summary" (heading, nav, tabs, review row).
+  B254: Raw </span> in table cells — double-wrap removed (11 occurrences).
+  B255: Cooler vs suckout — EAI cross-check reclassifies equity-favourite
+  losses as suckouts and 42–58% losses as lost flips. Removed from cooler
+  table, note added. III.5 hands auto-display "🪙 lost flip" when equity
+  was a preflop flip. Summary table cells auto-open targeted <details>.
+  Lint: 0B/0E. Renderer only — no parser/analyzer touched.
+
+v7.99.36 — Bust-Classification & Split-Verdict Fix (2026-05-29)
+  Bug 2: iii4_screening excludes all-in-to-showdown hands (variance, not
+  read-dependent). Bug 1: variance-outcome classifier tags lost all-ins
+  (suckout/lost_flip/top_of_range/semi_bluff_cooler). Bug 3: parser
+  detects bet-then-call-raise with per-node committed amounts; F4 detector
+  evaluates bet and call as separate decisions. B252+B253 tests added.
+  Lint: 0B/0E. Analyzer + parser + aggression detector touched.
+
+v7.99.35 — Work-Order Review Pass (2026-05-29)
+  Item 2: Per-day P&L table in S1.1a (reuses S1.0b builder).
+  Item 3: cEV/100 quartile display fixed (fraction→% via *100). B220 tests.
+  Item 6: S13.1 deviations table gains Est. BB/100, Judgment, Confidence,
+  hand-popup links. Inline Caller-IP examples removed.
+  Item 9: S8.3 Blind Combat flat fold-list → per-opener defend matrix
+  (SB-vs-LP + BB-vs-steal). J29 SB guard respected.
+  Item 13: Equity auto-tagger extended to LOST all-ins (lost_flip,
+  top_of_range, semi_bluff_cooler). M1 detector villain_allin guard.
+  Item 14: Missed-push hands show Nash push/fold ranges per position.
+  Lint: 0B/0E, W2, I23. Analyzer touched (Items 13, 14).
+
+v7.99.34 — Phase 4.7: Component Re-skin + Review-Notes Fix (2026-05-28)
+  Tables: .data-table + .table-scroll wrapper on flush_table() output.
+  Chapters: <section class="chapter"> wrapping each <<H2>> section.
+  Hand cards: .mh-top/.mh-title/.mh-meta/.mh-chip/.mh-verdict/.mh-links
+  (v29 vocabulary). ~15 new CSS selectors for hand card styling.
+  Remaining CSS: .chip variants, .section-purpose, .hand-ref enhancements,
+  .info-dot, .save-state.flash, .gtow-btn:focus, utility classes.
+  Generator now has ~200 CSS selectors (up from ~130).
+  Review-notes bug fix: _loading guard prevents race condition where
+  Chrome fires change on programmatic select.value= during loadReview(),
+  causing saveReview() to write stale textarea content. Operator
+  precedence fix, flash animation, _curHid cleared on close.
+  jsdom: 44 assertions (sub-test D validates _loading guard).
+  Lint: 0B/0E, I1=23. No parser/analyzer/analytics changed.
+
+v7.99.33 — Phase 4.6: Visual Shell + GTOW manifest + timing (2026-05-28)
+  Design tokens (:root CSS variables), layout grid (.layout>.sidebar+.content),
+  sticky topbar with clickable KPI stat cards, left nav rail with
+  IntersectionObserver active-section tracking, mobile responsive
+  (@media 980px) + table card-mode (data-label on every <td>).
+  Bug fixes: modal double-review strip (audit-row removal from clone),
+  review persistence (sessionStorage + localStorage probe + Copy button),
+  E1 grammar fixes (financial_summary 7→12 cols, leak_bucket_overview
+  reordered — decision #29). jsdom behavioral test (35 assertions).
+  GTOW manifest: --gtow-manifest CLI flag builds _gtow_manifest.json
+  from real session data (ready/partial/unavailable per hand). Links
+  stay flag-OFF — manifest is for manual sample-URL testing only.
+  Timing: parse/analyze/render/total wall-clock summary at pipeline end.
+  Subprocess encoding fix: test_detectors + test_metrics pass PYTHONUTF8=1
+  to child processes (fixes cp1252 emoji crash on Windows).
+  Lint: 0B/0E, I1=23. No parser/analyzer/analytics changed.
+
+v7.99.32 — Phase 4.5: Visual Layer + GTOW feature flag (2026-05-28)
+  Hand-detail-card wrapper, single-hand modal popup, data-hand-id on pills,
+  relevant-hands list popup, universal-pill build gate + B4 lint (BLOCKER).
+  gem_gtow.py NEW: per-hand GTOW URL builder (HU=ready, multiway=disabled,
+  preflop-only=partial). GTOW buttons default OFF — enable with --gtow-links
+  CLI flag or GEM_GTOW_LINKS=1 env var ONLY after manually verifying manifest
+  XIV.B APPENDIX CAP: GEM_XIVB_CAP=100 (default). Per-group hand grid limit.
+  GEM_XIVB_POPUP_CAP=10 (default) for the Metric Popup References bucket.
+  Set GEM_XIVB_CAP=0 to disable cap entirely (full appendix, large file).
+  sample URLs. B3 contrast lint activated (WARNING). 7 integration tests.
+  PHASE4.5_TEST_GAPS.md documents 8 gaps with risk levels.
+  Lint: 0B/0E, I1=23. No parser/analyzer/analytics changed.
+
+v7.99.30 — Phase 4: metric_status grammar — Commit A + B (2026-05-28)
+  _stat_row/_stat_row_pct migrated to 7-col §3 metric_status grammar.
+  All 6 stat tables converted to write_block(metric_table_block(...)):
+  t1-preflop-kpis, t2-postflop-kpis, t3-cbet-split, t4-float-cr,
+  t5-bb-iso, t6-caller-ip. VPIP/AF/AFq kept as raw strings (preserve
+  exact computation). metric_status grammar + _grammar_key() added to
+  lint. #14 suppression RESOLVED (3 entries removed). Decision #28
+  logged (T6 denom-missing fallback). Lint: 0B/0E, I1=22.
+  VERSION → v7.99.30.
+
+v7.99.29 — Phase 4: Coach-first 18-segment reorder (2026-05-28)
+  Report restructured from Roman I–XIV to Coach-first 18-segment Arabic
+  order (S1–S18). _anchor_map.py: 89-entry old→new mapping + compat
+  redirect layer in _html.py. _emit_section_ii split into 2 sub-emitters,
+  _emit_section_iii split into 4 sub-emitters. 61 cross-references migrated
+  to S-notation across 6 files. Lint suppressions #25-27 added (pre-existing
+  grammar mismatches). 14 content-parity tests (NEW). VERSION → v7.99.29.
+  NEW FILES:
+    gem_report_draft/_anchor_map.py   89-entry anchor mapping + compat layer
+    test_content_parity.py            14 content-parity tests
+
+v7.99.28 — Phase 3: block registry + structural linter (2026-05-28)
+  29 call sites migrated to Doc.write_block(). gem_report_lint.py: 14
+  render-IR rules (B1-B3, E1-E6, W1-W2, I1-I3), TABLE_GRAMMAR (8 types),
+  suppression registry from PHASE2_GRAMMAR_DECISIONS.md. 5 Phase 3b stubs
+  scheduled. Lint runs after _build(), before render. Env-var bridge
+  (GEM_STRICT_LINT / GEM_QA_BLOCK) so gem_analyzer.py untouched.
+  VERSION → v7.99.28.
+  NEW CLI FLAGS:
+    --strict-lint           Hard-fail on BLOCKER-severity lint findings
+    --qa-block              Append collapsed QA lint report post-appendix
+  NEW FILES:
+    gem_report_lint.py      Phase 3 structural linter (14 rules)
+    test_lint.py            39 tests (per-rule, suppression, E1 proof)
+
+v7.99.27 — Fix A+B: analyst file resolution + coverage gate (2026-05-27)
+  Pipeline bug fix: re-runs lost analyst verdicts (hardcoded /home/claude/
+  path). New search order: (1) --analyst-file <path>, (2) CWD, (3)
+  /mnt/user-data/outputs/, (4) /home/claude/. Coverage gate checks
+  bust_audit + punts + blindspot IDs against analyst_commentary; soft warn
+  by default, --require-analyst hard-fails. VERSION → v7.99.27.
+  NEW CLI FLAGS:
+    --analyst-file <path>   Explicit analyst file (overrides search order)
+    --require-analyst       Hard-fail on incomplete analyst coverage
+
+v7.99.26 — Phase 2 complete: hand_evidence migration (2026-05-27)
+  17 hand_evidence tables migrated across 3 section files + 1 raw_reference
+  (X6 check-raise evidence). Cooler tables F2/F3 stay prose. Citation timing
+  preserved. <details> boundary held. 24 off-grammar decisions logged.
+  Remaining deferred: metric_status (dedicated session), action_review
+  (no matching emitter). VERSION → v7.99.26.
+
+v7.99.25 — Phase 2 grammar migration (2026-05-27)
+  6 table types migrated to typed block grammar: financial_summary,
+  tournament_pnl, variance_ledger, leak_bucket, profile_matrix, raw_reference.
+  _blocks.py now has 14 block types (raw_reference added). 14 off-grammar
+  decisions logged in PHASE2_GRAMMAR_DECISIONS.md. VERSION → v7.99.25.
+
+
+================================================================================
+v7.28.1 METRIC TARGETS TABLE — AUTHORITATIVE  (LIVE RULE)
+================================================================================
+Canonical source-of-truth for all v7.27/v7.28 metric target ranges. If report
+prose drifts from this table, fix the prose to match the table.
+
+
+PREFLOP MATRICES
+  True PFR                           18-26% (MTT mid-stakes; non-blind)
+  VPIP/PFR Ratio                     0.85-1.0 (close to 1.0 = TAG; <0.7 passive)
+  3-Bet IP                           7-11%
+  3-Bet OOP                          5-8% (should be < IP by ~30%)
+  Fold to 3-Bet IP                   50-55%
+  Fold to 3-Bet OOP                  58-65% (more folds OOP is correct)
+  Cold Call BTN                      8-15%
+  Cold Call CO/HJ                    5-10%
+  Cold Call MP/UTG                   <5% (mostly fold or 3-bet from EP)
+  Cold-Call 3-Bet                    3-5% (rare; usually fold or 4-bet)
+  4-Bet rate (facing 3-bet)          5-8%
+  5-Bet rate                         15-25% of 4-bet attempts faced
+  Fold to 5-Bet                      60-75% (only AA/KK/AKs continue)
+  Call 3-Bet IP (Hero opener)        30-35%
+  Call 3-Bet OOP (Hero opener)       25-30%
+  Call 4-Bet (Hero 3-bettor)         20-30% (mostly QQ-AKs)
+  Call 5-Bet                         rare — usually fold or jam
+
+SQUEEZE / FACING SQUEEZE
+  Squeeze rate                       3-5% (rare spot)
+  Fold to Squeeze (as opener)        50-65%
+  Call Squeeze                       ~25%
+  Raise Squeeze (4-bet over)         ~20%
+
+STEAL / BLIND COMBAT
+  Fold BB to Steal vs LP             35-45%
+  Fold BB to SB Steal                wide BB defense per J29 (no scalar)
+  Fold SB to BTN Steal               40-55%
+  SB Defend vs LP Steal              60-70% (raise + flat combined)
+  BB 3-Bet vs BTN                    12-18%
+  BB 3-Bet vs SB                     14-22%
+  Re-Steal (3bet from blinds vs LP)  8-15%
+  Fold to BB 3-Bet (Hero stole)      50-60%
+
+POSTFLOP — Hero AS C-BETTOR
+  Flop C-Bet HU IP (SRP)             60-70%
+  Flop C-Bet HU OOP (Warrior)        45-60% (Warrior matchup per K2)
+  Flop C-Bet HU OOP (Gentleman)      30-45% (lower vs Gentleman per K2)
+  Flop C-Bet 3BP                     ~50%
+  Flop C-Bet 4BP                     varies; often check-call lines
+  Multiway C-Bet                     30-35% (>50% in MW = leak)
+  Double-Barrel                      45-55% of flop c-bets
+  Triple-Barrel                      25-35% of double-barrels
+  Delayed C-Bet Turn                 25-30% with equity
+  Probe Turn (HU IP w/ equity)       40-55%
+
+POSTFLOP — Hero AS CALLER
+  Fold to Villain C-Bet flop (HU)    40-55% (>65% over-fold; <40% sticky)
+  Fold to Turn Barrel                45-55% HU
+  Fold to River Barrel               40-50%
+  Call C-Bet flop (HU)               35-50%
+  Raise C-Bet IP (non-XR)            5-10% (rare line)
+  Donk Lead Flop                     <5% solver (>10% = leak)
+  Donk Lead Turn                     <8%
+  Fold to MW C-Bet                   40-55%
+
+CHECK-RAISE / REACTION
+  Hero Check-Raise Flop              8-12% as defender
+  Hero Check-Raise Turn              4-8%
+  Hero Check-Raise River             2-5%
+  Fold to XR (Hero c-bet, villain XR'd) 50-70% (>70% exploitable; <50% calling light)
+  Call XR                            20-35%
+  Reraise XR (3-bet flop)            5-15%
+
+DONK FACING (Hero as PFR)
+  Fold to Donk Bet                   30-40% (most pop donks weak)
+  Call Donk Bet                      45-55%
+  Raise Donk Bet                     10-20%
+
+BET-FOLD / BET-CALL / BET-RAISE per street
+  Bet-Fold                           <30% (>30% = villain raising too wide unpunished)
+  Bet-Call                           40-60%
+  Bet-Raise (3-bet)                  10-25% (situational; no strict baseline)
+
+SHOWDOWN BRANCHES
+  WTSD after Flop C-Bet              30-40% (lower = giving up too much)
+  WTSD after Calling Flop C-Bet      35-45%
+  WTSD after Turn C-Bet              45-55%
+  W$SD after Calling River           50-55% (reg baseline — calling correctly)
+  W$SD after Raising River           60-70%
+
+AGGREGATE TENDENCIES
+  AFq (Aggression Frequency)         38-48% reg baseline
+  AF (Aggression Factor)             2.5-4.0
+  WTSD                               25-30%
+  WWSF                               48-52%
+  W$SD                               50-55%
+  SD Aggressor %                     >40%
+  Non-SD Win %                       >30%
+
+DIRECTIONAL ONLY (no scalar target — sign matters)
+  RCE (River Call Efficiency)        positive = profitable calls
+  RBE (River Bet Efficiency)         positive = profitable bets
+  RRE (River Raise Efficiency)       positive = profitable raises
+  EV bb/100                          positive = profitable post-variance
+  Sub-15BB Call Jam                  no target — depends on cover/ICM context
+  PF All-In %                        no target — varies by structure
+
+================================================================================
+
+These targets are PROSE-LEVEL guidance, not the rigorous 4-state classifier
+(🟢🔴🟡⚪) with Wilson CI used for core metrics in Del 2B. Treat them as
+calibration anchors, not leak verdicts. v7.29 candidate: wire these into
+the existing classifier with sample-size guards.
+
+================================================================================
+BB DEFENSE — PER-OPENER FOLD TARGETS  (LIVE RULE)
+================================================================================
+Relocated from the changelog (orig D9, v7.33) so it stays at session start.
+  --- D8: COOLERS IN TABLE FORMAT ---
+  Section I.5 uses a table even for n=1-2 coolers:
+    Hand ID | Tournament (date) | Cards | Pos | Stack | Players ai
+    | Type | Net BB | Why cooler
+
+  --- D9: BB DEFENSE MUST SPLIT BY OPENER POSITION ---
+  Section IV.3.3 (and Leak Over-Defending Blinds) ALWAYS shows
+  vs UTG / vs UTG+1 / vs MP / vs HJ / vs CO / vs BTN / vs SB
+  separately with per-position targets. Aggregate alone is
+  insufficient — opener pos is the discriminator.
+
+  Per-position BB defense targets (depth-mixed 100BB):
+    vs UTG / UTG+1: 30-40%
+    vs MP:          35-45%
+    vs HJ:          45-55%
+    vs CO:          55-65%
+    vs BTN:         60-70%
+    vs SB (BvB):    use J29 frame separately
+
+========================================================
+FLAG REVIEW PROTOCOL (v7.20 — MANDATORY for every session)
+========================================================
+
+The analyzer produces CANDIDATES, not mistakes. Candidates become
+confirmed mistakes only after review.
+
+For each candidate in the "Needs Review — Claude Scrutiny Required"
+section of Del 4B, Claude applies this framework BEFORE marking
+anything as a mistake:
+
+1. VILLAIN'S RANGE at the decision point
+   - What's villain's effective stack? (NOT their chip stack — effective.)
+   - What's the jam context tag? (standard / squeeze / cover / micro)
+   - What's their range GIVEN the context?
+   - If the context widens the range vs the Quick Ref chart, USE the wider
+     range, don't apply the base chart.
+
+2. POT ODDS + EQUITY vs the widened range
+   - What equity does Hero need to call/raise profitably?
+   - What's Hero's actual equity vs the correctly-sized range?
+   - If bounty format + Hero covers: add 3-10% EV premium (see bounty
+     cover cheat sheet above).
+
+3. MULTI-STREET PLAN with decision-tree branches
+   - If action is preflop-only (all-in or all-in-response), state the
+     equity math and conclude.
+   - If action has postflop: write the plan for each street with key
+     runout branches (brick turn vs scare turn, paired river, etc.).
+
+4. CLASSIFICATION → one of:
+   - CONFIRMED MISTAKE: flag stands. Real leak.
+   - OK / CORRECTLY PLAYED: play is +EV given correct range/context.
+     Auto-corrected by reviewer or verified by Claude scrutiny.
+   - VARIANCE LOSS: play was +EV, ran into bad runout. NOT a leak.
+   - DETECTOR BUG: the analyzer flagged something it shouldn't have.
+     Auto-logged to pipeline change requests.
+
+5. If RE-CLASSIFIED as OK or Detector Bug:
+   - Write a pattern signature entry to gem_exceptions_log.csv
+   - Future sessions will auto-match and skip re-diagnosing
+
+IMPORTANT: Del 1F (Top 3 Leaks), Del 7 (Action Card), and the GTO
+shortlist draw ONLY from the CONFIRMED bucket. Never from raw
+detector output.
+
+When scrutinizing hands conversationally (not just in the report),
+Claude uses the SAME format: (1) villain range, (2) multi-street plan
+with decision tree. This applies to ALL hand discussions, not just
+formal drill-mode.
+
+
+========================================================
+SHOVE VERDICT PREFLIGHT (v7.47 — MANDATORY for every all-in)
+========================================================
+
+Before classifying ANY shove/all-in decision — Hero shoves, Hero
+called all-in, Hero faces an all-in — Claude MUST emit both
+preflight blocks below BEFORE any range analysis or verdict. This
+applies to live conversational hand review AND report generation,
+not just one or the other.
+
+The hard rule "use effective stack" and "apply bounty cover premium"
+existed prior to v7.47 but allowed implicit reasoning. The KTo CO
+15BB miss (Amit hand review, 2026-05-12) traced to skipping the
+explicit write-down. These preflights force the structured output.
+
+--------------------------------------------------------
+PREFLIGHT-1: EFFECTIVE STACK DECLARATION
+--------------------------------------------------------
+
+Required format (one line, before any range analysis):
+
+    [Eff Stack] Hero=X.XX, opponents in pot + yet-to-act:
+                {pos: stack, pos: stack, ...},
+                EFF = min(...) = Y.YY BB
+
+Rules:
+  • "Yet-to-act" means players who haven't folded AND haven't acted
+    yet at the decision moment. Folded players are excluded. Players
+    behind who could still enter the pot are INCLUDED — they
+    constrain the effective stack of the decision even if they
+    end up folding.
+  • For a shove decision, EFF determines max Hero can win per caller.
+    A Hero stack > shortest yet-to-act stack means Hero COVERS that
+    opponent — relevant for bounty matrix (PREFLIGHT-2).
+  • Never skip the write-down. The point is the forcing function;
+    Claude has already shown the rule alone isn't enough.
+
+Worked example (KTo CO 15BB hand, 2026-05-12):
+  [Eff Stack] Hero=15.01, in pot: UTG=49.68 HJ=57.31,
+              yet-to-act: BTN=13.92 SB=56.69 BB=29.17,
+              EFF = min(15.01, 13.92) = 13.92 BB
+              ⇒ Hero COVERS BTN by 1.09 BB.
+
+--------------------------------------------------------
+PREFLIGHT-2: BOUNTY DIRECTION MATRIX (PKO / BOUNTY / MYSTERY_BOUNTY)
+--------------------------------------------------------
+
+Required format (table, before any bounty math):
+
+    [Bounty Matrix]
+    | Opp | Bounty% | Stack vs Hero | Direction if Hero wins |
+    |---|---|---|---|
+    | each opponent in pot or yet-to-act | their % | covers/covered | +Hero / -Hero |
+
+Rules:
+  • Hero collects opponent's bounty (positive for Hero) iff Hero's
+    pre-shove stack >= opponent's pre-shove stack — i.e., Hero
+    covers them.
+  • Hero loses Hero's own bounty value to whichever caller busts
+    Hero — relevant only if a covering opponent calls.
+  • A SHOVE has mixed direction when Hero covers some opponents
+    and is covered by others. Single-direction shorthand ("Hero
+    has the biggest bounty so all callers profit from busting
+    Hero") is WRONG in this case and must be replaced with the
+    per-opponent matrix.
+  • Detection-side hint: the bounty asymmetry that matters for
+    EV is the WEIGHTED direction across LIKELY callers. A bounty-
+    negative matrix dominated by deep stacks that will fold doesn't
+    cost Hero much; a bounty-positive matrix where the most likely
+    caller is the short stack Hero covers is a real EV gain.
+
+Worked example (KTo CO 15BB hand, 2026-05-12; Hero bounty 22%):
+  [Bounty Matrix]
+  | Opp | Bounty% | vs Hero | Direction |
+  |---|---|---|---|
+  | UTG (in pot) | 15% | covers Hero | -Hero if UTG wins |
+  | HJ (in pot)  | 15% | covers Hero | -Hero if HJ wins  |
+  | BTN (yet)    | 16% | Hero covers | +Hero if Hero wins |
+  | SB (yet)     | 16% | covers Hero | -Hero if SB wins  |
+  | BB (yet)     | 16% | covers Hero | -Hero if BB wins  |
+
+  ⇒ Mixed. Bounty-positive vs BTN (the most-likely caller given
+    BTN's eff-stack price). Bounty-negative vs everyone else. The
+    blanket "Hero has biggest bounty so all callers are paid to
+    bust Hero" framing FAILS this matrix — directionally wrong
+    vs the most likely caller.
+
+--------------------------------------------------------
+WHY THIS EXISTS
+--------------------------------------------------------
+
+The v7.47 trigger: KTo CO 15BB squeeze-shove vs UTG-open + HJ-flat
+in PKO. Initial analysis used Hero=15.01 as eff stack (BTN=13.92
+was shorter and yet-to-act; correct eff was 13.92, Hero covered
+BTN by 1.09). Initial analysis also framed bounty unidirectionally
+("Hero has biggest bounty, all callers profit from bust") — wrong
+for the BTN matchup specifically.
+
+Verdict didn't change (KTo is still a fold here — dominated multi-
+way), but the reasoning was incomplete and the bounty piece was
+directionally wrong in part. Process discipline > smart reasoning:
+the forcing function makes the miss impossible, smart reasoning
+allowed it.
+
+
+========================================================
+MANUAL ADD PROTOCOL (v7.21 — DON'T promote losing hands to punts)
+========================================================
+
+When the analyzer says "0 punts" or "0 mistakes" and Claude is tempted
+to manually flag a losing hand as a punt/mistake, Claude MUST FIRST:
+
+1. RECOGNIZE THE FAILURE MODE: Big losing hands (PF_PFR_allin_lost,
+   3BP_PFR_allin_lost) are usually one of three things:
+   - COOLER: standard play, ran into top of villain's range
+   - VARIANCE: +EV decision, bad runout
+   - READ-DEPENDENT DECISION: defensible vs Hero's actual read,
+     even if -EV vs default/tight range
+
+   Default classification for losing PFR all-in hands = COOLER or
+   READ-DEPENDENT, NOT punt. Claude must overcome this default to
+   manually-add as a punt.
+
+2. RUN THE FULL ANALYTICAL CHECKLIST (mandatory for ANY preflop
+   near-all-in spot before classifying):
+
+   A. POT ODDS — Calculate chip equity needed:
+      - amount-to-call / total-pot-including-call
+      - Show the arithmetic explicitly, not a guess
+
+   B. VILLAIN RANGE — With context tag:
+      - standard / squeeze / cover_jam / micro / read-driven / wide-pop
+      - If context widens (e.g., chip-leader cover, squeeze-jam, micro
+        all-in), USE the wider range. Don't apply base chart blindly.
+      - When a player-specific read is stated, USE Hero's read as
+        primary range, not population default.
+
+   C. BOUNTY ADJUSTMENT — Mandatory for every bounty hand:
+      - Does Hero cover villain? → Hero gains bounty premium when
+        winning. Reduces required equity by 3-7pp typically.
+      - Does villain cover Hero? → Hero loses bounty when busting.
+        Required equity stays at chip-EV level (no bounty discount
+        for Hero, but villain's call range is wider so Hero's FE
+        is lower).
+      - $32 bounty King ≈ $5-10 bounty value ≈ ~10BB at start.
+        Premium scales with stack-to-bounty ratio.
+
+   D. EQUITY vs RANGE — Combo-weighted equity:
+      - Enumerate combos for each villain hand (account for Hero's
+        blockers reducing combo counts: Hero with As blocks all
+        AKo/AQo/AJo combos containing As, etc.)
+      - Compute Hero equity vs each combo class
+      - Weighted average = (Σ combos × eq) / total combos
+      - Show the breakdown in a table, not just the final number
+
+   E. BLOCKERS — Critical for jam-with-blockers spots:
+      - What does Hero block from villain's value range?
+      - KQs blocks KK (1 combo of 6), AK (4 combos of 16), AQ (4
+        combos of 16) → significant unblock of villain's calling/
+        value range
+      - AQo blocks AA (3 combos of 6), AK (8 combos of 16), AQ
+        (10 combos of 12) → reduces dominators in villain range
+      - Blocker effects shift the EV by 1-3pp typically; meaningful
+        in close decisions
+
+   F. FOLD EQUITY — Only for aggressor (jammer/raiser):
+      - 0% FE when Hero is calling all-in (skip this step)
+      - When Hero is jamming: estimate villain's fold % to the jam
+        based on villain's range commitment (e.g., villain who 3-bet
+        to 6.4BB at 41BB stack folds 50-60% to a 4-bet jam if their
+        range had bluffs; folds 0-20% if pure value)
+      - EV(jam with FE) = FE × pot_pickup + (1-FE) × showdown_EV
+
+   G. EV CALCULATION — Always vs the alternative:
+      - EV(action) − EV(best alternative) = decision EV
+      - Show in chips AND BB
+      - Show across PLAUSIBLE villain range bands:
+        "vs tight (TT+/AK): -10BB EV
+         vs Hero's stated read (88+/AQo+/AJs/ATs+): -3BB EV
+         vs wider (66+/AJo+): +1BB EV"
+      - This lets Ron decide based on his actual read
+
+   H. ICM CONTEXT — Mandatory when tournament_phase ∈
+      {bubble_zone, post_bubble, ft_zone}. Skip for late_reg
+      and post_reg. (Added v7.25 — incorporates J41/J42/J43.)
+
+      H1. DIRECTIONALITY (J41) — Identify aggressor and responder:
+          - Big stack OPENS / 3-bets → big expands ranges, short
+            should NARROW response (>50% in some bubble scenarios)
+          - Short stack JAMS → short stays tight; big stack
+            RESPONDER ALSO NARROWS (counterintuitive but correct;
+            big has no fold-equity-as-aggressor benefit when villain
+            is already all-in, and ICM penalizes losing flips even
+            with survival)
+          - Verify chip_leader_cover_jam tag matches the actual
+            direction. The tag widens Hero's call by 15-20pp ONLY
+            when Hero is the SHORT STACK calling a covering jam.
+            Do NOT invert it for big-stack-as-responder.
+
+      H2. LADDER VALUE (J42) — Estimate ladder $ value:
+          - Each pay jump ≈ 2x buy-in worth
+          - Count pay jumps within reach (1-3 typical at FT)
+          - Cumulative ladder $ may exceed Hero's chip-EV +EV
+          - Rule of thumb: a chip-EV +EV call near a pay jump can
+            be -EV in $ if it busts ≥40% of the time and 1+ jumps
+            are within reach
+          - Conversely: a "punt-looking" fold can be CORRECT when
+            ladder protection > marginal chip-EV gain
+
+      H3. RAISE-OR-FOLD LENS (J43) — For any flat-call in ICM:
+          - Was the hand strong enough to call profitably with
+            no fold equity claimed?
+          - Was 3-bet (raise) or fold the better line?
+          - Exceptions: BTN closing action, BB getting good odds,
+            big stack vs big stack (chip-EV dominates)
+          - When flat from CO/HJ/MP in bubble+, default lens is
+            J43 — flag for review even if EV math is borderline
+
+      ICM verdict: If H1 directionality is wrong OR H2 ladder
+      value contradicts chip-EV OR H3 says flat was wrong line,
+      lean toward MISTAKE classification (not MARGINAL).
+
+3. ASK BEFORE PROMOTING: If Claude wants to manually-add a hand to
+   Confirmed Mistakes that the analyzer didn't flag, Claude MUST
+   FIRST ASK Ron about:
+   - Villain reads (was villain known to be wide/tight/specific
+     tendency?)
+   - Whether bounty cover applied (and which direction)
+   - Whether it was a population read or a player-specific read
+   - Whether stacks-behind / table dynamics changed the decision
+   - For ICM phases: H1/H2/H3 verdicts
+
+4. ONLY MANUALLY-ADD AS PUNT IF:
+   (a) The hand violates a hard rule (e.g., 4-bet jamming AAo at
+       100BB, limp-folding SB BvB)
+   (b) EV is dominantly negative across ALL plausible villain
+       ranges (tight → wide), even with bounty + blocker adjustments
+   (c) Ron has explicitly confirmed it was a misplay
+
+5. NEVER CLAIM "DETECTOR GAP" without first verifying the decision
+   is actually -EV across reasonable range assumptions. The detector
+   correctly NOT flagging a defensible read-dependent decision is the
+   correct behavior, not a bug.
+
+6. NEW DETECTOR PROPOSALS — High bar (v7.21 detector taxonomy):
+   The cross-product of action types × severity × context = dozens
+   of potential detectors. DO NOT propose narrow per-spot detectors
+   when the pattern is read-dependent.
+
+   Build a new detector ONLY when:
+   (a) The pattern is detectable from hand structure alone (no
+       villain-read input required)
+   (b) The pattern is dominantly -EV across ALL plausible ranges
+       (i.e., it's a hard-rule violation)
+   (c) The pattern occurs in 3+ sessions
+
+   Defensible new detectors: "Hero opens AAo/KKo at 100BB, faces
+   3-bet, folds" (always wrong); "Hero limp-folds at SB BvB
+   short-handed" (always wrong).
+
+   NON-detectors (handle via review framework, not new detector):
+   "Hero 4-bet jams light at sub-30BB" (depends on villain range,
+   blockers, FE); "Hero calls cold-jam wide" (depends on villain
+   range, bounty, coverage); "Hero squeezes wide MW" (depends on
+   opener tendencies + bounty incentives).
+
+   Rule: when in doubt about a new detector, route through the review
+   framework + exception log instead. The exception log is the
+   correct memory layer for read-dependent patterns.
+
+This protocol exists because Claude has historically over-classified
+read-dependent decisions as punts, generating false-positive "session
+story" narratives that aren't supported by the actual EV math.
+
+
+========================================================
+SESSION VERDICT TIERS (v7.21 — 18 tiers, 5 categories)
+========================================================
+
+Every report opens with a tier ranking + 1-3 line honest assessment.
+Tiers use RATES per 100 hands for skill classification, with style /
+variance / tilt / session-shape overrides applied in priority order.
+
+DETECTION PRECEDENCE (later overrides earlier):
+  1. Skill-tier baseline (rate-based)
+  2. Style override (Nit / Hawk / Auto-Pilot — only if skill is mid/top tier)
+  3. Variance override (Variance Victim / Beneficiary / Cooler Magnet)
+  4. Tilt/timing override (Drifter / Spiral / Burnt Out)
+  5. Session-shape override (Hit & Run for very short sessions)
+
+Sessions below 200 hands get a "Small Sample (Nh)" prefix because
+rate-based tiers are noisy at low volume.
+
+────────────────────────────────────────────────────────
+SKILL LADDER (rate-based, per 100 hands)
+Stakes naming = proxy for session quality, not literal lifetime stakes
+────────────────────────────────────────────────────────
+  🏆 High Stakes Pro  — punts/100=0, mistakes/100<0.2,
+                        n_red=0, green_rate≥50%, n_reliable≥4
+                        Pristine session — top $500+ MTT crusher level.
+  💎 Mid Stakes Pro   — punts/100=0, mistakes/100<0.4,
+                        n_red=0, n_reliable≥3
+                        Very clean — $50-$200 MTT pro level.
+  💪 Low Stakes Pro   — punts/100<0.15, mistakes/100<0.7,
+                        red_rate≤20%, n_reliable≥3
+                        Solid — $10-$50 MTT pro level.
+  🎯 Solid Reg        — punts/100≤0.3, mistakes/100≤1.0, red_rate≤40%
+                        Healthy, profitable, not pro-tier yet.
+  📚 Studied Grinder  — punts/100≤0.7, mistakes/100≤1.5
+                        Recognizable patterns, room to drill.
+  ⚠️ Bad Reg          — punts/100≤0.7 BUT mistakes/100 1.5-3
+                        Passive losing — knows not to punt but bleeding.
+  🍻 Drunken Rec      — punts/100 0.7-1.5 (active spewing)
+  💩 Spew Monster     — punts/100>1.5 OR mistakes/100>3 (stop-loss zone)
+
+KEY DISTINCTION — Drunken Rec vs Bad Reg:
+  - Drunken Rec = high PUNTS (active spew, tilt control needed)
+  - Bad Reg = high MISTAKES, low punts (passive bleed, leak study needed)
+
+SAMPLE-SCOPING GUARDRAIL (v7.22 — applies to ALL rate metrics):
+
+Every rate-based stat has an IMPLICIT depth/context where its target
+range was derived. The denominator MUST be scoped to that context, or
+the metric is garbage. The F2-3B fix (v7.22) was one instance of a
+broader principle:
+
+A target range like "F2-3B 55-65%" is derived from population behavior
+at 25-100BB where a 3-bet is a conventional raise. It does NOT apply
+to:
+  - Short-stack jams (villain <15BB): pot odds force a call, fold rate
+    should be 20-30%, not 55-65%
+  - Short Hero (<15BB): Hero is in push/fold / call-off mode, not
+    making conventional preflop decisions
+
+Before adding ANY new rate metric or target, Claude must explicitly
+state the depth/context regime it applies to and scope the denominator
+accordingly. Red flags that a metric may have this bug:
+
+  - Ron's session history shows the metric is "always below/above target"
+    → likely denominator includes out-of-scope hands
+  - Target applies to "population at normal depth" but no explicit stack
+    filter in code
+  - Legacy metric defined in early GEM versions (v6 or before the
+    v7.12 bug-audit pass)
+
+When such a metric is identified, fix pattern:
+  1. Define _is_true_<metric>_opp(h) helper with explicit filters
+  2. Compute scoped metric as primary
+  3. Keep raw/legacy as <metric>_raw for regression tracking
+  4. Note the fix in changelog with session where it was caught
+
+Known metric targets + their implicit scope (v7.22 audit complete):
+  - F2-3B 55-65%            → BOTH sides ≥15BB (fixed v7.22)
+  - Caller IP Agg 30-40%    → HU only, Hero IP-called PF (fixed v7.22)
+  - Caller IP Agg MW 5-15%  → MW only (new metric, v7.22)
+  - Flop Probe              → HU, IP, PFR checked (fixed v7.22; prev denom
+                              was all caller-saw-flop = incoherent)
+  - HU C-Bet 60-65%         → IP only (fixed v7.22; was blending IP+OOP
+                              which deflated below target every session)
+  - SB Pot-Entry 85-95%     → full-ring (fixed v7.22; old "SB Steal 55-70%"
+                              target predates J29 codification)
+  - VPIP-PFR Gap <4%        → non-blind only (fixed v7.22; raw includes BB
+                              defense which legitimately widens gap)
+  - ATS 35-50%              → CO/BTN/SB FI, raise-only (already scoped)
+  - WWSF 42-48%             → VPIP + saw flop (already scoped)
+  - SD Aggressor >40%       → excl PF all-ins (already scoped)
+
+Historical audit finding (v7.22 session_history review, n=23):
+Five metrics were chronically out-of-range due to denominator or target
+bugs, not real leaks:
+  - SB Steal 19/23 below 55-70% → target was stale (pre-J29)
+  - Flop Probe 16/18 below 30-50% → denom incoherent (0 true opps in
+                                     Session 20 of 22 "opps")
+  - VPIP-PFR Gap 6/6 above <4% → raw metric inflated by BB defense
+  - Caller IP Agg 4/5 below 30-40% → MW hands counted against HU target
+  - HU C-Bet 14/23 below 60-70% → IP/OOP blending deflated below target
+
+Re-run prior sessions after these fixes to check for trend corrections —
+what LOOKED like 5 recurring leaks may reduce to 0-2 real ones.
+
+CONFIDENCE-AWARE STAT SIGNALS (v7.22 — Wilson 90% CI):
+
+STATISTICAL METHOD:
+  - Test: Wilson score interval for binomial proportions
+    (strictly better than Wald for small n and values near 0/100)
+  - Alpha: 90% (z = 1.645) — pragmatic default for coaching decisions:
+      95% CI produces too many "can't tell" verdicts at our sample sizes
+      80% CI is too permissive — labels noise as confident
+      90% flags real issues without drowning in noise
+  - Minimum n: 10 for any CI classification. Below that → ⚪ (no signal).
+  - Four states are ONLY distinguished by: is n ≥ min? Then where does
+    the CI sit relative to the target?
+
+FOUR-STATE SEMANTICS:
+  🟢 green   — CI fully inside target range (confident in target)
+  🔴 red     — CI fully outside target range (confident out of target)
+  🟡 yellow  — CI overlaps exactly one target boundary
+               (genuinely borderline: have data, but on the edge)
+  ⚪ neutral — insufficient sample, no claim made
+
+TEST TYPE DEPENDS ON TARGET SHAPE:
+
+  Range (e.g., WWSF 42-48%): TWO-SIDED
+    CI fully in [low, high]                → 🟢
+    CI fully below low OR fully above high → 🔴 (both are "out of range")
+    CI overlaps a boundary                 → 🟡
+
+  Threshold ≥ target (e.g., SD Aggressor ≥ 40%): ONE-SIDED MIN
+    CI lower bound ≥ target  → 🟢
+    CI upper bound < target  → 🔴
+    Else                     → 🟡
+
+  Threshold ≤ ceiling (e.g., VPIP-PFR Gap ≤ 4%): ONE-SIDED MAX
+    Invokes _clr with invert=True.
+    CI upper bound ≤ ceiling → 🟢
+    CI lower bound > ceiling → 🔴
+    Else                     → 🟡
+
+WHY THIS MATTERS:
+
+A stat at small sample with ambiguous CI is not penalized — it shows ⚪
+and doesn't count toward tier promotion/demotion. A stat at small
+sample with extreme value (CI fully outside range) IS counted — because
+the observation is meaningful even at low sample.
+
+"0 red signals" out of 3 reliable stats is NOT the same as "0 red" out
+of 8 reliable stats. The tier classifier uses:
+  green_rate = n_green / (n_green + n_red)  — excludes yellow & neutral
+  red_rate   = n_red   / (n_green + n_red)
+
+Tracked stats (each with own min sample threshold):
+  - SD Aggressor pct       (sd_total ≥ 5)
+  - WWSF                   (wwsf_total ≥ 5)
+  - Non-SD Win             (wwsf_total ≥ 5)
+  - VPIP-PFR Gap non-blind (N ≥ 100, strong at N ≥ 200)
+  - Caller IP Flop Agg     (caller_n ≥ 5)
+  - F2-3B                  (ftb_opps ≥ 5)
+  - Aggression Factor      (N ≥ 150 neutral, ≥ 300 confident)
+  - ATS                    (ats_opps ≥ 10)
+
+Verdict block displays:
+  "Stat health (confidence-adjusted): X/Y green / X/Y red /
+   Z stats neutral (insufficient sample) — red: stat_names"
+so the classification is auditable.
+
+────────────────────────────────────────────────────────
+STYLE TIERS (override mid/top skill when style is distinctive)
+────────────────────────────────────────────────────────
+  🪨 Nit Mode         — VPIP<18, PFR<13, WWSF<42
+                        Ultra-tight; clean rate but missing value
+  🦅 Hawk Mode        — WWSF>50, non_sd_win>30, VPIP>22, AF>2.5
+                        High-aggression edge; working pressure
+  ⚙️ Auto-Pilot       — clean rate but low engagement (EAI<5, neutral net)
+                        Either ran cold or playing too tight
+
+────────────────────────────────────────────────────────
+VARIANCE TIERS (override when variance dominates skill)
+────────────────────────────────────────────────────────
+  🎲 Variance Victim      — clean rate, EAI delta≤-15%, normal/cold cards
+                            Skill held, results didn't
+  🍀 Variance Beneficiary — meh rate, EAI delta≥+15%, hot cards
+                            Results flattered skill
+  ⚰️ Cooler Magnet        — 2+ confirmed coolers, otherwise clean discipline
+
+────────────────────────────────────────────────────────
+TILT/TIMING TIERS (high-priority override)
+────────────────────────────────────────────────────────
+  😴 Late-Session Drifter — Q4 mistakes ≥2, Q1 mistakes 0 (real arc)
+  🥵 Mid-Session Spiral   — 2+ punts within ~30-min window (clustered tilt)
+  🛌 Late-Night Warrior   — last hand ≥04:00 AM AND Q4 metrics worse than Q1
+
+────────────────────────────────────────────────────────
+SESSION-SHAPE TIERS
+────────────────────────────────────────────────────────
+  🏃 Hit & Run            — <150 hands AND positive net AND 0 punts
+                            Too short to skill-judge — just took shot, won
+
+────────────────────────────────────────────────────────
+CALIBRATION ANCHORS (sanity-check tier output)
+────────────────────────────────────────────────────────
+  - 1500h, 0 punts, 1 mistake (0.07/100), 2+ green   → 🏆 High Stakes Pro
+  - 1200h, 0 punts, 4 mistakes (0.33/100), no red    → 💎 Mid Stakes Pro
+  - 800h, 1 punt (0.13/100), 4 mistakes (0.5/100)    → 💪 Low Stakes Pro
+  - 500h, 1 punt (0.2/100), 4 mistakes (0.8/100)     → 🎯 Solid Reg
+  - 400h, 0 punts, 8 mistakes (2.0/100)              → ⚠️ Bad Reg
+  - 300h, 2 punts (0.67/100), 3 mistakes (1.0/100)   → 📚 Studied Grinder
+  - 300h, 3 punts (1.0/100), 1 mistake               → 🍻 Drunken Rec
+  - 200h, 4 punts (2.0/100)                          → 💩 Spew Monster
+  - 600h, 3 punts at 03:50/04:00/05:30               → 🥵 Mid-Session Spiral (override)
+  - 400h, 0 punts, VPIP 14, PFR 9, WWSF 35           → 🪨 Nit Mode (override)
+  - 100h, 0 punts, +120BB net                        → 🏃 Hit & Run
+  - 100h, 0 punts, 0 mistakes, normal net            → 💎 with "Small Sample" prefix
+  - 800h, 0 punts, 0 mistakes, 3 coolers             → ⚰️ Cooler Magnet (override)
+  - 800h, 0 punts, 0 mistakes, EAI -25%              → 🎲 Variance Victim (override)
+  - 600h, last hand 05:00, Q4 worse than Q1          → 🛌 Late-Night Warrior (override)
+
+────────────────────────────────────────────────────────
+ASSESSMENT LINE CONTENT (1-3 lines under tier label)
+────────────────────────────────────────────────────────
+  - Punt/mistake summary with rates
+  - Style note (only if a style tier won)
+  - Variance line (card hot/cold + EAI delta % when EAI sample ≥ 10)
+  - Cooler note (only if Cooler Magnet)
+  - Tilt note (real Q4 arc / explicit false-positive callout / spiral / late-night)
+  - Small-sample warning (if N < 200)
+
+  Del 0: TLDR (bullets, not table/paragraph) — uses REVIEWED mistake counts, not raw
+  Del 1A: Volume + Results (incl avg buy-in)
+  Del 1B: Card Quality (with Expected column)
+  Del 1C: Coolers (include date column when multi-date session)
+  Del 1D: EAI (Preflop + Postflop, with Expected win% column)
+  Del 1E: Results Context (2-3 sentences)
+  Del 1F: Top 3 Leaks (sourced from CONFIRMED bucket only, not raw)
+  Del 1G: Heuristic Cheat Sheet (3-6 self-talk rules)
+  Del 2A: Positional Matrix (% signs, target column, color coded)
+  Del 2A+: Positional P&L (🔴 on negatives, cause note)
+  Del 2B: Core Stats (targets for ALL stats, color coded, incl Aggressor vs Reactor Δ)
+  Del 2B+: VPIP-PFR Gap by Depth (color coded vs <4% target)
+  Del 2B+b: Check-Raise Frequency (flop/turn/river/total with targets)
+  Del 2C: 3-Bet Analysis (by Opener Position AND by Hero Position)
+  Del 2D: C-Bet Split (HU IP/OOP, MW, Turn)
+  Del 2E: Board Texture C-Bet (ALL 6 textures, reconciled with Del 2D)
+  Del 2F: Bluff Profile
+  Del 2H: Stack Depth Performance (target column, color coded)
+  Del 2I: Sizing Profile (target column, color coded)
+  Del 2I+: Sizing Consistency Score (geometric vs erratic, Small→Small→JAM flag)
+  Del 2J: Hero Facing Bets (with note linking to Del 2B+b for CRs)
+  Del 2J+: Triple Barrel Response (called/folded/raised, <45% WR flag)
+  Del 2K: River Frequency Audit
+  Del 2L: SB BvB Preflop (J29) — ICM-adjusted split by table size
+  Del 2M: Caller IP Flop Aggression
+  Del 2M+: IP Stab Rate (when OOP PFR checks, target 40-60%) — K3
+  Del 2M++: Flop Lead Profile (BB/SB as caller, by board type) — K6
+  Del 2N: Preflop Deviation Summary (with base rates + evidence table)
+  Del 3: Blood Tables / Error DNA 2×2 (evidence table when >LOW conf) — incl Passive-Passive-Jam
+  Del 4A: Punts (or "0 punts") — post-review count, not raw
+  Del 4B: Mistakes — TWO-TIER REVIEW (v7.20):
+           → Auto-Corrected by Review Layer (detector bug / context adjustment)
+           → Needs Review — Claude Scrutiny Required (apply framework)
+           → Confirmed Mistakes (real leaks)
+           → Detector Bugs Detected (auto-flagged pipeline change requests)
+           → Double-Flag Drops (mutex resolution)
+  Del 5: Clinical Examples (embedded in corresponding sections)
+  Del 6: Out-of-Bound Leak Discovery (hero classification, HU phase)
+  Del 7: Action Card + Drills + Logic Statements
+  Del 7+: GTO Review Shortlist (5-9 hands, with date + tourney)
+  Del 7++: GTO Wizard Export (native GGPoker HH format)
+  Top Losing/Winning Lines
+  Deep Runs (phase reached in header, per-tourney card quality + EAI)
+  Survival Stories (1st person, chronological, no tables)
+  Tournament Phase Distribution (with benchmark + hero classification)
+  Progress Tracker (vs previous session)
+  Leak Persistence Tracker (new/recurring/resolved)
+  Mental Game Analysis
+
+========================================================
+FORMAT RULES (v7.13):
+========================================================
+  - Color on VALUES (🟢52.1%), not separate Status column
+  - ALL tables MUST have Target column with 🟢/🟡/🔴/⚪
+  - Percentages include count: "37.1% (23/62)"
+  - Hand references: ALWAYS Hand ID + tournament name + date
+  - TLDR is BULLETS
+  - GTO Export = native GGPoker HH (not hand IDs)
+  - Survival stories: 1st person, chronological, no tables
+  - gem_report_draft.md is auto-generated — use as base, add judgment
+  - Use % signs on all percentage values (VPIP%, PFR%, Open%)
+  - 🔴 on negative P&L values in positional tables
+  - More emojis/color for quick visual scanning — but not excessive
+  - Evidence/example hands embedded in their section, not just Del 5
+
+========================================================
+RULE CODE FORMAT STANDARD (v7.13 — MANDATORY):
+========================================================
+NEVER reference a coaching rule by code alone. ALWAYS lead with
+plain-English description, code in parens.
+
+  ✅ "Bet monotone boards IP as PFR regardless of hand (J14)"
+  ✅ "Population under-bluffs rivers — fold medium hands (J19)"
+
+  ❌ "per J14" / "J14 says" / "(J14)" alone / "J14: description"
+
+Applies everywhere: reports, drills, console, clinical examples.
+Reader should NEVER need to look up what a rule means. Same for
+Amit, Jaka K-rules, and any other coded references.
+
+========================================================
+DRILL FORMAT STANDARD (v7.13 — MANDATORY):
+========================================================
+Every drill hand in Del 7 requires THREE answers from Hero before
+the result is revealed. Never accept a single-street answer.
+
+  Q1. MAP VILLAIN'S RANGE. Name the combos — value, bluff, flat,
+      blockers. "A strong hand" is not an answer.
+
+  Q2. PLAN ALL REMAINING STREETS including abort cards.
+      Which cards continue? Which cards give up? Sizing on each.
+      Response if villain raises.
+
+  Q3. POPULATION EXPLOIT. What specific tendency are you
+      exploiting — under-bluff rivers, over-cbet, over-fold small?
+
+If Hero only answers Q1, probe for Q2 and Q3.
+
+PRESENTATION RULES BY DELIVERABLE (v7.12 — NEW):
+
+  Del 1A: MUST include avg buy-in (total $ / bullets) + buy-in range
+    Example: "Avg buy-in: $55 ($660 total across 12 bullets)"
+    Include bullet breakdown per tournament.
+
+  Del 1C: Include "Date" column when session spans multiple dates.
+    Single-date sessions can omit.
+
+  Del 2A (Positional Matrix):
+    - All VPIP/PFR/Open values MUST have % sign
+    - MUST have "Target Open" column with range + 🟢/🟡/🔴
+    - Every position gets a color indicator, not just outliers
+    - Targets: UTG 8-12%, UTG+1 10-15%, MP 15-22%, HJ 20-28%,
+      CO 25-40%, BTN 45-65%, SB 55-70%
+
+  Del 2A+ (Positional P&L):
+    - Negative Net BB values MUST show 🔴 prefix
+    - Add cause note for negative positions (e.g., "Cooler-driven")
+
+  Del 2B (Core Stats):
+    - MUST have targets for ALL stats, not just some
+    - Full target list:
+      VPIP: 20-25%, PFR: 14-18%, 3-Bet: 7-10%, ATS: 35-50%,
+      AF: 2.0-3.0, F2-3B: 55-65%, WWSF: 42-48%, Non-SD Win: 25-35%,
+      SD Aggressor: >40%, Caller IP Flop Agg: 30-40%
+    - VPIP-PFR Gap: show both overall AND non-blind, flag each separately
+
+  Del 2B+ (VPIP-PFR Gap by Depth):
+    - Color code each depth's gap vs <4% target
+    - Note if non-blind gap is clean (BvB limps inflate overall)
+
+  Del 2D/2E (C-Bet Reconciliation):
+    - When SRP aggregate and full-texture rates appear to conflict,
+      MUST include reconciliation note explaining the difference
+    - Del 2E MUST show ALL 6 textures: Dynamic, Monotone, Paired,
+      Other, Low/Dry, Dry A-high
+    - If Del 2D uses SRP-only counts and Del 2E uses all-pot counts,
+      state this clearly
+
+  Del 2H (Stack Depth):
+    - MUST have Target RFI column with color coding
+    - Targets: <12BB RFI 30-50%, 12-25BB RFI 22-30%,
+      25-40BB RFI 22-28%, 40BB+ RFI 22-28%
+
+  Del 2I (Sizing Profile):
+    - MUST have Target column with color coding
+    - Targets: Flop cbet IP 33-55%, Flop cbet OOP 25-50%,
+      Turn barrel 50-75%, River probe 60-100%
+
+  Del 2J (Hero Facing Bets):
+    - When raise% = 0%, MUST add note explaining that check-raises
+      are tracked separately in Del 2B+b with cross-reference
+    - This avoids confusion: "0% raise" ≠ "Hero never raises"
+
+  Del 2L (SB BvB):
+    - MUST split by table size when short-handed hands exist
+    - J29 (80/10/10) applies to full-ring (6+ players)
+    - At 3-4 handed: wider raising is standard, flag over-folding
+    - Show ICM-adjusted table: Full ring vs Short-handed
+
+  Del 2N (Preflop Deviations):
+    - MUST show base rate: Clear count / base denominator = X%
+    - Base denominators: Missed Open / FI opps, Wide Open / total opens,
+      Missed Defend / total facing-raise, Wide CVJ / villain jams,
+      Missed BB Defend / BB faced raise, Wide BB Defend / BB defends
+    - MUST include Evidence Hands table with columns:
+      Type | Severity | Hand ID | Date | Tournament | Cards | Pos | BB | Detail
+    - Show 2-3 hands per type (mix of CLEAR and MARGINAL)
+    - This enables manual verification and bug-checking
+
+  Del 3 (Blood Tables):
+    - Evidence table ONLY when a line has >LOW confidence
+    - LOW confidence lines (n<10) don't need evidence
+    - If ALL lines are LOW, note "All LOW confidence, no evidence needed"
+
+  Del 5 (Clinical Examples):
+    - Clinical examples should be EMBEDDED in their corresponding
+      sections (Del 1F for leak clinicals, Del 2B+b for CR evidence,
+      Del 2E for texture examples, Del 4B for mistake replays)
+    - Del 5 section can contain additional high-impact clinicals that
+      don't belong to a specific deliverable, or repeat the most
+      severe punts/mistakes for emphasis
+    - Each clinical: full street-by-street replay with ✅/❌ per action
+
+  Del 6 (Out-of-Bound):
+    - Tournament Phase table MUST have Benchmark column (solid reg)
+    - Benchmarks: late_reg 50-65%, post_reg 15-20%, bubble 5-10%,
+      post_bubble 3-8%, ft_zone 3-8%, HU 0-2%
+    - MUST include HU phase (even if 0 hands — note it)
+    - MUST classify hero type based on phase distribution:
+      🎖️ Deep Run Specialist (FT >12%)
+      ✅ Solid Reg (FT 5-12%)
+      ⚪ Average (FT 3-5%)
+      🔴 Early Bustout Pattern (FT <3%, late_reg >75%)
+
+  Del 7+ (GTO Shortlist):
+    - Every hand MUST include Date + Tournament Name + Hand ID
+    - Column order: # | Hand ID | Date | Tournament | Cards | Pos | BB | Question
+
+  Deep Runs:
+    - Header MUST include phase reached:
+      "🏆 32 Bounty King ($32) — 456 hands — FT / Heads-Up 🥇"
+      "🏆 GGMasters Bounty 25 — 102 hands — Post-Bubble"
+    - Phase options: Late Reg, Post-Reg, Bubble, Post-Bubble,
+      FT Zone, Heads-Up
+
+  Leak Persistence Tracker (v7.12 — NEW):
+    - Uses leak_persistence from gem_report_data.json
+    - Table with columns: Leak | Status | Note
+    - Status values: 🆕 New | 🔴 Recurring | 🟡 Returned | ✅ Resolved
+    - Place AFTER Progress Tracker, BEFORE Mental Game
+    - Include leak timeline (last 5 sessions → current)
+    - Recurring leaks (3+ sessions) deserve emphasis and drill priority
+    - Resolved leaks are positive signals — celebrate them
+
+========================================================
+LEAK VALIDATION GATE (mandatory before any 🔴):
+========================================================
+  A stat outside target is a SIGNAL, not a confirmed leak.
+  Must hand-verify before promoting to Top 3 Leaks.
+  Protocol: pull hands → classify each confirmed/borderline/correct
+  → only promote if >50% are confirmed mistakes.
+  n<15 = always note LOW confidence.
+
+  ICM CONTEXT FOR SB BvB:
+    When validating SB BvB leak, MUST split by n_players:
+    - Full ring (6+): BvB SB limp 80% / raise 10% / fold 10% (J29)
+    - Short-handed (3-4): wider raising is correct, focus on
+      over-folding as the leak
+    - Don't count 3-handed raises as "should be limps"
+
+========================================================
+TARGET VALUES:
+========================================================
+  VPIP: 20-25%
+  PFR: 14-18%
+  3-Bet: 7-10%
+  ATS: 35-50%                        ← CO+BTN only (SB excluded per J29)
+  ATS_Raw: informational              ← legacy (incl SB), deflated vs target
+  AF: 2.0-3.0
+  VPIP-PFR Gap (non-blind): <4%     ← target applies to non-blind only
+  VPIP-PFR Gap (raw): informational  ← includes BB defense, will be >4%
+  WWSF: 42-48%
+  Non-SD Win: 25-35%
+  SD Aggressor: >40%
+  Caller IP Flop Agg (HU): 30-40%   ← HU only (Jaka K1/K3)
+  Caller IP Flop Agg (MW): 5-15%    ← MW is calling station's game
+  F2-3B (both sides ≥15BB): 55-65%  ← scoped to true 3-bet spots
+  F2-3B (raw): informational         ← legacy, includes short-stack jams
+  HU C-Bet IP: 60-65%                ← target applies to IP only
+  HU C-Bet OOP: 30-45%               ← lower by design; not a leak below 60
+  MW C-Bet: 30-40%
+  Bluff: Value 55-65%, Semi 20-30%, Pure 10-20%
+  SB Pot-Entry (full-ring): 85-95%   ← J29: limp 80 + raise 10 = 90%
+  SB Raise-Only (full-ring): 5-15%   ← J29
+  SB Pot-Entry (short-hand): 60-80%  ← wider raise OK
+  BB 3-bet sizing: 5x (J30)
+  BTN Open: 45-65%
+  CO Open: 25-40%
+  UTG Open: 8-12%
+  UTG+1 Open: 10-15%
+  MP Open: 15-22%
+  HJ Open: 20-28%
+  Premiums expected: 3.0%
+  Prem+Strong expected: ~5.7%
+  Coolers expected: 0.15-0.30/100     ← strict def (set-over-set, flush-over-flush, pair-vs-higher-pair; NOT flip/dominated)
+  CR Flop: 6-8% (of saw-flop hands)
+  CR Turn: 3-5%
+  CR Total: 8-12%
+  3-Bet BTN vs LP: 8-12%
+  Flop C-Bet IP sizing: 33-55% pot
+  Flop C-Bet OOP sizing: 25-50% pot
+  Turn barrel sizing: 50-75% pot
+  River probe sizing: 60-100% pot
+  RFI <12BB: 30-50%
+  RFI 12-25BB: 22-30%
+  RFI 25-40BB: 22-28%
+  RFI 40BB+: 22-28%
+
+EAI EXPECTED WIN RATES:
+  Ahead preflop: ~80%
+  Flip preflop: ~55%
+  Behind preflop: ~20%
+  Ahead postflop: ~85%
+  Behind postflop: ~25%
+
+TOURNAMENT PHASE BENCHMARKS (Solid Reg):
+  late_reg: 50-65%
+  post_reg: 15-20%
+  bubble_zone: 5-10%
+  post_bubble: 3-8%
+  ft_zone: 3-8%
+  HU: 0-2%
+
+========================================================
+CLASSIFICATION: PUNT vs MISTAKE
+========================================================
+  Punt = reckless/emotional, chips in badly (tilt-correlated)
+  Mistake = passive error, missed opportunity (habitual)
+  Missed steals, missed c-bets, missed value = Mistakes, NOT Punts
+  CVJ (Call Villain Jam) = Mistake
+  Iso-Jam = Mistake
+  Track Punts/100 and Mistakes/100 separately
+
+CVJ CALL THRESHOLDS (v7.20 — CONTEXT-ADJUSTED):
+
+The base chart below is for STANDARD jam contexts only. The analyzer and
+flag reviewer now tag every jam context with one of four labels, and the
+threshold widens accordingly. DO NOT apply the base chart without first
+checking context.
+
+  JAM CONTEXT TAGS (v7.20):
+    standard_jam:          villain opens-jam from their own stack, no prior
+                           aggression. Use BASE CHART below.
+    squeeze_jam:           villain jammed OVER an open at 5-20BB eff. Range
+                           is ~10pp WIDER than standard. Widen call chart by
+                           ~10pp (e.g., add 1 pair and 2 suited broadway tiers).
+    chip_leader_cover_jam: villain eff stack > 3x Hero's, villain is BTN/CO,
+                           short-handed (≤5 players at FT). Range is 35-50%
+                           of hands, not the 15-25% standard. Widen call
+                           chart by ~15-20pp.
+    micro_jam:             villain eff stack < 5BB. Range is any-two
+                           playable. ANY reasonable hand calls profitably
+                           at the pot odds offered.
+
+  BASE CHART (standard_jam only):
+    vs EP jam ≤15BB: 88+, ATs+, AJo+, KQs
+    vs EP jam >15BB: TT+, AQs+, AKo
+    vs MP jam ≤15BB: 77+, A9s+, ATo+, KQs, KJs
+    vs LP jam ≤15BB: 66+, A9s+, ATo+, KQs+, QJs
+
+  BOUNTY COVER PREMIUM (v7.20):
+    When format = bounty AND Hero's stack > villain's effective stack:
+      subtract 3-5% from equity-needed threshold
+      ≈ widen call/raise range by 5-10% of hand combos
+    When Hero covers by 2x+: +5-8% EV premium on every win branch.
+    When Hero covers by 3x+: +8-10% EV premium on every win branch.
+    Hyper format: add another 2-3% premium (bubble factor reduced).
+
+ISO-RAISE vs ISO-JAM (v7.20 — DISTINCT CONCEPTS):
+
+These were previously conflated in the analyzer. They are different
+decisions with different thresholds.
+
+  ISO-JAM: Hero goes all-in (≥95% of starting stack committed) raising over
+           a villain jam. No fold equity retained; pure showdown decision.
+           Thresholds are TIGHT — defined by equity vs villain's call-the-
+           iso-jam range.
+    vs EP jam: TT+, AQs+, AKo
+    vs MP jam: 99+, AJs+, AQo+
+    vs LP jam: 77+, ATs+, AJo+, KQs
+
+  ISO-RAISE: Hero raises over a villain jam to isolate, WITHOUT going all-
+             in. Typical size 2-3x the jam amount. Keeps stack behind for
+             fold equity vs players behind + flexibility to fold to a 4-bet
+             jam. Thresholds are 2-3x WIDER than iso-jam thresholds because
+             Hero retains fold equity.
+    vs micro-jam (<5BB): any reasonable hand (A-high, K-high, pair, suited
+                          broadway, suited connector, any bounty cover spot).
+    vs short-jam (5-12BB): widened from iso-jam by ~10 combos per jammer pos.
+
+  The analyzer determines iso-jam vs iso-raise via `pf_allin` field
+  (canonical) or hero_committed_bb / stack_bb ≥ 0.95.
+
+CHIP-LEADER COVER-JAM CONTEXT (v7.20 detector + J41 principle):
+
+At short-handed final-table (≤5 players), when chip leader (eff > 3x
+average) jams into short stacks, their range is significantly wider than
+GTO charts assume:
+  - Standard GTO BTN open range at 40BB: ~25-30%
+  - Chip-leader cover-jam at FT Hyper, short-handed: ~35-50%
+  Reasons: bounty collection incentive, stack-preservation less important
+  for chip leader, short blinds are forced-defenders, hyper escalation.
+
+  Corollary: defend-vs-cover-jam ranges MUST widen by 15-20pp vs the QR
+  base chart. K9o SB vs 43BB BTN cover-jam at 5-handed FT is a CALL, not
+  a fold, despite failing the "vs LP jam ≤15BB" chart.
+
+<8BB PUSH/FOLD (heuristic, no charts):
+  SB/BB <5BB: push any Ace, King, Queen, pair, suited, connected
+  SB/BB 5-8BB: push Ace, King, pairs, suited Q+/connected
+  BTN <5BB: push ~70% (Ace, King, suited, broadway, J+x)
+  CO <5BB: push Ace, pairs, suited King, broadway
+  Bubble zone: downgrade CLEAR → MARGINAL with ICM note
+
+TOURNAMENT PHASE ESTIMATOR (v7.11):
+  Hyper:    late_reg ≤6, bubble 10-16, post_bubble 16+
+  Turbo:    late_reg ≤10, bubble 18-26, post_bubble 26+
+  Standard: late_reg ≤14, bubble 22-30, post_bubble 30+
+  FT: n_players < table_size AND level ≥ 15 (requires confirmation)
+  HU: always ft_zone
+
+FT FLAT ALERT (Dave): At FT, flatting EP open = raise/fold preferred.
+  Requires user confirmation (might be short-handed, not actual FT).
+
+ICM PRESSURE FLAG: Medium pairs (22-TT) jam >30BB in bubble_zone+.
+
+GGPOKER FILE ORDER: REVERSE CHRONOLOGICAL (newest first).
+  Deep run tracker reverses before computing start/peak/low/final.
+
+CONFIRMED STRATEGIC FINDINGS:
+  #1 controllable leak: check→call→call→SD OOP as PFR
+  Caller play ≈ breakeven (-0.62/h): do NOT convert to 3-bets
+  Offsuit broadways LP: flat > 3-bet (data confirmed)
+  3-betting OOP from blinds = #1 leak in 19k regression
+  Mid pairs 66-99: overcommitted (-4.29/h across 268h)
+
+v7.13 DRILL-DERIVED METRIC TARGETS:
+  Aggressor vs Reactor Δ: Aggressor BB/h > 3x Reactor BB/h
+    (20K sample: Agg +4.8 vs React -1.2 = 6.0 BB/h gap)
+    Flag: Δ <2 BB/h with n≥30 = "Aggressor vs Reactor Delta" leak
+  Draw Overbet Jams (≥15BB): 0 target. Flag: ≥3 = habitual pattern
+    Fix: use geometric sizing across streets, not single-street jams
+  Passive-Passive-Jam (call-call-jam river >75% pot): 0 target
+    Flag: ≥3 = anti-pattern ("let villain define then shove into it")
+  Triple Barrel called-all-3 WR: ≥45% with n≥5
+    Below = calling too wide after committing 2 streets
+  Sizing Geometric %: ≥70%. Flag erratic Small→Small→JAM specifically
+  Appendix K targets:
+    IP Stab Rate (checked to): 40-60% stable across textures (K3)
+    Float → Turn Attack: >50% (K3)
+    IP Caller x/r MW: 0-5% (K1)
+    Flop Lead Rate overall: 2-5% baseline (K6)
+      — higher OK on low_paired (35-48%), low_straight (20-40%)
+
+KEY DAVE RULES (most referenced — description first, code in parens):
+  Monotone IP as PFR → c-bet often regardless of hand (J14)
+  FD + overcards OOP = check-call, not check-raise (J17)
+  Population under-3bets → F2-3B target 55-65% (J18)
+  Population under-bluffs turns → fold medium to turn CR (J19)
+  3-way equity trap — always calc 3-way equity, not HU (J22)
+  OOP 3-bettor on monotone: 70% bet at 20-25% sizing (J24)
+  BvB SB: limp 80% / raise 10% / fold 10% at 30-40BB (J29)
+  BB 3-bet sizing = 5x (J30)
+  Villain min-raise = strength signal (J31)
+  2x+ pot value jam requires nut blocker + outs (J33)
+  ICM <=30BB MP vs EP/MP = raise-or-3bet-fold, no flat (J34)
+  <30BB eff facing 7BB shove = call-or-fold, no reshove (J35)
+  ICM jam threshold compresses below 30BB (J36)
+  BvB BB <21BB jam: small pairs + offsuit aces, NOT middling broadways (J37)
+  30BB eff = 2 streets not 3 (pot-sized cbets, plan all-in by turn) (J38)
+  Bluff combo must block continues OR represent river runout (J39)
+  Dual-sizing boards: BIG = polar (value+bluff), SMALL = merged (medium+draws) (J40)
+  ICM range asymmetry: big-stack-opens → big expands + short narrows >50%; short-jams → both narrow (J41)
+  ICM ladder heuristic: every pay jump ≈ 2x buy-in worth (J42)
+  ICM raise-or-fold (generalized): when not strong enough to call, raise or fold, not flat (J43)
+  IP 3-bet sizing: <25BB = 2.5x, 25-40BB = ~3x, >40BB = 3.5x (J44)
+
+KEY AMIT RULES:
+  3-bet at <35BB then face 4-bet: can't fold unless pure bluff 3-bet (Amit)
+  Don't bet OOP turns without asking "bluff or value?" (Amit)
+  T9s: prefer flat over 3-bet (Amit)
+  Deep early SB folds with trash = correct, don't flag (Amit)
+  Weak Ax (A2-A8) flat vs 3bet/squeeze at >=30BB chip-EV: fold or shove,
+    never flat (N1, v7.29 — AUTO-DETECTED). Cross-ref J43 for ICM analog.
+  Monotone IP PFR with 0-of-suit + willing-to-give-up: c-bet small for fold
+    equity vs medium-suit floats (J14 sub-clause, v7.29 — drill-mode).
+  JTs BvB SB at ≤30BB: no fold to BB jam; at 60-100BB open & flat 3-bets (N3)
+  Value spot tempts shove → ask if bet-small extracts more from capped
+    range first (N4 principle)
+  Cbet sizing ↔ turn barrel freq correlation (N5 — INFORMATIONAL pending
+    data validation)
+  Flop CR for value: SIZE UP (villains call only once) (N6)
+  Bluffing: name the fold target hand class + size to make it indifferent (N7)
+  Missed KXo open-shove ≤8BB from CO/BTN (N8 — DETECTOR; K2o-K9o, CLEAR)
+  MP ATo flat vs UTG/UTG+1 PFR (chip-EV, ≥25BB): fold or 3-bet, not flat
+    (N9 — DETECTOR; AJo NOT included, ATo only)
+  SB limp+cbet for value with TPGK+: size up BEYOND geometric (>75% pot,
+    pot-sized to small overbet preferred) (N10)
+  Deep stacks: max value vs max range with strong hands on dynamic boards,
+    don't optimize for bluff-catching (N11)
+  KTs MP vs UTG: 3-bet not flat (N12 — drill-mode only; depth scope TBD)
+  Pair SB ≤30BB vs CO/BTN open: shove instead of 3-bet (no 3-bet-fold with
+    pair at this depth) (N13 — DETECTOR)
+
+KEY JAKA K-RULES (Apr 12-16, "Mastering Advanced Flop Play"):
+  K1: IP raises c-bets → value=OP+ & TP best kickers, bluffs=FDs>SDs
+     At <30BB: STOP raising draws that can't call a jam
+     Multiway: NO raising (or max 5% if board misses BB)
+     vs over-cbetter: WIDEN CALL range, don't raise more
+  K2: "Make them FEAR your checks" — OOP PFR default = CHECK
+     Gentlemen (MP vs MP): check heavy, respect x/r
+     Warriors (MP vs LP, LP vs LP): more aggression, size UP
+  K3: IP caller stab when checked to = 40-60% STABLE across textures
+     Default: small & wide. 2 high-card boards: big & selective
+     "Float → Turn Attack" when OOP checks turn = very high freq
+  K4: SRP vs SB c-bet% — earlier position = more betting, shallower = more
+     BTN@60BB: 48% bet  | BTN@30BB: 53% bet
+     CO@60BB:  56% bet  | CO@30BB:  61% bet
+     MP@30BB:  70% bet
+     Paired = attack. Monotone + connected = caution.
+  K5: Range adv → WIDE+SMALL. Nutted adv only → NARROW+BIG. Monotone → NARROW+SMALL
+     OOP PFR must x/r ~10% or checking range is exploitable
+  K6: Flop leading is RARE (~2.5% baseline). Specific spots only:
+     BB vs IP low straights (765, 643) any depth
+     BB vs IP low paired (665, 77A) 60BB+
+     3BP low straights 60BB+ / mid-connected (JT7) 30BB-
+     Merged lead = SMALL (20-33%). Polar lead = BIG (67-100%)
+
+KEY MECHANICSOFPOKER M-RULES (Apr 20, 25-rule podcast extraction):
+  M1: Probe/delayed-cbet exploit — population turn CR rate <2% vs
+      delayed cbet. After flop X/X as PFR, MINBET TURN RANGE on
+      non-equity-shift turns. DIRECT FIX for Ron leak #1
+      (check-call-call-showdown OOP PFR). AUTO-DETECTED.
+  M2: Can't hop off the exploit train — if preflop was exploitative,
+      all postflop streets must stay exploitative. Ranges shift.
+  M3: Plan every street before betting — answer (a) which turns
+      continue, (b) which give up, (c) river plan on continuers,
+      BEFORE the flop bet. No plan = don't bet.
+  M4: Float requires barrel plan — every float needs an explicit
+      turn-bluff plan. Addresses Ron leak #2 (Caller IP aggression).
+  M5: Mixed turn bluff = committed river — if entering a mixed
+      turn bluff, must triple-barrel the right rivers. Don't mix
+      if tired/tilted.
+  M6: 3BP double-FD turn: barrel AIR, CHECK equity hands.
+      Counter-intuitive but correct — equity must fold to the CR
+      spike (>8% on these turns) and lose equity. Air loses
+      nothing. AUTO-DETECTED. Addresses Ron leak #3 (one-and-done).
+  M7: Turn barrel card selection — pick cards that add equity to
+      Hero's range without adding NUTS to villain's range.
+      Example: 543 flop → 7 turn = good (adds gutters, no nuts);
+      8 turn = bad (adds 87/76 two-pair nuts for villain).
+  M8: ICM short stack on equity-shift textures (K56fd, A45fd type)
+      = REDUCE c-bet freq, check back even nut-level hands.
+      Refines J14 with ICM caveat (J14 unchanged for chip-EV).
+  M9: CR frequency is elastic to villain's 3bet-over-CR rate.
+      Vs non-3-betters, check-raise WIDER than Jaka default.
+  M10: Big stack ICM = splashier — bet wider/bigger vs
+      risk-premium villains. Bounty amplifies.
+  M11: Population river RAISES (not shoves) are value-heavy by
+      ~60% vs GTO. Fold bluff-catchers below 2P without blocker.
+  M12: Blockers matter proportional to villain's value-combo
+      count. Wide range → blockers matter less. Refines J27.
+  M13: Bluff-catch best/worst-case framework — fold if best
+      case ≈ breakeven and worst case = stack loss.
+  M14: Solver EV diffs <2% of pot = noise. Use exploit context
+      to break indifferent decisions.
+  M15: Study priority: RIVER > TURN > FLOP (mistakes on flop
+      absorbed by later-street solver play; rivers are pure loss).
+  M16: Multiway vs calling station: SKIP BLUFFS entirely, value
+      bet wider+bigger. Balance is non-concept vs station.
+  M17: BB defense vs aggressive opener = tighten ~10-15%.
+      Drop offsuit connectors first. Extends J13.
+  M18: Flat 3-bets WIDER vs MTT 4bet-or-fold meta with T9s/98s/
+      J9s. Enters 3BPs where villain is capped at JJ-down.
+      50-100BB only (Amit rule dominates below).
+  M19: Runout-type bluff bias: LOW-TO-HIGH/flush-complete/3-
+      broadway rivers = OVERBLUFFED. Brick rivers + paired
+      boards = UNDERBLUFFED. Parser tags runout type.
+  M20: Middle sizing (50-66%) = merged middle-strength from
+      population. Widen call range vs middle sizings.
+  M21: Villain raise-showdown% = raise-call% → villain folds
+      all bluffs to raises. Exploit: raise wider, call tighter.
+  M22: Avoid tougher regs when possible (table selection).
+      MTT-limited but applies to table/tournament choice.
+  M23: Mandatory session breaks as tilt circuit-breaker.
+      Structure, not per-hand.
+  M24: Advertising value of wild plays — occasional high-variance
+      bluffs shown = subsequent thin value prints more.
+  M25: Single-sizing AND split-sizing both valid. Use whichever
+      fits the session. NO FLAG either way (Ron uses both).
+
+MECHANICSOFPOKER POPULATION CATALOG (LIVING — grows every session):
+  vs GGPoker MTT mid-stakes:
+    - 4-bet-or-fold vs 3-bets (rarely flats KK/QQ) → flat wider (M18)
+    - Under-CR turn vs delayed cbet (<2%) → minbet turn (M1)
+    - Value-weighted river raises (~60% under-bluffed) → fold more (M11)
+    - Over-CR turn on double-FD textures (>8%) → barrel air only (M6)
+    - Under-3bets flop CR (<8%) → Hero CR wider (M9)
+  By runout (M19):
+    - Low-to-high runouts → OVERBLUFFED (widen calls)
+    - Flush-complete + 3-broadway rivers → OVERBLUFFED
+    - Brick rivers after Hero air-barrel → UNDERBLUFFED (tighten)
+    - Paired board after flop X/B → UNDERBLUFFED (value shove wider)
+  By archetype (Peleg/Prodigy):
+    - Reg-fish, aggro-reg-fish, nitty-reg-fish, station —
+      distinct exploit profiles. See Appendix M Section 3.
+
+MECHANICSOFPOKER SIZING HEURISTICS TABLE (LIVING):
+  See Appendix M Section 4 for full table. Key entries:
+  - Turn delayed cbet after X/X (M1): minbet 20-30%
+  - BvB SRP equity-shift turn: 33% or 55% split (Dave + Boivin)
+  - 3BP double-FD turn equity hands: CHECK (M6)
+  - 3BP double-FD turn air hands: BET ~2/3 pot (M6)
+  - Large nut advantage on turn BTN vs BB: OVERBET 125-150%
+  - Paired board river boat-rep shove: ~2x pot overshove
+  - River raise for value after delay cbet: 2.5-3.5x villain bet
+
+M-RULE AUTO-DETECTOR STATUS (v7.17):
+  AUTO:
+    M1 — Missed turn delayed c-bet after flop X/X as PFR (MARGINAL)
+    M6 — 3BP double-FD turn barrel with medium equity (MARGINAL)
+  MANUAL/DRILL:
+    M2, M3, M4, M5, M7, M8, M9, M10, M11, M12, M13, M14, M15,
+    M16, M17, M18, M19 (tag only), M20, M21, M22, M23, M24, M25
+
+MISTAKE CLASSIFICATION QUICK CHECK:
+  1. Check EFFECTIVE stack (min Hero, villain)
+  2. Check FORMAT (bounty = wider ranges when covering)
+  3. Verify preflop action from raw text
+  4. Check range file for position + depth
+  5. Cross-check coaching rules
+  6. Check tournament_phase for ICM context
+  7. Check n_players for SB BvB (J29 = full ring only)
+
+PARSER OUTPUTS:
+  gem_stats.json — all stats for report
+    v7.14 NEW keys:
+      stats_by_phase — per-phase breakdown (late_reg/bubble_zone/etc)
+                       + _overall comparison row
+      intra_session_arc — quartile analysis, tilt_flag, tilt_note
+      eai_ev_adjusted — preflop/postflop expected vs actual wins
+                       + approx_bb_variance_{pf,post}
+  gem_hands.json — per-hand records (key = 'id'), full detail
+  gem_hands_lean.json — v7.14 NEW, drops pf_sequence/action_summary/
+                        hero_street_actions/line_actions/stacks_behind
+                        Use for BULK SCANS + aggregate filtering.
+                        Fall back to gem_hands.json for clinical
+                        narration, action replays, hand deep-dives.
+  gem_report_draft.md — auto-generated report (v7.14)
+  Claude_GEM_2_GTOWizard_<date>_V1.txt — GTO export, v7.14 cap=30
+                        sorted by EV-delta (highest-impact first)
+
+WHEN TO USE LEAN vs FULL hands.json:
+  LEAN (gem_hands_lean.json):
+    - Counting hands matching a filter (position/stack/outcome)
+    - Per-field aggregate math
+    - Iterating for high-level classification
+    - Any bulk scan where action_summary isn't needed
+  FULL (gem_hands.json):
+    - Writing clinical examples (need action_summary)
+    - Narrating specific hands
+    - pf_sequence or hero_street_actions required
+    - Any hand where display matters, not just numbers
+  Full is always safe; lean saves ~19-35% tokens on large sessions.
+  Console output: CSV row + run log row
+
+========================================================
+STANDALONE TOOLS (not in the gem_run pipeline — invoke directly)
+========================================================
+
+  gem_skill_review.py — quarterly skill review → self-contained HTML/PDF.
+    Run quarterly, or whenever 500+ bullets added since last review.
+    python3 gem_skill_review.py --per-tourn <per_tournament.csv> \
+                                --out <Skill_Review_YYYYMMDD.html>
+
+========================================================
+TESTING PROTOCOL (v7.22 — added after metric-scope overhaul)
+========================================================
+
+Before shipping ANY change to analyzer, report generation, or
+detector logic, run the full test suite. Exit code 0 on all eleven
+(1,285 checks total: 342 + 93 + 54 + 533 + 70 + 36 + 5 + 44 + 28 + 44 + 36 jsdom behavioral).
+
+Test suites (in /mnt/project/):
+  1. test_parser.py         — 342 tests: parsing primitives
+                              (core parsing, preflop, postflop, hand
+                              categorization, v7.27/v7.28/v7.34 fields)
+  2. test_detectors.py      — 93 tests: mistake/deviation detectors
+                              (missed steals, CVJ, J14/J33-J37, V15,
+                              F4 over-aggression, B238 EAI equity)
+  3. test_solver.py         — 54 tests: solver/ranges/history/drift
+  4. test_metrics.py        — 533 tests: metric scopes + Wilson CI +
+                              4-state semantics + invariants +
+                              CSV stability + coaching-rule registry
+  5. test_report_draft.py   — 70 tests: renderer unit tests (pot
+                              tracking, citations, card pills, structured
+                              arguments, key-decision binding, nicknames)
+                              + integration guards (B97/B143-B148/B236-
+                              B250 — no-op when fixture reports absent)
+  6. test_blocks.py         — 36 tests: render-IR block equivalence
+                              (L1 block-level line-identity for all 14
+                              block types incl. raw-string-rows, L2 Doc
+                              integration + HTML/MD byte-identical, L3
+                              golden-fragment regression, infrastructure
+                              type/renderer checks)
+  7. test_hand_evidence_tier1.py — 5 tests: hand_evidence migration
+                              safety (citation timing old-vs-new, explicit
+                              citation timing, appendix link round-trip,
+                              <details> boundary hard gate, X6 raw_reference)
+  8. test_lint.py           — 44 tests: Phase 3/4.5 structural linter
+                              (per-rule B1/B2/B3/B4/E1-E6/W1, suppression
+                              mechanism, E1 both-directions proof,
+                              block-registry, gate-behavior, format,
+                              orphan-pill, contrast)
+  9. test_content_parity.py — 28 tests: Phase 4/4.5/4.6 structural
+                              identity (Section II/III parity, universal-
+                              pill guarantee, citation round-trip, 18-segment
+                              h2 regression, GTOW flag, enriched-fixture
+                              integration, modal audit-row strip, review
+                              persistence JS wiring, layout grid verification,
+                              topbar + nav rail presence)
+ 10a. test_review_persistence_jsdom.js — 35 assertions: jsdom
+                              behavioral proof against real generator HTML
+                              (pill→type→close→reopen, hand independence,
+                              blocked-localStorage fallback, Copy button)
+ 11. test_gtow.py           — 54 tests: GTOW URL builder (linkability
+                              classification, action encoding, URL assembly,
+                              gametype derivation, schema building, manifest)
+
+Run all eleven:
+  python3 test_parser.py
+  python3 test_detectors.py
+  python3 test_solver.py
+  python3 test_metrics.py
+  python3 test_report_draft.py
+  python3 test_blocks.py
+  python3 test_hand_evidence_tier1.py
+  python3 test_lint.py
+  python3 test_content_parity.py
+  node test_review_persistence_jsdom.js
+  python3 test_gtow.py
+
+WHAT EACH SUITE COVERS:
+
+  test_parser.py:
+    - Core parsing (hero detection, position, stack, actions)
+    - Preflop classification (VPIP, PFR, 3-bet, first-in)
+    - Postflop tracking (c-bets, barrels, bluff/value)
+    - Hand categorization (premium/strong, draws, made hands)
+    - Output structure (gem_stats.json, gem_hands.json, CSV row)
+
+  test_detectors.py:
+    - J-rule detectors (J14 monotone, J33-J37 BvB jam rules)
+    - V-rule detectors (V15a/b/c: 4BP flat, 5BP flat, cover jam)
+    - CVJ/Iso-Jam classification
+    - Missed steal / <8BB push-fold
+    - M-rules (M1 missed delayed c-bet, M6 3BP wet-turn barrel)
+
+  test_solver.py:
+    - gem_solver equity/EV calculations
+    - gem_ranges range classifications
+    - gem_solver_history append/load
+    - gem_drift_monitor aggregation
+
+  test_metrics.py:
+    - Wilson CI formula (known values, edge cases, n-scaling)
+    - 4-state color classification (🟢🔴🟡⚪) for range/threshold/invert
+    - Metric scope fixes (F2-3B, Caller IP HU/MW, HU C-Bet IP/OOP/Raw,
+      VPIP-PFR nb/raw, ATS excl-SB, stack-depth nb_gap, Missed_Probe_Count)
+    - Leak parser ('None' filtered, aliases, partial match)
+    - CSV header stability (required columns present)
+    - Invariants (counts ≤ opps, 0-100 bounds, PFR ≤ VPIP, HU IP+OOP = total)
+
+KNOWN ENVIRONMENT-DEPENDENT FALSE-FAILURES:
+  These tests pass on Ron's PC (full project tree) but may fail in a
+  fresh Cowork/Chat session that lacks certain fixture files. A failure
+  here is NOT a code bug — it is a missing-fixture signal. Do not
+  chase or "fix" these; just note them as expected.
+
+  test_report_draft.py — B97/B143-B148/B236-B250 integration guards:
+    Hard-assert fixture report HTML files (Pokerbot_Report_*.html).
+    These are no-op when the fixture reports are absent — they skip
+    silently. Not a failure, just 0 assertions from those guards.
+
+  test_blocks.py — test_L3_golden_files_exist (+ all L3 golden tests):
+    Hard-asserts that golden/ directory contains three baseline HTML
+    files (Pokerbot_Report_20260525_5.html, _7.html, _20260526-27.html).
+    In a Cowork/Chat session without the golden/ directory, this test
+    (and all L3 tests that read golden files) will FAIL with
+    "golden file missing." The L3 tests that call _read_golden() and
+    get None will silently skip — but test_L3_golden_files_exist itself
+    asserts existence and WILL fail. This is expected. L1 and L2 tests
+    (25/35) are self-contained and always pass.
+
+WHEN A TEST FAILS:
+  1. DO NOT ship the code change
+  2. Review what the test asserts — is the test wrong, or the code?
+  3. If test is stale (naming, schema change), update test AND
+     document why in the test comment
+  4. If code is wrong, fix code and re-run
+  5. If the failure reveals a deeper issue, log to exceptions_log
+
+WHEN ADDING A NEW METRIC / RULE / DETECTOR:
+  1. Add end-to-end test in the appropriate suite
+  2. Add unit test for any standalone helper (e.g., classification fn)
+  3. Add invariant test (what MUST be true if the metric is correct?)
+  4. Run all seven suites to confirm no regressions
+
+For live tournament pool calibration (limp ranges include
+77-TT/JJ, sticky Ax, Dave's bluff sizing tree, "no SDV →
+shove" decision-tree fixes), see:
+Live_Poker_Population_Reference.txt
+
+For full rules, appendices A-K, postflop framework,
+board texture details, sizing rules, and historical
+findings: see GEM_Report_v7_Instructions.txt

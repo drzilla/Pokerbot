@@ -1,0 +1,203 @@
+GEM PARSER CONFIGURATION & EFFICIENCY GUIDE
+=============================================
+Last updated: 2026-03-31
+
+PURPOSE: Technical configuration for the Python parser that
+processes GGPoker hand history files. Separated from report
+instructions to keep concerns clean.
+
+
+========================================================
+1. PARSER ROBUSTNESS RULES
+========================================================
+
+BLIND/LEVEL PARSING:
+- Format: Level##(SB/BB(ANTE)) — e.g., Level15(1,750/3,500(450))
+- Numbers may contain commas. Always strip commas before int().
+- Regex: r'Level(\d+)\(([^)]+(?:\([^)]*\))?)\)'
+- Parse blinds: r'(\d+)/(\d+)(?:\((\d+)\))?' after comma removal.
+- If no match, default level=0, bb=1, ante=0.
+
+POSITION ASSIGNMENT:
+- Determine button seat from "Seat #N is the button"
+- Order seats clockwise starting from button.
+- Assign: BTN, SB, BB, then remaining seats from EP to CO.
+- For 4 remaining: UTG+1, MP, HJ, CO.
+- For 3 remaining: MP, HJ, CO.
+- For 2 remaining: HJ, CO.
+- For 1 remaining: CO.
+- VALIDATE: Hero's seat must exist in the positions map.
+
+HAND SPLITTING:
+- Split on r'\n\n+(?=Poker Hand #)' — handles variable blank lines.
+- Skip empty chunks and non-"Poker Hand" starts.
+- Handle encoding: utf-8 with errors='replace'.
+
+ACTION PARSING:
+- Match: r'(\S+): (folds|checks|calls|bets|raises)(?:\s+(.*))?'
+- For raises: extract "to X" amount, not the raise size.
+- Track all-in: 'all-in' in line (case-insensitive).
+- Track uncalled returns separately.
+
+VILLAIN JAM DETECTION:
+- When checking <12BB call violations, MUST detect if villain
+  went all-in before Hero acted. If villain open-jammed,
+  Hero calling is NOT a violation (no jam-over option).
+- Parse: any raise with 'all-in' by non-Hero before Hero's action.
+
+ERROR HANDLING:
+- If a hand fails to parse, log the hand ID and continue.
+- Never crash on a single malformed hand.
+- At end of run, report: "X hands parsed, Y errors, Z skipped."
+
+FILE DETECTION:
+- Session files: GG{YYYYMMDD}-{HHMM} - {Tournament Name}.txt
+- Filter by date prefix for the target session.
+- Handle overlapping files (same tournament, different bullets)
+  by tracking unique hand IDs.
+
+DEDUPLICATION:
+- Some hand IDs may appear in multiple files (overlapping exports).
+- Track seen hand IDs. Skip duplicates.
+
+
+========================================================
+2. STAT CALCULATION RULES
+========================================================
+
+VPIP: Hero raised OR called preflop / total hands.
+PFR: Hero raised preflop / total hands.
+RFI: Hero raised when first-in (no prior action) / first-in opps.
+  Exclude BB from RFI opportunities.
+
+3-BET: Hero raised facing 1+ raise / total facing 1+ raise.
+  Break down by opener position (EP/MP/LP/Blinds).
+
+ATS: Hero raised from CO/BTN/SB when first-in / opps.
+  IMPORTANT: "first-in" = no prior raises or calls.
+
+POSITION OPENS: Only count hands where Hero was first to act.
+  If Hero opened then folded to 3-bet, this IS an open (not nit).
+
+C-BET: Hero bet when checked to as PFR on the given street.
+  Split by HU (≤2 players on flop) vs MW (3+ players).
+  Track flop, turn, river separately.
+
+PROBE: Hero bet when checked to as NON-PFR.
+  EXCLUDE BB donk spots (Hero first to act into IP PFR).
+  Only count when PFR checked FIRST, then Hero acted.
+
+BLUFF CLASSIFICATION:
+  Value = pair or better using hole cards at time of bet.
+  Semi-bluff = no pair but has draw (FD, OESD, gutshot, 2 overs+BD).
+  Pure bluff = no pair, no draw.
+  Track per street. Multiway pure bluffs flagged separately.
+
+WTSD/WSD: Use VOLUNTARY postflop only (exclude PF all-ins).
+
+AF: (bets + raises) / calls. Postflop only, exclude PF all-ins.
+
+BB/100 BY POSITION (NEW):
+  For each position, sum net BB across all hands at that position,
+  divide by hands at that position, multiply by 100.
+
+BB/100 BY STACK TIER (NEW):
+  Tiers: <12BB, 12-25BB, 25-40BB, 40BB+.
+  For each tier, sum net BB, divide by hands in tier, × 100.
+
+BB/100 BY TOURNAMENT PHASE (NEW):
+  Phases: Early (Lvl 1-10), Mid (Lvl 11-18), Late (Lvl 19+).
+  Same calculation per phase.
+
+
+========================================================
+3. EFFICIENCY CONFIGURATION
+========================================================
+
+TOKEN BUDGET AWARENESS:
+- Estimate: ~500 tokens per parsed hand for raw data.
+- A 1,200-hand session ≈ 600K tokens of raw parsing.
+- The report itself ≈ 30-50K tokens.
+- Target: complete a full GEM report in a single conversation turn
+  for sessions up to ~1,500 hands.
+
+OPTIMIZATION STRATEGIES:
+- Parse all hands in a single Python script run, outputting only
+  aggregated stats (not individual hand details).
+- Only output individual hand details for: punts, coolers, EAI
+  showdowns, coach shortlist, exam candidates, and discipline spots.
+- For the docx report, build all content in one node.js script run.
+
+BATCHING THRESHOLD:
+- If >2,000 hands: consider recommending split into sub-sessions.
+- If >3,000 hands: batch processing required. Output batch
+  summaries, then aggregate.
+
+RUN LOG (gem_run_log.csv):
+After each report, append a row:
+Date, Session_ID, Hands, Tournaments, Files, Tokens_Est,
+Parse_Errors, Notes
+
+This file lives in the project for tracking efficiency over time.
+
+
+========================================================
+4. PARSER OUTPUT FORMAT
+========================================================
+
+The parser should output ALL of the following in a single run:
+
+SECTION 1: Volume + Format
+SECTION 2: Card Quality numbers
+SECTION 3: Core Stats (all metrics)
+SECTION 4: Positional Matrix (VPIP/PFR/Open/3bet/bb100 per position)
+SECTION 5: C-Bet split (HU/MW per street)
+SECTION 6: 3-Bet by opener position
+SECTION 7: Bluff profile
+SECTION 8: Stack depth performance
+SECTION 9: Tournament phase stats
+SECTION 10: EAI details
+SECTION 11: Cooler list
+SECTION 12: Deep run tracker
+SECTION 13: <12BB violations
+SECTION 14: Missed opens
+SECTION 15: Notable postflop hands (for exam/coach shortlist)
+SECTION 16: Parse errors/warnings
+
+
+========================================================
+5. KNOWN PARSER BUGS (FIXED)
+========================================================
+
+BUG: FIRST-IN DETECTION (found 2026-04-01)
+The original parser counted ALL hands at a position as "first-in 
+opportunities" instead of properly filtering for hands where NO 
+prior raise/call occurred before Hero. This inflated the 
+denominator and made open rates appear lower than reality.
+
+FIX: first_in must be set to False if ANY player before Hero 
+(in action order) raised OR called. Only count as first-in 
+opportunity if Hero was genuinely the first to act voluntarily.
+
+IMPACT: Session 15 BTN was reported as 44.6% (25/56) when the 
+correct rate was 78.1% (25/32). CO was 31.0% (27/87) when 
+correct was 69.2% (27/39). The "CRASH" was entirely a parser 
+artifact.
+
+RULE: Always verify open% = opens / FIRST-IN opportunities,
+where first-in = no prior raises or calls before Hero's action.
+
+
+BUG: SURVIVAL STORY PEAK CALCULATION (found 2026-04-02)
+The parser was using max(all_stacks) as "Peak" for survival
+stories. This showed overall tournament peak (often BEFORE the
+crash) instead of max recovery AFTER the low point.
+
+FIX: Find min_index = stacks.index(min(stacks)). Then
+recovery_peak = max(stacks[min_index:]). Use recovery_peak
+in the Deep Run tracker, not overall max.
+
+IMPACT: Session 16 BH Mini $10.80 was reported as
+"0.6BB → 131BB comeback" when the 131BB was before the crash.
+Actual recovery was 0.6BB → 60.1BB. Still impressive, but the
+original was misleading.

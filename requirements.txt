@@ -1,0 +1,13 @@
+# GEM pipeline runtime dependencies (non-stdlib)
+#
+# Install with:
+#   pip install -r requirements.txt --break-system-packages
+#
+# All other modules used by the GEM pipeline (os, sys, json, csv, re,
+# datetime, collections, itertools, statistics, argparse, subprocess,
+# tempfile, hashlib, glob, time, etc.) are Python standard library and
+# do not need to be installed.
+
+# Hand-evaluation library used by gem_solver.py for postflop
+# equity/EV calculations. Required by test_solver.py.
+phevaluator>=0.5.3

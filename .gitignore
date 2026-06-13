@@ -1,0 +1,87 @@
+# ============================================================
+# GEM / Pokerbot — .gitignore  (v8.12.10, 2026-06-13)
+# Commit: source (.py), tests, verifier, bundler, QA harness, ranges/prose
+# docs, machine-data JSON. Exclude: hand histories, generated reports,
+# session/financial data, logs, caches, staging + upload package dirs,
+# and the generated deployment bundle.
+# One pattern per line.
+# ============================================================
+
+# --- Python caches / build ---
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- Hand-history / session / upload ZIPs (never source) ---
+*.zip
+
+# --- Generated reports (HTML + MD) ---
+Pokerbot_*.html
+Pokerbot_*.md
+GEM_Report_*.md
+_golden_*.html
+_golden_*.md
+_gtow_test_page.html
+_test_rendered.html
+
+# --- Session / financial data (refreshed out-of-band, not source) ---
+session_financials.csv
+session_financials_per_tournament.csv
+session_history_*.csv
+
+# --- Pipeline append/run log (grows every run, not source) ---
+gem_pipeline_learnings.csv
+
+# --- Logs ---
+*.log
+
+# --- Generated deployment bundle (rebuilt by _build_bundle.py for releases) ---
+gem_src_bundle.py
+
+# --- Generated machine artifacts (regenerated every run) ---
+gem_hands*.json
+gem_stats_*.json
+gem_report_data*.json
+session_analysis*.json
+coverage_audit*.json
+_run_manifest*.json
+_golden_pre.json
+_gtow_manifest.json
+_pre_migration_snapshot.json
+
+# --- GTOW checkpoint archive (raw extraction dumps) ---
+_gtow_v4_checkpoints/
+
+# --- Staging / scratch / output / cache dirs ---
+_stage_*/
+_session_*/
+_handoff_coaching/
+hh_today/
+golden/
+output_verification/
+archive/
+
+# --- Per-release upload package dirs (REPLACE snapshots) ---
+GEM_Checkpoint*_upload/
+GEM_v8.*/
+
+# --- One-shot scratch scripts + temp notes ---
+_patch_*.py
+_release_*.py
+_append_*.py
+_finish_*.py
+__review_notes_*.txt
+
+# --- Local tooling / cloud-sync noise ---
+.claude/
+.tmp.driveupload/
+.tmp.*
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+*.swp
+*~

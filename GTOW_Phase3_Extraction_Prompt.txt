@@ -1,0 +1,294 @@
+================================================================================
+GTOWizard Range Extraction — Phase 3 (5 batches, ~50 spots)
+================================================================================
+Copy everything below into a fresh Chrome extension session.
+You MUST already be logged in to GTOWizard (Elite/Wizard).
+
+PREREQUISITE: You've done Phases 1-2 (3BF, SQF, SBD extractions). Same
+site mechanics — ICM gametype MTTGeneral_ICM8m1000PTPCT50, library filter
+method, .ra_table_cell CSS gradients with cumulative background-size diffs.
+
+IMPORTANT LESSONS FROM PREVIOUS EXTRACTIONS:
+- Use .rtc_strategy_range_normalized.ra_table_cell (same element, not descendant)
+- background-size values are CUMULATIVE — take consecutive diffs, not raw values
+- Green (call) = 98,228,90 by elimination. Fold = 10,146,207. Raise = 240,98,0. Allin = 114,0,141.
+- Open sizes vary by depth/position. 20BB/35BB = R2. 50BB BTN/CO = R2.1, HJ/LJ = R2. SB = R3/R3.5.
+- Only library-listed stack vectors have solutions — can't fabricate stacks.
+- Always cross-check extracted %s against the Actions panel.
+
+================================================================================
+BATCH 1: BB DEFEND — CALL/3BET SPLIT (9 spots)
+================================================================================
+Same as the SBD extraction but for BB. Hero = BB, facing one open, SB folded.
+Extract fold/call/raise(3bet)/allin per hand.
+
+history_spot = 7 for all (BB acts last preflop).
+preflop_actions: folds to opener, opener raises, remaining fold, BB acts.
+
+ #  | Chart prefix          | Depth | Opener | PA
+----|------------------------|-------|--------|------------------
+ 1  | BBD_20BB_vsBTN         | 20BB  | BTN    | F-F-F-F-F-R-F
+ 2  | BBD_20BB_vsCO          | 20BB  | CO     | F-F-F-F-R-F-F
+ 3  | BBD_20BB_vsHJ          | 20BB  | HJ     | F-F-F-R-F-F-F
+ 4  | BBD_35BB_vsBTN         | 35BB  | BTN    | F-F-F-F-F-R-F
+ 5  | BBD_35BB_vsCO          | 35BB  | CO     | F-F-F-F-R-F-F
+ 6  | BBD_35BB_vsHJ          | 35BB  | HJ     | F-F-F-R-F-F-F
+ 7  | BBD_50BB_vsBTN         | 50BB  | BTN    | F-F-F-F-F-R-F
+ 8  | BBD_50BB_vsCO          | 50BB  | CO     | F-F-F-F-R-F-F
+ 9  | BBD_50BB_vsHJ          | 50BB  | HJ     | F-F-F-R-F-F-F
+
+Output per spot (same format as SBD):
+  BBD_{depth}_vs{opener}_CALL: <call >=50% hands> [X%]
+  BBD_{depth}_vs{opener}_CALL_HF: <call >=70% hands> [X%]
+  BBD_{depth}_vs{opener}_3BET: <raise+allin >=50% hands> [X%]
+  BBD_{depth}_vs{opener}: <all defend = CALL+3BET> [X%]
+
+Expected: BB defends wider than SB (has a discount).
+  20BB: ~35-50% vs BTN, ~25-35% vs CO, ~18-28% vs HJ. Mostly jam, some call.
+  35BB: ~45-55% vs BTN, ~35-45% vs CO, ~28-35% vs HJ.
+  50BB: ~50-60% vs BTN, ~40-50% vs CO, ~32-40% vs HJ.
+
+================================================================================
+BATCH 2: REJAM BY DEPTH (16 spots)
+================================================================================
+Hero faces an open and REJAMS (3-bet all-in). Currently we have union charts
+across depths. Split into 15BB and 25BB for the key position pairs.
+
+Hero 3-bet jams, so we read the RAISE+ALLIN (aggressive) action — same
+extractor as the 3BF extraction.
+
+ #  | Chart prefix           | Depth | Hero | Opener | PA              | HS
+----|------------------------|-------|------|--------|-----------------|----
+ 1  | RJ_15BB_BBvsBTN        | 15BB  | BB   | BTN    | F-F-F-F-F-R-F   | 7
+ 2  | RJ_15BB_BBvsCO         | 15BB  | BB   | CO     | F-F-F-F-R-F-F   | 7
+ 3  | RJ_15BB_SBvsBTN        | 15BB  | SB   | BTN    | F-F-F-F-F-R     | 6
+ 4  | RJ_15BB_SBvsCO         | 15BB  | SB   | CO     | F-F-F-F-R-F     | 6
+ 5  | RJ_15BB_BTNvsCO        | 15BB  | BTN  | CO     | F-F-F-F-R       | 5
+ 6  | RJ_15BB_BTNvsHJ        | 15BB  | BTN  | HJ     | F-F-F-R-F       | 5
+ 7  | RJ_15BB_COvsHJ         | 15BB  | CO   | HJ     | F-F-F-R         | 4
+ 8  | RJ_15BB_BBvsHJ         | 15BB  | BB   | HJ     | F-F-F-R-F-F-F   | 7
+ 9  | RJ_25BB_BBvsBTN        | 25BB  | BB   | BTN    | F-F-F-F-F-R-F   | 7
+10  | RJ_25BB_BBvsCO         | 25BB  | BB   | CO     | F-F-F-F-R-F-F   | 7
+11  | RJ_25BB_SBvsBTN        | 25BB  | SB   | BTN    | F-F-F-F-F-R     | 6
+12  | RJ_25BB_SBvsCO         | 25BB  | SB   | CO     | F-F-F-F-R-F     | 6
+13  | RJ_25BB_BTNvsCO        | 25BB  | BTN  | CO     | F-F-F-F-R       | 5
+14  | RJ_25BB_BTNvsHJ        | 25BB  | BTN  | HJ     | F-F-F-R-F       | 5
+15  | RJ_25BB_COvsHJ         | 25BB  | CO   | HJ     | F-F-F-R         | 4
+16  | RJ_25BB_BBvsHJ         | 25BB  | BB   | HJ     | F-F-F-R-F-F-F   | 7
+
+For REJAM, read the RAISE+ALLIN (aggressive) action only — same JS as 3BF.
+Output:
+  RJ_{depth}_{hero}vs{opener}: <AGG >=50% hands> [X%]
+  RJ_{depth}_{hero}vs{opener}_HF: <AGG >=70% hands> [X%]
+
+Expected: 15BB rejam ranges are WIDE (often 30-50%).
+25BB rejam ranges are TIGHTER (often 15-30%) and more polarized.
+
+================================================================================
+BATCH 3: 20BB 3-BET FOR REMAINING POSITIONS (5 spots)
+================================================================================
+We have 3BET_20BB for SB only. Add BTN, CO, BB at 20BB.
+At 20BB, "3-bet" = jam. Read RAISE+ALLIN combined.
+
+ #  | Chart prefix           | Depth | Hero | Opener | PA              | HS
+----|------------------------|-------|------|--------|-----------------|----
+ 1  | 3BF_20BB_BTNvsCO       | 20BB  | BTN  | CO     | F-F-F-F-R       | 5
+ 2  | 3BF_20BB_BTNvsHJ       | 20BB  | BTN  | HJ     | F-F-F-R-F       | 5
+ 3  | 3BF_20BB_COvsHJ        | 20BB  | CO   | HJ     | F-F-F-R         | 4
+ 4  | 3BF_20BB_BBvsBTN       | 20BB  | BB   | BTN    | F-F-F-F-F-R-F   | 7
+ 5  | 3BF_20BB_BBvsCO        | 20BB  | BB   | CO     | F-F-F-F-R-F-F   | 7
+
+Output (same as 3BF format):
+  3BF_20BB_{hero}vs{opener}: <AGG >=50%> [X%]
+  3BF_20BB_{hero}vs{opener}_HF: <AGG >=70%> [X%]
+
+Expected: at 20BB, 3-bet = jam, so ranges are wide.
+BTN vs CO: ~15-25%. BB vs BTN: ~20-35%.
+
+================================================================================
+BATCH 4: FACING 4-BET DECISION (8 spots)
+================================================================================
+Hero opened, villain 3-bet, Hero 4-bet, villain 5-bet jams. Hero decides:
+fold / call / jam. This is deeper in the action tree.
+
+The preflop_actions sequence is longer:
+  Hero opens (R), villain 3-bets (R), others fold, Hero acts again.
+
+For "CO opened, BTN 3-bet, blinds fold, CO faces 3-bet":
+  PA = F-F-F-F-R-R-F-F   (UTG-HJ fold, CO R, BTN R, SB F, BB F)
+  HS = 8 (CO's re-action after the 3-bet, 9th position in the tree)
+
+NOTE: The history_spot for re-actions may be different than seat index.
+If a URL returns "no solution," try navigating via the action tree UI
+instead of URL parameters. Click through the preflop actions step by step.
+
+ #  | Chart prefix              | Depth | Hero | 3-bettor | Notes
+----|---------------------------|-------|------|----------|--------
+ 1  | F4B_30BB_COvsBTN3B        | 30BB  | CO   | BTN      | Hero opened CO, BTN 3-bet
+ 2  | F4B_30BB_COvsSB3B         | 30BB  | CO   | SB       | Hero opened CO, SB 3-bet
+ 3  | F4B_30BB_BTNvsSB3B        | 30BB  | BTN  | SB       | Hero opened BTN, SB 3-bet
+ 4  | F4B_30BB_BTNvsBB3B        | 30BB  | BTN  | BB       | Hero opened BTN, BB 3-bet
+ 5  | F4B_50BB_COvsBTN3B        | 50BB  | CO   | BTN      |
+ 6  | F4B_50BB_COvsSB3B         | 50BB  | CO   | SB       |
+ 7  | F4B_50BB_BTNvsSB3B        | 50BB  | BTN  | SB       |
+ 8  | F4B_50BB_BTNvsBB3B        | 50BB  | BTN  | BB       |
+
+For these spots, read ALL actions — we need the full fold/call/4bet/jam split.
+Use the multi-action extractor (green=call, orange=raise=4bet, purple=jam):
+
+Output:
+  F4B_{depth}_{hero}vs{3bettor}_FOLD: <fold >=70%> [X%]
+  F4B_{depth}_{hero}vs{3bettor}_CALL: <call >=50%> [X%]
+  F4B_{depth}_{hero}vs{3bettor}_4BET: <raise+allin >=50%> [X%]
+  F4B_{depth}_{hero}vs{3bettor}: <all continue = CALL+4BET> [X%]
+
+Expected: Most hands fold facing a 3-bet. Continue range ~25-35%.
+4-bet range ~8-15%. Call range ~15-25% (with position-dependent splits).
+
+================================================================================
+BATCH 5: ICM PUSH ADJUSTMENTS (6 spots)
+================================================================================
+Our push charts are ChipEV. Near the bubble, ranges tighten. Extract ICM
+push ranges at key depths for comparison.
+
+Use ICM gametype (already using it). Find situations near bubble
+(50% left = our current set). The push ranges should be TIGHTER than
+the ChipEV charts we already have.
+
+ #  | Chart prefix          | Depth | Position | PA
+----|------------------------|-------|----------|------------------
+ 1  | PUSH_ICM_10BB_BTN      | 10BB  | BTN      | F-F-F-F-F  (HS=5)
+ 2  | PUSH_ICM_10BB_CO       | 10BB  | CO       | F-F-F-F    (HS=4)
+ 3  | PUSH_ICM_10BB_SB       | 10BB  | SB       | F-F-F-F-F-F (HS=6)
+ 4  | PUSH_ICM_8BB_BTN       |  8BB  | BTN      | F-F-F-F-F  (HS=5)
+ 5  | PUSH_ICM_8BB_CO        |  8BB  | CO       | F-F-F-F    (HS=4)
+ 6  | PUSH_ICM_12BB_BTN      | 12BB  | BTN      | F-F-F-F-F  (HS=5)
+
+Read ALLIN (purple, jam) action — same as original push extraction.
+At these depths, the "Raise" (orange) action may also exist (min-raise
+instead of jam). Record ALLIN separately and note if Raise exists.
+
+Output:
+  PUSH_ICM_{depth}_{pos}: <allin >=50%> [X%]
+  # Compare vs ChipEV: PUSH_10BB_BTN = 48.5% (ChipEV) vs PUSH_ICM_10BB_BTN = ?%
+
+Expected: ICM push ranges ~10-20% tighter than ChipEV at the same depth.
+BTN 10BB ChipEV = 48.5%, ICM should be ~35-42%.
+
+================================================================================
+JS EXTRACTORS (use the one matching the batch)
+================================================================================
+
+AGGRESSIVE (raise+allin) — for Batches 2, 3, 5:
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.rtc_strategy_range_normalized.ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);
+    let raise=0,allin=0,prev=0;
+    const sizes=sz.map(s=>parseFloat((s||'0%').split(' ')[0])).sort((a,b)=>a-b);
+    imgs.forEach((im,i)=>{
+      const raw=sizes[i]||0;const pct=raw-prev;prev=raw;
+      if(im.includes('240, 98, 0'))raise=pct;
+      if(im.includes('114, 0, 141'))allin=pct;
+    });
+    m[l]={r:raise,a:allin,agg:raise+allin};});
+  const a70=Object.entries(m).filter(([k,v])=>v.agg>=70).map(([k])=>k);
+  const a50=Object.entries(m).filter(([k,v])=>v.agg>=50).map(([k])=>k);
+  const mx=Object.entries(m).filter(([k,v])=>v.agg>=20&&v.agg<70)
+    .map(([k,v])=>k+':R'+Math.round(v.r)+(v.a>0?'+A'+Math.round(v.a):''));
+  return 'CELLS='+Object.keys(m).length+
+    '\nAGG_GE70('+a70.length+'): '+a70.join(' ')+
+    '\nAGG_GE50('+a50.length+'): '+a50.join(' ')+
+    '\nMIXED_20_70: '+(mx.length?mx.join(' '):'none')+
+    '\nmax_r='+Math.max(...Object.values(m).map(v=>v.r)).toFixed(1)+
+    ' max_a='+Math.max(...Object.values(m).map(v=>v.a)).toFixed(1);
+})()
+```
+
+CALL+3BET (full action split) — for Batches 1, 4:
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.rtc_strategy_range_normalized.ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);
+    let raise=0,allin=0,fold=0,other=0,prev=0;
+    const sizes=sz.map(s=>parseFloat((s||'0%').split(' ')[0])).sort((a,b)=>a-b);
+    imgs.forEach((im,i)=>{
+      const raw=sizes[i]||0;const pct=raw-prev;prev=raw;
+      if(im.includes('240, 98, 0'))raise=pct;
+      else if(im.includes('114, 0, 141'))allin=pct;
+      else if(im.includes('10, 146, 207')||im.includes('45, 134, 199'))fold=pct;
+      else other+=pct;
+    });
+    const call=other;
+    m[l]={r:raise,a:allin,c:call,f:fold};});
+  const c70=Object.entries(m).filter(([k,v])=>v.c>=70).map(([k])=>k);
+  const c50=Object.entries(m).filter(([k,v])=>v.c>=50).map(([k])=>k);
+  const cmx=Object.entries(m).filter(([k,v])=>v.c>=20&&v.c<70)
+    .map(([k,v])=>k+':C'+Math.round(v.c));
+  const a50=Object.entries(m).filter(([k,v])=>(v.r+v.a)>=50).map(([k])=>k);
+  const a70=Object.entries(m).filter(([k,v])=>(v.r+v.a)>=70).map(([k])=>k);
+  return 'CELLS='+Object.keys(m).length+
+    '\nCALL_GE70('+c70.length+'): '+c70.join(' ')+
+    '\nCALL_GE50('+c50.length+'): '+c50.join(' ')+
+    '\nCALL_20_70: '+(cmx.length?cmx.join(' '):'none')+
+    '\nAGG_GE50('+a50.length+'): '+a50.join(' ')+
+    '\nAGG_GE70('+a70.length+'): '+a70.join(' ')+
+    '\nmax_call='+Math.max(...Object.values(m).map(v=>v.c)).toFixed(1)+
+    ' max_raise='+Math.max(...Object.values(m).map(v=>v.r)).toFixed(1);
+})()
+```
+
+ALLIN ONLY (for Batch 5 push charts):
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.rtc_strategy_range_normalized.ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);
+    let allin=0,raise=0,prev=0;
+    const sizes=sz.map(s=>parseFloat((s||'0%').split(' ')[0])).sort((a,b)=>a-b);
+    imgs.forEach((im,i)=>{
+      const raw=sizes[i]||0;const pct=raw-prev;prev=raw;
+      if(im.includes('114, 0, 141'))allin=pct;
+      if(im.includes('240, 98, 0'))raise=pct;
+    });
+    m[l]={a:allin,r:raise};});
+  const ge50=Object.entries(m).filter(([k,v])=>v.a>=50).map(([k])=>k);
+  const ge70=Object.entries(m).filter(([k,v])=>v.a>=70).map(([k])=>k);
+  const hasRaise=Object.entries(m).filter(([k,v])=>v.r>=20).map(([k,v])=>k+':R'+Math.round(v.r));
+  return 'CELLS='+Object.keys(m).length+
+    '\nALLIN_GE50('+ge50.length+'): '+ge50.join(' ')+
+    '\nALLIN_GE70('+ge70.length+'): '+ge70.join(' ')+
+    '\nMIN_RAISE_20+: '+(hasRaise.length?hasRaise.join(' '):'none')+
+    '\nmax_allin='+Math.max(...Object.values(m).map(v=>v.a)).toFixed(1)+
+    ' max_raise='+Math.max(...Object.values(m).map(v=>v.r)).toFixed(1);
+})()
+```
+
+================================================================================
+WORKFLOW
+================================================================================
+Work through batches in order (1→5). For each spot:
+1. Open library, set Hero position filter to target depth
+2. Pick closest situation, navigate to correct preflop node
+3. Wait CELLS=169, run the appropriate JS extractor
+4. Cross-check against Actions panel
+5. Record results
+
+For Batch 4 (facing 4-bet): the action tree is deeper. You may need to
+click through the preflop actions step by step in the UI rather than
+using URL parameters. Navigate: Hero opens → villain 3-bets → blinds fold
+→ Hero's re-action node. Confirm the node shows fold/call/4bet/jam actions.
+
+When all batches are done, output the complete block ready to append to
+Poker_Ranges_Text.txt.
+
+Total spots: 9 + 16 + 5 + 8 + 6 = 44 extractions.
+================================================================================

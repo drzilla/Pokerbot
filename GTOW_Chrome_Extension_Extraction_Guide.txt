@@ -1,0 +1,117 @@
+================================================================================
+GTOWizard MTT Range Extraction — Operating Manual for Claude Chrome Extension
+================================================================================
+Created: 2026-06-04. Use this prompt at the start of a fresh Chrome extension
+session when extracting ranges from GTOWizard.
+
+Copy everything below the line into the Chrome extension chat.
+================================================================================
+
+# GTOWizard MTT Range Extraction — Operating Manual
+
+You are extracting preflop ranges from GTOWizard (`app.gtowizard.com`, you must already be logged in). Follow this exact method. Do NOT try to reverse-engineer the site from scratch — the techniques below are known to work and the dead-ends are known to fail.
+
+## What I'll tell you per task
+- Format/gametype (e.g. `MTTGeneral_ICM8m1000PTPCT50` = ICM, 8-max, 1000 players, 50% left; or `MTTGeneral_8m` = ChipEV 8-max).
+- Which action to read (e.g. "all-in / open-shove frequency", "min-raise", "fold").
+- Which positions and target effective stack depths (in BB).
+- The frequency threshold (default: record hands with the target action >=50%).
+
+## Core facts about how the site works (don't relearn these)
+1. **The ICM library only contains curated "situations."** Each situation is a real table with *different* stacks per seat — there is NO uniform "everyone has 15BB" table. You cannot inject arbitrary stacks via URL; the app snaps them back to the nearest curated situation. So you find the situation whose *Hero* seat is closest to the target depth and accept the mixed opponent stacks.
+2. **You navigate to a spot via URL parameters** once you know a valid situation's stacks. The pattern:
+   ```
+   https://app.gtowizard.com/solutions?gametype=<GAMETYPE>&depth=<HEROSTACK>.125&solution_type=gwiz&gmfs_solution_tab=ai_sols&soltab=strategy&history_spot=<N>&stacks=<s0>.125-<s1>.125-...-<s7>.125&preflop_actions=<ACTIONS>
+   ```
+   - `stacks` is 8 values in seat order: **UTG, UTG+1, LJ, HJ, CO, BTN, SB, BB**. Each gets a `.125` suffix (keep it; it's how the app tags curated situations).
+   - To get "folded to Hero," set `preflop_actions` to one `F` per seat before Hero, and `history_spot` to Hero's index:
+     - UTG -> `history_spot=0`, `preflop_actions=` (empty)
+     - UTG+1 -> `history_spot=1`, `preflop_actions=F`
+     - LJ -> `history_spot=2`, `preflop_actions=F-F`
+     - HJ -> `history_spot=3`, `preflop_actions=F-F-F`
+     - CO -> `history_spot=4`, `preflop_actions=F-F-F-F`
+     - BTN -> `history_spot=5`, `preflop_actions=F-F-F-F-F`
+     - SB -> `history_spot=6`, `preflop_actions=F-F-F-F-F-F`
+3. **Position->naming map** (GTOW -> common system): UTG->UTG, UTG+1->UTG+1, LJ->MP, HJ->HJ, CO->CO, BTN->BTN, SB->SB. BB is never a "folded-to-Hero opener."
+
+## Finding a situation (the library filter)
+1. Click **Change** to open the Solutions library modal. Confirm the left rail shows the right format (MTT / ICM or ChipEV / Classic / players / % left / 8-max).
+2. The filter has Min/Max stack boxes per position. **To set a filter reliably: triple-click the box -> type the number -> press Return.** Do this for Min, then Max, one box at a time.
+   - WARNING: **Do NOT use Tab to move between boxes** — tabbing resets other position boxes to 0/0 and yields "0 situations."
+   - WARNING: `form_input`/setting the value programmatically does NOT commit — the app ignores it. You must type + Return.
+3. To target ~15BB for a position, set that one position's Min/Max to e.g. 14-17 and leave others alone. Read the resulting situations table (columns: Avg, UTG, UTG1, LJ, HJ, CO, BTN, SB, BB). Pick the row whose Hero-seat stack is closest to target.
+4. Clear a filter chip by clicking its little x before setting a different position.
+
+## Reading the strategy (THE KEY TRICK — exact frequencies, no eyeballing)
+The strategy grid cells have class `.ra_table_cell`. Each cell's action mix is encoded as **stacked CSS linear-gradients**, and each layer's width in `background-size` is that action's exact frequency. Action colors:
+- **All-in** = `rgb(114, 0, 141)` (purple)
+- **Raise/min-raise** = `rgb(240, 98, 0)` (orange)
+- **Fold** = blue (`rgb(10,146,207)` / `rgb(45,134,199)`)
+
+Run this JS (via the javascript tool) AFTER the spot fully loads to get per-hand all-in %:
+
+```js
+(() => {
+  function splitTop(s){const o=[];let d=0,c='';for(const ch of s){if(ch==='(')d++;else if(ch===')')d--;if(ch===','&&d===0){o.push(c.trim());c='';}else c+=ch;}if(c.trim())o.push(c.trim());return o;}
+  const cells=[...document.querySelectorAll('.ra_table_cell')].filter(c=>getComputedStyle(c).backgroundImage!=='none');
+  const m={};
+  cells.forEach(c=>{const l=c.textContent.trim();if(!l||l.length>4||!/^[AKQJT2-9]/.test(l))return;
+    const cs=getComputedStyle(c),imgs=splitTop(cs.backgroundImage),sz=splitTop(cs.backgroundSize);let allin=0;
+    imgs.forEach((im,i)=>{if(im.includes('114, 0, 141'))allin=parseFloat((sz[i]||'0%').split(' ')[0]);});
+    m[l]=allin;});
+  const ge50=Object.entries(m).filter(([k,v])=>v>=50).map(([k])=>k);
+  const mixed=Object.entries(m).filter(([k,v])=>v>=20&&v<50).map(([k,v])=>k+':'+v.toFixed(0));
+  return 'CELLS='+Object.keys(m).length+'\nGE50('+ge50.length+'): '+ge50.join(' ')+'\nMIXED20-50: '+(mixed.length?mixed.join(' '):'none')+'\nmax='+Math.max(...Object.values(m)).toFixed(1);
+})()
+```
+
+To read a different action, swap the target RGB (orange `240, 98, 0` for raise; blue for fold).
+
+### Critical gotchas with the JS method
+- **`CELLS=0` means the page hasn't finished rendering** — wait 3-5s and re-run. Always verify `CELLS=169`.
+- **There are duplicate `.ra_table_cell` nodes**; one set has `backgroundImage:'none'`. The `.filter(... !== 'none')` above handles this — keep it.
+- **Use `splitTop` (paren-aware comma split)**, NOT a plain `.split(',')` — the `rgb(...)` values contain commas and will corrupt naive parsing (this caused a 100%-vs-0% inversion bug early on).
+- Don't bother with: network sniffing (data isn't in a clean API response — it's rendered to DOM), or returning raw `outerHTML` (the JS tool's sanitizer blocks output containing URL/query-like strings).
+- Cross-check the aggregate against the on-screen **Actions panel** (e.g., "Allin 14 - 10.7%") by screenshot to confirm you're on the right node.
+
+## Interpreting results (important domain truths)
+- **At ~14-16BB in ICM, most positions do NOT open-shove — they min-raise.** Expect EP/MP (UTG, UTG+1, LJ) to show **0% all-in** at 15BB -> report "no all-in action at this depth (min-raises instead)." Real open-shove ranges appear at short stacks (~4-10BB).
+- **Premium hands min-raise/trap even in push regimes.** AA/KK/QQ/AKs are frequently `Raise2=100%, Allin=0%` and will be *excluded* from an all-in>=50% list. Flag this explicitly so a downstream push/fold model knows to treat premiums as "always continue."
+- **Stacks are non-uniform**, so charts aren't apples-to-apples and won't perfectly match clean ChipEV push baselines. Always **record the actual Hero effective stack** for each chart.
+- Useful sanity anchors (ChipEV 10BB): BTN~48.5%, UTG~21.3%, SB~56.8% widest; shorter = wider, deeper = narrower.
+
+## Depth availability in the ICM 1000p/50% set (approx per-position stack minimums)
+UTG~15, UTG+1~8, LJ~14, HJ~8, CO~4, BTN~9, SB~10, BB~4. So a true ~5BB chart only exists for CO/BB; for others use the shortest available and label the real depth.
+
+## Output format
+For each chart, output:
+
+```
+PUSH_<actualBB>BB_<POSITION>: <hand list> [aggregate all-in X.X%, Hero stack = NBB, table: UTG=.. UTG1=.. LJ=.. HJ=.. CO=.. BTN=.. SB=.. BB=..]
+```
+
+List hands at >=threshold; separately note "mixed" hands (20-50%) and "premiums that min-raise instead of jamming." If a position has 0% all-in, write "no all-in action at this depth (min-raise only)."
+
+## Workflow per chart (summary)
+1. Open library (Change) -> set Hero position Min/Max to bracket target depth (triple-click+type+Return, no Tab) -> pick closest row -> click it.
+2. Read the loaded `stacks=` from the URL.
+3. Re-navigate with correct `history_spot` + `preflop_actions` for that Hero seat (folded-to-Hero).
+4. Wait until `CELLS=169`, run the extractor JS, cross-check the Actions panel.
+5. Record hands >=threshold + actual depth + caveats.
+
+================================================================================
+GAMETYPES REFERENCE:
+  ChipEV 8-max:  MTTGeneral_8m
+  ICM 8-max 1000p 50% left:  MTTGeneral_ICM8m1000PTPCT50
+  ChipEV 6-max:  MTT6mSimple
+  ChipEV 9-max:  MTTGeneralV2
+
+RANGES ALREADY EXTRACTED (as of 2026-06-04):
+  PUSH ChipEV 10BB: 8 positions (UTG through SB) — in Poker_Ranges_Text.txt
+  PUSH ICM 4-9BB: CO@4, UTG+1@8, HJ@8, BTN@9 — in Poker_Ranges_Text.txt
+  PUSH ICM 14-16BB: CO@16, BTN@14, SB@15 — in Poker_Ranges_Text.txt
+  3BET: 17 charts (RYE, 20/30/50BB)
+  4BET: 18 charts (GTOW ChipEV, 30/50BB)
+  CALLJAM: 16 charts (GTOW, 12/15/20/30BB)
+  SQUEEZE: 8 charts (GTOW, 30/50BB)
+================================================================================

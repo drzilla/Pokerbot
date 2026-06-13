@@ -1,0 +1,150 @@
+GEM × GTO WIZARD INTEGRATION GUIDE
+=====================================
+Last updated: 2026-03-31
+
+PURPOSE: Extract hands from GEM analysis that would benefit from
+GTO Wizard review, format them for input, and process the output
+back into actionable rules.
+
+
+========================================================
+1. WHEN TO USE GTO WIZARD
+========================================================
+
+Flag hands for GTO Wizard when:
+- A hand appears on the Coach Shortlist (D8) AND involves a
+  non-obvious postflop decision (not just a preflop cooler).
+- The correct play is genuinely debatable between Claude and
+  the User's coaches.
+- A pattern of similar mistakes appears across sessions
+  (e.g., "calling 3 barrels with TPTK on paired boards").
+- River decisions specifically — per GTO Wizard stats, this is
+  where Ron's biggest EV leaks are concentrated.
+
+DO NOT flag for GTO Wizard:
+- Clear preflop coolers (KK vs AA, AQs vs KK).
+- Obvious punt decisions (calling <12BB, format-blind squeezes).
+- Hands where the decision is clearly correct by first principles.
+
+
+========================================================
+2. INPUT FORMAT FOR GTO WIZARD
+========================================================
+
+When preparing hands for GTO Wizard analysis, output them in this
+format that Ron can paste directly into GTO Wizard's hand input:
+
+--- GTO WIZARD INPUT ---
+Hand: TM5772083983
+Tournament: $32 Bounty King of the Spring (BOUNTY)
+Date: Mar 31, 2026
+Effective Stack: 59BB
+
+Preflop:
+Hero (CO): Kc Ac
+Hero raises to 2.2BB
+Villain (HJ) calls
+
+Flop: 9c Js Ks (pot: ~5.5BB)
+Hero bets 2.8BB
+Villain calls
+
+Turn: 3d (pot: ~11BB)
+Hero bets 7.5BB
+Villain calls
+
+River: 9h (pot: ~26BB)
+Hero checks
+Villain bets 18BB
+Hero???
+
+Question: Should Hero call, fold, or raise? Board paired 9s,
+villain called two streets and now leads river.
+--- END INPUT ---
+
+NOTES FOR RON:
+- In GTO Wizard, select the closest tournament format
+  (MTT, specific stack depth, position matchup).
+- Set the stack depth to match the effective BB.
+- Run the scenario and screenshot the EV comparison
+  for each action (call/fold/raise).
+
+
+========================================================
+3. PROCESSING GTO WIZARD OUTPUT
+========================================================
+
+When Ron provides GTO Wizard results, extract:
+
+A. The optimal action and its EV.
+B. The EV loss of the action Hero actually took.
+C. Whether this qualifies as a Mistake (<5% EV loss),
+   Blunder (5-15% EV loss), or Critical Error (>15%).
+
+Then integrate into the GEM framework:
+
+IF the GTO result contradicts a current rule:
+  → Flag for discussion. Don't auto-update the rule.
+  → Note: "GTO Wizard suggests X. Current rule says Y.
+    Discuss with coach before updating."
+
+IF the GTO result confirms a current rule:
+  → Add the specific EV numbers to strengthen the rule.
+  → Example: "GTO confirms: folding trips on 3-flush board
+    when villain raises saves ~8BB EV on average."
+
+IF the GTO result reveals a new pattern:
+  → Propose a new rule addition.
+  → Format: "PROPOSED RULE (GTO-backed): [description]
+    EV basis: [X BB saved per instance].
+    Hands supporting: [list hand IDs]."
+
+
+========================================================
+4. GTO WIZARD STAT CATEGORIES (from Ron's data)
+========================================================
+
+River error breakdown (from Ron's GTO Wizard stats):
+
+| Category | % of Errors | Description |
+| Bad Bets (SDV) | 23.9% | Bet with showdown value when should check |
+| Bad Calls | 23.9% | Called with weak holding, should fold |
+| Bad Bluffs | 19.6% | Bet air when check/fold was optimal |
+| Missed Value | 17.4% | Checked strong hand, should bet |
+| Missed Bluffs | 10.9% | Checked air, should have probed |
+| Bad Folds | 4.3% | Folded with enough equity to call |
+
+KEY INSIGHT: 47.8% of river errors come from being TOO ACTIVE
+(bad bets + bad calls + bad bluffs). Only 28.3% from being
+too passive (missed value + missed bluffs). This suggests the
+primary river fix is: CHECK MORE with medium-strength hands,
+FOLD MORE to aggression with weak holdings.
+
+INTEGRATION WITH GEM:
+- Track "Bet with SDV" instances in the Bluff Profile section.
+- When Hero bets river with TPTK or second pair and gets raised,
+  flag as potential "Bad Bet (SDV)" for GTO review.
+- When Hero calls river with bottom pair or weak top pair,
+  flag as potential "Bad Call" for GTO review.
+
+
+========================================================
+5. BATCH EXPORT FOR GTO WIZARD
+========================================================
+
+At the end of each GEM report, if there are 3+ hands flagged
+for GTO review, output a batch file:
+
+--- GTO BATCH EXPORT ---
+Session: GG20260330-31
+Hands flagged: 5
+
+1. TM5772083983 | CO vs HJ | AKs | Ks9cJs-3d-9h | River decision
+2. TM5772489238 | BB | A6s | Ac Qs 3s 6s 9c | River fold?
+3. [etc.]
+
+Priority: River decisions first, then turn, then flop.
+--- END BATCH ---
+
+Ron can then work through these in GTO Wizard in order of
+priority and bring the results back for rule refinement.

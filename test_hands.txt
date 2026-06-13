@@ -1,0 +1,1369 @@
+Poker Hand #TM90000001: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:01
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (10000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kh]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 25000 to 25000 and is all-in
+Villain1: folds
+Villain2: folds
+Uncalled bet (24750) returned to Hero
+*** SHOWDOWN ***
+Hero collected 625 from pot
+*** SUMMARY ***
+Total pot 625 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Hero (button) collected (625)
+Seat 2: Villain1 (small blind) folded before Flop
+Seat 3: Villain2 (big blind) folded before Flop
+
+
+Poker Hand #TM90000002: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:02
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Hero (25000 in chips)
+Seat 3: Villain2 (10000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Hero: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ac Kd]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Hero: raises 24875 to 25000 and is all-in
+Villain2: calls 9750 and is all-in
+Uncalled bet (15000) returned to Hero
+Hero: shows [Ac Kd]
+Villain2: shows [Qh Qd]
+*** FLOP *** [7h 3d 2s]
+*** TURN *** [7h 3d 2s] [9c]
+*** RIVER *** [7h 3d 2s 9c] [Kc]
+*** SHOWDOWN ***
+Hero collected 20250 from pot
+*** SUMMARY ***
+Total pot 20250 | Rake 0
+Seat 2: Hero (small blind) showed [Ac Kd] and won (20250)
+Seat 3: Villain2 (big blind) showed [Qh Qd] and lost
+
+
+Poker Hand #TM90000003: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:03
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Hero (25000 in chips)
+Seat 3: Villain2 (10000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Hero: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ac Kd]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Hero: raises 24875 to 25000 and is all-in
+Villain2: calls 9750 and is all-in
+Uncalled bet (15000) returned to Hero
+Hero: shows [Ac Kd]
+Villain2: shows [Qh Qd]
+*** FLOP *** [Qc 3d 2s]
+*** TURN *** [Qc 3d 2s] [9c]
+*** RIVER *** [Qc 3d 2s 9c] [4h]
+*** SHOWDOWN ***
+Villain2 collected 20250 from pot
+*** SUMMARY ***
+Total pot 20250 | Rake 0
+Seat 2: Hero (small blind) showed [Ac Kd] and lost
+Seat 3: Villain2 (big blind) showed [Qh Qd] and won (20250)
+
+
+Poker Hand #TM90000004: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:04
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Kd To]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 250 to 500
+Villain1: raises 1000 to 1500
+Villain2: folds
+Hero: folds
+Uncalled bet (1000) returned to Villain1
+*** SHOWDOWN ***
+Villain1 collected 1250 from pot
+*** SUMMARY ***
+Total pot 1250 | Rake 0
+Seat 1: Hero (button) folded before Flop
+Seat 2: Villain1 (small blind) collected (1250)
+
+
+Poker Hand #TM90000005: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:05
+Table '1' 8-max Seat #3 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Hero (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain3: posts small blind 125
+Villain4: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [As Qs]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: raises 250 to 500
+Villain2: folds
+Hero: raises 1000 to 1500
+Villain3: folds
+Villain4: folds
+Villain1: folds
+Uncalled bet (1000) returned to Hero
+*** SHOWDOWN ***
+Hero collected 1375 from pot
+*** SUMMARY ***
+Total pot 1375 | Rake 0
+Seat 3: Hero (button) collected (1375)
+
+
+Poker Hand #TM90000006: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:06
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jc Js]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 250 to 500
+Villain1: raises 1000 to 1500
+Villain2: folds
+Hero: calls 1000
+*** FLOP *** [2h 7d 4c]
+Villain1: checks
+Hero: bets 1200
+Villain1: folds
+Uncalled bet (1200) returned to Hero
+*** SHOWDOWN ***
+Hero collected 3250 from pot
+*** SUMMARY ***
+Total pot 3250 | Rake 0
+Seat 1: Hero (button) showed [Jc Js] and won (3250)
+
+
+Poker Hand #TM90000007: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:07
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Td]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [As 4d 8c]
+Villain3: bets 500
+Hero: calls 500
+*** TURN *** [As 4d 8c] [3h]
+Villain3: checks
+Hero: checks
+*** RIVER *** [As 4d 8c 3h] [6d]
+Villain3: checks
+Hero: checks
+*** SHOWDOWN ***
+Villain3: shows [Kc Qc] (high card Ace)
+Hero: shows [Ah Td] (a pair of Aces)
+Hero collected 2250 from pot
+*** SUMMARY ***
+Total pot 2250 | Rake 0
+Seat 5: Hero (button) showed [Ah Td] and won (2250)
+
+
+Poker Hand #TM90000008: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:08
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 4d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [2c 8h Js]
+Villain3: bets 500
+Hero: calls 500
+*** TURN *** [2c 8h Js] [Qs]
+Villain3: checks
+Hero: checks
+*** RIVER *** [2c 8h Js Qs] [Ad]
+Villain3: checks
+Hero: checks
+*** SHOWDOWN ***
+Villain3: shows [Kc 9c] (high card Ace)
+Hero: shows [Ah 4d] (a pair of Aces)
+Hero collected 2250 from pot
+*** SUMMARY ***
+Total pot 2250 | Rake 0
+Seat 5: Hero (button) showed [Ah 4d] and won (2250)
+
+
+Poker Hand #TM90000009: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:09
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Td]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [As 4d 8c]
+Villain3: checks
+Hero: checks
+*** TURN *** [As 4d 8c] [3h]
+Villain3: checks
+Hero: bets 600
+Villain3: calls 600
+*** RIVER *** [As 4d 8c 3h] [6d]
+Villain3: checks
+Hero: checks
+*** SHOWDOWN ***
+Villain3: shows [Kc Qc] (high card Ace)
+Hero: shows [Ah Td] (a pair of Aces)
+Hero collected 3450 from pot
+*** SUMMARY ***
+Total pot 3450 | Rake 0
+Seat 5: Hero (button) showed [Ah Td] and won (3450)
+
+
+Poker Hand #TM90000010: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:10
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [8h 8c]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 250 to 500
+Villain1: raises 24500 to 25000 and is all-in
+Villain2: folds
+Hero: calls 24500 and is all-in
+Hero: shows [8h 8c]
+Villain1: shows [Ts Td]
+*** FLOP *** [2h 5c 9d]
+*** TURN *** [2h 5c 9d] [3s]
+*** RIVER *** [2h 5c 9d 3s] [Jd]
+*** SHOWDOWN ***
+Villain1 collected 50250 from pot
+*** SUMMARY ***
+Total pot 50250 | Rake 0
+Seat 1: Hero (button) showed [8h 8c] and lost
+Seat 2: Villain1 (small blind) showed [Ts Td] and won (50250)
+
+
+Poker Hand #TM90000011: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:11
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ac Kc]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 250 to 500
+Villain1: raises 24500 to 25000 and is all-in
+Villain2: folds
+Hero: calls 24500 and is all-in
+Hero: shows [Ac Kc]
+Villain1: shows [Qh Qd]
+*** FLOP *** [7h 3d 2s]
+*** TURN *** [7h 3d 2s] [9c]
+*** RIVER *** [7h 3d 2s 9c] [4h]
+*** SHOWDOWN ***
+Villain1 collected 50250 from pot
+*** SUMMARY ***
+Total pot 50250 | Rake 0
+Seat 1: Hero (button) showed [Ac Kc] and lost
+Seat 2: Villain1 (small blind) showed [Qh Qd] and won (50250)
+
+
+Poker Hand #TM90000012: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:12
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jh Js]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [4h 7d 2c]
+Villain3: bets 2000
+Hero: raises 22500 to 24500 and is all-in
+Villain3: calls 22500
+Hero: shows [Jh Js]
+Villain3: shows [9h 8h]
+*** TURN *** [4h 7d 2c] [Kd]
+*** RIVER *** [4h 7d 2c Kd] [3s]
+*** SHOWDOWN ***
+Hero collected 50375 from pot
+*** SUMMARY ***
+Total pot 50375 | Rake 0
+Seat 5: Hero (button) showed [Jh Js] and won (50375)
+
+
+Poker Hand #TM90000013: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:13
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jh Js]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [4h 7d 2c]
+Villain3: bets 2000
+Hero: raises 22500 to 24500 and is all-in
+Villain3: calls 22500
+Hero: shows [Jh Js]
+Villain3: shows [7s 7c]
+*** TURN *** [4h 7d 2c] [Kd]
+*** RIVER *** [4h 7d 2c Kd] [3s]
+*** SHOWDOWN ***
+Villain3 collected 50375 from pot
+*** SUMMARY ***
+Total pot 50375 | Rake 0
+Seat 5: Hero (button) showed [Jh Js] and lost
+Seat 3: Villain3 showed [7s 7c] and won (50375)
+
+
+Poker Hand #TM90000014: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:14
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Td]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Hero: calls 500
+Villain5: folds
+Villain6: folds
+*** FLOP *** [As 4d 8c]
+Villain3: checks
+Hero: checks
+*** TURN *** [As 4d 8c] [3h]
+Villain3: checks
+Hero: bets 600
+Villain3: calls 600
+*** RIVER *** [As 4d 8c 3h] [6d]
+Villain3: checks
+Hero: bets 1000
+Villain3: folds
+Uncalled bet (1000) returned to Hero
+*** SHOWDOWN ***
+Hero collected 2850 from pot
+*** SUMMARY ***
+Total pot 2850 | Rake 0
+Seat 5: Hero (button) won (2850)
+
+
+Poker Hand #TM90000015: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:15
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (2500 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Hero (7000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 8s]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: raises 2250 to 2500 and is all-in
+Villain4: folds
+Villain5: folds
+Hero: calls 2500
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: shows [As Ts]
+Hero: shows [Ah 8s]
+*** FLOP *** [7c 7d 4d]
+*** TURN *** [7c 7d 4d] [5d]
+*** RIVER *** [7c 7d 4d 5d] [6h]
+*** SHOWDOWN ***
+Hero collected 5625 from pot
+*** SUMMARY ***
+Total pot 5625 | Rake 0
+Seat 3: Villain3 (UTG) showed [As Ts] and lost
+Seat 6: Hero (HJ) showed [Ah 8s] and won (5625)
+
+
+Poker Hand #TM90000016: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:16
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (2500 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Hero (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Qd Qs]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: raises 2250 to 2500 and is all-in
+Villain4: folds
+Villain5: folds
+Hero: calls 2500
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: shows [Kd Jd]
+Hero: shows [Qd Qs]
+*** FLOP *** [2c 5h 9d]
+*** TURN *** [2c 5h 9d] [3s]
+*** RIVER *** [2c 5h 9d 3s] [8h]
+*** SHOWDOWN ***
+Hero collected 5625 from pot
+*** SUMMARY ***
+Total pot 5625 | Rake 0
+Seat 3: Villain3 (UTG) showed [Kd Jd] and lost
+Seat 6: Hero (HJ) showed [Qd Qs] and won (5625)
+
+
+Poker Hand #TM90000017: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:17
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (2000 in chips)
+Seat 4: Hero (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Qd Tc]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: raises 1750 to 2000 and is all-in
+Hero: raises 23000 to 25000 and is all-in
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Uncalled bet (23000) returned to Hero
+Villain3: shows [Ad Ah]
+Hero: shows [Qd Tc]
+*** FLOP *** [Kc Ac 4h]
+*** TURN *** [Kc Ac 4h] [Ts]
+*** RIVER *** [Kc Ac 4h Ts] [9d]
+*** SHOWDOWN ***
+Villain3 collected 4625 from pot
+*** SUMMARY ***
+Total pot 4625 | Rake 0
+Seat 3: Villain3 (UTG) showed [Ad Ah] and won (4625)
+Seat 4: Hero (UTG+1) showed [Qd Tc] and lost
+
+
+Poker Hand #TM90000018: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level25(3500/7000(1000)) - 2026/04/07 00:00:18
+Table '1' 8-max Seat #3 is the button
+Seat 1: Villain1 (250000 in chips)
+Seat 2: Villain2 (250000 in chips)
+Seat 3: Villain3 (250000 in chips)
+Seat 4: Hero (262000 in chips)
+Seat 5: Villain4 (250000 in chips)
+Seat 6: Villain5 (250000 in chips)
+Seat 7: Villain6 (250000 in chips)
+Seat 8: Villain7 (250000 in chips)
+Villain5: posts the ante 1000
+Villain6: posts the ante 1000
+Villain7: posts the ante 1000
+Villain1: posts the ante 1000
+Villain2: posts the ante 1000
+Villain3: posts the ante 1000
+Hero: posts the ante 1000
+Villain4: posts the ante 1000
+Hero: posts small blind 3500
+Villain4: posts big blind 7000
+*** HOLE CARDS ***
+Dealt to Hero [9d 9h]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: raises 10500 to 17500
+Villain3: folds
+Hero: raises 243500 to 261000 and is all-in
+Villain4: folds
+Villain2: folds
+Uncalled bet (243500) returned to Hero
+*** SHOWDOWN ***
+Hero collected 50000 from pot
+*** SUMMARY ***
+Total pot 50000 | Rake 0
+Seat 4: Hero (small blind) collected (50000)
+
+
+Poker Hand #TM90000019: Tournament #999999, Test $10 Bounty Hyper Hold'em No Limit - Level35(1000/2000(250)) - 2026/04/07 00:00:19
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Hero (60000 in chips)
+Seat 8: Villain5 (25000 in chips)
+Villain1: posts the ante 250
+Villain2: posts the ante 250
+Villain3: posts the ante 250
+Villain4: posts the ante 250
+Hero: posts the ante 250
+Villain5: posts the ante 250
+Villain1: posts small blind 1000
+Villain2: posts big blind 2000
+*** HOLE CARDS ***
+Dealt to Hero [As 3s]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Villain3: raises 2000 to 4000
+Villain4: folds
+Hero: calls 4000
+Villain5: folds
+Villain1: folds
+Villain2: folds
+*** FLOP *** [9h Tc 7d]
+Villain3: bets 3000
+Hero: calls 3000
+*** TURN *** [9h Tc 7d] [7s]
+Villain3: bets 6000
+Hero: folds
+*** SHOWDOWN ***
+Villain3 collected 17500 from pot
+*** SUMMARY ***
+Total pot 17500 | Rake 0
+Seat 3: Villain3 (UTG) won (17500)
+Seat 6: Hero (HJ) lost
+
+
+Poker Hand #TM90000020: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:20
+Table '1' 8-max Seat #8 is the button
+Seat 1: Villain1 (3000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Villain6 (8000 in chips)
+Seat 7: Hero (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jc To]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Hero: folds
+Villain7: folds
+Villain1: folds
+*** SHOWDOWN ***
+Villain2 collected 250 from pot
+*** SUMMARY ***
+Total pot 250 | Rake 0
+Seat 7: Hero (CO) folded before Flop
+
+
+Poker Hand #TM90000021: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:21
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Hero (1500 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Hero: posts small blind 125
+Villain6: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Kh 5h]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Hero: folds
+*** SHOWDOWN ***
+Villain6 collected 250 from pot
+*** SUMMARY ***
+Total pot 250 | Rake 0
+Seat 6: Hero (small blind) folded before Flop
+
+
+Poker Hand #TM90000022: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:22
+Table '1' 8-max Seat #6 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Hero (1000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain7: posts small blind 125
+Villain1: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jd 8c]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Hero: folds
+Villain6: folds
+Villain7: folds
+*** SHOWDOWN ***
+Villain1 collected 250 from pot
+*** SUMMARY ***
+Total pot 250 | Rake 0
+Seat 6: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000023: Tournament #999999, Test $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:23
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Villain5 (25000 in chips)
+Seat 6: Villain6 (25000 in chips)
+Seat 7: Hero (1500 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain6: posts small blind 125
+Hero: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 5c]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: raises 250 to 500
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Hero: folds
+*** SHOWDOWN ***
+Villain3 collected 875 from pot
+*** SUMMARY ***
+Total pot 875 | Rake 0
+Seat 7: Hero (big blind) folded before Flop
+
+
+Poker Hand #TM90000028: Tournament #888888, Test Deep Run Hold'em No Limit - Level20(1000/2000(250)) - 2026/04/07 00:05:00
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (50000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 250
+Villain6: posts the ante 250
+Villain7: posts the ante 250
+Villain1: posts the ante 250
+Villain2: posts the ante 250
+Villain3: posts the ante 250
+Hero: posts the ante 250
+Villain4: posts the ante 250
+Villain5: posts small blind 1000
+Villain6: posts big blind 2000
+*** HOLE CARDS ***
+Dealt to Hero [8d 3c]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 4000 from pot
+*** SUMMARY ***
+Total pot 4000 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000027: Tournament #888888, Test Deep Run Hold'em No Limit - Level18(500/1000(125)) - 2026/04/07 00:04:00
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (3000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 125
+Villain6: posts the ante 125
+Villain7: posts the ante 125
+Villain1: posts the ante 125
+Villain2: posts the ante 125
+Villain3: posts the ante 125
+Hero: posts the ante 125
+Villain4: posts the ante 125
+Villain5: posts small blind 500
+Villain6: posts big blind 1000
+*** HOLE CARDS ***
+Dealt to Hero [Kd Jd]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: raises 2875 to 2875 and is all-in
+Villain5: calls 2375
+Villain6: folds
+Hero: shows [Kd Jd]
+Villain5: shows [Tc 9c]
+*** FLOP *** [4d 5h Ks]
+*** TURN *** [4d 5h Ks] [2c]
+*** RIVER *** [4d 5h Ks 2c] [8h]
+*** SHOWDOWN ***
+Hero collected 7750 from pot
+*** SUMMARY ***
+Total pot 7750 | Rake 0
+Seat 5: Hero (button) showed [Kd Jd] and won (7750)
+Seat 6: Villain5 (small blind) showed [Tc 9c] and lost
+
+
+Poker Hand #TM90000033: Tournament #888888, Test Deep Run Hold'em No Limit - Level16(400/800(100)) - 2026/04/07 00:03:30
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (55000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 100
+Villain6: posts the ante 100
+Villain7: posts the ante 100
+Villain1: posts the ante 100
+Villain2: posts the ante 100
+Villain3: posts the ante 100
+Hero: posts the ante 100
+Villain4: posts the ante 100
+Villain5: posts small blind 400
+Villain6: posts big blind 800
+*** HOLE CARDS ***
+Dealt to Hero [7c 2d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 2400 from pot
+*** SUMMARY ***
+Total pot 2400 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000026: Tournament #888888, Test Deep Run Hold'em No Limit - Level15(300/600(75)) - 2026/04/07 00:03:00
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (60000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 75
+Villain6: posts the ante 75
+Villain7: posts the ante 75
+Villain1: posts the ante 75
+Villain2: posts the ante 75
+Villain3: posts the ante 75
+Hero: posts the ante 75
+Villain4: posts the ante 75
+Villain5: posts small blind 300
+Villain6: posts big blind 600
+*** HOLE CARDS ***
+Dealt to Hero [Qh 4d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 1200 from pot
+*** SUMMARY ***
+Total pot 1200 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000032: Tournament #888888, Test Deep Run Hold'em No Limit - Level12(200/400(50)) - 2026/04/07 00:02:30
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (40000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 50
+Villain6: posts the ante 50
+Villain7: posts the ante 50
+Villain1: posts the ante 50
+Villain2: posts the ante 50
+Villain3: posts the ante 50
+Hero: posts the ante 50
+Villain4: posts the ante 50
+Villain5: posts small blind 200
+Villain6: posts big blind 400
+*** HOLE CARDS ***
+Dealt to Hero [6c 3d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 1200 from pot
+*** SUMMARY ***
+Total pot 1200 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000025: Tournament #888888, Test Deep Run Hold'em No Limit - Level10(150/300(0)) - 2026/04/07 00:02:00
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (35000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 150
+Villain6: posts big blind 300
+*** HOLE CARDS ***
+Dealt to Hero [7s 2d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 600 from pot
+*** SUMMARY ***
+Total pot 600 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000031: Tournament #888888, Test Deep Run Hold'em No Limit - Level8(100/200(25)) - 2026/04/07 00:01:30
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (18000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts the ante 25
+Villain6: posts the ante 25
+Villain7: posts the ante 25
+Villain1: posts the ante 25
+Villain2: posts the ante 25
+Villain3: posts the ante 25
+Hero: posts the ante 25
+Villain4: posts the ante 25
+Villain5: posts small blind 100
+Villain6: posts big blind 200
+*** HOLE CARDS ***
+Dealt to Hero [5h 2d]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 600 from pot
+*** SUMMARY ***
+Total pot 600 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000030: Tournament #888888, Test Deep Run Hold'em No Limit - Level7(100/200(0)) - 2026/04/07 00:01:20
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (22000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 100
+Villain6: posts big blind 200
+*** HOLE CARDS ***
+Dealt to Hero [4c 2h]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 400 from pot
+*** SUMMARY ***
+Total pot 400 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000029: Tournament #888888, Test Deep Run Hold'em No Limit - Level6(75/150(0)) - 2026/04/07 00:01:10
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (21000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 75
+Villain6: posts big blind 150
+*** HOLE CARDS ***
+Dealt to Hero [3d 2c]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 300 from pot
+*** SUMMARY ***
+Total pot 300 | Rake 0
+Seat 5: Hero (button) folded before Flop
+
+
+Poker Hand #TM90000024: Tournament #888888, Test Deep Run Hold'em No Limit - Level5(50/100(0)) - 2026/04/07 00:01:00
+Table '1' 8-max Seat #5 is the button
+Seat 1: Villain1 (25000 in chips)
+Seat 2: Villain2 (25000 in chips)
+Seat 3: Villain3 (25000 in chips)
+Seat 4: Villain4 (25000 in chips)
+Seat 5: Hero (20000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain5: posts small blind 50
+Villain6: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kh]
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: folds
+*** SHOWDOWN ***
+Villain6 collected 200 from pot
+*** SUMMARY ***
+Total pot 200 | Rake 0
+Seat 5: Hero (button) folded before Flop

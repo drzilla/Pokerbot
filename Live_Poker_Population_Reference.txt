@@ -1,0 +1,290 @@
+LIVE POKER POPULATION — GEM REFERENCE
+============================================================
+Source: Ron's live APT tournament notes (Apr 2026) +
+        Dave coaching framework (live-specific sizing tree)
+Context: Live tournaments (APT, similar live mid-stakes MTT)
+Purpose: Calibrate live-pool adjustments that differ from
+  online MTT baseline. Codify Dave's bluff sizing tree and
+  pool-specific decision-tree fixes.
+============================================================
+
+
+--- CORE FRAMING: ONLINE vs LIVE CALIBRATION GAP ---
+
+Online reps do NOT transfer 1:1 to live MTT pools. Bluff lines
+that are +EV online can be -EV live because the underlying
+range composition and continue frequencies are different, even
+when the "theory" is identical.
+
+Two most common failure modes:
+  1. Assuming online limp/flat ranges → miscalibrated fold
+     equity and call frequencies.
+  2. Running an online bluff sizing tree (medium-medium-big)
+     against a pool that requires a different structure to
+     generate folds.
+
+GEM APPLICATION:
+- When FORMAT=LIVE_MTT, Claude applies live-pool fold-equity
+  assumptions before classifying bluff-line mistakes.
+- Bluff-line mistakes that would be +EV online but -EV live
+  are tagged "pool calibration" — not a skill leak, a context
+  gap. Different remediation: re-read this reference, not
+  re-study bluff theory.
+
+
+--- PREFLOP RANGE DIFFERENCES (vs ONLINE BASELINE) ---
+
+LIMP RANGES include medium pairs:
+- Live APT limp ranges include 77-TT at meaningful frequency.
+  Even JJ shows up (confirmed by Dave).
+- Profile is "bingo style" — waiting to see flops cheap, not
+  polar limp-trap/limp-fold structure from online.
+- Implication: do NOT assume limp-callers are capped below TT.
+  A limp-call-call-call line on a dry board can contain TT/JJ,
+  and those pairs do not fold to river overbets at the rate
+  an online model predicts.
+- Limp ranges DO still exclude AA/KK/AKs most of the time.
+- Limp-call range is weighted: suited Axs, Kxs, Qxs, Jxs,
+  suited connectors, all pocket pairs including medium pairs.
+
+FLAT-CALLING RANGES are wider AND deeper in suited Ax:
+- Suited Axs go deep — A7s, A8s, A9s are in flat ranges, not
+  just ATs+. This is the single most important postflop
+  calibration input: fold-equity calculations that assume
+  ATs+ only will dramatically overstate bluff success on
+  A-high boards.
+- Wide flat ranges include broadway floaters (KQ, KJ, QJ, JTs,
+  T9s) — but these are curious passives planning to showdown
+  cheap, NOT aggressive floaters who bluff rivers when checked to.
+- Small pairs (22-66) flat wide for set-mining.
+
+3-BETTING is tighter than online:
+- Live players 3-bet mostly value (JJ+, AK, occasional AQs).
+- Light 4-bets are rare.
+- Means Hero's 3-bet ranges face less 4-bet resistance and
+  can lean value-heavier for protection against a pool that
+  under-bluffs the 4-bet node.
+
+
+--- POSTFLOP VILLAIN TENDENCIES ---
+
+STICKY TPGK (top pair good kicker):
+- Ax on A-high does not fold to medium river sizing.
+- A player who peeled flop and turn with Ax is calling river
+  at ~60-70% regardless of runout.
+- Implication: value-bet three streets relentlessly with TP+
+  against this profile. Do NOT pot-control against sticky Ax
+  out of fear — you leave bets on the table.
+
+UNDER-BLUFF RIVERS, ESPECIALLY OVERBETS:
+- Live players rarely turn showdown-value hands into bluffs.
+- River overbet sizing is near-pure value. Fold more pair-only
+  hands to big river bets than MDF would suggest.
+- Particularly true for overbet jams after passive flop/turn
+  lines (check-call, flat-flat) — those lines cap the range
+  and the river overbet polarizes hard to value.
+
+STATION-Y WITH PAIRS ONCE INVESTED:
+- Loss aversion + investment fallacy drive sticky calls.
+- A pair that called flop + turn calls river ~60-70% of the
+  time, regardless of runout or sizing.
+- Implication: bluffing a capped, stationy range on river is
+  ~0% EV in most spots. Turn is the last profitable bluff street.
+
+FLOATERS ARE CURIOUS PASSIVES, NOT AGGRESSORS:
+- Live floaters peel wide with overcards + BDs planning to
+  see showdown cheap.
+- They do NOT turn busted draws into bluffs on the river at
+  online-like frequencies.
+- "Induce a bluff" lines are LOW EV against this profile —
+  they give up thin value from Ax while generating almost
+  no bluff gain from the float bucket.
+- Against stations/curious-passives: bet small for thin value.
+  Don't check to induce.
+
+
+--- BLUFF SIZING TREE (DAVE'S FRAMEWORK) ---
+
+LIVE APT BLUFF STRUCTURE:
+  Flop:  small c-bet (~20% pot) to c-bet range cheaply
+  Turn:  big barrel (75-85% pot) as polarizing scare-card bet
+         to deny 2-out equity from sticky pairs (33-88 etc.)
+  River: give up against capped ranges
+
+WHY IT WORKS:
+- Small flop c-bet: cheap range-bet, keeps SPR manageable,
+  doesn't commit stack on streets where pool isn't folding
+  enough anyway.
+- Big turn barrel: polarizing sizing folds out sticky underpairs
+  (33-88) that would call a medium sizing. Denies the 2-out
+  river equity they'd realize for free if checked. Turn is
+  where pool folds at the highest rate on a scare card — big
+  sizing maximizes leverage on the one street the pool folds.
+- River give-up: after flop+turn peels, continuing range is
+  capped + sticky. Bluffing into that range is near-zero EV.
+  Turn already got the folds. River is to let them check/bet
+  thin value face-up.
+
+ANTI-PATTERN: MEDIUM-MEDIUM-BIG SIZING
+- Medium flop + medium turn + big river is exactly backwards.
+- Medium sizings early let sticky pairs peel (they call
+  medium, they fold to big). By the river, villain has
+  called twice and is committed — his range is exactly the
+  sticky-value bucket that doesn't fold to a big river bet.
+- Result: pot built into the stickiest zone, leverage applied
+  where pool is LEAST foldy. Maximum cost, minimum fold equity.
+
+GEM APPLICATION:
+- Any three-barrel bluff line in a live session is reviewed
+  against the sizing tree structure.
+- Flagged as pool-calibration mistake if Hero used
+  medium-medium-big against a capped live range.
+- Not flagged (or flagged MARGINAL) if Hero used small-big-giveup
+  and villain simply made a good call on turn.
+
+
+--- DECISION-TREE FIXES ---
+
+"NO SDV → SHOVE" REFLEX (REPLACE):
+  OLD: "I have no showdown value, therefore I should bluff."
+  NEW: "I have no showdown value. The decision is bluff vs
+       give-up. Bluff only if villain's range is foldable
+       AT THIS SIZING. Against a capped + sticky range,
+       check-fold is +EV over bluff."
+  Zero SDV only rules out check-calling. It does NOT
+  make the bluff correct.
+
+TURN CHECK-RAISE OOP FROM PREFLOP FLAT-CALLER:
+- At live APT, c/r turn OOP from a preflop flat-caller is
+  value-heavy at ~85-95%. Bluff frequency is low in this pool.
+- Implication: when Hero is PFR IP with TPTK (e.g., AK on dry
+  A-high) and faces c/r turn, the call is often -EV because
+  implied odds are thin, FE is zero, and villain plays river
+  cautiously if a scare card arrives.
+- Default against live pool: fold TPTK to OOP turn c/r on
+  dry boards unless specific read suggests bluff.
+
+AK / TPTK ON DRY A-HIGH, OOP CAPPED, 50-80BB DEEP:
+- Correct line: c-bet flop small → check back turn → act on
+  river by sizing (bluff-catch reasonable sizings, fold
+  overbets, value-size yourself if checked to).
+- Do NOT c/r turn as TPTK on a dry board — it polarizes into
+  a bucket that compresses villain's range to value.
+- This structure maxes value from worse Ax kickers (they call
+  cheap flop + cheap river) and minimizes pot commitment when
+  villain wakes up with 2p+/sets.
+
+POT-ODDS RIVER CRYING-CALLS:
+- Small river bets (15-25% pot) after a check-through turn
+  are standard bluff-catch spots — turn check caps the
+  aggressor, small sizing includes value + thin stabs.
+- TPGK or better vs this sizing is a clear call even knowing
+  the pool under-bluffs. Pot odds + frequency of
+  weaker-value + occasional cap-exploit stabs covers the
+  price point.
+- Losing to the occasional QJ-two-pair type combo is variance,
+  not a leak.
+
+
+--- POOL-SPECIFIC EXPLOITS TO LEAN INTO ---
+
+VALUE-BET RELENTLESSLY vs STICKY AX AND STICKY PAIRS:
+- Three streets of value with TP+ against the sticky profile.
+- No need to thin the river — they call.
+- Small sizings can print thin value on river (25% pot) vs
+  sticky-wides because they call small and fold medium.
+
+OVERFOLD vs OVERBETS FROM CAPPED LINES:
+- Limp-callers and passive flat-callers who suddenly overbet
+  are almost pure value.
+- Particularly true on paired boards, obvious runout-change
+  cards (straight-completing, flush-completing), and rivers
+  after flop/turn passive calls.
+
+DON'T HERO-CALL RIVERS:
+- MDF is a theory concept that does not apply against
+  under-bluffing pools.
+- Pool river-bluff frequency is low enough that folding
+  bluff-catchers vs aggressive lines is almost always +EV.
+
+PUNISH LIMPS:
+- Iso wide from LP over limps — limp ranges are weak overall
+  and post-limp-pot equity realization is poor for the limper.
+- Exception: deep-stacked BB vs limps can trap (your own
+  range is uncapped against the limp-pass range).
+
+
+--- RED FLAGS / ANTI-PATTERNS TO SELF-MONITOR ---
+
+LIVE-SESSION RED FLAGS:
+- Running the same online bluff sizing (medium-medium-big) on
+  multiple hands in a live session without pool recalibration.
+- Committing to a multi-street plan on the flop and refusing
+  to abort when villain's line narrows his range meaningfully.
+- Limping/calling OOP with dominated hands because
+  "I have chips" — chip-lead confidence widening hand
+  selection where it should narrow.
+- Applying online population reads to live ranges (TT limps,
+  Axs flats deep, floaters don't bluff).
+- "Induce a bluff" on rivers from a villain type (station/
+  sticky-wide) who doesn't bluff — giving up thin value for
+  almost-zero induce yield.
+- Bluff-shoving rivers with "no SDV" reasoning against capped
+  limp-call or flat-flat ranges.
+
+POST-BULLET RED FLAGS:
+- After busting a bullet, watch for widening open ranges or
+  wider postflop calls on re-entry ("make it back").
+- After a big pot win, watch for looser hand selection on
+  next few hands ("stack feels free").
+- Both are desperation-tilt / winner's-tilt variants that
+  drop C-game floor.
+
+
+--- PRE-SESSION WARM-UP (LIVE SESSIONS) ---
+
+Before sitting down at a live MTT, read these 5 bullets:
+
+1. "Online and live are different pools. Recalibrate fold
+    equity for every bluff line."
+2. "Limp ranges include medium pairs. Axs flats go deep.
+    Floaters are passive, not bluffers."
+3. "Sizing tree for bluffs: small flop, big turn, give up
+    river against capped ranges."
+4. "No SDV does NOT mean shove. Check-fold is +EV against
+    capped + sticky."
+5. "Value-bet three streets with TP+ vs sticky Ax. Don't
+    pot-control out of fear."
+
+
+--- GEM APPLICATION SUMMARY ---
+
+WHEN TO APPLY THIS REFERENCE:
+- Any hand from a LIVE_MTT format session.
+- Any bluff-line mistake where pool calibration could flip
+  the EV sign.
+- Any "no SDV → shove" classification review.
+- Any c/r turn OOP interpretation review.
+
+HOW IT INTEGRATES WITH EXISTING FRAMEWORK:
+- Mental_Game_Reference.txt — tilt/punt patterns (unchanged)
+- Poker_Ranges_Text.txt — preflop ranges (supplement, not override;
+  use this file's live-pool deltas on top of baseline ranges)
+- Appendix J (Dave rules) — Dave's live-specific sizing tree
+  (this file) is consistent with Dave's general framework but
+  explicitly pool-contextualized
+- Appendix M Population Tendency Catalog — online MTT pool
+  tendencies; this file is the LIVE MTT analog
+
+MISTAKE-CLASSIFICATION TAG:
+When a bluff-line mistake would be +EV online but -EV live,
+tag as "pool_calibration" in exceptions log. Remediation is
+re-reading this reference, not re-studying bluff theory.
+
+
+============================================================
+LIVING DOCUMENT — expected to grow each live session.
+Current entries are from APT Apr 2026 (Day 1 + Day 2).
+Add new observations in the relevant section above; flag
+contradictions with existing entries for Ron + coach review.
+============================================================

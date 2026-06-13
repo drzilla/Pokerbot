@@ -1,0 +1,221 @@
+==============================================================
+MDA v7.5 — MASS DATA ANALYSIS REFERENCE
+==============================================================
+Source: "MTT_Tactical_Recommendations_v7_5.pdf" (Gemini Protocol,
+        analyzed by Hoffman, May 2026, n=14,327 MTT data files).
+Status: SECONDARY framework (sits in same priority slot as Jaka).
+        Dave (J-series) takes precedence on conflict. Ron's session
+        data takes precedence over both.
+Scope: ONLINE MTT pool tendencies only. Live pool deltas live in
+        Live_Poker_Population_Reference.txt — do not cross-apply.
+Wired into pipeline: gem_analyzer.MDA_RECOMMENDATIONS (machine-
+        readable form below), surfaced as `mda_overlay` annotation
+        on matching deviations and as a sub-section in Section XIII.
+
+USAGE PRINCIPLE
+---------------
+MDA recommendations are POPULATION EXPLOITS, not GTO baselines.
+They identify spots where the field's average action is structurally
+−EV; deviating in the indicated direction captures the EV the field
+leaves on the table. They DO NOT replace the underlying GTO range —
+they represent the SLICE of the GTO range that captures most of the
++EV at that node.
+
+When an MDA recommendation conflicts with Dave J-series (e.g. an MDA
+3-bet sizing differs from J44), Dave wins. When MDA conflicts with
+Ron's confirmed session leak (e.g. a recurring leak says Ron is
+already over-frequent here), Ron's data wins.
+
+==============================================================
+RECOMMENDATION 1 — BvB BB iso-raise vs SB limp (30+BB stacks)
+==============================================================
+TRIGGER:
+  Position: BB
+  Opener: SB (limp)
+  Stack: 30+BB effective
+RECOMMENDED RANGE (~9% of hands, value-heavy):
+  66+, A7s+, A9o+, J9s+, J9o+
+  Expanded: 66, 77, 88, 99, TT, JJ, QQ, KK, AA,
+            A7s, A8s, A9s, ATs, AJs, AQs, AKs,
+            A9o, ATo, AJo, AQo, AKo,
+            J9s, JTs, J9o, JTo
+SIZING: 3.5–5x BB (e.g., raise to 4 BB when BB is 1 BB).
+EV (per in-range raise): +3.1 BB
+  - SB folds 41.6% × +1.0 BB = +0.42 BB
+  - SB calls (showdown win) 48.6% × +6.3 BB = +3.06 BB
+  - SB raises (3-bet) 5.9% × −2.5 BB = −0.15 BB
+  - SB jams ~28-bb 3.9% × −5.0 BB = −0.20 BB
+SAMPLE: 14,978 events, 95% CI [+3.34, +9.24] for showdowns. HIGH confidence.
+BACKGROUND: Population raises 30% vs SB limps; only ~9% are individually +EV.
+            The wider-than-9% portion is neutral or −EV because SB calls too light.
+
+INTERACTION WITH DAVE J29:
+  J29 says BvB SB pot-entry is ~80% limp at deep stacks. This
+  recommendation is the BB SIDE of the same node — it tells Hero
+  what to do AS BB when SB DOES limp. They're complementary, not
+  contradictory: J29 governs SB's preflop action; MDA-1 governs
+  BB's iso-response.
+
+==============================================================
+RECOMMENDATION 2 — BB 3-bet defense vs MP open (100bb)
+==============================================================
+TRIGGER:
+  Position: BB
+  Opener: MP
+  Stack: 100BB effective
+  Open size: ~2.5x
+RECOMMENDED 3-BET RANGE (~5%):
+  99+, AQs+, AQo+
+  Class threshold: 99+, AKs+, AKo+
+EV (per in-range 3-bet vs MP 2.5x): +1.6 to +2.7 BB
+  - MP folds (~+3 BB pot) 55% = +1.65 BB
+  - MP calls (~+1.5 BB edge) 35% = +0.53 BB
+  - MP 4-bets (~−6 BB) 10% = −0.60 BB
+BACKGROUND: Population 3-bets only 6.6%; threshold range is +2.69 BB
+            per 3-bet — significant EV left by under-defending.
+
+COUNTER-RECOMMENDATION:
+  vs SB BvB open (NOT MP), TIGHTEN 3-bet to JJ+, AKs+, AKo (~2.5%).
+  Population avg vs SB-open is −3.74 BB — population over-3-bets vs SB.
+
+==============================================================
+RECOMMENDATION 3 — PUSH 10BB at MP (Middle Position)
+==============================================================
+TRIGGER:
+  Position: MP
+  Stack: ~10BB effective
+  Action: First-in
+RECOMMENDED PUSH RANGE (~34%, double the population frequency of 16.3%):
+  22+, A2s+, A2o+, K5s+, K7o+, Q8s+, QTo+, JTs+, JTo+, 65s+, 97s+
+EV (per jam, MP at 10BB):
+  - All fold 48.8% × +3 BB dead money = +1.47 BB
+  - Called 51.2% × +1.16 BB per-combo avg = +0.59 BB
+  - TOTAL ≈ +1.7 BB per jam
+SAMPLE: n=36,224 MP RFI events; 8,640 showdowns. HIGH confidence.
+
+INTERACTION WITH B32 (chart corruption):
+  This recommendation directly addresses the OCR-corrupted
+  PUSH_10BB_MP / PUSH_10BB_HJ charts that have anchor gaps. Where
+  the chart is corrupted AND a hand falls in this MDA range, treat
+  this MDA range as authoritative.
+
+==============================================================
+RECOMMENDATION 4 — REJAM: Add Premium Pairs at 12-25BB
+==============================================================
+TRIGGER:
+  Hero has opened OR is facing a 3-bet
+  Stack: 12-25BB effective
+  Spot: REJAM cells across all opener positions
+ADJUSTMENT:
+  Add TT+, JJ+, QQ+, KK+, AA to all REJAM cells.
+  (Standard charts often omit premiums from rejams in favor of flats —
+   data shows rejamming is massively +EV at this depth.)
+EV (BTN vs HJ open, 15-25BB):
+  - Villain folds 41.9% × +4.51 BB = +1.89 BB
+  - Villain calls 58.1% × +12.20 BB = +7.09 BB
+  - TOTAL ≈ +9.0 BB per REJAM
+SAMPLE: n=3,718 events, 95% CI [+7.21, +10.75]. HIGH confidence.
+NOTE: This is the largest single exploit in the MDA dataset.
+
+INTERACTION WITH J33-J40 (Dave short-stack rules):
+  Dave's short-stack framework already includes premium rejams at
+  this depth — this MDA quantifies the EV but doesn't change Dave's
+  prescription. Use this to UPGRADE confidence on borderline
+  premium-rejam decisions, not to override Dave on sizing/timing.
+
+==============================================================
+RECOMMENDATION 5 — CALLRJ: Targeted Folds at 12-25BB
+==============================================================
+TRIGGER:
+  Hero faces a re-jam (RJ) at 12-25BB depth
+  Specific position+combo combinations below
+RECOMMENDED FOLDS (remove from CALLRJ ranges):
+  CO vs BTN re-jam: 66    EV −10.23 BB  (HIGH confidence)
+  MP vs CO re-jam:  77    EV  −7.05 BB  (MED confidence)
+  SB vs BB re-jam:  ATo   EV  −6.59 BB  (HIGH confidence)
+  CO vs BB re-jam:  KQo   EV  −4.83 BB  (HIGH confidence)
+NOTE: These are POPULATION-WEIGHTED EV — at any given table the EV
+      can flip if villain is unusually loose-jamming. Use as default;
+      override with reads.
+
+==============================================================
+MACHINE-READABLE OVERLAY (for gem_analyzer.MDA_RECOMMENDATIONS)
+==============================================================
+Each entry is matched against a deviation by checking position,
+opener, stack range, and the hand combo. When a match is found, the
+deviation gets `mda_overlay = {rec_id, ev_bb, confidence, action_hint}`.
+
+MDA-1: BvB BB iso vs SB limp 30+BB
+  match: hero_pos=BB, opener=SB, opener_action=limp, stack>=30
+  combos: 66+, A7s+, A9o+, J9s+, J9o+  (~9%)
+  ev_per_event: +3.1 BB
+  confidence: HIGH
+
+MDA-2a: BB 3-bet vs MP open 100BB
+  match: hero_pos=BB, opener_pos=MP, stack>=80
+  combos: 99+, AQs+, AQo+  (~5%)
+  ev_per_event: +2.0 BB (mid of +1.6/+2.7)
+  confidence: HIGH
+
+MDA-2b: BB tighten 3-bet vs SB open
+  match: hero_pos=BB, opener_pos=SB, opener_action=raise
+  combos: JJ+, AKs+, AKo  (~2.5%)
+  ev_per_event: -3.74 BB (cost of widening beyond this)
+  confidence: HIGH
+
+MDA-3: MP 10BB push wider
+  match: hero_pos=MP, stack<=12, first_in=True
+  combos: 22+, A2s+, A2o+, K5s+, K7o+, Q8s+, QTo+, JTs+, JTo+, 65s+, 97s+
+  ev_per_event: +1.7 BB
+  confidence: HIGH
+
+MDA-4: REJAM premium pairs 12-25BB
+  match: 12<=stack<=25, hero_action=rejam_or_should
+  combos: TT+, JJ+, QQ+, KK+, AA  (= TT, JJ, QQ, KK, AA)
+  ev_per_event: +9.0 BB (peak; varies +5 to +12 by matchup)
+  confidence: HIGH
+
+MDA-5a: CO vs BTN RJ — fold 66
+  match: hero_pos=CO, jammer_pos=BTN, stack<=25, combo=66
+  ev_per_event: -10.23 BB
+  action_hint: fold (default; reads can override)
+  confidence: HIGH
+
+MDA-5b: MP vs CO RJ — fold 77
+  match: hero_pos=MP, jammer_pos=CO, stack<=25, combo=77
+  ev_per_event: -7.05 BB
+  action_hint: fold
+  confidence: MED
+
+MDA-5c: SB vs BB RJ — fold ATo
+  match: hero_pos=SB, jammer_pos=BB, stack<=25, combo=ATo
+  ev_per_event: -6.59 BB
+  action_hint: fold
+  confidence: HIGH
+
+MDA-5d: CO vs BB RJ — fold KQo
+  match: hero_pos=CO, jammer_pos=BB, stack<=25, combo=KQo
+  ev_per_event: -4.83 BB
+  action_hint: fold
+  confidence: HIGH
+
+==============================================================
+HOW THE OVERLAY APPEARS IN THE REPORT
+==============================================================
+Section XIII deviation tables: an extra "MDA Note" column appears
+when ANY deviation in the section has a match. Format:
+  `MDA-1: +3.1 BB if BvB iso (HIGH)`
+  `MDA-3: push wider, +1.7 BB (HIGH)`
+
+A new XIII.7 sub-section "MDA Population Exploits Triggered" lists
+every hand where Hero's actual action is ALIGNED with an MDA
+recommendation (positive cases) and every hand where Hero DEVIATED
+FROM MDA in the wrong direction (missed exploits).
+
+==============================================================
+LIVING DOCUMENT
+==============================================================
+Add new MDA recommendations as the underlying MDA data set updates.
+Each new entry needs: trigger conditions, recommended action,
+EV-per-event, sample size + confidence tier, interaction notes
+with Dave/Jaka/Live Pool refs.

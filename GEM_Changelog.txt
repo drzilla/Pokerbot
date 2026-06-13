@@ -1,0 +1,598 @@
+v8.12.10 (2026-06-13) -- Slices A/B/C from the GPT-audit + pipeline handoffs
+=========================================================================
+SLICE A -- QA harness invariants (permanent regression net):
+- _qa_report_deep.py gained trust-contract invariants: per-(street,call)
+  required-equity consistency, hand-notation regex (reversed + pair-with-
+  suffix), bounty-threshold-without-discount, inside/OUTSIDE range
+  contradiction, raw-chart-id + GTOW-depth-gap scans. Re-run on a cap6
+  build confirmed the prior-pass fixes are live (most GPT P0s were stale
+  V4 findings already fixed).
+
+SLICE B (v8.12.9) -- confirmed NEW bugs from GPT's two audits:
+- 'JJo' / reversed notation: gem_villain_intel built labels three ways
+  ('s' if suited else 'o') -- pairs got a suit suffix. One _chart_label()
+  owner now: pairs bare, ranks high-first.
+- Hand-list popup verdict column ignored the static .verdict-pill (now
+  readable since QA2 keeps it in the heading) -> read it before defaulting
+  to 'not individually reviewed'.
+- PKO partial multiway coverage said "covers 1/2 -- those bounties
+  collectible"; now names the seat ("covers BTN only -- CO covers Hero").
+- 40 metric-only stub cards opened near-empty -> explicit "No action
+  replay for this hand" reason block.
+- PKO depth band discloses the effective stack it bucketed on
+  ("<=20bb (eff 17.2bb)").
+- Mobile hand-grid street headers are now sticky (Ron's original ask).
+- Analyst reconciliation counts synthesis/meta blocks separately
+  ("34 hand entries + 1 synthesis block. Reconciliation 34/34").
+- Roman numerals removed from user-facing verdicts (popup + Cleared-As
+  table); internal III.x codes stay as legacy input only.
+- Revealed-hand all-in equity relabeled "result equity ... luck/result
+  context, not the decision basis".
+
+SLICE C (v8.12.10) -- pipeline trust contract (the auto-only-looked-final
+fix from 2026-06-13):
+- Report completeness state AUTO_ONLY / ANALYST_PARTIAL / ANALYST_COMPLETE
+  computed once (compute_report_completeness, single owner) and surfaced
+  in: the TL;DR banner, the CLI ("Analyst status: ... / candidate hands
+  awaiting review"), the output filename (Pokerbot_..._AUTO_ONLY_Vn.html),
+  and the run manifest. Wired into all three render paths (full / resume /
+  --quick); the full/resume runs persist the candidate need-set so --quick
+  reports it too.
+- --quick now runs a lightweight render validation by default (broken
+  anchors + required JS globals + placeholder leaks) -- opt out with
+  --no-validate-render. The #sec-7-4 broken-anchor class would now fail.
+- Game-summary absence renders a visible report banner (was chat-only).
+- Tests: T-1231 (Slice B) + T-1232 (Slice C). Suite 875/875.
+- DEFERRED to later slices (Ron-gated): D single-source-of-truth
+  migration, E analyst worklist (paper review first), F review queue,
+  G copy cleanup, H villain teaching arc.
+
+v8.12.8 (2026-06-12) -- Ron QA omnibus: lazy tables, PKO truth, handover
+=========================================================================
+- LAZY HAND-LIST TABLES (screenshot bug): popup rows scraped the live hand
+  article DOM, which under --lazy-hand-details is an empty shell until the
+  hand is opened once -- Position/Cards/Net rendered blank in EVERY
+  drill-down table. draft.py now emits window.handIndex (pos / cards /
+  net per rendered hand); the popup is index-first, DOM-fallback.
+- PKO CONTEXT TRUTH (8 mislabeled hands + impossible cover text):
+  * spot label now names the ACTUAL opener ("BB vs HJ open"), never the
+    borrowed bucket's "BB vs BTN open"; borrowed (nearest) aggregates are
+    explicit in the teaching note and can never classify PKO-Good.
+  * coverage/collectibility computed from Hero's OWN stack -- it used the
+    effective stack (min with opener), which collapsed every hero-covers
+    spot to "Equal"/covered ("cannot collect" rendered on a 69bb-vs-18bb
+    hand; 23.1-vs-22.1 now reads near-equal/collectible).
+  * SB opens route to out_of_scope_sb_opener -- a different tree; never
+    BTN-borrowed.
+  * "Exact bounty size unavailable" dead-end replaced with the gem_bounty
+    estimate when available: "Bounty ~= 4.0BB (Regular bounty (PKO) --
+    phase-weighted estimate)". 46 hands affected.
+- POT ODDS FOR NON-ALL-IN CALLS (handover Issue 1): new
+  compute_nonallin_pot_odds builds a street_calls block from
+  _parse_per_street_calls for bet-facing hands the all-in reconstructor
+  skips; per-street required equity + OVERBET flag (bet > pre-bet pot ->
+  required > 33.3% invariant) reach the worksheet (_pot_odds.per_street)
+  and the hand card. Pure arithmetic -- runs even without phevaluator.
+  Root cause of the TM6066411207 mis-clear (117%-pot call needing 35.1%
+  eyeballed as "roughly pot-sized").
+- EAI DEGRADATION IS LOUD (handover Issue 2): missing phevaluator now
+  WARNS on stderr at startup + per-run fallback counts are stamped
+  (eai.heuristic_fallback_n, eai_ev_adjusted.equity_method); TL;DR marks
+  True EV "approximate" when degraded; STEP0 pip-installs phevaluator in
+  the Chat env. (True EV silently moved 5.5 BB/100 between two runs of
+  the same session.)
+- MARKER SEMANTICS SPLIT (91 unmirrored notes / 58 unexplained markers):
+  trigger marker is now an AMBER arrow glyph ("this villain action caused
+  the reviewed decision"); red ! is reserved for villain EVIDENCE badges,
+  which now render ON the exact villain action row (whitelisted signals
+  with teaching text: limp/limp-call/donk/min-bet/cold-call/station) and
+  pair 1:1 with the existing villain-note block under the grid. Badge row
+  ownership enforced (evidence on villain rows, miss/good on Hero rows).
+- ANALYST PROSE LINTS (street/pct mismatches: 75% vs rendered 91% etc.):
+  the grid stashes every rendered sizing; W-PCT warns when a claimed %
+  disagrees (+-2pp) with the rendered action, W-NOTE-STREET warns when a
+  note anchored on one street narrates a later street. Checklist sections
+  11 (sizing/street anchoring) + 12 (preflop range context) added.
+- EXPLOITATION QA P0 SLICE: standard opens (88+/AJo+/ATs+/KQ/KJs/QJs) are
+  no longer counted as Good Exploit -> read_supported_standard; thin reads
+  (<2 atoms or low confidence) downgrade Good/Miss verdicts to
+  read-supported candidates ("do not over-adjust"); the atom/context
+  dedupe now keys on street+signal so a villain's exploit no longer
+  swallows his unrelated evidence atoms (TM6066701378). Remaining QA P0/P1
+  (mixed-profile labels, exploit families for all signals, timing-field
+  exposure, drills, live/online map, taxonomy bridge) = v8.13.x arc.
+- Tests: T-1228 series (31 pins/behavior tests). Suite 833/833.
+- QA3 (Ron's review notes on the 06-11 V4 render; reproduced on a local
+  rebuild from the raw HHs):
+  * CHART NOTATION REVERSED ranks ('8hAd' -> '8Ao'): failed EVERY range
+    membership test for low-card-first deals — IN-range hands silently
+    graded OUTSIDE. Ranks now sort high-first.
+  * SB 100BB MISSED OPEN quoted the RAISE chart while membership came from
+    the LIMP chart (66796283: "Q7o is inside this chart" above a range
+    showing Q9o+). The deviation now records the chart actually hit.
+  * GRID "need %" counted a capped jam's FULL amount although the uncalled
+    slice is returned (66796475: grid 39% vs pot-odds 43.3%); the worksheet
+    PRICE line also re-derived its own pot (36.8 vs GG's 31.0). Both now
+    follow the pot-odds engine / effective amounts — one number everywhere.
+  * SHOWDOWN EQUITY counted GG's reveal of a FOLDED player's cards as a
+    live opponent (66662469: "9.5% (multiway — 3 players)" vs a hand that
+    folded the flop). Folded players are excluded. (The 26.1% required
+    equity Ron questioned is exact: call 12,513 into 48,020.)
+  * Side-pot honesty: when Hero does NOT cover a 3-way+ all-in field, the
+    required equity now prices the MAIN pot (GG Main-pot line) and says so
+    — the full-pot price understates what Hero must beat.
+  * POSITIVE NOTE MARKER was a red thumbs-DOWN with a "Good move" tooltip
+    (since v7.55; 65398323 carried it on a fold the note itself called
+    defensible). Now a green thumbs-up.
+  * REJAM notes humanized: "SB 3-bet jam over a HJ open (REJAM_SBvsHJ,
+    48 combos)" + Top/Boundary range lines instead of a bare file key.
+  * Hero's hand is BOLDED inside rendered range strings (J6o inside
+    "J6o+" — 66313101/65698103).
+  * Villain ❗ Notes render the Evidence line ("folded SB 7 times in a
+    row") — the tell finally says what the villain DID (66701547).
+  * Multiway all-in equity labels say "(N-way by showdown — decision may
+    have faced fewer)" (66133234 hindsight complaint).
+  * Hand-list popups: columns are SORTABLE (click header), and the
+    "Vs Pos" column shows the OPENER Hero defended against (was always
+    Hero's own position).
+  * handIndex carries opener position (o) per hand.
+  * Deferred to v8.13: villain open-sizing tells (66632137 4BB open),
+    badge index-space normalization at the villain_intel producer.
+- QA-GPT pass (GPT's deep-QA handoff on the same V4; items agreed + new):
+  * PER-STREET POT LEDGER under-counted every re-raised street — the
+    ledger stores raise INCREMENTS but the walk treated them as "to"
+    totals (66662469 rendered "76.3 BB pot" on a 115.0BB turn). The walk
+    now tracks the current bet, charges raisers their full catch-up
+    delta, seeds blind posts and reproduces GG's Total-pot line exactly
+    (2.4/32.4/115.0/240.1 on the QA hand). Grid running pots got the
+    same fix + effective-cap now uses the actual all-in CALL amount
+    (grid "need" matches the engine: 26.1%/43.3%).
+  * "bounty-adjusted threshold" no longer renders when the pot-odds
+    engine applied NO discount (the flat estimate assumes Hero covers;
+    the engine checks real stacks — 66796475/65237018/65958832).
+  * Rejam TL;DR ("inside the jamming range") and the membership line are
+    driven by the SAME boolean — no more inside/OUTSIDE contradictions
+    (66313409, 66697168).
+  * Cross-hand pattern reads (blind overfolds) labeled "🧭 Future read"
+    instead of ❗ Note — they are exploit inventory, not a tell about
+    this hand's decision.
+  * Villain oversized opens (>=3.5BB at >=20bb eff, non-jam) get an
+    info-only "Sizing read" note (Ron-requested, 66632137).
+  * Range counts renamed "(N hand classes)" — they were never card
+    combos.
+  * Sidebar search now materializes lazy hands on a miss and searches
+    hand bodies (deep content was unsearchable until opened).
+  * GPT items NOT adopted: its 31.1%% recomputation of 66662469 (built on
+    the same wrong 76.3 pot label — the engine's 26.1%% is exact) and the
+    Q7o "membership parser" diagnosis (membership was right; the chart
+    NAME was wrong — fixed in QA3).
+- DEEP-QA PASS 2 (pre-upload, report-level audit of the 06-11 V2 + a fresh
+  06-10 build, all verified live in Chrome):
+  * LAZY ANCHORS: the lazyfier preserved only <h4 id> headings — XIV.B
+    stubs use <h5>, so 681/741 hand anchors were swallowed into the
+    payload (dead deep links / middle-click; placeholders showed a bare
+    "Hand <id>"). Headings now match h4|h5 any-quote and stay static —
+    cards/pos/net/verdict pill visible BEFORE loading, all anchors live.
+  * DEEP-LINK MATERIALIZATION: #sec-app-hand-X present at page load never
+    fired hashchange — PBLazy now ensures + scrolls on DOMContentLoaded;
+    scrolls use behavior:'instant' (the stylesheet's
+    scroll-behavior:smooth made programmatic scrolls across the ~65k-px
+    lazy document silently abort mid-animation).
+  * --quick FALSE-ABORT: the parse-cache writer keys its hash marker by
+    player+session-slug but the --quick reader used the suffix-less path
+    -- any machine with a stale legacy marker hard-aborted every legit
+    re-render right after a full run. Reader (and the run-manifest
+    input_hash) now mirror the writer's key. Local re-render: 7s.
+  * RAW MARKDOWN ON SCREEN (28 hits): plain prose grid notes + the
+    aggression draw-profile context + the solver-confirmation note were
+    emitted into raw-HTML <p> blocks where **bold** stays literal — all
+    three now emit HTML (or run _note_inline).
+  * 'phevaluator unavailable or insufficient board' (12 hits) leaked
+    into player-facing commentary — engine-degraded sentinel is now
+    filtered from prose (both draw-profile consumers).
+  * EVIDENCE BADGE PLACEMENT: atom action_index is LEDGER-space, the
+    grid keys rows by per-street index — a Cold-call badge rendered on
+    the villain's OPEN. Badges now declare their expected action kind
+    (limp/cold-call->calls, donk/min-bet->bets, pivot->bets/raises) and
+    the grid suppresses any mismatch (never-wrong policy). v8.13: fix
+    the index space at the villain_intel producer.
+  * Villain ❗ Note block factored into a shared helper and emitted on
+    XIV.B stubs too — badge/note pairing now holds everywhere.
+
+v8.12.7 (2026-06-12) -- PKO3 Part-1 verified extraction baked
+=============================================================
+- PKO_RESEARCH_BUCKETS replaced wholesale with the PKO3 v3 panel-validated
+  GTOW extraction (CSS-panel hybrid; every block revisit-verified at 0.0pp
+  drift). Seven BB-defense buckets now measurement-backed with known Classic
+  baselines: 3way short +29.5pp (PKO 68.1 vs Classic 38.6), 4way short
+  +10.0 (28.3 vs 18.3), mw covered +11.5 (64.3 vs 52.8), mw covering +7.6
+  (19.4 vs 11.8), vs-CO HU short +11.1 (54.0 vs 42.9), HU covered short
+  +2.0 (70.2 vs 68.2), HU ~30bb -1.0 (85.9 vs 86.9).
+- HEADLINE FINDING REVERSED: the added PKO defend region is FLAT-CALL
+  dominated in every measured spot (3way short: +28.3pp of the +29.5pp is
+  calls). The v1 'squeeze-jam / jam-dominant' narrative is retired:
+  jam_heavy=False on all measured buckets, so Classic-OK flat calls in
+  short multiway now classify Good/aligned (previously Review/misaligned).
+- Spots the v3 panel could not reach (HU short covering, both 50bb HU rows,
+  deep multiway) keep v1-era figures DEMOTED to directional confidence with
+  action_mix withdrawn -- they classify conservatively (Baseline guardrail)
+  until measured. Multiway + CO buckets upgraded directional -> full
+  confidence (revisit-verified).
+- Tests re-pinned to v3 semantics (T-PKO-08/09/12/13/14, T-V8120B-3); new
+  T-PKO-14b/24/25 pin the bake and the demotions. Suite 802/802.
+- SBD3 SB-defense tiers (100bb + 50bb) parse-verified and archived in the
+  source repo; the SB charts enter Poker_Ranges_Text in v8.13.x once the
+  40/30/20bb tiers finish extracting.
+
+v8.12.6-cap1 (2026-06-12) -- v9-capacity bundle architecture
+=============================================================
+Chat project was at 96% (5.7MB/134 files). New architecture:
+- gem_src_bundle.py: the ENTIRE runtime (88 files -- source, package,
+  machine data, suite, kept CSVs) as ONE self-extracting .py (zip-in-
+  base64, 1.6MB). Projects reject .zip uploads; .py survives byte-intact
+  (tested live: extract + subdir structure + import all PASS).
+- STEP0 rewritten: extract bundle -> verify -> work in /home/claude/gem.
+  The 16-file manual package rebuild is obsolete.
+- Flat in project: ONLY prose (QR, checklist, references, changelog,
+  STEP0) ~211KB. Manifest prose (QR/changelog/STEP0) also rides the
+  bundle for verifier hashing.
+- Stage-A purge (separate, no upload needed): 20 legacy test suites,
+  2 fixtures, 13 orphan tools, per-tournament financials CSV (~1.17MB)
+  -- all verified orphan by import-graph + reference scan; per-tournament
+  CSV absence is FileNotFoundError-guarded (skill columns blank).
+- Result: project ~1.85MB ~= 31% of capacity (was 96%). Releases become
+  single-artifact uploads -- the stale-file incident class dies.
+Validated: bundle extract -> compileall -> imports -> verify_release
+37/37 + 229 canaries -> FULL suite 799/799 inside the extracted tree.
+
+v8.12.6 (2026-06-12) — Chat-session 2026-06-11 fixes
+=====================================================
+- CRASH FIX: gem_analyzer __main__ PLO-quarantine wrote to `s` (undefined in
+  that scope — it's analyze_session's local); every fresh
+  `python gem_analyzer.py <dir>` run died on NameError right after the
+  candidate build. Now `stats['_non_nlh_ids']`. (Local runs never hit it —
+  _run_pipeline.py and --quick/--resume bypass that block.)
+- W-POT v2: a multi-street analyst argument quotes one pot PER street; every
+  token was still checked against the single analyst_street (flop "13.5"
+  warned at 43% drift vs the TURN pot). A claim now passes if it fits ANY
+  street's [0.7x start, 1.3x end] window; only figures matching no street
+  at all warn — and the warning lists every street window.
+- Issue-explorer coverage table: Training column rendered the literal word
+  "None" — now an em-dash.
+First Chat render on v8.12.5 verified in deep QA: 20 analyst-verdict pills
+live (Justified/Mistake/Cooler/Flip), popup coverage 0 unresolvable,
+cooler ledger 3=3, Mistake-EV row == S2.2 == strip, all-ins header == table
+total (same expectation basis), weighted defend target live, CI-gated
+promotion correctly promoted nothing on 741 hands.
+Suite: 799/799.
+
+v8.12.5 (2026-06-12) — QA-pass leftovers closed (live browser pass)
+====================================================================
+- LIVE BROWSER QA (the deferred manual pass) — and it caught three real
+  field bugs the static checks could not see:
+  (1) PBLazy looked up payload entries by the RAW id while count-cell
+      popups pass TM-form ids — every popup row click silently dead-ended
+      on the "no full detail" fallback. PBLazy now normalizes ids
+      (lookup, placeholder selector, cache). Verified live: TM-form click
+      materializes the full hand.
+  (2) The v8.12.3 verdict pill NEVER actually rendered — 'verdict-pill'
+      was missing from the _md_inline stash whitelist, so every pill
+      reached the page as escaped literal text (the earlier payload-count
+      verification could not distinguish escaped from live). Whitelisted;
+      22 Flip pills render live, styled, zero escaped.
+  (3) The pill now also rides the MODAL TOP BAR (hand id + cards + BB +
+      verdict together — the original v8.12.3 ask), cloned on hydrate,
+      no duplication on reopen.
+- Expand-all yields to the event loop every 100 hands — at 1,870 hands the
+  single blocking loop froze the page ~9s with a progress label that never
+  painted. Now ~14s total but responsive with live progress.
+- Game summaries (QA item 17): discovery now content-sniffs SIBLING dirs —
+  the two-zip upload layout (hh dir + arbitrarily-named summaries dir)
+  never matched the name-based candidates, which is why cash/ROI rendered
+  blank. Live on real data: 17 tournaments, -$620.76 net, -61.3% ROI,
+  25 bullets.
+- Flighted advancements (QA item 8): a "chips" payout line = bagged stack;
+  flagged per tournament and surfaced in the TL;DR as an "Unsettled" line
+  (the Zodiac Stage-1 case), alongside a count of HH tournaments that have
+  no summary file at all.
+- Leak promotion CI-gated (QA item 1 follow-up): every proportion-based
+  rule (Non-SD Win, SD Aggressor, Caller IP Agg, IP Stab, Float Turn
+  Attack, MW x/r, Flop Lead, SB BvB, BB Over-Fold, Postflop Over-Folding
+  buckets) now promotes only when the Wilson 90% CI is past the target
+  line — a 0.5pp point-estimate miss no longer promotes.
+KNOWN CAVEAT: non-USD buy-ins (¥) sum into USD totals unconverted —
+pre-existing; needs a currency table to fix properly.
+Suite: 796/796.
+
+v8.12.4 (2026-06-12) — Chat deep-QA fixes (31-item review)
+===========================================================
+DATA INTEGRITY (B-series):
+- All-Ins header now uses the SAME equity-weighted expectation as the table
+  total (was hardcoded category multipliers: said -1.9 while table said +1.9).
+- Cooler ledger classified ONCE post-analyst (rd['cooler_ledger']); S1.7 and
+  the attribution row read the same ledger (was 7 vs 6).
+- Mistake-EV attribution row now carries analyst III.1/III.2 EV (hand net_bb,
+  same figure as S2.2) and the canonical count (was "1 confirmed, +0.00" vs
+  S2.2's "2 confirmed, ~92BB").
+- Direction labels key off the cEV spine; sign-disagreement says
+  "mixed — cEV: HURT / BB: HELPED" (was: -64.5% row labeled HELPED).
+- BB/100-vs-cEV reconciliation note when the two spines disagree in sign.
+- Cooler villain cells: one-card voluntary shows excluded, winners-only via
+  new outcome field, multiway hands separated with " / " (was a 5-card blob).
+- Suckout-ledger hands: mistakes-bucket prefill capped at MEDIUM + caution.
+CLASSIFIERS (C-series):
+- C-bet recognition includes B253 composite codes (bet-call/bet-fold/
+  bet-callAI) — cbet-then-raised hands no longer file as MISSED c-bets;
+  hero_cbet_flop now actually persisted on the hand.
+- River "Value Bet" requires Hero's holding to beat playing the board;
+  kicker-only upgrades on paired boards (K9 on QQQ-6-2) classify as bluff.
+- River check buckets refined by showdown: checked winners = showdown value;
+  underpair-below-board losers = give-up.
+- GTOW shortlist: top-2 losing pots + detector CLEAR mistakes guaranteed
+  seats; analyst III.1/III.2 appended post-attach as their own cluster;
+  <30%-equity "cooler" calls route to the CVJ cluster.
+- Metric watchlist: degenerate "<=0.0 (aim)" replaced with top-quartile aim;
+  red rows on n<5 downgrade to amber; opposing bluff rows synthesized into
+  one spot-selection note.
+PRIORITIES (A-series):
+- Leak promotion gained the two missing well-sampled rules: BB Over-Fold
+  (vs steal) and Postflop Over-Folding (S11.1 buckets).
+- Dashboard "what to do next" quotes the S5.1 promoted leaks verbatim.
+- Defend-matrix aggregate benchmarked against the opportunity-weighted blend
+  of per-opener targets (38% was red vs a steal-only 55-65 band while most
+  opps were UTG-HJ); missed+wide co-occurrence emits a selection-leak note.
+MISSING RENDERS (D-series):
+- Appendix cap lazy-aware (1000, GEM_APPENDIX_CAP override) + XIV.B group
+  caps lifted in lazy builds — 355 popup-referenced hands had dead clicks;
+  now 0 unresolvable.
+- Del-6 phase classification line (Early Bustout Pattern) + benchmark caveat.
+- Intra-session arc draws a verdict (uniform-negative is not a fatigue arc).
+- Progress tracker closes with the current session's row; SB BvB and five
+  more leak names gained progress/n specs (no more n=0 rows).
+- preflight all_zeros learnings name the sections + reported-vs-raw numbers.
+- Post-render validation decodes the lazy payload (draw profiles: 732 found,
+  was "0"); orphan-ref check payload-aware.
+- STEP0: game summaries (zip B) declared part of the run, not optional.
+PIPELINE (F-series):
+- W-POT lint accepts any pot figure between street-start and street-end
+  (decision-point totals were ~20 false positives/run).
+- Session fingerprint binds the HH-dir hash; --quick HARD-ABORTS when the
+  cache is from a different session (GEM_QUICK_ALLOW_STALE=1 overrides).
+- Analyst load reconciliation: unmatched entry ids named; batch-stamp
+  detector flags 10+ verdicts sharing one argument text.
+- Empty Picks section distinguishes "no candidates" from "batch-closed
+  without one III.8" (checklist §9 violation surfaced).
+NEW MANIFEST FILES: gem_leak_watchlist.py, gem_quality.py (were untracked).
+Suite: 786/786.
+
+v8.12.3 (2026-06-11) — Ron manual-QA fixes (V2 review)
+=======================================================
+- Expand-all button stacked ABOVE Copy Review Notes (was overlapping).
+- NEW: 1-2 word verdict pill in the hand title bar (card + modal header):
+  Cooler/Punt/Mistake/Correct/Justified/Standard/Read-Dep/Pick from the
+  analyst/auto verdict (codes AND humanized words), with EAI fallbacks
+  Suckout/Cooler/Flip for unverdicted all-ins (eai read from app_details).
+- Hand 61459519: multiway_caution card counted DEALT players ("8-way" on an
+  11BB first-in jam) — now requires 3+ actual pot entrants and never fires
+  on first-in all-in jams.
+- Hand 59114187: notes quoting the FULL runout (**6-2-7-T-7**) can no longer
+  route to an earlier street — they bind to the last street Hero acted on.
+- Hands 60338193/61033485: the villain ! tooltip now names the provoking
+  action ("SB raises 11.7BB provoked the flagged decision — note (N)
+  reviews Hero's response") instead of a bare number reference.
+
+v8.12.2 (2026-06-11) — lazy-build fixes + default ON + G6/G7-G10 + P4 + Phase C
+=================================================================================
+LAZY BUILD FIELD FAILURE (Ron report: literal tags on page, dead hand clicks)
+— two root causes found and fixed, then browser-QA'd end to end:
+  1. R2's nowrap class conversion: the md pipeline whitelists the style= form
+     of the nowrap span and ESCAPED the class= form -> literal tags in
+     headings (both builds). REVERTED to style= (correctness > 17KB).
+  2. PBLazy/PBData were closure-scoped while every entry point referenced
+     window.PBLazy -> openHand guard, Load buttons and Expand-all were silent
+     no-ops. Now exposed on window.
+R4: lazy hand cards DEFAULT ON (opt out: --no-lazy-hand-details /
+  GEM_LAZY_HANDS=0). Browser checklist (18 items, live Chrome): placeholders
+  649==payload, no escaped tags, codec decodes 534 villains, hand modal shows
+  the full grid (9KB), Load button, hash-jump + hand-list popup + second-open
+  idempotent, Expand-all 649/649 in ~0.9s, tooltips fill on materialized
+  content, villain mini delegated click, villain evidence modal, S4 anchors +
+  count-cell popups, GTOW≈ labels, PKO pills, review notes, 115 villain '!'
+  triggers, 649 audit selects. Default report 4,825 -> 1,966 KB (-59%).
+G6 Missed Value Check-Raise (review-tier, narrow): OOP HU check-call on
+  turn/river with two-pair+ (phevaluator) on wet texture; multiway/thin/bluff
+  excluded.
+G7-G10 DARK detectors (P3 scaffolding, exact-chart-only): Wide Cold-Call
+  (CC_*), Missed 3-Bet Defense (F3B_*_CONT), Missed BvB Open/Defend (BVB_*),
+  Missed Iso vs Limp (ISO_*) — silent until those chart families are
+  extracted (key contracts in the module docstring); coverage audit now
+  reports detector_exists_but_missing_chart for them, and its fired-ids
+  reader was fixed to s['preflop_deviations'] (same wrong-key class as the
+  pko_research bug).
+P4 analyst worksheet (rd['p4_worksheet'], NEVER rendered): G11 overbluff
+  candidates (river aggression, no made pair, called+lost), G14 post-loss
+  aggression clusters (neutral wording, no 'tilt'), G15 big-stack bubble
+  pressure aggregate.
+Phase C byte cuts: static 👍 tooltips via pb-tt classes (JS-filled, incl. on
+  lazy materialization), villain-mini inline onclick replaced by a delegated
+  listener (~65KB).
+Micro-pass prompt for the B151 batch written to Downloads
+  (GTOW_Micropass_B151_Calibration_Prompt.md): R-code repair, Classic
+  baselines for relative-%, calibration probes, ICMPKO URL validation.
+
+v8.12.1 (2026-06-11) — PKO model expansion + HTML R2/R3 + detectors P1/P2
+===========================================================================
+PKO MODEL EXPANSION (gated on the v8.12.0 S4.4 migration audit: 7 math-only
+changes, 0 verdict flips on the review session):
+  C1 AUTHORITATIVE: depth-scaled bounty discount live at the CVJ call-price
+     site and in pot-odds (8pp <=20bb / 4pp 20-35 / 2pp above; covers-gated).
+  C2: hand-authored pko_bonus set RETIRED. Iso-jam/CVJ widening is now the
+     measured PKO_OPEN_* minus OPEN_* chart diff with provenance, guarded to
+     same-node pairings (|depth gap|<=3bb, near the hand's stack) — a bogus
+     +25-hand BTN widening from mismatched depths is specifically killed;
+     BTN correctly gets no bonus (research: BTN tightens).
+  C3: opener-keyed BB defend (exact-chart-only): defend = BBD_*_CALL union
+     _3BET for the measured opener where the pair exists; pct fallback else.
+  pko_pressure coaching card (insight, blue, 'PKO Review' title, cap 6/report,
+     Missed requires the Classic backstop; PKO Review/Missed hands are now
+     insight-ELIGIBLE even without punt/mistake/EAI flags).
+  GTOW S4-row drill links stay DEFERRED until the ICMPKO URL space is
+     validated (B151 micro-pass) — same rationale as the routing flag.
+
+DETECTORS P1 (verdict-tier, exact-chart-only, no heuristic fallback):
+  G1 Missed 3-Bet  — flat of a 3BF_{20/30/50}BB_{pos}vs{op} chart hand
+     (7 fired on the review session). _HF membership -> CLEAR confidence.
+  G2 Missed Squeeze — fold/flat of an SQF_30BB_{pos}_vs{op}open_{c}call hand.
+DETECTORS P2 (review-tier, gem_review_flags.py NEW; cautious copy enforced —
+  never 'punt'/'wrong'/'GTO mistake'; never mistakes/punts/BB-100):
+  G4 River Bluff-Catcher Review (scary-runout river call lost at SD ->
+     checklist copy) · G12 sizing review (min-click raises). Rendered as
+     hand-detail notes in BOTH appendix paths.
+
+HTML R2 (mechanical byte cuts, visuals identical): hot grid inline styles ->
+  pb- classes (IP/OOP badge, texture label, draw-profile, new-card ring,
+  nowrap); data-gtow-url attr dropped (duplicate of href — verification
+  passes read .gtow-btn[href]).
+HTML R3 (flag-gated, DEFAULT OFF): --lazy-hand-details / GEM_LAZY_HANDS=1
+  moves all hand-card bodies into a PB-codec payload with placeholders
+  (anchors preserved: 645/649 live outside articles, in-article h4s kept
+  verbatim), PBLazy materialization (openHand guard, hashchange, Expand-all
+  button, beforeprint hook). Measured: 4,825 KB -> 1,977 KB (-59%),
+  placeholders == payload == 649. Default output untouched.
+
+Known runner gaps (full-analyzer/Chat-only features): coaching cards and
+pot-odds enrichment do not run in _run_pipeline.py — pko_pressure cards are
+in-proc verified and appear in Chat renders.
+
+v8.12.0b (2026-06-11) — Chat-report deep-QA fixes (Ron review of V3(3))
+========================================================================
+1. CLASSIC-EVIDENCE BUG (the big one): pko_context never assigned Missed /
+   Too wide because _classic_id_sets read stats['deviations'] — the analyzer
+   stores s['preflop_deviations'] (+ facing_action.bb_defense_vs_steal for the
+   gated list). Caught via a Confirmed Wide BB Defend whose pill read
+   'PKO Baseline'. Fixed: this session now classifies 6 Missed + 7 Too wide.
+2. Villain '!' trigger extended (Q2 follow-up): the red ! now marks the
+   villain action that provoked ANY flagged hero decision — too-loose calls
+   and raises included (was folds-only since B143). 83 triggers render vs ~19.
+   Title: 'Provoked the flagged decision — see note (N)'.
+3. PKO pill coverage chip leaked raw HTML (md cells escape inline spans —
+   same root cause as the count-cell fix). Now plain text.
+4. S4.2 redesigned per review: 7 columns (Spot+dims merged · PKO Δ · Seen ·
+   Actual · Flagged[=Missed+Too wide] · Review · Drill cue), one row per
+   research bucket (was 13 columns × per-dim-variant rows; didn't fit).
+   PKO Δ shows RELATIVE % where the Classic defend baseline was recorded
+   (30bb 86.8 / 50bb-covering 86.1 / 50bb-covered 66.4); remaining buckets
+   stay in pp with a footnote — baselines queued for the B151 micro-pass.
+
+v8.12.0a (2026-06-11) — GTOW URL verification merge + Amit coaching rules
+==========================================================================
+Merges the Claude-Chat GTOW verification handover (60-hand live pass, 40/60 OK).
+
+gem_gtow.py v2.2.0 -> v2.2.1 (58/58 tests):
+  v2.2.0 (from handover): depth 152 removed from 8m grid; bounty hands labeled
+  'GTOW≈ — ChipEV approx (bounty)' (8/8 were silently ChipEV); PKO regime
+  inventory + routing behind GEM_GTOW_PKO_ROUTING (DEFAULT OFF until ICMPKO
+  params validated); limp-then-raise falls back to preflop root; snap-gap note;
+  stderr warn when _gtow_situations.json absent.
+  v2.2.1 (B149 fix): flop-root gate also honors pf_settled — jam-over-jam
+  preflop all-ins between villains no longer emit 'no solution' flop URLs.
+  _gtow_situations.json now SHIPS in the package (was absent in the Chat
+  project -> stacks= omitted from 100% of URLs).
+
+Bug registry (gem_known_bugs.json) — handover ids B138-B141 RENUMBERED to
+  B148-B151 (B138-B143 already denote fixed v8.9.x bugs in code comments):
+  B148 eff_stack_bb 'wrong with no shorter villain' — REFUTED on raw HH: both
+       evidence hands had a legitimate shorter active villain (33.6bb opener /
+       37.6bb BB caller). eff = min(Hero, shortest active at flop) is correct.
+  B149 pf_allin misses jam-over-jam — FIXED via the v2.2.1 pf_settled gate
+       (parser has exported pf_settled since v7.15.1; pf_allin stays
+       hero-centric for equity semantics).
+  B150 table_size capacity vs dealt — FIXED in gem_parser: table_size = dealt
+       players; capacity preserved as table_capacity. Consumers audited.
+  B151 R-code tables unvalidated at 21/27bb tiers — OPEN; needs a targeted
+       GTOW extension micro-pass per failing depth x position.
+
+Coaching rules: +N14-N18 (Amit 2026-06-11) — SB 3-bet AXs/KQo vs open; UTG-open
+  3bet/fold weak Ax outside CO/BTN; size to the bottom of villain's calling
+  range; IP air c-bet single small size on dynamic boards; big river value vs
+  regs in capped x/x lines. Registry-only.
+
+Render: every appendix hand-detail-card now carries data-format / data-phase /
+  data-eff-bb / data-tournament (handover 6.3) — future URL verification
+  passes are fully programmatic (format was unknowable for ~499/507 cards).
+verify_release: WARN (not fail) when _gtow_situations.json is missing.
+Open decisions resolved: limp-fallback KEPT (loading-but-generic beats dead);
+  GEM_GTOW_PKO_ROUTING stays OFF until the ICMPKO micro-pass validates it.
+
+v8.12.0 (2026-06-11) — PKO Research Integration (Phase 1) + P0 Coverage Audit + R1 Payload Codec
+====================================================================================================
+Release contract: Classic/exact chart evidence can create mistakes; PKO aggregate
+research can create Review. Aggregate-only items never enter Top Punts, BB/100, or
+confirmed-mistake counts.
+
+D1 (HARD GATE, first commit): quarantined the wrong-node SBD_* SB-defend charts in
+  Poker_Ranges_Text.txt ('--- QUARANTINED' prefix; parser skips). They were LIVE in
+  _sb_missed_gated and produced wrong "correct action: 3-bet" recommendations.
+  Anti-canary in verify_release.py (no line may start with SBD_). SBD2_* corrected
+  charts land in v8.13.x after the raw grid export.
+
+PKO research layer (gem_pko_research.py, NEW):
+  - 11 research buckets with delta RANGES (stack-set dependent; validation run
+    2026-06-11) graded from the range FLOOR (3-way short → High; HU covering → Low).
+  - pko_context fact per hand (schema v2: is_opportunity/hero_continued/hero_action
+    are count dimensions; classification ∈ Good/Too wide/Missed/Review/Baseline/Out
+    of scope). Missed requires Classic chart backstop, always. Jam-heavy buckets
+    classify passive Classic-OK continues as Review; action_mix n/r → Baseline.
+  - can_collect_bounty (eliminate-on-win; equal stacks collectible) is SEPARATE from
+    the heuristic research coverage_bucket (1.10x/0.90x) — live discounts gate on the
+    former, never the latter. Hard depth band edges (22.1-24.9, 38.1-39.9 → Review).
+  - Phase outside near-bubble → directional confidence; FT → Review only.
+  - rd['pko_research'] is the single counting source (snapshot == table sums);
+    fail-soft: aggregation failure omits S4 research tables, never restores old math.
+
+S4 Tourney Type restructure: S4.1 Snapshot · S4.2 BB Defense Teaching Spots (Seen/
+  Drill-cue language, delta ranges, action mix) · S4.3 Multiway Amplifier Matrix ·
+  S4.4 All-In/Bounty Capture Audit + PKO Migration Audit (old vs new vs SHADOW
+  depth-scaled model; math_changed_only vs verdict_changed) + legacy HU detail ·
+  S4.5 Out-of-Scope with Next-action column. Shared render_count_cell (0 muted /
+  N → hand-list popup; no Hands column). Hand detail: PKO pill (Review language,
+  data-street=preflop) + coverage chip + pot-odds bounty caveat line.
+
+Live-logic removals (diff-audited, S4.4): no numeric bounty discount when Hero
+  cannot collect (covers gate at the CVJ call-price site), none for mystery
+  (value/stage unknown), none for multiway all-ins (HU-derived model unsupported).
+  HU-covering keeps the ~8pp anchor THIS release; the depth-scaled model is
+  shadow-only until v8.12.1 review. Unknown hero stack preserves legacy behavior.
+
+P0 coverage audit (gem_coverage_audit.py, NEW): --coverage-audit flag →
+  GEM_COVERAGE_AUDIT=1 → JSON + stderr table (decision points × detector registry
+  with eligible/evaluated/fired and 8-reason uncovered taxonomy). Measurement only;
+  flag absent = functionally identical output. net_bb caveat: prioritization
+  evidence, not causal proof (raw + median metrics).
+
+R1 payload codec (HTML size): window.villainIntel (495KB) and
+  window.handOpponentContexts (1.23MB) now emit as deflate-raw+base64 PB_PAYLOADS
+  entries (~50KB+79KB) decoded by a single PBCodec/PBData path — native
+  DecompressionStream with embedded tiny-inflate fallback (node-tested roundtrip).
+  Eager decode + dev-trap on direct global reads + async guards on
+  openVillainEvidence/showVillainMiniCard/openReadEvidence; visible banner on
+  decode failure. Expected report size: ~6.6MB → ~5.0MB.
+
+Tests: +37 (T-D1, T-PKO, T-RCC, T-R1, T-AUDIT, T-LIVE) — suite 709/709.
+Deferred to v8.12.1: depth-scale authoritative, C2 chart-diff bonuses (static
+  pko_bonus unchanged this release), C3 opener-keyed BB width, pko_pressure
+  coaching card, GTOW drill links. Deferred to v8.13.x: SBD2 ingest + SB detectors.
+
+GEM PIPELINE — CHANGELOG (compact)
+
+For full historical changelog, see session transcripts.
+This file tracks the CURRENT version + recent milestones only.
+
+================================================================================
+
+================================================================================
+OLDER VERSIONS (62 entries, v8.11.0 back through v7.x) are archived in
+archive/GEM_Changelog_ARCHIVE_pre-v8.12.txt (source repo only — removed from
+the Chat project for capacity, 2026-06-11). Nothing in the archive is live
+rule text; LIVE rules always live in GEM_Quick_Reference.txt.
+================================================================================

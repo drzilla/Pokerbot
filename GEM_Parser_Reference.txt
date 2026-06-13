@@ -1,0 +1,108 @@
+GEM PARSER CODE REFERENCE
+============================================================
+Last updated: 2026-04-07 (v7.2)
+Purpose: Tested code patterns and known bugs. Search this
+  BEFORE writing any parser code to avoid re-introducing
+  fixed bugs. Every pattern here has been debugged and verified.
+============================================================
+
+
+--- 1. HAND HISTORY FORMAT (GGPoker) ---
+
+FILE FORMAT: GG{YYYYMMDD}-{HHMM} - {Tournament Name}.txt
+ENCODING: utf-8 with errors='replace'
+HAND SPLIT: re.split(r'\n\n+(?=Poker Hand #)', text)
+HAND ID: re.search(r'Poker Hand #(TM\d+)', text)
+LEVEL/BLINDS: re.search(r'Level(\d+)\(([^)]+(?:\([^)]*\))?)\)', text)
+SEAT REGEX: r'Seat (\d+): (\S+) \((\d[\d,]*(?:\.\d+)?)\s+in chips\)'
+HERO CARDS: re.search(r'Dealt to (\S+) \[([^\]]+)\]', text)
+BUTTON: re.search(r'Seat #(\d+) is the button', text)
+
+
+--- 2. POSITION ASSIGNMENT ---
+
+Clockwise from button: BTN, SB, BB, then EP→LP.
+CO is CO regardless of table size. Never adjust CO/BTN/SB for 5/6-max.
+
+
+--- 3. NET_BB CALCULATION (BUG FIX — v7.2, CRITICAL) ---
+
+  collected = sum("Hero collected X from pot")
+  returned  = sum("Uncalled bet (X) returned to Hero")
+  committed = all chips Hero put in
+
+  net_bb = (collected + returned - committed) / bb
+  won    = (collected > 0)   ← NOT (collected + returned > 0)
+
+  Returned excess does NOT make won=True.
+  Showdown loss + returned excess = won=False, reduced net.
+
+  TEST: TM90000001 (shove+fold), TM90000002 (win), TM90000003 (lose+returned)
+
+
+--- 4. FOLD-TO-3BET (BUG FIX — v7.2) ---
+
+  ftb_opps = Hero opened AND got 3-bet (hero_3bet=False, pf_raise_count>=2)
+  EXCLUDE hero_3bet=True (Hero was the 3-bettor, not the opener)
+
+  TEST: TM90000004 (opener folds), TM90000005 (3-bettor excluded), TM90000006 (opener calls)
+
+
+--- 5. EAI — SPLIT BY STREET (v7.2) ---
+
+  Preflop: classify by hand types (ahead/flip/behind)
+  Postflop: classify by board-aware hand strength (ahead/behind only)
+  Street detection: first "all-in" action determines street
+  Exclusion: no showdown = not in EAI
+
+  TEST: TM90000012 (flop ahead), TM90000013 (flop behind)
+
+
+--- 6. COOLER CLASSIFICATION (v7.2) ---
+
+  Cooler = premium/strong/pair AND behind (pair over pair, domination)
+  NOT cooler = standard flip (AK vs QQ, 77 vs A5)
+
+  TEST: TM90000010 (cooler), TM90000011 (not cooler)
+
+
+--- 7. MRV KICKER QUALITY (v7.2) ---
+
+  Flag: TPGK+ (kicker T+), overpair, real two-pair, trips+
+  Skip: TPWK (kicker <T), board-driven 2P, 4+ broadway boards
+
+  TEST: TM90000007 (TPGK flag), TM90000008 (TPWK skip)
+
+
+--- 8. MISSED STEAL TIERS (v7.2) ---
+
+  CORE range = CLEAR mistake. EXTENDED range = MARGINAL (review only).
+  GTO override: pairs/suited from LP = MARGINAL not CLEAR.
+
+
+--- 9. PREFLOP DEVIATION CHECKER (v7.2) ---
+
+  Loads 117 charts from Poker_Ranges_Text.txt
+  Regex: r'^([A-Za-z][A-Za-z0-9_+]+):' (lowercase for "vs")
+  Position map: UTG+1 → UTG1 for chart lookup
+  Rejam depth: <35BB=CLEAR, 35-50=MARGINAL, >50=skip
+  BB defense: map opener position → approximate open% → BB_DEF chart
+
+
+--- 10. DELAYED C-BET EXCLUSION (v7.2) ---
+
+  Caller IP flop agg: exclude hands where Hero checked flop but bet turn.
+  Report: "13 hands, 3 delayed, 10 truly passive"
+
+
+--- 11. TEST SUITE ---
+
+  MANDATORY after every parser change: python3 test_parser.py
+  54 assertions, 14 test hands. All must pass before upload.
+
+
+--- 12. KNOWN ISSUES ---
+
+  Range file: GTO mixed strategies, ~90-95% accurate. Mitigated by tiers.
+  IP/OOP: simplified position-based. Doesn't handle MW middle position.
+  Hand evaluator: covers pair through full house. May miss edge cases.

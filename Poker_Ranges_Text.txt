@@ -1,0 +1,862 @@
+POKER RANGES — COMPLETE TEXT REFERENCE (v4)
+============================================================
+Source: RaiseYourEdge.com PNG charts, extracted via pixel-color sampling May 2026
+Charts: 405
+Format: CHART_ID: hand1, hand2, ... [combo%]
+Format note: All hands listed EXPLICITLY (no + notation). Loader can read directly.
+============================================================
+
+--- OPEN RAISE ---
+OPEN_10-20BB_BTN: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, A8o, 88, 87s, 86s, A7o, 77, 76s, 75s, A6o, 66, 65s, 64s, A5o, 55, 54s, A4o, 44, A3o, 33, A2o, 22 [40.0%]
+OPEN_10-20BB_CO: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, A9o, 99, 98s, 97s, A8o, 88, 87s, 86s, A7o, 77, 76s, 75s, A6o, 66, 65s, 64s, A5o, 55, 54s, A4o, 44, A3o, 33, A2o, 22 [33.9%]
+OPEN_10-20BB_HJ: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, TT, T9s, T8s, A9o, 99, 98s, 88, 87s, 77, 76s, 66, 55, 44, 33, 22 [22.2%]
+OPEN_10-20BB_MP: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, JJ, JTs, J9s, ATo, TT, T9s, 99, 98s, 88, 77, 66, 55 [16.9%]
+OPEN_10-20BB_SB: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, T6s, T5s, T4s, T3s, T2s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, 95s, 94s, 93s, 92s, A8o, K8o, Q8o, J8o, T8o, 98o, 88, 87s, 86s, 85s, 84s, 83s, 82s, A7o, K7o, Q7o, J7o, T7o, 97o, 87o, 77, 76s, 75s, 74s, 73s, 72s, A6o, K6o, Q6o, J6o, T6o, 96o, 86o, 76o, 66, 65s, 64s, 63s, 62s, A5o, K5o, Q5o, 75o, 65o, 55, 54s, 53s, 52s, A4o, K4o, Q4o, 54o, 44, 43s, 42s, A3o, K3o, Q3o, 33, 32s, A2o, K2o, Q2o, 22 [75.6%]
+OPEN_10-20BB_UTG: AA, AKs, AQs, AJs, ATs, A9s, A8s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 88, 77 [11.2%]
+OPEN_10-20BB_UTG+1: AA, AKs, AQs, AJs, ATs, A9s, A8s, A5s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 88, 77 [11.5%]
+OPEN_10-20BB_UTG+2: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, T9s, 99, 88, 77 [13.9%]
+OPEN_100BB_BTN: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, T6s, T5s, T4s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, 95s, 94s, A8o, K8o, 88, 87s, 86s, 85s, 84s, A7o, 77, 76s, 75s, 74s, 73s, A6o, 66, 65s, 64s, 63s, A5o, 55, 54s, 53s, A4o, 44, 43s, A3o, 33, A2o, 22 [46.9%]
+OPEN_100BB_CO: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, A9o, 99, 98s, 97s, A8o, 88, 87s, 86s, 77, 76s, 75s, 66, 65s, A5o, 55, 54s, A4o, 44, A3o, 33, A2o, 22 [32.4%]
+OPEN_100BB_HJ: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, QTo, JTo, TT, T9s, T8s, A9o, 99, 98s, 97s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22 [25.5%]
+OPEN_100BB_MP: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, JJ, JTs, J9s, ATo, TT, T9s, 99, 98s, 88, 87s, 77, 76s, 66, 55, 44, 33, 22 [18.9%]
+OPEN_100BB_SB_LIMP: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, T6s, T5s, T4s, T3s, T2s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, 95s, 94s, 93s, 92s, A8o, K8o, Q8o, J8o, T8o, 98o, 88, 87s, 86s, 85s, 84s, 83s, 82s, A7o, K7o, Q7o, J7o, T7o, 97o, 87o, 77, 76s, 75s, 74s, 73s, 72s, A6o, K6o, Q6o, J6o, T6o, 96o, 86o, 76o, 66, 65s, 64s, 63s, 62s, A5o, K5o, Q5o, 65o, 55, 54s, 53s, 52s, A4o, K4o, 54o, 44, 43s, 42s, A3o, K3o, 33, 32s, A2o, K2o, 22 [71.9%]
+OPEN_100BB_SB_RAISE: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, T6s, T5s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, 95s, A8o, 98o, 88, 87s, 86s, 85s, A7o, 77, 76s, 75s, A6o, 66, 65s, 64s, A5o, 55, 54s, A4o, 44, A3o, 33, A2o, 22 [44.5%]
+OPEN_100BB_UTG: AA, AKs, AQs, AJs, ATs, A9s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 98s, 88, 77 [11.5%]
+OPEN_100BB_UTG+1: AA, AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 98s, 88, 87s, 77 [13.0%]
+OPEN_100BB_UTG+2: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, KJo, JJ, JTs, ATo, TT, T9s, 99, 98s, 88, 87s, 77, 66, 55 [16.3%]
+OPEN_20-40BB_BTN: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, A8o, 88, 87s, 86s, 85s, A7o, 77, 76s, 75s, A6o, 66, 65s, 64s, A5o, 55, 54s, A4o, 44, A3o, 33, A2o, 22 [40.3%]
+OPEN_20-40BB_CO: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, QTo, JTo, TT, T9s, T8s, A9o, 99, 98s, 97s, A8o, 88, 87s, 77, 76s, 66, 65s, A5o, 55, A4o, 44, A3o, 33, A2o, 22 [30.3%]
+OPEN_20-40BB_HJ: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, QTo, TT, T9s, T8s, A9o, 99, 98s, 97s, 88, 87s, 77, 76s, 66, 55 [22.6%]
+OPEN_20-40BB_MP: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, JJ, JTs, J9s, ATo, TT, T9s, 99, 98s, 88, 77, 66 [16.4%]
+OPEN_20-40BB_SB: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, T6s, T5s, T4s, T3s, T2s, A9o, K9o, Q9o, J9o, T9o, 99, 98s, 97s, 96s, 95s, 94s, 93s, 92s, A8o, K8o, Q8o, J8o, T8o, 98o, 88, 87s, 86s, 85s, 84s, 83s, 82s, A7o, K7o, Q7o, J7o, T7o, 97o, 87o, 77, 76s, 75s, 74s, 73s, 72s, A6o, K6o, Q6o, J6o, T6o, 96o, 86o, 76o, 66, 65s, 64s, 63s, 62s, A5o, K5o, Q5o, 95o, 85o, 75o, 65o, 55, 54s, 53s, 52s, A4o, K4o, Q4o, 64o, 54o, 44, 43s, 42s, A3o, K3o, Q3o, 33, 32s, A2o, K2o, Q2o, 22 [78.3%]
+OPEN_20-40BB_UTG: AA, AKs, AQs, AJs, ATs, A9s, A8s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 88, 77 [11.2%]
+OPEN_20-40BB_UTG+1: AA, AKs, AQs, AJs, ATs, A9s, A8s, A5s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, T9s, 99, 88, 77 [11.5%]
+OPEN_20-40BB_UTG+2: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, T9s, 99, 98s, 88, 77 [14.2%]
+
+--- PUSH 10BB ---
+PUSH_10BB_BTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KJs, KTs, K9s, QTs, JTs, J9s, J8s, J7s, J6s, J5s, T9s, T8s, T7s, T6s, T5s, T4s, 96s, 95s, 94s, 84s, 83s, 74s, 73s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A3o, A2o, KQo, KJo, KTo, K9o, K3o, K2o, QJo, QTo, Q9o, Q2o, JTo, J9o, T9o, 98o, 97o, AKs+, KQs+, QJs+ [48.5%]
+PUSH_10BB_CO: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KQs, KJs, KTs, K9s, K8s, K7s, K2s, QJs, QTs, Q9s, Q8s, Q2s, JTs, J9s, J8s, J7s, J2s, T9s, T8s, T7s, T2s, 98s, 97s, 96s, 92s, 87s, 86s, 85s, 76s, 75s, 64s, 53s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, KQo, KJo, KTo, QJo, QTo, JTo, AKs+ [37.9%]
+PUSH_10BB_HJ: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KQs, KJs, KTs, K9s, K8s, K7s, QJs, QTs, Q9s, Q8s, Q7s, JTs, J9s, J8s, J7s, T9s, T8s, T7s, 97s, 96s, 95s, 86s, 85s, 75s, 74s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, KQo, KJo, QJo, AKs+ [32.5%]
+PUSH_10BB_MP: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KQs, KJs, KTs, K9s, K8s, K7s, QJs, QTs, Q9s, Q8s, Q7s, JTs, J9s, J8s, J7s, T8s, T7s, 96s, 86s, 85s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A3o, A2o, KQo, KJo, KTo, K9o, K3o, K2o, QJo, Q2o, J2o, AKs+ [32.5%]
+PUSH_10BB_SB: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KJs, KTs, K9s, QTs, 87s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, KQo, KJo, KTo, K9o, K8o, K7o, K6o, K5o, QJo, QTo, Q9o, Q8o, JTo, J9o, J8o, T9o, T8o, 98o, 97o, 87o, 76o, 98s+, AKs+, JTs+, KQs+, QJs+, T9s+ [56.8%]
+PUSH_10BB_UTG+1: AA, KK, QQ, JJ, TT, 99, 88, 77, AQs, AJs, ATs, A9s, A8s, A5s, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, 97s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, KQo, AKs+ [20.1%]
+PUSH_10BB_UTG+2: AA, KK, QQ, JJ, TT, 99, 88, 77, AQs, AJs, ATs, A9s, A8s, A5s, KQs, KJs, KTs, K2s, QJs, QTs, Q2s, JTs, J2s, T9s, T2s, 98s, 92s, 87s, 76s, 64s, 53s, AKo, AQo, AJo, ATo, KQo, KJo, QJo, AKs+ [24.3%]
+PUSH_10BB_UTG: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A5s, KQs, KJs, KTs, K9s, QTs, Q9s, J9s, J8s, T8s, 97s, 86s, 75s, 63s, AKo, AQo, AJo, ATo, A9o, A3o, A2o, KQo, KJo, K3o, K2o, Q2o, J2o [21.3%]
+
+--- PUSH ICM 4-9BB (GTOWizard ICM 8-max, 1000 players, 50% left) ---
+--- NOTE: Premiums (AA/KK/QQ+ at some depths) prefer min-raise over jam ---
+--- These are JAM-only hands (≥50% all-in frequency). Treat premiums as "always continue" separately. ---
+PUSH_4BB_CO: 22, 33, 44, 55, 66, 77, 88, 99, TT, JJ, QQ, KK, AA, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, ATs, AJs, AQs, AKs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9s, KTs, KJs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9s, QTs, QJs, J5s, J6s, J7s, J8s, J9s, JTs, T7s, T8s, T9s, 97s, 98s, 87s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, QJo, JTo [46.6%]
+PUSH_8BB_UTG+1: 22, 33, 44, 55, 66, 77, 88, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, ATs, AJs, AQs, AKs, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, 98s, AKo, AQo, AJo, ATo, A9o, A8o, KQo, QJo [31.5%]
+PUSH_8BB_HJ: 22, 33, 44, 55, 66, 77, 88, 99, AA, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, ATs, AJs, AQs, AKs, K5s, K6s, K7s, K8s, K9s, KTs, KJs, KQs, Q8s, Q9s, QTs, QJs, J8s, J9s, JTs, T8s, T9s, 98s, 87s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, QJo, QTo, JTo [31.0%]
+PUSH_9BB_BTN: 22, 33, 44, 55, 66, 77, 88, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AJs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9s, KTs, KJs, KQs, Q5s, Q6s, Q7s, Q8s, Q9s, QTs, QJs, J7s, J8s, J9s, JTs, T7s, T8s, T9s, 97s, 98s, 87s, 76s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K7o, QJo, QTo, Q9o, JTo, J9o, T9o [43.0%]
+
+--- PUSH ICM 14-16BB (GTOWizard ICM 8-max, 1000 players, 50% left) ---
+--- NOTE: UTG/UTG+1/MP have NO all-in action at 15BB (pure min-raise). ---
+--- HJ has only 2.8% aggregate jam (effectively none). ---
+PUSH_16BB_CO: 33, 44, 55, 66, 77, 88, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, AKo, AQo, AJo, ATo, A9o, A8o, KQo, KJo, KTo [10.7%]
+PUSH_14BB_BTN: 22, 33, 44, 55, 66, 77, A2s, A3s, A4s, A5s, A6s, A7s, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, J8s, T8s, T9s, 98s, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, QJo, QTo, JTo [24.0%]
+PUSH_15BB_SB: 22, 33, 44, 55, A2s, A3s, A4s, A5s, A6s, K5s, K6s, K9s, Q5s, Q6s, J5s, T6s, T7s, T8s, 65s, 76s, 86s, 87s, 97s, 98s, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KTo, K9o, K7o, K6o, QJo [21.5%]
+
+--- BB DEFEND ---
+BB_DEF_vsSB50pct: AA, KK, QQ, JJ, TT, 99, 88, 77, AQs, AJs, ATs, KJs, 76s, 75s, 74s, 73s, 64s, 63s, 53s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, KQo, KJo, KTo, K9o, K8o, K7o, QJo, QTo, Q9o, JTo, J9o, T9o, T8o, 98o, 87o, 87s+, 98s+, AKs+, JTs+, KQs+, QJs+, T9s+ [60.4%]
+
+--- REJAM ---
+REJAM_BBvsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 55, 44, 22, AQs, QJs, QTs, Q9s, Q5s, Q4s, Q3s, Q2s, JTs, J9s, J5s, J3s, J2s, T9s, T5s, T2s, 95s, 85s, 75s, 65s, 43s, 42s, 32s, AKo, AQo, AJo, ATo, A9o, A8o, A3o, A2o, KQo, KJo, KTo, K3o, K2o, QJo, Q2o, 87o, 76o, 65o, 53o, 32o, AKs+, KQs+ [45.0%]
+REJAM_BBvsCO: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, K2s, QJs, QTs, Q9s, Q2s, JTs, J9s, J2s, T9s, T2s, 98s, 92s, 87s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, ATo, KQo, Q4o, J3o, AKs+ [26.6%]
+REJAM_BBvsHJ: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 97s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A3o, KQo, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+, AKs+ [30.8%]
+REJAM_BBvsMP: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, QTs, J9s, T8s, 96s, 86s, 85s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, KJo, K3o, K2o, Q3o, Q2o, J2o, T2o, AKs+ [26.0%]
+REJAM_BBvsSB: AA, KK, QQ, JJ, TT, 99, 88, AQs, AKo, A9o, A3o, A2o, K8o, K3o, J5o, T9o, T8o, 98o, 87s+, 98s+, AKs+, JTs+, KTs+, QTs+, T9s+ [44.4%]
+REJAM_BBvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, QJs, JTs, T9s, 97s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, A3o, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [23.1%]
+REJAM_BBvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A2s, KQs, KJs, K2s, QJs, Q2s, J2s, T9s, T2s, 98s, 92s, 87s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, Q4o, J3o [20.7%]
+REJAM_BBvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, QTs, J9s, T8s, 97s, 96s, 86s, 85s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, KJo, K3o, K2o, Q3o, Q2o, J2o, T2o [23.1%]
+REJAM_BTNvsCO: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, K8s, K2s, QJs, QTs, Q9s, Q2s, JTs, J9s, J2s, T9s, T2s, 98s, 97s, 92s, 87s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, ATo, KQo, Q4o, J3o, AKs+ [28.4%]
+REJAM_BTNvsHJ: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 97s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, A3o, KQo, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [29.0%]
+REJAM_BTNvsMP: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, K9s, QTs, Q9s, J9s, J8s, T8s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, K3o, K2o, Q3o, Q2o, J2o, T2o [21.9%]
+REJAM_BTNvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, KQs, KJs, KTs, QJs, QTs, JTs, T9s, 97s, 86s, 75s, AKo, AQo, AJo, A3o, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [21.3%]
+REJAM_BTNvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A2s, KQs, KJs, K2s, QJs, QTs, Q2s, JTs, J2s, T2s, 98s, 92s, 87s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, Q4o, J3o [18.9%]
+REJAM_BTNvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QTs, J9s, T8s, 97s, 96s, 86s, 75s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, K3o, K2o, Q3o, Q2o, J2o, T2o [19.5%]
+REJAM_COvsHJ: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, A9o, A3o, A2o, K8o, K3o, J5o, T9o, T8o, 98o, 87s+, 98s+, JTs+, KTs+, QTs+, T9s+ [42.0%]
+REJAM_COvsMP: AA, KK, QQ, JJ, TT, 99, 44, 22, AKs, AQs, AJs, A5s, A4s, A3s, A2s, KQs, KJs, K5s, K4s, K3s, K2s, QJs, Q5s, Q3s, Q2s, J2s, T2s, 43s, 42s, 32s, AKo, AQo, AJo, ATo, A9o, A8o, A3o, A2o, K3o, K2o, Q2o, 87o, 76o, 65o, 53o, 32o [27.2%]
+REJAM_COvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, KQs, KJs, QJs, JTs, T9s, 86s, AKo, AQo, A3o, KQo, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [18.3%]
+REJAM_COvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A2s, KQs, KJs, K2s, QJs, Q2s, J2s, T2s, 98s, 92s, 87s, 85s, 82s, AKo, AQo, Q4o, J3o [15.4%]
+REJAM_COvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, KQs, KJs, QTs, J9s, T8s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, K3o, K2o, Q3o, Q2o, J2o, T2o [15.4%]
+REJAM_HJvsMP: AA, KK, QQ, JJ, TT, 77, AKs, AQs, AJs, ATs, A9s, A7s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K6s, K5s, K4s, K3s, K2s, QJs, QTs, Q9s, Q5s, Q4s, Q3s, Q2s, JTs, J5s, J4s, J3s, J2s, T6s+, 95s+, 85s+, AKo, AQo, AJo, ATo, A9o, A8o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, K2o, QJo, QTo, Q9o, Q8o, JTo, J9o, J8o, T9o, T3o, 94o, 92o, 84o+, 72o, 65o [47.3%]
+REJAM_HJvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, KQs, QJs, JTs, T9s, 86s, AKo, AQo, A3o, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [17.8%]
+REJAM_HJvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, A2s, KQs, KJs, K2s, QJs, Q2s, JTs, J2s, T2s, 98s, 92s, 87s, 85s, 82s, AKo, AQo, Q4o, J3o [15.4%]
+REJAM_HJvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, KQs, KJs, QTs, J9s, T8s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, K3o, K2o, Q3o, Q2o, J2o, T2o [15.4%]
+REJAM_MPvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, KQs, QJs, JTs, T9s, 86s, AKo, A3o, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [16.6%]
+REJAM_MPvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, A2s, KQs, KJs, K2s, QJs, Q2s, J2s, T2s, 92s, 85s, 82s, AKo, Q4o, J3o [13.0%]
+REJAM_MPvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, KQs, KJs, QTs, J9s, T8s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, K3o, K2o, Q3o, Q2o, J2o, T2o [15.4%]
+REJAM_SBvsBTN: AA, KK, QQ, JJ, TT, 77, AQs, QJs, QTs, Q9s, Q8s, Q5s, Q4s, Q3s, Q2s, JTs, J8s, J5s, J4s, J3s, J2s, T8s, T6s, T5s, T4s, T3s, T2s, 87s, 85s, 84s, 83s, 82s, AKo, AQo, AJo, ATo, A9o, A8o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, K2o, QJo, QTo, Q9o, Q8o, JTo, J9o, J8o, T9o, T8o, T7o, T6o, T5o, T3o, 94o, 92o, 72o, 65o, 84o+, 95s+, AKs+, KQs+ [54.4%]
+REJAM_SBvsCO: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, K2s, QJs, QTs, Q9s, Q2s, JTs, J9s, J2s, T9s, T8s, T2s, 98s, 97s, 92s, 87s, 86s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, ATo, A9o, KQo, KJo, Q4o, J3o, AKs+ [29.6%]
+REJAM_SBvsHJ: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 97s, 96s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A3o, KQo, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+, AKs+ [32.0%]
+REJAM_SBvsMP: AA, KK, QQ, JJ, TT, AQs, KQs, KJs, KTs, K9s, K8s, QTs, Q9s, Q8s, J9s, J8s, T8s, T7s, 96s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, KJo, K3o, K2o, Q3o, Q2o, J2o, T2o, AKs+ [29.0%]
+REJAM_SBvsUTG1: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, QTs, JTs, J9s, T9s, 97s, 86s, 75s, 63s, 52s, AKo, AQo, AJo, A3o, K4o, Q4o, J4o, J2o, T4o, T2o, 98o, 94o, 93o, 92o, 73o, 63o, 52o, 84o+ [23.7%]
+REJAM_SBvsUTG2: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A2s, KQs, KJs, KTs, K2s, QJs, QTs, Q2s, JTs, J2s, T9s, T2s, 98s, 92s, 87s, 85s, 82s, 76s, 64s, 53s, AKo, AQo, AJo, Q4o, J3o [22.5%]
+REJAM_SBvsUTG: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, K9s, QTs, Q9s, J9s, J8s, T8s, T7s, 97s, 96s, 86s, 85s, 75s, 63s, 52s, AKo, AQo, AJo, ATo, A9o, A8o, A4o, A3o, A2o, KQo, KJo, K3o, K2o, Q3o, Q2o, J2o, T2o [24.9%]
+
+============================================================
+V5 APPENDIX — added charts from RaiseYourEdge.com PNG archive (May 2026)
+  Source: 62-PNG zip uploaded by user, OCR pipeline validated bit-perfect
+         against v4 OPEN_100BB_* charts before bulk extraction.
+  Semantics: UNION across visible action colors; binary "in range" = colored
+             cell, "out of range" = grey/white cell.
+============================================================
+
+--- CALLING REJAMS (CALLRJ_*; UNION across depth bins 15/20/25/30bb) ---
+CALLRJ_BTNvsBB: 22, 33, 44, 55, 66, 77, 88, 99, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJo, KJs, KK, KQo, KQs, KTs, QJs, QQ, TT [15.8%]
+CALLRJ_BTNvsSB: 22, 33, 44, 55, 66, 77, 88, 99, A5s, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJo, KJs, KK, KQo, KQs, KTs, QJs, QQ, TT [16.1%]
+CALLRJ_COvsBB: 22, 33, 44, 55, 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJs, KK, KQo, KQs, QQ, TT [12.5%]
+CALLRJ_COvsBTN: 22, 33, 44, 55, 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJs, KK, KQo, KQs, QQ, TT [12.5%]
+CALLRJ_COvsSB: 22, 33, 44, 55, 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJo, KJs, KK, KQo, KQs, KTs, QQ, TT [13.7%]
+CALLRJ_MPvsBB: 55, 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, KQs, QQ, TT [8.7%]
+CALLRJ_MPvsBTN: 55, 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.4%]
+CALLRJ_MPvsCO: 55, 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.4%]
+CALLRJ_MPvsSB: 55, 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, KQs, QQ, TT [8.7%]
+CALLRJ_SBvsBB: 22, 33, 44, 55, 66, 77, 88, 99, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, KJo, KJs, KK, KQo, KQs, KTs, QJs, QQ, TT [17.6%]
+CALLRJ_UTGvsBB: 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.0%]
+CALLRJ_UTGvsBTN: 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.0%]
+CALLRJ_UTGvsCO: 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.0%]
+CALLRJ_UTGvsHJ: 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [7.5%]
+CALLRJ_UTGvsMP: 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [7.5%]
+CALLRJ_UTGvsSB: 66, 77, 88, 99, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, KK, QQ, TT [8.0%]
+CALLRJ_UTGvsUTG1: 77, 88, 99, AA, AJs, AKo, AKs, AQo, AQs, JJ, KK, QQ, TT [6.3%]
+CALLRJ_UTGvsUTG2: 77, 88, 99, AA, AJs, AKo, AKs, AQo, AQs, JJ, KK, QQ, TT [6.3%]
+
+--- DEFEND vs OPEN (FLAT3B_*; UNION = flat + 3bet + jam, FOLD excluded) ---
+FLAT3B_20BB_BBvsBTN: 22, 32s, 33, 42s, 43o, 43s, 44, 52s, 53o, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [81.0%]
+FLAT3B_20BB_BBvsBTN_MINRAISE: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [100.0%]
+FLAT3B_20BB_BBvsCO: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [67.4%]
+FLAT3B_20BB_BBvsMP: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 73s, 74s, 75s, 76o, 76s, 77, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [61.1%]
+FLAT3B_20BB_BBvsUTG: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65o, 65s, 66, 73s, 74s, 75s, 76o, 76s, 77, 84s, 85s, 86s, 87o, 87s, 88, 94s, 95s, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T4s, T5s, T6s, T7s, T8o, T8s, T9o, T9s, TT [52.6%]
+FLAT3B_20BB_BTNvsCO: 22, 33, 44, 55, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTs, Q8s, Q9s, QJs, QQ, QTs, T8s, T9s, TT [20.1%]
+FLAT3B_20BB_BTNvsMP: 22, 33, 44, 55, 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQo, KQs, KTs, QJs, QQ, QTs, T9s, TT [13.1%]
+FLAT3B_20BB_BTNvsUTG: 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, KTs, QJs, QQ, QTs, T9s, TT [10.4%]
+FLAT3B_20BB_MPvsUTG: 88, 99, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, QJs, QQ, TT [7.4%]
+FLAT3B_20BB_SBvsBTN: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTo, JTs, K5s, K6s, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T8s, T9s, TT [27.9%]
+FLAT3B_20BB_SBvsCO: 22, 33, 44, 55, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTs, T8s, T9s, TT [22.8%]
+FLAT3B_20BB_SBvsMP: 22, 33, 44, 55, 66, 77, 88, 98s, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T9s, TT [14.3%]
+FLAT3B_20BB_SBvsUTG: 88, 99, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, KTs, QJs, QQ, QTs, TT [8.0%]
+FLAT3B_20BB_UTG1vsUTG: 99, AA, AJs, AKo, AKs, AQo, AQs, JJ, KK, KQs, QJs, QQ, TT [6.0%]
+FLAT3B_30BB_BBvsBTN: 22, 32s, 33, 42s, 43o, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [76.5%]
+FLAT3B_30BB_BTNvsCO: 22, 33, 44, 54s, 55, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTs, T8s, T9s, TT [23.4%]
+FLAT3B_30BB_BTNvsMP: 22, 33, 44, 55, 65s, 66, 76s, 77, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJs, KK, KQo, KQs, KTs, Q8s, Q9s, QJs, QQ, QTs, T8s, T9s, TT [18.9%]
+FLAT3B_30BB_BTNvsUTG: 22, 33, 44, 55, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T8s, T9s, TT [17.3%]
+FLAT3B_30BB_MPvsUTG: 55, 66, 77, 88, 98s, 99, A9s, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQo, KQs, KTs, QJs, QQ, QTs, T9s, TT [11.2%]
+FLAT3B_30BB_SBvsBTN: 22, 33, 44, 55, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J9s, JJ, JTo, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q9s, QJo, QJs, QQ, QTo, QTs, T9s, TT [23.7%]
+FLAT3B_30BB_SBvsCO: 22, 33, 44, 55, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J9s, JJ, JTs, K9s, KJo, KJs, KK, KQo, KQs, KTs, Q9s, QJo, QJs, QQ, QTs, T9s, TT [19.8%]
+FLAT3B_30BB_SBvsMP: 22, 33, 44, 55, 66, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T9s, TT [16.1%]
+FLAT3B_30BB_SBvsUTG: 22, 33, 44, 55, 66, 77, 88, 99, A5s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, KTs, QJs, QQ, QTs, T9s, TT [12.8%]
+FLAT3B_30BB_UTG1vsUTG: 77, 88, 99, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, QJs, QQ, T9s, TT [8.1%]
+FLAT3B_40BB_BBvsBTN: 22, 32s, 33, 42s, 43o, 43s, 44, 52s, 53o, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [80.1%]
+FLAT3B_40BB_BBvsBTN_MINRAISE: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [100.0%]
+FLAT3B_40BB_BTNvsCO: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTo, JTs, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T7s, T8s, T9s, TT [26.1%]
+FLAT3B_40BB_BTNvsMP: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J9s, JJ, JTs, K9s, KJo, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T8s, T9s, TT [20.4%]
+FLAT3B_40BB_BTNvsUTG: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T9s, TT [17.6%]
+FLAT3B_40BB_MPvsUTG: 22, 33, 44, 55, 66, 77, 88, 99, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, QJs, QQ, T9s, TT [11.6%]
+FLAT3B_40BB_SBvsBTN: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTs, T8s, T9s, TT [23.1%]
+FLAT3B_40BB_SBvsCO: 22, 33, 44, 55, 65s, 66, 76s, 77, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, JJ, JTs, KJo, KJs, KK, KQo, KQs, KTs, QJs, QQ, QTs, T8s, TT [18.6%]
+FLAT3B_40BB_SBvsMP: 22, 33, 44, 55, 65s, 66, 76s, 77, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQs, KTs, Q9s, QJs, QQ, QTs, T8s, T9s, TT [16.4%]
+FLAT3B_40BB_SBvsUTG: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 87s, 88, 98s, 99, A5s, A9s, AA, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQs, KTs, Q9s, QJs, QQ, QTs, T9s, TT [14.0%]
+FLAT3B_40BB_UTG1vsUTG: 55, 66, 77, 88, 99, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, QJs, QQ, TT [8.7%]
+FLAT3B_50BB_BBvsBTN: 22, 32s, 33, 42s, 43o, 43s, 44, 52s, 53o, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [79.2%]
+FLAT3B_50BB_BBvsBTN_MINRAISE: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [100.0%]
+FLAT3B_50BB_BTNvsCO: 22, 33, 43s, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 96s, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTo, JTs, K5s, K6s, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T7s, T8s, T9s, TT [28.2%]
+FLAT3B_50BB_BTNvsMP: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJs, KK, KQo, KQs, KTs, Q8s, Q9s, QJs, QQ, QTs, T8s, T9s, TT [21.0%]
+FLAT3B_50BB_BTNvsUTG: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJs, KK, KQo, KQs, KTs, Q8s, Q9s, QJs, QQ, QTs, T8s, T9s, TT [20.1%]
+FLAT3B_50BB_COvsUTG: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T8s, T9s, TT [19.5%]
+FLAT3B_50BB_MPvsUTG: 22, 33, 44, 55, 66, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A9s, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, KTs, QJs, QQ, QTs, T9s, TT [13.1%]
+FLAT3B_50BB_SBvsBTN: 22, 33, 44, 54s, 55, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q8s, Q9s, QJo, QJs, QQ, QTs, T8s, T9s, TT [23.4%]
+FLAT3B_50BB_SBvsCO: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J8s, J9s, JJ, JTs, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTs, Q8s, Q9s, QJs, QQ, QTs, T8s, T9s, TT [21.9%]
+FLAT3B_50BB_SBvsMP: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 87s, 88, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQo, KQs, KTs, Q9s, QJs, QQ, QTs, T9s, TT [17.6%]
+FLAT3B_50BB_SBvsUTG: 22, 33, 44, 54s, 55, 65s, 66, 76s, 77, 87s, 88, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJs, AKo, AKs, AQo, AQs, ATs, J9s, JJ, JTs, K9s, KJs, KK, KQs, KTs, Q9s, QJs, QQ, QTs, T8s, T9s, TT [16.4%]
+FLAT3B_50BB_UTG1vsUTG: 77, 88, 99, AA, AJs, AKo, AKs, AQo, AQs, ATs, JJ, JTs, KJs, KK, KQs, QJs, QQ, T9s, TT [8.1%]
+
+--- BB DEFEND BY OPEN%% (extended; v5 replaces v4 + adds vs12pct, vs50pct) ---
+BB_DEF_vs12pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 74s, 75s, 76s, 77, 84s, 85s, 86s, 87s, 88, 95s, 96s, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J7s, J8s, J9s, JJ, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q4s, Q5s, Q6s, Q7s, Q8s, Q9s, QJo, QJs, QQ, QTs, T6s, T7s, T8s, T9s, TT [31.2%]
+BB_DEF_vs15pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 73s, 74s, 75s, 76s, 77, 84s, 85s, 86s, 87s, 88, 95s, 96s, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J5s, J6s, J7s, J8s, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T6s, T7s, T8s, T9s, TT [35.1%]
+BB_DEF_vs20pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 73s, 74s, 75s, 76s, 77, 84s, 85s, 86s, 87s, 88, 94s, 95s, 96s, 97s, 98s, 99, A2s, A3s, A4s, A5s, A6s, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J3s, J4s, J5s, J6s, J7s, J8s, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T4s, T5s, T6s, T7s, T8s, T9o, T9s, TT [38.8%]
+BB_DEF_vs25pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 73s, 74s, 75s, 76s, 77, 83s, 84s, 85s, 86s, 87s, 88, 93s, 94s, 95s, 96s, 97s, 98o, 98s, 99, A2s, A3s, A4o, A4s, A5o, A5s, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7s, T8s, T9o, T9s, TT [45.7%]
+BB_DEF_vs30pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 72s, 73s, 74s, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96s, 97s, 98o, 98s, 99, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7s, T8o, T8s, T9o, T9s, TT [52.0%]
+BB_DEF_vs35pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65o, 65s, 66, 73s, 74s, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7s, T8o, T8s, T9o, T9s, TT [59.0%]
+BB_DEF_vs40pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7s, T8o, T8s, T9o, T9s, TT [62.0%]
+BB_DEF_vs45pct: 22, 32s, 33, 42s, 43s, 44, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [65.3%]
+BB_DEF_vs50pct: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [68.3%]
+
+--- BB vs SB LIMP / SB EXPLOITATIVE OPEN VARIANTS ---
+BB_vs_SB_LIMP_15-20BB: 22, 32o, 32s, 33, 42o, 43o, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [99.4%]
+BB_vs_SB_LIMP_20-25BB: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [100.0%]
+BB_vs_SB_LIMP_30BB+: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72o, 72s, 73o, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82o, 82s, 83o, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92o, 92s, 93o, 93s, 94o, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2o, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2o, T2s, T3o, T3s, T4o, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [100.0%]
+OPEN_100BB_SB_VS_GOOD: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 85s, 86s, 87s, 88, 95s, 96s, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7s, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5s, Q6s, Q7s, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T5s, T6s, T7s, T8s, T9o, T9s, TT [44.5%]
+OPEN_100BB_SB_VS_GOOD_MIXED: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [71.9%]
+OPEN_100BB_SB_VS_LOOSE_PASSIVE: 22, 32o, 32s, 33, 42o, 42s, 43o, 43s, 44, 52o, 52s, 53o, 53s, 54o, 54s, 55, 62o, 62s, 63o, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74o, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84o, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3o, J3s, J4o, J4s, J5o, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5o, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [90.0%]
+OPEN_100BB_SB_VS_TIGHT: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54s, 55, 62s, 63s, 64s, 65s, 66, 73s, 74s, 75s, 76o, 76s, 77, 84s, 85s, 86s, 87o, 87s, 88, 94s, 95s, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2s, Q3s, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [65.0%]
+OPEN_25BB_BTN_AGGB: 22, 33, 44, 54s, 55, 64s, 65s, 66, 75s, 76s, 77, 86s, 87s, 88, 96s, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J6s, J7s, J8s, J9o, J9s, JJ, JTo, JTs, K2s, K3s, K4s, K5s, K6s, K7s, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q5s, Q6s, Q7s, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T6s, T7s, T8s, T9o, T9s, TT [41.5%]
+OPEN_25BB_SB_MIXED: 22, 32s, 33, 42s, 43s, 44, 52s, 53s, 54o, 54s, 55, 62s, 63s, 64o, 64s, 65o, 65s, 66, 72s, 73s, 74s, 75o, 75s, 76o, 76s, 77, 82s, 83s, 84s, 85o, 85s, 86o, 86s, 87o, 87s, 88, 92s, 93s, 94s, 95o, 95s, 96o, 96s, 97o, 97s, 98o, 98s, 99, A2o, A2s, A3o, A3s, A4o, A4s, A5o, A5s, A6o, A6s, A7o, A7s, A8o, A8s, A9o, A9s, AA, AJo, AJs, AKo, AKs, AQo, AQs, ATo, ATs, J2s, J3s, J4s, J5s, J6o, J6s, J7o, J7s, J8o, J8s, J9o, J9s, JJ, JTo, JTs, K2o, K2s, K3o, K3s, K4o, K4s, K5o, K5s, K6o, K6s, K7o, K7s, K8o, K8s, K9o, K9s, KJo, KJs, KK, KQo, KQs, KTo, KTs, Q2o, Q2s, Q3o, Q3s, Q4o, Q4s, Q5o, Q5s, Q6o, Q6s, Q7o, Q7s, Q8o, Q8s, Q9o, Q9s, QJo, QJs, QQ, QTo, QTs, T2s, T3s, T4s, T5s, T6o, T6s, T7o, T7s, T8o, T8s, T9o, T9s, TT [78.3%]
+--- TURN CBET TARGETS (v7.32; per-position HU after Hero raised PF, cbet flop, was called) ---
+# Frequency bands, NOT range charts. Loaded by load_targets(). Source: external PT4-based
+# leak report cross-check; sane for HU SRP at 100bb. Tighten at shorter stacks (informational).
+TURN_CBET_TARGET_UTG: 47-57
+TURN_CBET_TARGET_UTG+1: 47-57
+TURN_CBET_TARGET_MP: 47-57
+TURN_CBET_TARGET_HJ: 47-57
+TURN_CBET_TARGET_CO: 47-57
+TURN_CBET_TARGET_BTN: 47-57
+TURN_CBET_TARGET_SB: 47-57
+TURN_CBET_TARGET_BB: 47-57
+
+--- RIVER CBET TARGETS (v7.32; per-position HU after Hero double-barreled turn and was called) ---
+RIVER_CBET_TARGET_UTG: 47-57
+RIVER_CBET_TARGET_UTG+1: 47-57
+RIVER_CBET_TARGET_MP: 47-57
+RIVER_CBET_TARGET_HJ: 47-57
+RIVER_CBET_TARGET_CO: 47-57
+RIVER_CBET_TARGET_BTN: 47-57
+RIVER_CBET_TARGET_SB: 47-57
+RIVER_CBET_TARGET_BB: 47-57
+
+--- FOLD TO FLOP CBET TARGETS (v7.32; HU SRP after Hero flatted PF) ---
+# GTO-derived approximations from external leak report; sane for HU SRP at 100bb.
+# BB band is wider because BB defends widest range so faces most cbets in marginal spots.
+F2CB_TARGET_UTG: 33-38
+F2CB_TARGET_UTG+1: 33-38
+F2CB_TARGET_MP: 33-38
+F2CB_TARGET_HJ: 33-38
+F2CB_TARGET_CO: 28-35
+F2CB_TARGET_BTN: 27-33
+F2CB_TARGET_SB: 33-38
+F2CB_TARGET_BB: 40-45
+
+--- SQUEEZE TARGETS (v7.32; per-position 3-bet vs open + caller, NOT vs lone open) ---
+# Squeeze is wider than vanilla 3-bet (caller's range is capped → more FE).
+# External report bands.
+SQUEEZE_TARGET_UTG: 4-7
+SQUEEZE_TARGET_UTG+1: 4-7
+SQUEEZE_TARGET_MP: 5-7
+SQUEEZE_TARGET_HJ: 5-8
+SQUEEZE_TARGET_CO: 6-9
+SQUEEZE_TARGET_BTN: 8-12
+SQUEEZE_TARGET_SB: 7-11
+SQUEEZE_TARGET_BB: 9-15
+
+--- RFI TARGETS (v7.32; per-position first-in raise frequency, 100BB depth) ---
+# 100BB OPEN_* range frequencies turned into target bands ±1.5pp. SB intentionally
+# wide (70-90%) per Dave's J29 raise-heavy framework — overrides external 35-42%
+# raise-frequency target. Use _depth_tier_open() for shorter stacks (narrower targets;
+# detector reports headline aggregate per position).
+RFI_TARGET_UTG: 10-13
+RFI_TARGET_UTG+1: 10-13
+RFI_TARGET_MP: 17-21
+RFI_TARGET_HJ: 24-27
+RFI_TARGET_CO: 30-34
+RFI_TARGET_BTN: 45-49
+RFI_TARGET_SB: 70-90
+
+--- 3-BET RANGES (from RYE Flatting/3Betting charts, Jun 2026) ---
+
+3BET_30BB_SBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, KJs, K9s, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo [28.0%]
+3BET_30BB_BBvsBTN: AA, KK, QQ, AKs, AQs, AKo [5.0%]
+3BET_30BB_BTNvsCO: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 65s, 54s [12.0%]
+3BET_30BB_SBvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 76s, 65s [15.0%]
+3BET_30BB_BTNvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [8.0%]
+3BET_30BB_SBvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [8.0%]
+3BET_30BB_SBvsUTG: AA, KK, QQ, AKs, AQs, AKo [5.0%]
+3BET_30BB_BTNvsUTG: AA, KK, QQ, AKs, AQs, AKo, A5s, A4s [6.0%]
+3BET_50BB_BTNvsCO: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, K5s, 65s, 54s [13.0%]
+3BET_50BB_SBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo, AJo [30.0%]
+3BET_50BB_BTNvsMP: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A4s [8.0%]
+3BET_50BB_SBvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, AKo, AQo, KQs, A5s, A4s, A3s, A2s, 87s, 76s, 65s [16.0%]
+3BET_50BB_SBvsMP: AA, KK, QQ, JJ, AKs, AQs, AJs, AKo, A5s, A4s, A3s [9.0%]
+3BET_50BB_SBvsUTG: AA, KK, QQ, AKs, AQs, AKo [5.0%]
+3BET_20BB_SBvsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 54s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, KQo, KJo, KTo, QJo, QTo, JTo [55.0%]
+3BET_20BB_SBvsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, J9s, T9s, 98s, 87s, 76s, 65s, 54s, AKo, AQo, AJo, ATo, KQo [35.0%]
+3BET_20BB_BBvsBTN: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, AKo, AQo [12.0%]
+
+--- 4-BET RANGES (from GTOW MTT ChipEV 8-max, Jun 2026, >=50% frequency) ---
+
+4BET_30BB_COvsBTN3B: KK, QQ, JJ, TT, 99, 88, 77, 44, 33, AKs, AQs, A7s, A6s, A5s, KQs, KJs, AKo, AQo, AJo [8.0%]
+4BET_30BB_COvsSB3B: JJ, TT, 77, AQs, A7s, A6s, A4s, A2s, AKo, AQo [4.7%]
+4BET_30BB_COvsBB3B: JJ, 77, KQs, AKo, AQo, AJo [4.7%]
+4BET_30BB_BTNvsSB3B: JJ, TT, 44, 33, 22, A6s, A4s, A3s, A2s, AKo, AQo, AJo [7.7%]
+4BET_30BB_BTNvsBB3B: JJ, 55, 44, 33, AKs, AQs, KQs, AKo, AQo, AJo, ATo, KQo [6.4%]
+4BET_30BB_HJvsCO3B: KK, QQ, JJ, TT, 99, 88, AKs, A5s, KQs, KJs, KTs, AKo, AQo [6.5%]
+4BET_30BB_HJvsBTN3B: KK, QQ, JJ, TT, 99, 88, 44, 33, AKs, A7s, A5s, KJs, AKo, AQo [6.3%]
+4BET_30BB_LJvsBTN3B: KK, QQ, JJ, TT, 99, 33, AKs, A7s, A5s, KJs, AKo, AQo [5.6%]
+4BET_30BB_UTGvsBTN3B: KK, QQ, JJ, TT, AKs, A7s, A5s, AKo [3.8%]
+4BET_50BB_COvsBTN3B: AA, KK, QQ, JJ, TT, 99, 88, AKs, A7s, A6s, A3s, KJs, K9s, AKo, AQo [7.8%]
+4BET_50BB_COvsSB3B: JJ, TT, 99, 33, AKs, AKo [2.9%]
+4BET_50BB_COvsBB3B: TT, AKs, AKo [2.3%]
+4BET_50BB_BTNvsSB3B: JJ, TT, 99, 33, AKs, A4s, A3s, AKo, AQo [4.6%]
+4BET_50BB_BTNvsBB3B: JJ, TT, 99, 33, AKs, AKo, AQo [4.6%]
+4BET_50BB_HJvsCO3B: AA, KK, QQ, JJ, TT, AKs, A6s, A5s, A4s, AKo [5.9%]
+4BET_50BB_HJvsBTN3B: AA, KK, QQ, JJ, TT, AKs, A7s, A6s, A3s, K9s, AKo [6.0%]
+4BET_50BB_LJvsBTN3B: AA, KK, QQ, JJ, AKs, A5s, AKo [5.1%]
+4BET_50BB_UTGvsBTN3B: AA, KK, QQ, AKs, A9s, A5s, AKo [3.8%]
+
+--- CALL JAM RANGES (from GTOW MTT ChipEV 8-max, Jun 2026, >=50% frequency) ---
+
+CALLJAM_12BB_vsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, KQo, KJo, KTo, QJo [24.0%]
+CALLJAM_12BB_vsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KQs, KJs, KTs, QJs, AKo, AQo, AJo, ATo, A9o, A8o, KQo [15.2%]
+CALLJAM_12BB_vsHJ: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, KQs, KJs, AKo, AQo, AJo, ATo, KQo [12.4%]
+CALLJAM_12BB_vsSB: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, QJs, QTs, Q9s, Q8s, Q7s, JTs, J9s, J8s, T9s, T8s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, K7o, K6o, K5o, QJo, QTo, Q9o, JTo, J9o [37.9%]
+CALLJAM_15BB_vsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, QJs, QTs, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, KQo, KJo [20.0%]
+CALLJAM_15BB_vsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, AKo, AQo, AJo, ATo, A9o, KQo [13.1%]
+CALLJAM_15BB_vsHJ: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, AKs, AQs, AJs, ATs, A9s, KQs, AKo, AQo, AJo, ATo [10.0%]
+CALLJAM_15BB_vsSB: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, K7s, K6s, QJs, QTs, Q9s, Q8s, JTs, J9s, T9s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, QJo, QTo, JTo [31.0%]
+CALLJAM_20BB_vsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, KQs, KJs, KTs, QJs, QTs, JTs, AKo, AQo, AJo, ATo, A9o, A8o, A7o, KQo [17.0%]
+CALLJAM_20BB_vsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, QJs, AKo, AQo, AJo, ATo, KQo [11.8%]
+CALLJAM_20BB_vsHJ: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AKs, AQs, AJs, A9s, KQs, KJs, KTs, AKo, AQo, AJo [9.4%]
+CALLJAM_20BB_vsSB: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, T9s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, KQo, KJo, KTo, QJo, JTo [23.5%]
+CALLJAM_30BB_vsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, KQs, KJs, KTs, QJs, QTs, Q5s, JTs, 98s, AKo, AQo, AJo, ATo, KQo, KTo [15.1%]
+CALLJAM_30BB_vsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 55, AKs, AQs, AJs, ATs, KQs, KTs, QJs, JTs, T9s, AKo, AQo, AJo [11.4%]
+CALLJAM_30BB_vsHJ: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AKs, AQs, AJs, ATs, A8s, KQs, KJs, KTs, QJs, AKo, AQo, AJo [9.4%]
+CALLJAM_30BB_vsSB: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, AKs, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, QJs, QTs, JTs, AKo, AQo, AJo, ATo, A9o, A8o, KQo, KJo [15.7%]
+
+--- SQUEEZE RANGES (from GTOW MTT ChipEV 8-max, Jun 2026, >=50% frequency) ---
+
+SQUEEZE_30BB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 44, AKs, AQs, AJs, ATs, A8s, A7s, KQs, KJs, KTs, QJs, QTs, Q9s, JTs, T9s, AKo, AQo, AJo, ATo, KQo [14.1%]
+SQUEEZE_30BB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AKo, AQo, AJo, KQo [12.2%]
+SQUEEZE_30BB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, A9s, A2s, KQs, KJs, KTs, QJs, QTs, JTs, AKo, AQo, AJo [10.5%]
+SQUEEZE_30BB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A9s, A8s, KQs, KJs, KTs, QTs, JTs, AKo, AQo, AJo [9.9%]
+SQUEEZE_50BB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A8s, A5s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AKo, AQo, AJo, ATo, KQo, QJo [12.5%]
+SQUEEZE_50BB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A9s, A5s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AKo, AQo, AJo, ATo, KQo [10.6%]
+SQUEEZE_50BB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, ATs, A5s, KQs, KJs, KTs, QJs, QTs, T9s, AKo, AQo, AJo, ATo [9.7%]
+SQUEEZE_50BB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, A9s, A5s, KJs, KTs, QJs, Q9s, JTs, AKo, AQo, AJo, ATo, KQo [9.5%]
+
+--- 3-BET ACTION FREQUENCY RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# ICM gametype MTTGeneral_ICM8m1000PTPCT50, uniform symmetric stacks.
+# AGG = Raise (3bet/squeeze, orange) + Allin (jam, purple) combined.
+# _HF = high-frequency subset (AGG >= 70%). Base chart = AGG >= 50%.
+# "mixed" comment = hands with AGG 20-70% and their breakdown (R=raise%, A=allin%).
+# Raise-size tokens: 30BB openers use R2 (except SB=R3). 50BB: BTN/CO=R2.1, HJ/LJ=R2, SB=R3.5.
+
+# --- Phase 1: 3-bet vs open, 30BB ---
+3BF_30BB_BTNvsCO: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AKo, AQo, A4s, A3s, A2s, K8s, Q9s, Q8s, QJo, KJo, ATo, A9o [13.0%]
+3BF_30BB_BTNvsCO_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, A6s, A4s, A3s, A2s, K8s, Q9s, QJo, KJo, A9o [11.2%]
+# 3BF_30BB_BTNvsCO mixed: 77:R27, 88:R54, A5s:R25, KQs:R42, K7s:R31, KQo:R23, Q8s:R52, AJo:R42, ATo:R61, KTo:R49, QTo:R29, T8s:R20, A8o:R30
+
+3BF_30BB_BTNvsHJ: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, A6s, A4s, A3s, A2s, K8s, Q9s, QJo, ATo [10.7%]
+3BF_30BB_BTNvsHJ_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, A6s, A4s, A3s, A2s, Q9s, ATo [8.9%]
+# 3BF_30BB_BTNvsHJ mixed: 88:R38, A7s:R23, A5s:R42, KQs:R35, K9s:R46, K8s:R70, AQo:R63, KQo:R37, Q8s:R23, AJo:R36, KJo:R45, QJo:R53, KTo:R32, T9s:R21, A9o:R50
+
+3BF_30BB_BTNvsMP: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, A7s, A6s, A5s, A3s, K9s, KQo, ATo [10.1%]
+3BF_30BB_BTNvsMP_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, A7s, A6s, A3s, K9s, Q9s, ATo [8.3%]
+# 3BF_30BB_BTNvsMP mixed: 99:R56, A5s:R66, A4s:R40, K8s:R47, AQo:R46, KQo:R53, AJo:R42, KJo:R40, QJo:R39
+
+3BF_30BB_SBvsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, AKs, AQs, AJs, ATs, A7s, A4s, A2s, AKo, AQo, KQs, KJs, KTs, K7s, K6s, KQo, QJs, QTs, AJo, KJo, QJo, JTs, J9s, ATo, KTo, QTo, T9s, A9o, A8o, A5o [24.3%]
+3BF_30BB_SBvsBTN_HF: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 33, AKs, AQs, AJs, ATs, A7s, A4s, A2s, AKo, AQo, KQs, KJs, KTs, K7s, K6s, KQo, QJs, QTs, AJo, KJo, JTs, J9s, ATo, QTo, T9s, A9o, A5o [21.9%]
+# 3BF_30BB_SBvsBTN mixed: 22:A35, 44:A61, A8s:R49, A5s:A46, A3s:R38, K9s:A25, Q9s:R23+A21, Q8s:R43, QJo:R65, KTo:R53, JTo:R40, A8o:R65, A6o:R25, A4o:R44
+
+3BF_30BB_SBvsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 44, AKs, AQs, AJs, AKo, AQo, KQs, KJs, KTs, K7s, KQo, QJs, QTs, Q8s, AJo, KJo, QJo, JTs, ATo, T8s, A6s, A4s, A3s, A2s, A9o [19.5%]
+3BF_30BB_SBvsCO_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, AKo, AQo, KQs, KJs, KTs, K7s, KQo, QJs, QTs, AJo, JTs, ATo, A6s, A4s, A3s, A2s, A9o [16.0%]
+# 3BF_30BB_SBvsCO mixed: 33:A35, 44:A62, 77:R51, K8s:R34, Q9s:R21, Q8s:R53, KJo:R65, QJo:R51, J8s:R33, KTo:R21, QTo:R36, T8s:R53, A8o:R30
+
+3BF_30BB_SBvsHJ: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AKo, AQo, KQs, KJs, KTs, QJs, Q8s, AJo, QJo, A6s, A3s, A2s, ATo, A9o [13.6%]
+3BF_30BB_SBvsHJ_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, KJs, KTs, QJs, AJo, A6s, A3s, A2s, A9o [10.7%]
+# 3BF_30BB_SBvsHJ mixed: 88:R51, AJs:R26, KQs:A59, K8s:R30, K7s:R30, K5s:R44, K4s:R33, KQo:R30, Q9s:R43, Q8s:R67, KJo:R24, QJo:R60, ATo:R69, KTo:R28, QTo:R30, A5o:R22
+
+3BF_30BB_BBvsBTN: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, AKo, AQo, KQs, K6s, AJo, J9s, ATo, T9s, K7o, A6o, A3o, A2o [16.6%]
+3BF_30BB_BBvsBTN_HF: AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, AKo, AQo, K6s, AJo, J9s, ATo, T9s, K7o, A6o, A3o, A2o [16.0%]
+# 3BF_30BB_BBvsBTN mixed: KQs:R56, KQo:R21+A21, JTo:A31, 98s:A26, J7o:R22, T7o:R20, T6o:R28, A5o:R27, K5o:R42, J5o:R21, K4o:R37, J4o:R43, Q3o:R37, K2o:R25, Q2o:R38
+
+3BF_30BB_BBvsCO: AA, KK, QQ, JJ, TT, 99, 88, 77, 44, 33, AKs, AQs, AKo, AQo, AJo, JTo, A6o, A4o, A3o, A2o [11.8%]
+3BF_30BB_BBvsCO_HF: AA, KK, QQ, JJ, TT, 99, 88, 77, 33, AKs, AQs, AKo, AQo, AJo, JTo, A2o [9.5%]
+# 3BF_30BB_BBvsCO mixed: 44:A60, K8s:A31, JTs:A30, KTo:R22+A22, Q9o:R22, J8o:R40, T8o:R20, J7o:R22, A6o:R57, K5o:R32, A4o:R59, Q4o:R20, A3o:R40+A16, Q3o:R31, K2o:R36
+
+3BF_30BB_BBvsSB: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, AJo, ATo, Q5o, K4o, A3o, K3o, A2o, K2o [10.1%]
+3BF_30BB_BBvsSB_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, AJo, Q5o, A3o, K3o, A2o [7.7%]
+# 3BF_30BB_BBvsSB mixed: 22:A34, 66:A37, 77:A28, AA:R62, ATo:R40+A19, J8o:R21, J7o:R21, T7o:R36, 97o:R41, A6o:R39, T6o:R39, 86o:R22, J5o:R25, K4o:R61, Q4o:R21, K2o:R55
+# Note: SB opens R3 at 30BB
+
+3BF_30BB_COvsHJ: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AKo, AQo, K9s, KQo, QTs, A6s, A5s, A4s, AJo, ATo [11.2%]
+3BF_30BB_COvsHJ_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, K9s, KQo, QTs, A6s, A5s, A4s, AJo, ATo [9.5%]
+# 3BF_30BB_COvsHJ mixed: 88:R56, 99:R63, A8s:R43, A7s:R39, KQs:R28, K8s:R21, AQo:R69, Q9s:R40, KJo:R37, QJo:R27
+
+# --- Phase 1: 3-bet vs open, 50BB ---
+# Openers: BTN/CO=R2.1, HJ/LJ=R2, SB=R3.5
+3BF_50BB_BTNvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, A5s, A4s, A2s, K7s, K6s, Q8s, QJo, ATo, KTo, A9o, A8o, A5o [12.4%]
+3BF_50BB_BTNvsCO_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, A2s, K6s, QJo, KTo, A9o [7.7%]
+# 3BF_50BB_BTNvsCO mixed: 88:R40, 99:R37, A6s:R21, A5s:R65, A4s:R52, A3s:R33, KJs:R31, K7s:R65, K5s:R22, AQo:R59, KQo:R46, Q8s:R57, AJo:R45, KJo:R42, JTs:R27, ATo:R50, QTo:R35, T9s:R32, T8s:R21, A8o:R65, 76s:R32, A5o:R50
+
+3BF_50BB_BTNvsHJ: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, A5s, A4s, A2s, K7s, K6s, KJo, QJo, ATo, A9o [10.1%]
+3BF_50BB_BTNvsHJ_HF: AA, KK, QQ, JJ, AKs, AQs, AKo, A5s, A2s, K7s, QJo, A9o [7.1%]
+# 3BF_50BB_BTNvsHJ mixed: A8s:R33, A7s:R26, A6s:R34, A4s:R65, A3s:R39, KTs:R33, K8s:R36, K6s:R66, AQo:R35, KQo:R37, Q9s:R29, Q8s:R43, AJo:R44, KJo:R60, ATo:R70, TT:R53, T9s:R34, 87s:R26, 76s:R36, 65s:R41, A5o:R27, 54s:R26
+
+3BF_50BB_BTNvsMP: AA, KK, QQ, JJ, AKs, A6s, A5s, A3s, A2s, AKo, K8s, K7s, KJo, ATo [8.3%]
+3BF_50BB_BTNvsMP_HF: AA, KK, QQ, JJ, AKs, A5s, A2s, AKo, K7s, ATo [5.9%]
+# 3BF_50BB_BTNvsMP mixed: AQs:R28, A8s:R20, A7s:R26, A6s:R59, A4s:R31, A3s:R55, KQs:R24, KJs:R42, KTs:R26, K8s:R59, K6s:R39, AQo:R48, KQo:R33, Q9s:R45, Q8s:R39, AJo:R42, KJo:R56, QJo:R42, TT:R29, T9s:R24, A9o:R25, 98s:R24, 87s:R30, 76s:R40, 65s:R35
+
+3BF_50BB_SBvsBTN: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AJs, A4s, A2s, AKo, AQo, KQs, KTs, K6s, K4s, K3s, K2s, KQo, QTs, Q6s, AJo, KJo, QJo, JTo, T9s, T8s, T7s, 98s, 97s, A8o, 87s, 76s, A5o [21.3%]
+3BF_50BB_SBvsBTN_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AJs, A4s, AKo, AQo, KQo, K3s, KJo, 98s, 97s, A5o [11.2%]
+# 3BF_50BB_SBvsBTN mixed: 66:R20, 77:R25, 88:R46, A5s:R23, A3s:R32, A2s:R63, KQs:R61, KJs:R31, KTs:R63, K8s:R20, K7s:R31, K6s:R59, K5s:R21, K4s:R53, K2s:R52, QTs:R60, Q9s:R42, Q8s:R21, Q6s:R55, AJo:R52, QJo:R60, J9s:R47, J8s:R49, KTo:R28, QTo:R35, JTo:R62, T9s:R56, T8s:R60, T7s:R67, A9o:R40, K9o:R23, A8o:R60, 87s:R63, 76s:R61, 65s:R49
+
+3BF_50BB_SBvsCO: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, KQs, K4s, KQo, QTs, AJo, J8s, KTo, T9s, T8s, A5s, A4s, A2s, A9o, 76s [14.2%]
+3BF_50BB_SBvsCO_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, A5s, A4s, AJo, T9s [7.7%]
+# 3BF_50BB_SBvsCO mixed: 88:R28, 99:R53, A8s:R21, A6s:R46, A2s:R56, KQs:R63, KJs:R21, K9s:R40, K7s:R41, K6s:R29, K4s:R50, KQo:R64, QJs:R21, QTs:R57, Q9s:R27, QJo:R35, JTs:R49, J8s:R58, ATo:R45, KTo:R66, QTo:R21, JTo:R29, T8s:R63, A9o:R61, 98s:R23, 87s:R43, 76s:R62, 65s:R45, 54s:R30
+
+3BF_50BB_SBvsHJ: AA, KK, QQ, JJ, TT, AKs, AQs, AJs, A5s, A4s, A2s, AKo, AQo, KQs, K9s, QJs, JTs, J9s, ATo, T9s, 76s [12.4%]
+3BF_50BB_SBvsHJ_HF: AA, KK, QQ, JJ, TT, AKs, A5s, AKo, KQs, AQo, QJs, J9s [7.1%]
+# 3BF_50BB_SBvsHJ mixed: 99:R37, AQs:R56, AJs:R64, A8s:R29, A7s:R32, A6s:R45, A4s:R55, A2s:R60, KJs:R36, KTs:R37, K9s:R60, K7s:R20, K6s:R41, K5s:R34, KQo:R23, AJo:R36, KJo:R49, JTs:R65, J8s:R31, ATo:R51, T9s:R55, T8s:R35, 98s:R27, 87s:R32, 76s:R63, 65s:R46, 54s:R28
+
+3BF_50BB_BBvsBTN: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, AJo, T7o, K4o [7.7%]
+3BF_50BB_BBvsBTN_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo [5.3%]
+# 3BF_50BB_BBvsBTN mixed: 77:R26, 99:R69, AJs:R41, KQs:R27, KQo:R34, AJo:R56, K9o:R26, Q9o:R29, J9o:R25, T9o:R22, J8o:R30, T8o:R33, T7o:R50, 76s:R26, A6o:R44, K6o:R38, T6o:R21, A5o:R32, K5o:R35, 54s:R30, A4o:R41, K4o:R58, Q4o:R21, A3o:R43, Q3o:R42, A2o:R44
+
+3BF_50BB_BBvsCO: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, A5o [5.9%]
+3BF_50BB_BBvsCO_HF: AA, KK, QQ, JJ, AKs, AQs, AKo [4.1%]
+# 3BF_50BB_BBvsCO mixed: AQo:R54, KQo:R34, AJo:R33, JTo:R44, TT:R63, K9o:R35, Q9o:R31, T9o:R24, J8o:R29, 76s:R42, A6o:R35, K6o:R29, 65s:R31, A5o:R56, 54s:R24, A4o:R25, A3o:R40, A2o:R32, K2o:R23
+
+3BF_50BB_BBvsSB: AA, KK, QQ, JJ, AKs, AQs, AKo, AQo, T7o, A6o, Q5o, K4o, A3o, A2o [8.3%]
+3BF_50BB_BBvsSB_HF: AA, KK, QQ, JJ, AKs, AQs, AKo, AQo, K4o, A2o [5.9%]
+# 3BF_50BB_BBvsSB mixed: 66:R22, TT:R40, 92s:R23, Q8o:R21, J8o:R39, J7o:R23, T7o:R62, 97o:R38, A6o:R70, K6o:R24, Q6o:R41, K5o:R39, Q5o:R51, A3o:R58
+# Note: SB opens R3.5 at 50BB
+
+3BF_50BB_COvsHJ: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, A7s, A6s, A5s, A4s, A3s, A2s, KQo, AJo, KJo, ATo [10.7%]
+3BF_50BB_COvsHJ_HF: AA, KK, QQ, JJ, AKs, AQs, AKo, A7s, A6s, A5s, A3s, A2s, KQo, AJo, KJo, ATo [9.5%]
+# 3BF_50BB_COvsHJ mixed: 99:R23, A8s:R43, A4s:R65, KJs:R35, KTs:R25, K9s:R35, K8s:R38, AQo:R47, QTs:R25, Q9s:R44, QJo:R27, JTs:R26, TT:R69, T9s:R34, 76s:R20, 65s:R33
+
+--- SQUEEZE ACTION FREQUENCY RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# Same gametype/conditions as 3BF charts above. Hero faces open + one cold-caller.
+# _HF = high-frequency subset (AGG >= 70%). Base chart = AGG >= 50%.
+
+# --- Phase 2: Squeeze, 30BB ---
+SQF_30BB_SB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A8s, A7s, A2s, AKo, AQo, KQs, KTs, KJs, JTs, QJs, QTs, AJo, ATo, A8o [16.6%]
+SQF_30BB_SB_vsCOopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, A8s, A7s, A2s, AKo, AQo, KQs, KTs, QJs, QTs, AJo, JTs [13.6%]
+# SQF_30BB_SB_vsCOopen_BTNcall mixed: 33:A27, 44:A55, 55:A36, A3s:R32, KJs:A52, KQo:R37+A16, KJo:R49, QJo:R43, ATo:R54, A8o:R53, A7o:R35
+
+SQF_30BB_SB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, ATs, A9s, A3s, A2s, AKo, AQo, KQs, KJs, KTs, QJo, QTs, AJo [13.0%]
+SQF_30BB_SB_vsHJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, ATs, A9s, A3s, A2s, AKo, AQo, KQs, KJs, KTs, QJo, QTs, AJo [13.0%]
+# SQF_30BB_SB_vsHJopen_BTNcall mixed: 44:A40, 77:R25, A8s:R49, A7s:R35, A6s:R34, KQo:R33, QJs:A45, Q9s:R37, Q8s:R29, JTs:A50, ATo:R45, A8o:R43
+
+SQF_30BB_SB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A8s, A3s, A2s, AKo, AQo, KQs, KJs, KTs, QJs, Q9s, Q8s, AJo [13.0%]
+SQF_30BB_SB_vsLJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A8s, A2s, AKo, AQo, KQs, KJs, KTs, QJs, Q9s, Q8s [11.8%]
+# SQF_30BB_SB_vsLJopen_BTNcall mixed: 55:A23, ATs:R23+A22, A6s:R35, A3s:R56, KQo:R37, QTs:A23, AJo:R69, JTs:A28, ATo:R28, A9o:R26
+
+SQF_30BB_SB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A8s, A3s, A2s, AKo, AQo, KQs, KJs, KTs, K9s, QJo, QTs, Q9s, AJo, JTs [13.6%]
+SQF_30BB_SB_vsHJopen_COcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A8s, A3s, A2s, AKo, AQo, KQs, KJs, KTs, K9s, QTs, Q9s, AJo [13.0%]
+# SQF_30BB_SB_vsHJopen_COcall mixed: 44:A23, 55:A43, KQo:R25, QJs:R19+A19, Q8s:R40, JTs:A69, ATo:R21, A9o:R39
+
+SQF_30BB_BB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, 77, 33, AKs, AQs, AJs, ATs, A8s, AKo, AQo, KQs, KTs, QJs, QTs, Q9s, JTs, T9s, AJo, A2o [16.0%]
+SQF_30BB_BB_vsCOopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, 77, 33, AKs, AQs, AJs, ATs, A8s, AKo, AQo, KQs, KTs, QJs, QTs, Q9s, JTs, T9s, AJo, A2o [14.8%]
+# SQF_30BB_BB_vsCOopen_BTNcall mixed: 44:A67, 55:A24, Q8s:A52, QJo:R30, A8o:R39, A7o:R21, J7o:R30, A6o:R22
+
+SQF_30BB_BB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A9s, AKo, AQo, KQs, KTs, K9s, QJs, QTs, Q9s, QJo, JTs, AJo, A2o [13.6%]
+SQF_30BB_BB_vsHJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A9s, AKo, AQo, KQs, KTs, K9s, QJs, QTs, Q9s, JTs, AJo, A2o [13.0%]
+# SQF_30BB_BB_vsHJopen_BTNcall mixed: ATs:R32, A3s:A37, QJo:R53, T9s:A20, Q9o:R21, Q8o:R24, A6o:R22, A3o:R31
+
+SQF_30BB_BB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, AKo, AQo, KJs, KTs, K9s, QJs, QTs, AJo, JTs, A2o [11.2%]
+SQF_30BB_BB_vsLJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, AKo, AQo, KJs, KTs, QJs, QTs, AJo, JTs [10.1%]
+# SQF_30BB_BB_vsLJopen_BTNcall mixed: 55:A23, KQs:R25, K9s:A68, QJs:A47, QJo:R29, Q9o:R45, Q8o:R35, A3o:R41, A2o:R60
+
+SQF_30BB_BB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, AKo, AQo, KTs, K9s, QJs, QTs, AJo, JTs, T9s, Q9o, A3o [12.4%]
+SQF_30BB_BB_vsHJopen_COcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, AKo, AQo, KTs, K9s, QTs, AJo, JTs [10.1%]
+# SQF_30BB_BB_vsHJopen_COcall mixed: 44:A30, 55:A35, KQs:R23, KJs:R12+A12, QJs:A54, T9s:A53, Q9o:R66, A3o:R58, A2o:R33
+
+# --- Phase 2: Squeeze, 50BB ---
+# Openers: CO/BTN=R2.1, HJ/LJ=R2, caller C
+SQF_50BB_SB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A6s, A5s, A2s, AKo, AQo, KQo, KQs, KJs, KTs, K8s, Q9s, Q8s, QJo, AJo, ATo [14.8%]
+SQF_50BB_SB_vsCOopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, 88, AKs, AQs, AJs, A6s, A2s, AKo, AQo, KQo, KQs, KJs, KTs, K8s, Q9s, Q8s, QJo, AJo, ATo [14.2%]
+# SQF_50BB_SB_vsCOopen_BTNcall mixed: A8s:R49, A5s:R69, A3s:R25, K9s:R46, QTs:R27, KJo:R26, J9s:R26, T9s:R46, 98s:R48
+
+SQF_50BB_SB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, A6s, A5s, A2s, AKo, AQo, KQo, KJs, K9s, QTs, Q9s, AJo, J9s, ATo, T9s [13.0%]
+SQF_50BB_SB_vsHJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, A5s, AKo, AQo, KQo, KJs, QTs, Q9s, AJo, J9s, ATo, T9s [11.2%]
+# SQF_50BB_SB_vsHJopen_BTNcall mixed: A7s:R45, A6s:R56, A2s:R54, KQs:R21, K9s:R66, QJs:R32, KJo:R39, 98s:R24, 76s:R28
+
+SQF_50BB_SB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, AKs, AQs, A5s, A3s, AKo, AQo, KQo, KJs, KTs, QTs, AJo, T9s [10.1%]
+SQF_50BB_SB_vsLJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, KTs, T9s [6.5%]
+# SQF_50BB_SB_vsLJopen_BTNcall mixed: 99:R41, ATs:R31, A7s:R45, A6s:R32, A5s:R56, A3s:R58, KQs:R23, KJs:R53, KQo:R60, QJs:R46, QTs:R65, AJo:R67, KJo:R40, JTs:R44, J9s:R32, ATo:R36, 76s:R23
+
+SQF_50BB_SB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, A6s, A3s, A2s, AKo, AQo, KQo, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, AJo, J9s, T9s [14.2%]
+SQF_50BB_SB_vsHJopen_COcall_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, A2s, AKo, AQo, KQo, KJs, K9s, QTs, Q9s, AJo, JJ, T9s [10.7%]
+# SQF_50BB_SB_vsHJopen_COcall mixed: AJs:R40, A9s:R23, A6s:R63, A5s:R31, A3s:R58, KQs:R53, KTs:R66, QJs:R56, JTs:R43, J9s:R56, ATo:R34
+
+SQF_50BB_BB_vsCOopen_BTNcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AJs, AKo, AQo, KQs, KJs, KTs, Q8s, QJo, AJo, JTs, QTs, ATo, A5o [12.4%]
+SQF_50BB_BB_vsCOopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AJs, AKo, AQo, KQs, KTs, QTs, AJo, JTs [9.5%]
+# SQF_50BB_BB_vsCOopen_BTNcall mixed: 88:R28, KJs:R33+A31, KQo:R41, QJs:R29+A16, Q8s:R61, QJo:R67, J8s:R45, ATo:R52, T8s:R26, Q9o:R41, A8o:R22, A6o:R41, A5o:R58, A2o:R28
+
+SQF_50BB_BB_vsHJopen_BTNcall: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, KJs, AQo, Q9s, AJo, ATo, T9s [8.9%]
+SQF_50BB_BB_vsHJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, KJs, AQo, Q9s, AJo, T9s [8.3%]
+# SQF_50BB_BB_vsHJopen_BTNcall mixed: A3s:R22, KQs:R29, KTs:R25+A23, K9s:R41, KQo:R30, QTs:R33, Q8s:R42, KJo:R29, QJo:R41, J9s:R32, ATo:R66, QTo:R27, T7s:R28, K9o:R23, 76s:R25, A6o:R22, A5o:R46
+
+SQF_50BB_BB_vsLJopen_BTNcall: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, QTs, KJo, ATo, T8s [7.7%]
+SQF_50BB_BB_vsLJopen_BTNcall_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, AQo, QTs, T8s [6.5%]
+# SQF_50BB_BB_vsLJopen_BTNcall mixed: A5s:R46, KQs:R26, K6s:R41, Q9s:R39, AJo:R24, KJo:R70, JTs:R22, J9s:R46, ATo:R51, 76s:R49, A5o:R34
+
+SQF_50BB_BB_vsHJopen_COcall: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, KJs, KTs, AQo, QJs, QTs, Q9s, AJo, T9s [9.5%]
+SQF_50BB_BB_vsHJopen_COcall_HF: AA, KK, QQ, JJ, TT, AKs, AQs, AKo, KJs, KTs, AQo, QJs, QTs, Q9s, AJo [8.9%]
+# SQF_50BB_BB_vsHJopen_COcall mixed: 99:R48, A3s:R42, A2s:R22, KQs:R43, K6s:R40, KQo:R50, JTs:R46, J9s:R48, ATo:R27, T9s:R60, A5o:R35
+
+--- BB DEFEND 3-BET FREQUENCY RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# BB facing HJ/LJ open, all others folded.
+
+# --- Phase 3: BB defend additions ---
+3BF_30BB_BBvsHJ: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, JTs, A3o [7.1%]
+3BF_30BB_BBvsHJ_HF: AA, KK, QQ, JJ, TT, 99, AKs, AQs, AKo, AQo, TT, A3o [6.5%]
+# 3BF_30BB_BBvsHJ mixed: 33:A34, 88:R26, K9s:A42, JTs:A68, JTo:R20, Q9o:R34, J8o:R29, A7o:R31, A6o:R46, A5o:R40, K5o:R23, K4o:R34, K3o:R27, A2o:R44
+
+3BF_30BB_BBvsLJ: AA, KK, QQ, JJ, TT, AKs, AKo, AQo, A3o [5.3%]
+3BF_30BB_BBvsLJ_HF: AA, KK, QQ, JJ, TT, AKs, AKo, A3o [4.7%]
+# 3BF_30BB_BBvsLJ mixed: AQo:R54+A11, QTo:R26, Q9o:R30, J8o:R20, A7o:R48, K6o:R30, A5o:R35, A4o:R34, A2o:R44
+
+3BF_50BB_BBvsHJ: AA, KK, QQ, JJ, AKs, AKo, AQo, 76s [4.7%]
+3BF_50BB_BBvsHJ_HF: AA, KK, QQ, AKs, AKo, 76s [3.6%]
+# 3BF_50BB_BBvsHJ mixed: A7s:R37, A5s:R42, AQo:R63, KJo:R22, JJ:R59, J9s:R38, J8s:R44, KTo:R22, JTo:R27, TT:R32, K9o:R24, A7o:R20, K6o:R30, 65s:R29, A5o:R43, 54s:R36, A3o:R23
+
+3BF_50BB_BBvsLJ: AA, KK, QQ, AKs, AKo, 76s, 54s [4.1%]
+3BF_50BB_BBvsLJ_HF: AA, KK, QQ, AKs, AKo [2.4%]
+# 3BF_50BB_BBvsLJ mixed: A5s:R34, K9s:R39, K6s:R25, AQo:R26, QQ:R68, QJo:R25, JJ:R36, J9s:R37, ATo:R33, KTo:R24, TT:R20, T8s:R23, 76s:R66, A5o:R40, 54s:R51, A4o:R29
+
+--- QUARANTINED BLOCK (v8.12.0 D1, 2026-06-11): the SB defend charts below came from a
+--- wrong-node extraction (5-token sequences landed on BTN, not SB; call-by-elimination
+--- color bug; 35BB depth and 20BB_vsHJ nodes do not exist in the GTOW library).
+--- Corrected SBD2_* charts (hover-panel verified, call/fold-only tree) replace these
+--- in v8.13.x after raw grid export. Lines below are preserved for archaeology only;
+--- the --- prefix makes gem_ranges.load_ranges skip them unconditionally.
+--- QUARANTINED SB DEFEND RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+--- QUARANTINED: # Extracted from GTOWizard strategy grid. ICM gametype MTTGeneral_ICM8m1000PTPCT50.
+--- QUARANTINED: # CALL = green action (by elimination). 3BET = raise+allin (orange+purple).
+--- QUARANTINED: # _HF = high-frequency (>=70%). Base = >=50%.
+--- QUARANTINED: # 20BB: SB~19.5BB (mixed opp stacks). 35BB: SB=36BB (opp 22-38). 50BB: symmetric 50bb.
+--- QUARANTINED: # Open sizes: 20BB/35BB = R2 ; 50BB BTN/CO = R2.1, HJ = R2.
+
+--- QUARANTINED: # --- SB Defend 20BB (almost all jam, ~no calling) ---
+--- QUARANTINED: SBD_20BB_vsBTN_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, TT, T9s, A9o, A8o, A7o, A5o, A4o [24.6%]
+--- QUARANTINED: SBD_20BB_vsBTN: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, TT, T9s, A9o, A8o, A7o, A5o, A4o [24.6%]
+
+--- QUARANTINED: SBD_20BB_vsCO_CALL: K9s [1.7%]
+--- QUARANTINED: SBD_20BB_vsCO_CALL_HF: K9s [1.7%]
+--- QUARANTINED: SBD_20BB_vsCO_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, TT, T9s, A9o, A8o [19.9%]
+--- QUARANTINED: SBD_20BB_vsCO: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, TT, T9s, A9o, A8o [21.5%]
+--- QUARANTINED: # SBD_20BB_vsCO mixed-call: A3s:C32, A2s:C23, Q9s:C49, KJo:C34, QJo:C27, T9s:C22, T8s:C42
+
+--- QUARANTINED: SBD_20BB_vsHJ_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, A9o [16.8%]
+--- QUARANTINED: SBD_20BB_vsHJ: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, A9o [17.9%]
+--- QUARANTINED: # SBD_20BB_vsHJ mixed-call: A6s:C38, A2s:C24, K9s:C26, Q9s:C28, KJo:C36, T9s:C35
+
+--- QUARANTINED: # --- SB Defend 35BB (call ~8-12%, 3-bet ~11-19%) ---
+--- QUARANTINED: SBD_35BB_vsBTN_CALL: 22, 33, 44, 55, A9s, A8s, A7s, A6s, A5s, A4s, A3s, KJs, K9s, K8s, Q9s, Q8s, J9s, KTo, T9s [8.2%]
+--- QUARANTINED: SBD_35BB_vsBTN_CALL_HF: 22, A9s, A8s, A7s, A6s, A5s, A4s, KJs, K9s, K8s, Q9s, J9s, T9s [8.2%]
+--- QUARANTINED: SBD_35BB_vsBTN_3BET: 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A2s, AKo, KK, KQs, KTs, K7s, K6s, AQo, KQo, QQ, QJs, QTs, AJo, KJo, QJo, JJ, JTs, ATo, QTo, JTo, TT, A9o, A8o, A7o, A5o [18.8%]
+--- QUARANTINED: SBD_35BB_vsBTN: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, QTo, JTo, TT, T9s, A9o, A8o, A7o, A5o [27.0%]
+--- QUARANTINED: # SBD_35BB_vsBTN mixed-call: 33:C63, 44:C55, 55:C64, 66:C44, ATs:C29, A3s:C69, K7s:C49, QJs:C25, Q8s:C64, QJo:C35, J8s:C39, ATo:C40, KTo:C64, QTo:C27, JTo:C37, T8s:C29, 98s:C26
+
+--- QUARANTINED: SBD_35BB_vsCO_CALL: 22, 33, 44, 55, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, KTs, K9s, K8s, QJs, QTs, Q9s, KJo, JTs, J9s, T9s [8.0%]
+--- QUARANTINED: SBD_35BB_vsCO_CALL_HF: 22, 33, 44, ATs, A9s, A8s, A7s, A6s, A5s, A4s, KTs, K9s, K8s, QJs, QTs, Q9s, KJo, J9s, T9s [8.0%]
+--- QUARANTINED: SBD_35BB_vsCO_3BET: 66, 77, 88, 99, AA, AKs, AQs, AJs, A2s, AKo, KK, KQs, KJs, AQo, KQo, QQ, AJo, QJo, JJ, ATo, KTo, QTo, TT, A9o, A8o, A5o [15.3%]
+--- QUARANTINED: SBD_35BB_vsCO: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, QTo, TT, T9s, A9o, A8o, A5o [23.3%]
+--- QUARANTINED: # SBD_35BB_vsCO mixed-call: 55:C53, 66:C27, A3s:C60, A2s:C21, KQo:C25, QJo:C27, JTs:C51, T8s:C36
+
+--- QUARANTINED: SBD_35BB_vsHJ_CALL: 22, 33, 44, 55, 66, 77, 88, AJs, ATs, A9s, A8s, A7s, A5s, A3s, KQs, KJs, KTs, K9s, K8s, KQo, QJs, QTs, KJo, JTs, J9s, T9s, T8s, 98s, 54s [11.9%]
+--- QUARANTINED: SBD_35BB_vsHJ_CALL_HF: 22, 33, 44, 55, 66, 77, 88, AJs, ATs, A9s, A8s, A7s, A5s, A3s, KQs, KJs, KTs, K9s, K8s, QJs, QTs, KJo, JTs, J9s, T9s, T8s, 98s [11.9%]
+--- QUARANTINED: SBD_35BB_vsHJ_3BET: 99, AA, AKs, AQs, A6s, A4s, A2s, AKo, KK, K7s, K6s, K5s, AQo, QQ, Q9s, Q8s, AJo, QJo, JJ, ATo, TT, A9o [10.8%]
+--- QUARANTINED: SBD_35BB_vsHJ: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, TT, T9s, T8s, 98s, 54s, A9o [22.7%]
+--- QUARANTINED: # SBD_35BB_vsHJ mixed-call: A6s:C42, A4s:C47, K7s:C21, AQo:C26, KQo:C53, Q9s:C43, AJo:C31, QJo:C30, ATo:C46, 87s:C32, 76s:C46, 65s:C31, 54s:C53
+
+--- QUARANTINED: # --- SB Defend 50BB (call ~12-13%, polarized 3-bet ~10-17%) ---
+--- QUARANTINED: SBD_50BB_vsBTN_CALL: 22, 33, 44, 55, 66, 77, 88, ATs, A9s, A8s, A7s, A6s, A5s, A3s, KJs, K9s, K8s, K7s, K5s, QJs, Q9s, Q8s, Q7s, JTs, J9s, J8s, KTo, QTo, A9o [12.9%]
+--- QUARANTINED: SBD_50BB_vsBTN_CALL_HF: 22, 33, 44, 55, 66, 77, ATs, A9s, A8s, A7s, A6s, A5s, K9s, K8s, K5s, QJs, Q8s, Q7s, JTs, KTo [12.9%]
+--- QUARANTINED: SBD_50BB_vsBTN_3BET: 99, AA, AKs, AQs, AJs, A4s, A2s, AKo, KK, KQs, KTs, K6s, K4s, K3s, K2s, AQo, KQo, QQ, QTs, Q6s, AJo, KJo, QJo, JJ, ATo, JTo, TT, T9s, T8s, T7s, 98s, 97s, A8o, 87s, 76s, A5o [17.2%]
+--- QUARANTINED: SBD_50BB_vsBTN: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, Q7s, Q6s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, QTo, JTo, TT, T9s, T8s, T7s, 98s, 97s, A9o, A8o, 87s, 76s, A5o [30.0%]
+--- QUARANTINED: # SBD_50BB_vsBTN mixed-call: 88:C54, A3s:C68, A2s:C37, KQs:C39, KJs:C69, KTs:C37, K7s:C69, K6s:C41, K4s:C47, QTs:C40, Q9s:C58, AJo:C48, KJo:C21, QJo:C40, J9s:C53, J8s:C51, J7s:C35, QTo:C65, JTo:C38, T9s:C44, T8s:C40, T7s:C33, A9o:C60, 98s:C25, 97s:C27, A8o:C40, 87s:C37, 76s:C39, 65s:C44, 54s:C42
+
+--- QUARANTINED: SBD_50BB_vsCO_CALL: 22, 33, 44, 55, 66, 77, 88, AJs, ATs, A9s, A8s, A7s, A6s, A3s, KJs, KTs, K9s, K8s, K7s, K6s, K5s, QJs, Q9s, Q8s, KJo, QJo, JTs, J9s, ATo, 98s, 87s, 65s, 54s [13.2%]
+--- QUARANTINED: SBD_50BB_vsCO_CALL_HF: 22, 33, 44, 55, 66, 77, 88, AJs, ATs, A9s, A8s, A7s, A3s, KJs, KTs, K8s, K6s, K5s, QJs, Q9s, Q8s, KJo, J9s, 98s, 54s [13.2%]
+--- QUARANTINED: SBD_50BB_vsCO_3BET: 99, AA, AKs, AQs, A5s, A4s, A2s, AKo, KK, KQs, K4s, AQo, KQo, QQ, QTs, AJo, JJ, J8s, KTo, TT, T9s, T8s, A9o, 76s [12.7%]
+--- QUARANTINED: SBD_50BB_vsCO: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, TT, T9s, T8s, 98s, A9o, 87s, 76s, 65s, 54s [25.9%]
+--- QUARANTINED: # SBD_50BB_vsCO mixed-call: 99:C47, A6s:C54, A5s:C25, A2s:C44, KQs:C37, K9s:C60, K7s:C59, AQo:C25, KQo:C36, QTs:C43, QJo:C65, JTs:C51, J8s:C42, ATo:C55, KTo:C34, QTo:C39, JTo:C24, T9s:C23, T8s:C37, A9o:C39, 97s:C41, 87s:C57, 76s:C38, 65s:C54
+
+--- QUARANTINED: SBD_50BB_vsHJ_CALL: 22, 33, 44, 55, 66, 77, 88, 99, ATs, A9s, A8s, A7s, A6s, A3s, KJs, KTs, K8s, K7s, K6s, K5s, KQo, QTs, Q9s, AJo, KJo, QJo, J8s, T8s, 98s, 97s, 87s, 65s, 54s [12.5%]
+--- QUARANTINED: SBD_50BB_vsHJ_CALL_HF: 22, 33, 44, 55, 66, 77, 88, ATs, A9s, A8s, A3s, K8s, K7s, KQo, QTs, Q9s, QJo, 98s, 97s, 54s [12.5%]
+--- QUARANTINED: SBD_50BB_vsHJ_3BET: AA, AKs, AQs, AJs, A5s, A4s, A2s, AKo, KK, KQs, K9s, AQo, QQ, QJs, JJ, JTs, J9s, ATo, TT, T9s, 76s [10.3%]
+--- QUARANTINED: SBD_50BB_vsHJ: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, TT, T9s, T8s, 98s, 97s, 87s, 76s, 65s, 54s [22.8%]
+--- QUARANTINED: # SBD_50BB_vsHJ mixed-call: 99:C63, AQs:C44, AJs:C36, A7s:C68, A6s:C55, A4s:C45, A2s:C40, KJs:C64, KTs:C63, K9s:C40, K6s:C59, K5s:C66, QJs:C24, AJo:C64, KJo:C51, JTs:C35, J8s:C59, ATo:C49, TT:C24, T9s:C46, T8s:C65, 87s:C68, 76s:C37, 65s:C54
+
+--- BB DEFEND RANGES with call/3bet split (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# Extracted from GTOWizard. Symmetric stack tables (20BB, 50BB) and near-symmetric (35BB).
+# 3BET = raise+allin >=50%. FOLD = fold >=50%. CALL = complement (everything else).
+# def% = total defend. BB defends much wider than SB (discount + closing action).
+
+# --- BB Defend 20BB ---
+BBD_20BB_vsBTN_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, ATs, A2s, AKo, KK, K7s, K6s, AQo, KQo, QQ, AJo, JJ, JTs, J8s, ATo, TT, T9s, T8s, A9o, A7o, A5o, J5o, A2o [20.1%]
+BBD_20BB_vsBTN_FOLD: T6o, 96o, T5o, 95o, 85o, J4o, T4o, 94o, 84o, 74o, J3o, T3o, 93o, 83o, 73o, 63o, 43o, J2o, T2o, 92o, 82o, 72o, 62o, 52o, 42o, 32o [15.4%]
+# BBD_20BB_vsBTN: def 76.9%, call 55.6%, 3bet 21.3%
+
+BBD_20BB_vsCO_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, A6s, AKo, KK, K7s, K6s, AQo, QQ, Q9s, AJo, JJ, JTs, J9s, ATo, TT, T9s, A5o, A2o [17.2%]
+# BBD_20BB_vsCO: def 72.9%, call 56.6%, 3bet 16.2%
+
+BBD_20BB_vsHJ_3BET: 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, A7s, A4s, AKo, KK, K9s, AQo, QQ, Q9s, AJo, JJ, JTs, TT, A7o, A2o [14.2%]
+# BBD_20BB_vsHJ: def 68.2%, call 54.8%, 3bet 13.4%
+
+# --- BB Defend 35BB ---
+BBD_35BB_vsBTN_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, AKo, KK, KQs, AQo, QQ, AJo, JJ, TT, A6o, K5o, K4o, A3o, A2o, Q2o [15.4%]
+# BBD_35BB_vsBTN: def 82.8%, call 65.5%, 3bet 17.3%
+
+BBD_35BB_vsCO_3BET: 22, 33, 44, 55, 66, 77, 88, 99, AA, AKs, AQs, AJs, AKo, KK, AQo, QQ, AJo, JJ, JTs, J9s, TT, A6o, Q4o, A3o, A2o [14.8%]
+# BBD_35BB_vsCO: def 76.9%, call 62.1%, 3bet 14.8%
+
+BBD_35BB_vsHJ_3BET: AA, AKs, AQs, AKo, KK, AQo, QQ, JJ, TT [5.3%]
+# BBD_35BB_vsHJ: def 68.6%, call 59.1%, 3bet 9.6%
+
+# --- BB Defend 50BB ---
+BBD_50BB_vsBTN_3BET: 99, AA, AKs, AQs, AKo, KK, AQo, QQ, AJo, JJ, TT, T7o, K4o [7.7%]
+BBD_50BB_vsBTN_FOLD: 95o, T4o, 94o, 84o, J3o, T3o, 93o, 83o, 73o, 63o, J2o, T2o, 92o, 82o, 72o, 62o, 52o, 42o, 32o [11.2%]
+# BBD_50BB_vsBTN: def 82.7%, call 68.6%, 3bet 14.0%
+
+BBD_50BB_vsCO_3BET: AA, AKs, AQs, AKo, KK, AQo, QQ, JJ, TT, A5o [5.9%]
+# BBD_50BB_vsCO: def 72.9%, call 62.3%, 3bet 10.6%
+
+BBD_50BB_vsHJ_3BET: AA, AKs, AKo, KK, AQo, QQ, JJ, 76s [4.7%]
+# BBD_50BB_vsHJ: def 72.1%, call 63.8%, 3bet 8.3%
+
+--- 25BB REJAM RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# Hero faces one open, 3-bet jams. AGG = raise+allin >=50%. _HF = >=70%.
+# Symmetric 25BB table.
+
+RJ_25BB_BBvsBTN: AA, AKs, AQs, AJs, ATs, A2s, AKo, KK, K7s, K6s, AQo, KQo, QQ, Q8s, AJo, JJ, JTs, J9s, J8s, ATo, JTo, TT, T9s, T8s, 99, 88, 77, A6o, 66, A5o, 55, 44, 33, A2o [21.8%]
+RJ_25BB_BBvsBTN_HF: AA, AKs, AQs, AJs, ATs, AKo, KK, K7s, K6s, AQo, KQo, QQ, AJo, JJ, J9s, J8s, ATo, TT, T9s, T8s, 99, 88, 77, 66, A5o, 55, 44, 33, A2o [17.2%]
+
+RJ_25BB_BBvsCO: AA, AKs, AQs, AJs, AKo, KK, AQo, QQ, AJo, JJ, JTs, J9s, TT, 99, 88, 77, A6o, 66, 55, Q4o, 44, A3o, 33, A2o [15.5%]
+RJ_25BB_BBvsCO_HF: AA, AKs, AQs, AJs, AKo, KK, AQo, QQ, AJo, JJ, J9s, TT, 99, 88, 77, 66, 55, 44, A3o, 33, A2o [12.4%]
+
+RJ_25BB_BBvsHJ: AA, AKs, AQs, AKo, KK, AQo, QQ, Q9s, JJ, JTs, TT, 99, 88, 77, 44, A3o, 33 [10.1%]
+RJ_25BB_BBvsHJ_HF: AA, AKs, AQs, AKo, KK, AQo, QQ, JJ, JTs, TT, 99, 88, 77, 44, A3o, 33 [9.5%]
+
+RJ_25BB_SBvsBTN: AA, AKs, AQs, AJs, ATs, A9s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, KTo, QTo, TT, T9s, A9o, 99, A8o, 88, 77, 66, A5o, 55, 44, 33, 22 [25.9%]
+RJ_25BB_SBvsBTN_HF: AA, AKs, AQs, AJs, ATs, A9s, A7s, A5s, A4s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, TT, T9s, A9o, 99, A8o, 88, 77, 66, A5o, 55, 44, 33, 22 [24.3%]
+
+RJ_25BB_SBvsCO: AA, AKs, AQs, AJs, ATs, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, QJo, JJ, JTs, ATo, QTo, TT, A9o, 99, A8o, 88, 77, 44, 33 [18.2%]
+RJ_25BB_SBvsCO_HF: AA, AKs, AQs, AJs, A3s, A2s, AKo, KK, KQs, KJs, KTs, AQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, 99, A8o, 88, 77, 33 [14.2%]
+
+RJ_25BB_BTNvsCO: AA, AKs, AQs, AJs, A7s, A6s, A4s, A3s, AKo, KK, KQs, KJs, KTs, AQo, QQ, AJo, KJo, QJo, JJ, ATo, TT, 99, 88 [13.6%]
+RJ_25BB_BTNvsCO_HF: AA, AKs, AQs, A6s, A4s, A3s, AKo, KK, KQs, KJs, KTs, AQo, QQ, AJo, KJo, QJo, JJ, ATo, TT, 99, 88 [12.4%]
+
+RJ_25BB_BTNvsHJ: AA, AKs, AQs, A7s, A6s, A4s, A3s, AKo, KK, KJs, KTs, K9s, AQo, QQ, Q9s, QJo, JJ, ATo, TT, 99 [11.8%]
+RJ_25BB_BTNvsHJ_HF: AA, AKs, AQs, A6s, A4s, AKo, KK, KJs, K9s, AQo, QQ, Q9s, JJ, ATo, TT, 99 [9.5%]
+
+RJ_25BB_COvsHJ: AA, AKs, AQs, A9s, A8s, A5s, A4s, AKo, KK, KJs, K9s, AQo, KQo, QQ, QTs, AJo, JJ, ATo, TT, 99, 88 [12.4%]
+RJ_25BB_COvsHJ_HF: AA, AKs, AQs, A8s, A4s, AKo, KK, K9s, AQo, KQo, QQ, QTs, AJo, JJ, ATo, TT, 99 [10.1%]
+
+--- 20BB 3-BET RANGES — remaining positions (from GTOW ICM 8-max, Jun 2026) ---
+# At 20BB, 3-bet = jam. AGG = raise+allin >=50%. Symmetric 20BB table.
+
+3BF_20BB_BTNvsCO: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, AJo, KJo, JJ, JTs, ATo, TT, 99, 88, 77, 66, 55, 44 [20.1%]
+3BF_20BB_BTNvsCO_HF: AA, AKs, AQs, AJs, A8s, A7s, A5s, A4s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, 99, 88, 77, 66, 55, 44 [17.8%]
+
+3BF_20BB_BTNvsHJ: AA, AKs, AQs, A9s, A8s, A7s, A5s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, ATo, TT, 99, 88, 77, 66, 55, 44 [16.6%]
+3BF_20BB_BTNvsHJ_HF: AA, AKs, AQs, A7s, A5s, AKo, KK, KQs, KJs, KTs, AQo, QQ, QJs, QTs, AJo, JJ, ATo, TT, 99, 88, 77, 55, 44 [13.6%]
+
+3BF_20BB_COvsHJ: AA, AKs, AQs, AJs, A9s, A8s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, ATo, TT, 99, 88, 77, 66 [14.2%]
+3BF_20BB_COvsHJ_HF: AA, AKs, AQs, A9s, A8s, AKo, KK, KQs, KJs, KTs, AQo, KQo, QQ, QJs, QTs, AJo, JJ, ATo, TT, 99, 88, 77, 66 [13.6%]
+
+3BF_20BB_BBvsBTN: AA, AKs, AQs, AJs, ATs, A2s, AKo, KK, K7s, K6s, AQo, KQo, QQ, AJo, JJ, JTs, J8s, ATo, TT, T9s, T8s, A9o, 99, 88, A7o, 77, 66, A5o, J5o, 55, 44, 33, A2o, 22 [20.1%]
+3BF_20BB_BBvsBTN_HF: AA, AKs, AQs, AJs, ATs, A2s, AKo, KK, K7s, K6s, AQo, KQo, QQ, AJo, JJ, JTs, J8s, ATo, TT, T9s, T8s, A9o, 99, 88, A7o, 77, 66, A5o, 55, 44, 33, A2o, 22 [19.5%]
+
+3BF_20BB_BBvsCO: AA, AKs, AQs, AJs, A6s, AKo, KK, K7s, K6s, AQo, QQ, Q9s, AJo, JJ, JTs, J9s, ATo, TT, T9s, 99, 88, 77, 66, A5o, 55, 44, 33, A2o, 22 [17.2%]
+3BF_20BB_BBvsCO_HF: AA, AKs, AQs, AJs, A6s, AKo, KK, K7s, K6s, AQo, QQ, Q9s, AJo, JJ, JTs, J9s, TT, T9s, 99, 88, 77, 66, 55, 44, 33, A2o, 22 [16.0%]
+
+--- FACING 3-BET RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# Hero opened, villain 3-bet. CONT = continue (call+4bet+jam) >=50%.
+# _AGG = 4-bet or jam (raise+allin) >=50%.
+# 30BB: mostly call-or-jam response. 50BB: small 4-bet appears.
+
+F4B_30BB_COvsBTN3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, AJo, KJo, JJ, JTs, J9s, TT, T9s, T8s, 99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33 [26.0%]
+F4B_30BB_COvsBTN3B_AGG: AA, AKs, AQs, A7s, A2s, AKo, KK, KQs, KJs, KTs, AQo, QQ, JJ, JTs, TT, 99, 88, 77, 55, 44, 33 [12.4%]
+
+F4B_30BB_COvsSB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, ATo, TT, T9s, 99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44 [27.2%]
+F4B_30BB_COvsSB3B_AGG: AKs, A7s, A5s, AKo, KQs, KJs, KTs, AQo, QQ, JJ, TT, 99, 88, 77, 44 [8.9%]
+
+F4B_30BB_BTNvsSB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K4s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, ATo, TT, T9s, T8s, A9o, 99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22 [32.0%]
+F4B_30BB_BTNvsSB3B_AGG: AKs, A7s, A6s, A3s, A2s, AKo, K9s, AQo, KQo, QQ, QJs, Q9s, AJo, JJ, JTs, TT, 99, 88, 77, 66, 44, 33, 22 [13.6%]
+
+F4B_30BB_BTNvsBB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, TT, T9s, T8s, 99, 98s, 88, 87s, 77, 66, 55, 44, 33 [30.2%]
+F4B_30BB_BTNvsBB3B_AGG: AKs, AQs, A5s, A2s, AKo, KQs, KJs, KTs, AQo, QJs, AJo, JJ, TT, 55, 44, 33 [9.5%]
+
+F4B_50BB_COvsBTN3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, TT, 99, 88, 77, 66, 65s, 55 [19.5%]
+F4B_50BB_COvsBTN3B_AGG: AA, AKs, AQs, A8s, A7s, A6s, A4s, A3s, AKo, KK, KJs, K9s, AQo, QQ, AJo, JJ, TT, 99 [10.7%]
+
+F4B_50BB_COvsSB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, AQo, KQo, QQ, QJs, QTs, AJo, JJ, JTs, J9s, TT, T9s, T8s, 99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44 [24.9%]
+F4B_50BB_COvsSB3B_AGG: AKs, A3s, AKo, KK, QQ, JJ, TT, 99 [4.7%]
+
+F4B_50BB_BTNvsSB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, AQo, KQo, QQ, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, TT, T9s, T8s, T7s, 99, 98s, 97s, 88, 87s, 86s, 77, 76s, 66, 65s, 64s, 55, 54s, 44, 33, 22 [35.5%]
+F4B_50BB_BTNvsSB3B_AGG: AKs, A2s, AKo, KTs, AQo, QQ, JJ, TT, 99, 33, 22 [6.5%]
+
+F4B_50BB_BTNvsBB3B: AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K8s, K7s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, J9s, J8s, ATo, KTo, TT, T9s, T8s, 99, 98s, 88, 87s, 77, 76s, 66, 55, 44, 33 [28.4%]
+F4B_50BB_BTNvsBB3B_AGG: AKs, AKo, KJs, AQo, QQ, JJ, TT, 44, 33 [5.3%]
+
+--- ICM PUSH RANGES (from GTOW ICM 8-max 1000p 50%left, Jun 2026) ---
+# Best-effort mixed-table extractions. NOT symmetric tables — treat as directional.
+# Compare vs ChipEV PUSH_10BB_* charts for ICM tightening effect.
+
+PUSH_ICM_12BB_BTN: A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KQs, K9s, K8s, K7s, K6s, K5s, KQo, QJs, QTs, Q9s, Q8s, AJo, KJo, QJo, JTs, J9s, J8s, ATo, KTo, QTo, JTo, T9s, A9o, K9o, 99, A8o, 88, A7o, 77, A6o, 66, A5o, A4o, A3o, 33, A2o, 22 [27.2%]
+# CAVEAT: BTN eff ~12BB (not 10); BB=4BB inflates jam EV. Directional only.
+
+PUSH_ICM_11BB_SB: AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, AQo, KQo, Q7s, Q6s, Q5s, Q4s, Q3s, AJo, KJo, QJo, J8s, J7s, J6s, J5s, J4s, J3s, ATo, KTo, QTo, JTo, T8s, T7s, T6s, T5s, T4s, A9o, K9o, Q9o, J9o, T9o, 98s, 97s, 96s, 95s, A8o, K8o, Q8o, T8o, 98o, 87s, 86s, 85s, A7o, K7o, T7o, 87o, 76s, 75s, A6o, K6o, Q6o, 76o, 66, 65s, 64s, A5o, K5o, 55, 54s, A4o, K4o, 44, A3o, K3o, 33, A2o, K2o, 22 [51.5%]
+# CAVEAT: SB eff ~11BB (not 10); cleanest available ICM short-SB node.
+
+--- GTOW ChipEV 6-max JAM RANGES (GTO Wizard MTT6mSimple, Jun 2026) ---
+# Source: GTO Wizard ChipEV, 6-max (MTT6mSimple), equal stacks at target depth.
+# Positions: LJ (=UTG in 6-max), HJ, CO, BTN, SB.
+# At 8BB: pure jam-or-fold (open = jam). PUSH_8BB_* is the full jam range.
+# At 10-15BB: premiums min-raise; PUSH_* here is the JAM SUBSET only.
+# At 20-25BB: early positions have NO jam (pure open-raise). Only BTN/SB jam.
+# SB ranges are the JAM component only (limp/call/raise excluded).
+# Notation: '+' shorthand is used; gem_ranges._expand_plus() handles expansion.
+# Combo totals include mixed frequencies (solver mixes jam/raise at boundary hands).
+
+--- PUSH 8BB (jam-or-fold; open = jam) ---
+PUSH_8BB_LJ: 22+, A2s+, K8s+, Q9s+, J8s+, T8s+, 98s, A7o+, KTo+, QJo [24.4%]
+PUSH_8BB_HJ: 22+, A2s+, K7s+, Q9s+, J8s+, T8s+, 87s, A6o+, KTo+, QJo [29.2%]
+PUSH_8BB_CO: 22+, A2s+, K4s+, Q8s+, J8s+, T7s+, 97s+, 76s, A6o+, K9o+, QTo+, JTo [33.5%]
+PUSH_8BB_BTN: 22+, A2s+, K2s+, Q5s+, J7s+, T7s+, 96s+, 86s+, 65s, A5o+, K6o+, Q9o+, J9o+, T9o [41.5%]
+PUSH_8BB_SB: 22+, A2s+, K2s+, Q2s+, J2s+, T3s+, 95s+, 84s+, 74s+, 63s+, 53s+, A2o+, K2o+, Q2o+, J5o+, T7o+, 97o+, 87o, 76o, 86o [60.0%]
+# SB 8bb also: limp/call ~16%; fold ~24%.
+
+--- PUSH 10BB (GTOW ChipEV jam subset) ---
+# These supplement the existing RYE PUSH_10BB_* charts above.
+# At 10BB premiums (AA-TT, AKs etc.) prefer min-raise; listed below is the JAM subset.
+JAM_10BB_LJ: 22+, A2s+, K9s+, Q9s+, J9s+, T9s+, 98s, A7o+, KTo+, QJo [18.0%]
+# NOTE: LJ jam ≈18% (238.8 combos); full open 22% (premiums raise-only).
+JAM_10BB_HJ: 22+, A2s+, K8s+, Q9s+, J9s+, T8s+, 98s, A7o+, KTo+, QJo, JTo [23.4%]
+JAM_10BB_CO: 22+, A2s+, K5s+, Q7s+, J7s+, T8s+, 97s+, 87s, A6o+, K9o+, QTo+, JTo [30.7%]
+JAM_10BB_BTN: 22+, A2s+, K2s+, Q4s+, J6s+, T6s+, 97s+, 86s+, 76s, A5o+, K7o+, Q9o+, J9o+, T9o [32.7%]
+JAM_10BB_SB: A2s+, K2s+, Q2s+, J3s+, T4s+, 95s+, 85s+, 74s+, 64s+, 54s, A4o+, K4o+, Q4o+, J7o+, T7o+, 97o, 87o, 76o, 86o [50.6%]
+# SB 10bb: jam ~50.6%; raise/limp ~4%; call ~19.6%; fold ~25.7%.
+
+--- PUSH 12BB (GTOW ChipEV jam subset) ---
+JAM_12BB_LJ: 22+, A3s+, K8s+, Q9s+, J9s+, T9s, A8o+, KTo+, QJo [10.7%]
+JAM_12BB_HJ: 22+, A2s+, K8s+, Q9s+, J9s+, T9s, A5o+, KTo+, QJo, JTo [15.6%]
+JAM_12BB_CO: 22+, A2s+, K5s+, Q8s+, J8s+, T8s+, 98s, A3o+, K9o+, QTo+, JTo [21.9%]
+JAM_12BB_BTN: 22+, A2s+, K2s+, Q5s+, J5s+, T6s+, 97s+, 86s+, 76s, A3o+, K8o+, Q9o+, J9o+, T9o [26.8%]
+JAM_12BB_SB: A2s+, K2s+, Q3s+, J4s+, T4s+, 95s+, 85s+, 74s+, 64s+, 54s, A2o+, K2o+, Q5o+, J6o+, T8o+, 97o, 87o, 76o [40.5%]
+# SB 12bb: jam ~40.5%; raise/limp ~8%; call ~28%; fold ~23.6%.
+
+--- PUSH 15BB (GTOW ChipEV jam subset) ---
+# At 15BB the jam range is narrow — premiums and many broadways min-raise.
+JAM_15BB_LJ: 22+, A3s+, K7s+, Q9s+, J9s+, T8s+, 98s, A8o+, KTo+, QJo, JTo [2.5%]
+# LJ 15bb: jam only 33.2 combos (2.5%). Full open = 19.6%.
+JAM_15BB_HJ: 22+, A2s+, K7s+, Q8s+, J9s+, T8s+, 98s, A8o+, KTo+, QJo, JTo [5.5%]
+JAM_15BB_CO: 22+, A2s+, K6s+, Q7s+, J8s+, T8s+, 97s+, A5o+, K9o+, QTo+, JTo [11.0%]
+JAM_15BB_BTN: 22+, A2s+, K3s+, Q5s+, J6s+, T7s+, 97s+, 86s+, 76s, 65s, A2o+, K8o+, Q9o+, J9o+, T9o [19.2%]
+JAM_15BB_SB: 22, 33, 44, 55, A2s, K4s, K5s, K6s, Q4s, Q5s, Q6s, J5s, J7s, J8s, T6s, T7s, 96s, 97s, 85s, 86s, 87s, 75s, 76s, 65s, A2o+, K5o+, Q6o+, JTo, T7o+, 97o, 98o, 87o, 76o [22.9%]
+# SB 15bb: jam ~22.9% (303 combos); raise/limp ~14.4%; call ~42.9%; fold ~19.9%.
+
+--- PUSH 20BB (GTOW ChipEV) ---
+# At 20BB, LJ/HJ/CO never jam — pure open-raise. Only BTN has a thin jam; SB jams selectively.
+# NO JAM: LJ, HJ, CO (any jam from these positions at 20BB is outside GTO range).
+# OPEN-RAISE ranges (for reference, not jam):
+#   OPEN_20BB_LJ: 22+, A2s+, K7s+, Q8s+, J8s+, T8s+, 98s, 87s, 76s, A9o+, KTo+, QJo [21.4%]
+#   OPEN_20BB_HJ: 22+, A2s+, K5s+, Q7s+, J8s+, T8s+, 97s+, 87s, 76s, A5o, A8o+, KTo+, QJo, JTo [25.4%]
+#   OPEN_20BB_CO: 22+, A2s+, K4s+, Q5s+, J7s+, T7s+, 97s+, 86s+, 76s, 65s, A5o, A7o+, K9o+, QTo+, JTo, T9o [30.9%]
+JAM_20BB_BTN: 22, 33, 44, A2s, A3s, A4s, A5s, KQo, KJo, QTs, JTs, A7o, A8o, A9o [3.9%]
+# BTN 20bb: jam only 51.6 combos (3.9%). Full open = 41.4%.
+JAM_20BB_SB: 22, 33, 44, T7s, T8s, 97s, 98s, 87s, ATo, A9o, A8o, A7o, A6o, A4o, A3o, A2o, KQo, KJo, K5o, K6o, Q6o, Q9o, QJo, JTo, 98o, 87o [11.1%]
+# SB 20bb: jam ~11.1% (146.7 combos, mixed freq); raise/limp ~19.8%; call ~51.7%; fold ~17.5%.
+# CAUTION: SB jam at 20bb is heavily mixed — many hands jam at <100% frequency.
+
+--- PUSH 25BB (GTOW ChipEV) ---
+# At 25BB, LJ/HJ/CO/BTN never jam — pure open-raise. Only SB has a thin balancing jam.
+# NO JAM: LJ, HJ, CO, BTN (any jam from these positions at 25BB is outside GTO range).
+# OPEN-RAISE ranges (for reference, not jam):
+#   OPEN_25BB_LJ: 22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A9o+, KTo+, QJo [23.4%]
+#   OPEN_25BB_HJ: 22+, A2s+, K5s+, Q6s+, J8s+, T7s+, 97s+, 86s+, 76s, 65s, A7o+, K9o+, QTo+, JTo [27.1%]
+#   OPEN_25BB_CO: 22+, A2s+, K3s+, Q5s+, J7s+, T7s+, 97s+, 86s+, 75s+, 65s, 54s, A5o+, K9o+, Q9o+, J9o+, T9o [33.2%]
+#   OPEN_25BB_BTN: 22+, A2s+, K2s+, Q3s+, J4s+, T5s+, 96s+, 85s+, 75s+, 65s, 54s, A3o+, K7o+, Q8o+, J8o+, T8o+, 98o [43.8%]
+JAM_25BB_SB: ATo, A9o, A8o, A7o, A6o, A4o, A3o, A2o, Q5o, Q6o, K5o, 98o, 22, 33 [5.2%]
+# SB 25bb: jam only 68.9 combos (5.2%, thin balancing jam); raise/limp ~24.9%; call ~52.6%; fold ~17.4%.
+# CAUTION: SB jam at 25bb is heavily mixed — nearly all hands jam at low frequency.
+
+# ============================================================
+# PKO BOUNTY RANGES (GTOW PKO ICM, 8-max near-bubble, 2026-06-11)
+# Source: GTOWizard MTTGeneral_ICMPKO8m1000PTBUBBLE152PT
+# These are PKO-specific ranges — compare to Classic ICM equivalents above.
+# Key finding: PKO effect is ~3-4x larger at 20bb than at 50bb.
+# Non-uniform stacks (no clean 10/20/30/50 tiers). Depths are actual.
+# ============================================================
+
+--- PKO OPEN 20BB SITUATION ---
+# Stacks: UTG24/UTG1-27/LJ16/HJ14/CO22/BTN26/SB13/SB18
+PKO_OPEN_24BB_UTG: 55+, A2s+, K7s+, Q8s+, J9s+, T9s, 98s, A8o+, KTo+, QTo+ [27.0%]
+# vs Classic(45): +Q8s T9s 98s / -K6s A5o => net +2
+PKO_OPEN_14BB_HJ: 77+, A4s+, K9s+, Q9s+, JTs, ATo+, KQo, KJo [18.3%]
+# vs Classic(31): +77 Q9s / -A9o => net +1. Mix: K8s@48 QJo@28
+PKO_OPEN_22BB_CO: 44+, A2s+, K4s+, Q5s+, J7s+, T7s+, 98s, 87s, 76s, A3o+, KQo, KJo, KTo, K9o, QJo, QTo, Q9o, JTo, J9o, T9o [40.5%]
+# vs Classic(61): +44 Q6s Q5s J7s T7s J9o T9o 98s 87s 76s / -A2o => net +9
+PKO_OPEN_26BB_BTN: 22+, A2s+, K2s+, Q2s+, J2s+, T2s+, 92s+, 84s+, 74s+, 64s+, 53s+, 43s, AKo, ATo+, KQo, KTo+, QJo, QTo+, J9o+, T9o, A9o, K9o, Q9o, A8o, K8o, Q8o, J8o, T8o, 98o, A7o, K7o, Q7o, J7o, T7o, 97o, 87o, A6o, K6o, Q6o, J6o, T6o, 96o, A5o, K5o, Q5o, A4o, K4o, Q4o, A3o, K3o, A2o, K2o [72.2%]
+# vs Classic(139): -83s 82s 73s 86o 76o 63s J5o T5o 52s J4o 42s Q3o Q2o => net -13
+# BTN TIGHTENS in PKO at 20bb — sheds dominated junk despite bounty incentive.
+
+--- PKO OPEN 50BB SITUATION ---
+# Stacks: UTG42/UTG1-66/LJ58/HJ38/CO34/BTN46/SB54/BB62
+PKO_OPEN_42BB_UTG: 66+, A4s+, K9s+, QTs+, JTs, AKo, AQo, KQo [16.6%]
+# vs Classic(28): +66 => net +1. Nearly identical to Classic at 50bb.
+PKO_OPEN_34BB_CO: 55+, A2s+, K6s+, Q8s+, J9s+, T8s+, 98s, AKo, AQo, AJo, ATo, KQo, KJo, QJo [25.8%]
+# vs Classic(43): +K6s Q8s => net +2
+PKO_OPEN_46BB_BTN: 33+, A2s+, K2s+, Q4s+, J5s+, T7s+, 97s+, 86s+, 76s, 65s, ATo+, KQo, KJo, KTo, QJo, QTo, JTo, A9o, K9o, Q9o, T9o, A8o, A7o, A5o [43.1%]
+# vs Classic(76): -A6o => net -1
+
+--- PKO BB DEFEND ---
+# BB defend is the LARGEST PKO signal: +20 hands vs CO at 17bb.
+# Two components: (1) width increase scaling with opener tightness,
+# (2) aggression shift from flat-call to 3-bet/jam.
+# PKO_BBD_17BB_vsBTN: defend 134 (call 113 / 3bet 27) vs Classic 133 => net +1
+#   Shifts call->3bet on 77 ATs QQ A9o (aggression increase, not width).
+# PKO_BBD_17BB_vsCO: defend 114 (call 99 / 3bet 24) vs Classic 94 => net +20
+#   Added: J2s T5s T4s T3s T2s J9o 95s K8o Q8o T8o 98o 84s K7o 87o 73s 76o 65o 42s 32s A2o
+#   Zero hands removed. Major width increase.
+# PKO_BBD_61BB_vsCO (50bb): defend 155 (call 147 / 3bet 12) vs Classic 150 => net +5
+#   Added: J6o T5o J4o 84o 42o
+
+--- PKO SB DEFEND ---
+# PKO_SBD_12BB_vsBTN: defend 40 (call 7 / 3bet+jam) vs Classic 39 => net +1
+#   +KJo A6o A7o / -33 JTs
+# PKO_SBD_12BB_vsCO: defend 29 (call 8 / 3bet 27) vs Classic 27 => net +2
+#   +A7s A5s / -QTs JTs
+
+# DEPTH-DEPENDENCE SUMMARY:
+#                      20bb-avg delta     50bb-avg delta
+# UTG open               +2                 +1
+# CO  open               +9                 +2
+# BTN open              -13                 -1
+# BB defend vs CO       +20                 +5
+# SB defend vs CO        +2                 (short-stack only)
+# PKO effect is ~3-4x larger at 20bb than at 50bb.
+# At 50bb, PKO and Classic ranges are nearly identical (+-1-5 hands).
+
+# ANALYZER IMPLICATIONS (not yet wired):
+# 1. Flat 8pp discount (gem_analyzer.py line 197) should be depth-scaled:
+#    ~8pp at 15-20bb, ~4pp at 25-35bb, ~2pp at 40bb+.
+# 2. Static iso-jam bonus (lines 1225-1228) should be position-keyed:
+#    EP/MP add playability hands (T9s 98s 87s); BTN tightens at 20bb.
+# 3. BB defend width scales with opener tightness (vs CO >> vs BTN)
+#    AND aggression increases (flat->3bet conversion for bounty stacking).
+# P4 status: no uniform short-stack grids in GTOW PKO.
+
+--- PKO P5: COVERING vs COVERED ISOLATION (~20bb) ---
+# Method: Hold Hero=BB(17bb/$125 bounty) constant, flip opener stack relative
+# to BB, run PKO-minus-Classic delta for each → difference-in-differences.
+# Extractor note: GTOW renders strategy as layered linear-gradients sized via
+# background-size X%; corrected parser collapses duplicate rgb pairs per layer.
+
+# Config A — BB COVERED (BB 17 vs BTN 26 open)
+# PKO_BBD_20BB_vsBTN:      Defend 70.2%  Call 51.9%  Aggr 18.3%
+# CLASSIC_BBD_20BB_vsBTN:  Defend 68.3%  Call 53.3%  Aggr 15.0%
+# PKO delta (A):           Defend +1.9   Call -1.4   Aggr +3.3
+
+# Config B — BB COVERING (BB 17 vs HJ 14 open)
+# PKO_BBD_20BB_vsHJ:       Defend 68.3%  Call 52.9%  Aggr 15.3%
+# CLASSIC_BBD_20BB_vsHJ:   Defend 53.7%  Call 39.0%  Aggr 14.7%
+# PKO delta (B):           Defend +14.6  Call +13.9  Aggr +0.6
+
+# ISOLATION (DiD = covering minus covered PKO effect):
+# Defend: +12.7pp   Call: +15.3pp   Aggr: -2.7pp
+
+# INTERPRETATION:
+# Bounty defend incentive is FAR stronger when Hero covers opener.
+# Covering short opener: PKO widens defend by ~14.6pp (mostly flat calls +13.9pp
+#   — want to see flop cheaply, realize equity to win bounty without elimination risk).
+# Covered by bigger opener: PKO effect nearly vanishes (+1.9pp defend),
+#   small shift toward aggression (+3.3pp) rather than calling.
+# Contradicts flat 8pp discount: real signal is ~+12-15pp when covering, ~0 when covered.
+# Recommendation: gate PKO bonus on hero_stack > opener_stack, scale call-frequency
+# bump by coverage margin, drop static bonus entirely in covered spots.

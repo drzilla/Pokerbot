@@ -1,0 +1,1327 @@
+# GEM Detector Test Fixtures
+#
+# This file contains hand histories specifically crafted to trigger
+# individual detector rules (J-rules, V-rules, K-metrics). Each fixture
+# is tagged with a TD-prefix ID and a comment block explaining which
+# rule(s) it should fire.
+#
+# ADDING A NEW FIXTURE:
+# 1. Copy the closest existing fixture below as a template
+# 2. Set TD ID to the next available (TD00000001, TD00000002, ...)
+# 3. Adjust stack depth, position, action, and hole cards to match the
+#    rule's trigger conditions (see gem_analyzer.py detector block)
+# 4. Add assertion in test_detectors.py referencing the new TD ID
+# 5. Run `python3 test_detectors.py` to confirm it fires correctly
+#
+# FIXTURES BELOW:
+#   TM91000001 — J37 Shallow BvB BB Jam (KJo, 20BB HU) → CLEAR mistake
+#   TM91000002 — M1 Missed Turn Delayed C-bet (7c8c, HU SRP, flop Js6d3c X/X, turn Th, Hero check) → MARGINAL
+#   TM91000003 — M6 3BP Wet-Turn Medium-Equity Barrel (AhKh, 3BP IP, flop Qs9h4c rainbow, turn 8h introduces FD → Hero barrels with nut FD) → MARGINAL
+#
+# SLOTS STILL NEEDED (contribute fixtures as you hit spots in real play):
+#   J14 — Monotone IP no c-bet
+#   J33 — Jam blocker preference (weak-blocker flush jam)
+#   J34 — ICM short-stack MP flat (AJs/AQo/ATs flat EP at ≤30BB ICM)
+#   J35 — Reshove ceiling (<30BB reshove vs 3-8BB villain jam)
+#   J36 — ICM jam 30-37BB (pre-3bet sizing instead)
+#   V15a — 4BP flat at 40+BB with <JJ
+#   V15b — 5-bet jam at 40+BB with <QQ
+#   V15c — Flat 5-bet+ OOP 3+ way with <KK
+
+
+# ============================================================
+# TM91000001 — J37 Shallow BvB BB Jam — Middling Broadway
+# ============================================================
+# Scenario: Final table HU, Level 15 (1000 BB). Hero in BB with 20BB
+# effective. SB min-raises, Hero jams KJo (middling broadway in J37
+# mistake-hand set). SB folds.
+#
+# Expected: mistake with type containing 'J37', classification CLEAR.
+# Rationale: KJo at 20BB BvB doesn't generate enough FE — villain
+# folds worse, calls better. Correct range = pairs + offsuit aces.
+#
+# NOTE: Fixture IDs use TM91xxxxx namespace because gem_parser.py
+# hardcodes 'TM' prefix. Main fixtures use TM90xxxxx; TM91+ is
+# reserved for detector-specific fixtures.
+# ============================================================
+
+
+Poker Hand #TM91000001: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level15(500/1000(125)) - 2026/04/07 10:00:01
+Table 'FinalTable' 2-max Seat #1 is the button
+Seat 1: Villain1 (40000 in chips)
+Seat 2: Hero (20000 in chips)
+Villain1: posts small blind 500
+Hero: posts big blind 1000
+*** HOLE CARDS ***
+Dealt to Hero [Kh Jd]
+Villain1: raises 1500 to 2000
+Hero: raises 18000 to 20000 and is all-in
+Villain1: folds
+Uncalled bet (18000) returned to Hero
+Hero collected 4000 from pot
+*** SUMMARY ***
+Total pot 4000 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Villain1 (small blind) folded before Flop
+Seat 2: Hero (big blind) collected (4000)
+
+
+# ============================================================
+# TM91000002 — M1 Missed Turn Delayed C-bet
+# ============================================================
+# Scenario: HU SRP, Hero BTN opens to 2.5BB with 7c8c, BB defends.
+# Flop Js 6d 3c — both check. Turn Th (non-equity-shift card:
+# doesn't complete a FD, doesn't pair board, doesn't land in a
+# 3-value window ≤4 on the 4-board). Hero checks again → MARGINAL.
+#
+# Expected: mistake with type containing 'M1', confidence MARGINAL.
+# Rationale: Pop turn-CR vs delayed cbet is <2%. Minbet 20-30% as
+# range extracts value from bottom-pair-no-kicker and denies equity
+# from overs. Hero's actual hand is 7-high (high_card category), so
+# it qualifies as "checked down" under the medium/weak hand filter.
+# ============================================================
+
+
+Poker Hand #TM91000002: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 10:00:02
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [7c 8c]
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 375 to 625
+Villain1: folds
+Villain2: calls 375
+*** FLOP *** [Js 6d 3c]
+Villain2: checks
+Hero: checks
+*** TURN *** [Js 6d 3c] [Th]
+Villain2: checks
+Hero: checks
+*** RIVER *** [Js 6d 3c Th] [4s]
+Villain2: bets 750
+Hero: folds
+Villain2 collected 1375 from pot
+*** SUMMARY ***
+Total pot 1375 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Hero (button) folded on the River
+Seat 2: Villain2 (big blind) collected (1375)
+
+
+# ============================================================
+# TM91000003 — M6 3BP Wet-Turn Medium-Equity Barrel
+# ============================================================
+# Scenario: HU 3BP, Hero BTN opens 2.5BB with Ah Kh, BB 3bets to
+# 8BB, Hero calls. 3BP flop Qs 9h 4h (single FD — hearts). Both
+# check is rejected by a better test; instead Hero IP scenario:
+# BB checks flop, Hero bets flop small. BB calls. Turn 8h — now
+# 4-board has three hearts (FD completed from Hero's perspective
+# — Hero HAS the nut FD and it came in — so Hero now has a flush;
+# that's TOO strong for M6). Instead use a different turn:
+#
+# Re-designed: Hero has Ah Kh, flop Qs 9h 4c (one FD). Turn 8h —
+# now board is Qs 9h 4c 8h → two hearts on board (4c is a club,
+# so 4-board hearts = Q,9,8 = three hearts is WRONG — Qs isn't a
+# heart). Recount: flop Qs 9h 4c has one heart. Turn 8h adds
+# another heart → 4-board has two hearts (9h, 8h). Hero Ah Kh
+# contains two hearts → Hero has a FLUSH DRAW not a made flush.
+# That's medium equity = nut FD = qualifies for M6.
+#
+# Hero bets turn → MARGINAL per M6.
+#
+# Expected: mistake with type containing 'M6', confidence MARGINAL.
+# Rationale: Hero barrels nut FD (medium equity in M6 terms) on a
+# turn that introduces a second flush-possibility texture. Per M6,
+# should check behind — a CR here forces Hero to fold and lose
+# the nut-FD equity. Correct: check, realize equity for free.
+# ============================================================
+
+
+Poker Hand #TM91000003: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 10:00:03
+Table '1' 8-max Seat #1 is the button
+Seat 1: Hero (25000 in chips)
+Seat 2: Villain1 (25000 in chips)
+Seat 3: Villain2 (25000 in chips)
+Seat 4: Villain3 (25000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (25000 in chips)
+Seat 7: Villain6 (25000 in chips)
+Seat 8: Villain7 (25000 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kh]
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Hero: raises 375 to 625
+Villain1: folds
+Villain2: raises 1375 to 2000
+Hero: calls 1375
+*** FLOP *** [Qs 9h 4c]
+Villain2: checks
+Hero: bets 1500
+Villain2: calls 1500
+*** TURN *** [Qs 9h 4c] [8h]
+Villain2: checks
+Hero: bets 3500
+Villain2: folds
+Hero collected 6500 from pot
+*** SUMMARY ***
+Total pot 6500 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Hero (button) collected (6500)
+Seat 2: Villain2 (big blind) folded on the Turn
+
+
+# ============================================================
+# TM91000004 — J43 ICM Flat Alert (CO flats MP open in bubble_zone)
+# ============================================================
+# Scenario: Standard 8-max bounty MTT at Level 25 (computed as
+# bubble_zone for non-Hyper/Turbo). Hero is CO with 30BB. MP opens
+# to 2.5BB, Hero flat-calls with 99 (a hand that per J43 should be
+# 3-bet or fold in ICM, not flatted from non-BTN/BB position).
+# Other positions fold.
+#
+# Expected: deviation type 'ICM Flat Alert', confidence MARGINAL,
+# requires_confirmation=True. Note must reference J43.
+# Rationale: J43 generalizes J34 — flatting from non-BTN/BB in any
+# ICM phase (bubble_zone, post_bubble, ft_zone) gets the raise-or-
+# fold lens. CO is not BTN/BB, phase is bubble_zone, opener exists,
+# Hero VPIP'd without PFR'ing = trigger.
+# ============================================================
+
+
+Poker Hand #TM91000004: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level25(500/1000(125)) - 2026/04/07 11:00:01
+Table 'Bubble' 8-max Seat #1 is the button
+Seat 1: Villain1 (30000 in chips)
+Seat 2: Villain2 (28000 in chips)
+Seat 3: Villain3 (32000 in chips)
+Seat 4: Villain4 (29000 in chips)
+Seat 5: Villain5 (31000 in chips)
+Seat 6: Villain6 (30000 in chips)
+Seat 7: Villain7 (29000 in chips)
+Seat 8: Hero (30000 in chips)
+Villain1: posts the ante 125
+Villain2: posts the ante 125
+Villain3: posts the ante 125
+Villain4: posts the ante 125
+Villain5: posts the ante 125
+Villain6: posts the ante 125
+Villain7: posts the ante 125
+Hero: posts the ante 125
+Villain2: posts small blind 500
+Villain3: posts big blind 1000
+*** HOLE CARDS ***
+Dealt to Hero [9c 9d]
+Villain4: folds
+Villain5: folds
+Villain6: raises 1500 to 2500
+Villain7: folds
+Hero: calls 2500
+Villain1: folds
+Villain2: folds
+Villain3: folds
+*** FLOP *** [Ks 7d 4c]
+Villain6: bets 3000
+Hero: folds
+Villain6 collected 7500 from pot
+*** SUMMARY ***
+Total pot 7500 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 6: Villain6 collected (7500)
+Seat 8: Hero (cutoff) folded on the Flop
+
+
+# ============================================================
+# TM91000005 — J44 IP 3-Bet OVERSIZED at <25BB (BTN, 22BB)
+# ============================================================
+# Scenario: Hero on BTN with 22BB stack at Level 5. HJ opens to
+# 2.5BB. Hero 3-bets to 9BB (3.6x the open). Per J44, target at
+# <25BB is 2.5x — actual 3.6x exceeds target by 1.1x = > 0.5x
+# flag threshold. Should be flagged as oversized.
+#
+# Expected: hero_3bet_size_x ≈ 3.6, depth bucket '<25BB',
+# bucket target 2.5x, hand appears in deviations list.
+# Rationale: at shallow stacks, oversizing commits Hero
+# unnecessarily. 2.5x leaves room to fold to a 4-bet jam.
+# ============================================================
+
+
+Poker Hand #TM91000005: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:02
+Table 'Shallow' 8-max Seat #1 is the button
+Seat 1: Hero (5500 in chips)
+Seat 2: Villain1 (8000 in chips)
+Seat 3: Villain2 (7500 in chips)
+Seat 4: Villain3 (10000 in chips)
+Seat 5: Villain4 (9000 in chips)
+Seat 6: Villain5 (8500 in chips)
+Seat 7: Villain6 (10000 in chips)
+Seat 8: Villain7 (9500 in chips)
+Villain1: posts small blind 125
+Villain2: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kh]
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: raises 375 to 625
+Villain7: folds
+Hero: raises 1625 to 2250
+Villain1: folds
+Villain2: folds
+Villain6: folds
+Hero collected 1625 from pot
+*** SUMMARY ***
+Total pot 1625 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Hero (button) collected (1625)
+
+
+# ============================================================
+# TM91000006 — J44 IP 3-Bet ON-TARGET at 25-40BB (CO, 35BB)
+# ============================================================
+# Scenario: Hero at CO with 35BB. HJ opens to 2.5BB. Hero 3-bets
+# to 7.5BB (3.0x the open). Per J44, target at 25-40BB is 3.0x —
+# exactly on target. Should NOT be flagged.
+#
+# Expected: hero_3bet_size_x ≈ 3.0, depth bucket '25-40BB',
+# bucket target 3.0x, deviation < 0.5, NOT in deviations list.
+# Rationale: control fixture — confirms detector doesn't false-
+# positive on correct sizing.
+# ============================================================
+
+
+Poker Hand #TM91000006: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:03
+Table 'Mid' 8-max Seat #1 is the button
+Seat 1: Villain1 (10000 in chips)
+Seat 2: Villain2 (8000 in chips)
+Seat 3: Villain3 (7500 in chips)
+Seat 4: Villain4 (10000 in chips)
+Seat 5: Villain5 (9000 in chips)
+Seat 6: Villain6 (8500 in chips)
+Seat 7: Villain7 (10000 in chips)
+Seat 8: Hero (8750 in chips)
+Villain2: posts small blind 125
+Villain3: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ks Kh]
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: raises 375 to 625
+Hero: raises 1250 to 1875
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain7: folds
+Hero collected 1250 from pot
+*** SUMMARY ***
+Total pot 1250 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 8: Hero (cutoff) collected (1250)
+
+
+# ============================================================
+# TM91000007 — J44 IP 3-Bet UNDERSIZED at 40+BB (HJ, 50BB)
+# ============================================================
+# Scenario: Hero at HJ with 50BB. MP opens to 2.5BB. Hero 3-bets
+# to 6BB (2.4x the open). Per J44, target at 40+BB is 3.5x —
+# actual 2.4x is undersized by 1.1x = > 0.5x flag threshold.
+# Should be flagged as undersized.
+#
+# Expected: hero_3bet_size_x ≈ 2.4, depth bucket '40+BB',
+# bucket target 3.5x, hand appears in deviations list.
+# Rationale: at deeper stacks, undersized 3-bets fail to leverage
+# IP postflop advantage and invite too many flats/squeezes.
+# ============================================================
+
+
+Poker Hand #TM91000007: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:04
+Table 'Deep' 8-max Seat #1 is the button
+Seat 1: Villain1 (12000 in chips)
+Seat 2: Villain2 (10000 in chips)
+Seat 3: Villain3 (11000 in chips)
+Seat 4: Villain4 (12000 in chips)
+Seat 5: Villain5 (12500 in chips)
+Seat 6: Villain6 (11500 in chips)
+Seat 7: Hero (12500 in chips)
+Seat 8: Villain7 (12000 in chips)
+Villain2: posts small blind 125
+Villain3: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Qd Qc]
+Villain4: folds
+Villain5: folds
+Villain6: raises 375 to 625
+Hero: raises 875 to 1500
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain6: folds
+Hero collected 875 from pot
+*** SUMMARY ***
+Total pot 875 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 7: Hero (hijack) collected (875)
+
+# ============================================================
+# TM91000008 — Amit Weak-Ax Flat vs 3BET (positive case)
+# ============================================================
+# Scenario: Hero on BU with A4o, 80BB stack, level 5 (chip-EV phase).
+# Folds to BU. Hero opens 2.5x. SB 3-bets to 8BB. Hero FLATS.
+# Per Amit, weak Ax (A2-A8) facing 3bet at >=30BB must fold or
+# shove, never flat. Should fire as CLEAR mistake.
+# Expected: 1 mistake of type 'Weak Ax Flat vs 3bet (Amit)'.
+# ============================================================
+
+
+Poker Hand #TM91000008: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:05
+Table 'Chip' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Villain3 (20000 in chips)
+Seat 4: Villain4 (20000 in chips)
+Seat 5: Villain5 (20000 in chips)
+Seat 6: Hero (20000 in chips)
+Seat 7: Villain6 (20000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 4c]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Hero: raises 375 to 625
+Villain6: raises 1375 to 2000
+Villain7: folds
+Hero: calls 1375
+*** FLOP *** [Js 7d 3c]
+Villain6: bets 2500
+Hero: folds
+Villain6 collected 6750 from pot
+*** SUMMARY ***
+Total pot 6750 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 6: Hero (button) folded on the Flop
+Seat 7: Villain6 (small blind) collected (6750)
+
+
+# ============================================================
+# TM91000009 — Amit Weak-Ax Flat vs SQUEEZE (positive case)
+# ============================================================
+# Scenario: Hero in HJ with A5s, 60BB stack, level 5 (chip-EV phase).
+# UTG opens. UTG+1, MP fold. Hero flat-calls. CO folds. BU squeezes.
+# Blinds + UTG fold to squeeze. Hero FLATS the squeeze.
+# Per Amit, weak Ax (A2-A8) facing squeeze at >=30BB must fold or
+# shove. Should fire as CLEAR mistake with 'squeeze' label.
+# Expected: 1 mistake of type 'Weak Ax Flat vs Squeeze (Amit)'.
+# ============================================================
+
+
+Poker Hand #TM91000009: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:06
+Table 'Chip' 8-max Seat #6 is the button
+Seat 1: Villain1 (15000 in chips)
+Seat 2: Villain2 (15000 in chips)
+Seat 3: Villain3 (15000 in chips)
+Seat 4: Hero (15000 in chips)
+Seat 5: Villain4 (15000 in chips)
+Seat 6: Villain5 (15000 in chips)
+Seat 7: Villain6 (15000 in chips)
+Seat 8: Villain7 (15000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 5h]
+Villain1: raises 375 to 625
+Villain2: folds
+Villain3: folds
+Hero: calls 625
+Villain4: folds
+Villain5: raises 1875 to 2500
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Hero: calls 1875
+*** FLOP *** [Kd 8c 2s]
+Hero: checks
+Villain5: bets 3500
+Hero: folds
+Villain5 collected 7000 from pot
+*** SUMMARY ***
+Total pot 7000 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 4: Hero (hijack) folded on the Flop
+Seat 6: Villain5 (button) collected (7000)
+
+
+# ============================================================
+# TM91000010 — Amit Weak-Ax Flat NEGATIVE CONTROL (<30BB)
+# ============================================================
+# Scenario: Hero on BU with A4o, 25BB stack, level 5 (chip-EV phase).
+# Same action as TM91000008 but at 25BB depth.
+# Per Amit rule, the >=30BB depth threshold means this should NOT
+# fire — at 25BB, the shove branch dominates and folding/calling
+# both have different EV calculus. Detector must NOT flag.
+# Expected: 0 mistakes of type 'Weak Ax Flat vs 3bet (Amit)'.
+# ============================================================
+
+
+Poker Hand #TM91000010: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 11:00:07
+Table 'Short' 8-max Seat #6 is the button
+Seat 1: Villain1 (6250 in chips)
+Seat 2: Villain2 (6250 in chips)
+Seat 3: Villain3 (6250 in chips)
+Seat 4: Villain4 (6250 in chips)
+Seat 5: Villain5 (6250 in chips)
+Seat 6: Hero (6250 in chips)
+Seat 7: Villain6 (6250 in chips)
+Seat 8: Villain7 (6250 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ah 4c]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Hero: raises 375 to 625
+Villain6: raises 1375 to 2000
+Villain7: folds
+Hero: calls 1375
+*** FLOP *** [Js 7d 3c]
+Villain6: bets 2500
+Hero: folds
+Villain6 collected 6750 from pot
+*** SUMMARY ***
+Total pot 6750 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 6: Hero (button) folded on the Flop
+Seat 7: Villain6 (small blind) collected (6750)
+
+
+# ============================================================
+# v7.30 P1-3 GATE FIXTURES (mistake-detector misclassification regression guards)
+# ============================================================
+# These fixtures pin behavior of three new detector gates added in v7.30:
+#
+#   TM91000011 — Wide Iso-Jam should NOT fire when Hero kept stack behind
+#                (iso-RAISE, not iso-JAM). Recurring exception in
+#                gem_exceptions_log.csv #1, #2, #3.
+#   TM91000012 — Wide Iso-Jam SHOULD fire when Hero is all-in (positive control
+#                paired with TM91000011 to ensure gate isn't over-restrictive).
+#   TM91000013 — J35 should NOT fire when there was a prior opener before the
+#                villain jam (squeeze/4-bet scenario, not pure HU-vs-jammer).
+#   TM91000014 — J36 should NOT fire on 4-bet jams (Hero opened, got 3-bet, jammed).
+#                J36 is for open-jams only.
+# ============================================================
+
+
+# ============================================================
+# TM91000011 — NEGATIVE: Iso-RAISE (kept stack behind), not Iso-JAM
+# ============================================================
+# Scenario: 8-handed FT, Level 25 (~8500 BB). UTG+1 (4.5BB stack)
+# jams. BTN flats. SB calls. Hero (BB, 41BB) 4-bet/squeezes ATo to
+# isolate, KEEPING STACK BEHIND. BTN calls.
+#
+# Pre-v7.30: detector fired Wide Iso-Jam because pfr=True AND
+# villain_jammed=True, regardless of whether Hero was all-in.
+# v7.30 P1-3a: gate on hero pf_allin=True. Iso-RAISE behind isn't
+# the same EV calc as iso-JAM all-in.
+#
+# Expected: NO Wide Iso-Jam mistake fires.
+# ============================================================
+
+Poker Hand #TM91000011: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level25(2000/4000(500)) - 2026/04/07 10:00:11
+Table 'IsoRaise' 8-max Seat #1 is the button
+Seat 1: Villain1 (200000 in chips)
+Seat 2: Hero (164000 in chips)
+Seat 3: Villain2 (300000 in chips)
+Seat 4: Villain3 (18000 in chips)
+Seat 5: Villain4 (250000 in chips)
+Seat 6: Villain5 (200000 in chips)
+Seat 7: Villain6 (300000 in chips)
+Seat 8: Villain7 (300000 in chips)
+Villain1: posts the ante 500
+Hero: posts the ante 500
+Villain2: posts the ante 500
+Villain3: posts the ante 500
+Villain4: posts the ante 500
+Villain5: posts the ante 500
+Villain6: posts the ante 500
+Villain7: posts the ante 500
+Villain2: posts small blind 2000
+Hero: posts big blind 4000
+*** HOLE CARDS ***
+Dealt to Hero [As Th]
+Villain3: raises 13500 to 18000 and is all-in
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: raises 18000 to 36000
+Villain2: calls 34000
+Hero: raises 36000 to 72000
+Villain1: calls 36000
+Villain2: folds
+*** FLOP *** [2c 7d Js]
+Hero: checks
+Villain1: bets 50000
+Hero: folds
+Villain1 collected 232500 from pot
+Villain3 collected 95500 from pot
+*** SUMMARY ***
+Total pot 328000 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [2c 7d Js]
+Seat 1: Villain1 (button) collected (232500)
+Seat 2: Hero (big blind) folded on the Flop
+Seat 3: Villain2 (small blind) folded before Flop
+Seat 4: Villain3 collected (95500)
+Seat 5: Villain4 folded before Flop
+Seat 6: Villain5 folded before Flop
+Seat 7: Villain6 folded before Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# TM91000012 — POSITIVE: Iso-JAM (Hero all-in over villain jam)
+# ============================================================
+# Scenario: 8-handed FT, Level 25. UTG+1 (15BB) jams. Hero (CO,
+# 22BB) iso-jams over with QJo (a wide iso-jam — outside the
+# EP-iso-jam threshold {AA,KK,QQ,JJ,TT,AKs,AQs,AKo}).
+#
+# Expected: Wide Iso-Jam mistake fires CLEAR. Confirms gate isn't
+# over-restrictive after TM91000011.
+# ============================================================
+
+Poker Hand #TM91000012: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level25(2000/4000(500)) - 2026/04/07 10:00:12
+Table 'IsoJam' 8-max Seat #1 is the button
+Seat 1: Villain1 (200000 in chips)
+Seat 2: Villain2 (300000 in chips)
+Seat 3: Villain3 (300000 in chips)
+Seat 4: Villain4 (60000 in chips)
+Seat 5: Hero (88000 in chips)
+Seat 6: Villain5 (200000 in chips)
+Seat 7: Villain6 (300000 in chips)
+Seat 8: Villain7 (300000 in chips)
+Villain1: posts the ante 500
+Villain2: posts the ante 500
+Villain3: posts the ante 500
+Villain4: posts the ante 500
+Hero: posts the ante 500
+Villain5: posts the ante 500
+Villain6: posts the ante 500
+Villain7: posts the ante 500
+Villain2: posts small blind 2000
+Villain3: posts big blind 4000
+*** HOLE CARDS ***
+Dealt to Hero [Qd Js]
+Villain4: raises 55500 to 59500 and is all-in
+Hero: raises 28000 to 87500 and is all-in
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Villain3: folds
+*** FLOP *** [2c 7d Kh]
+*** TURN *** [2c 7d Kh] [3s]
+*** RIVER *** [2c 7d Kh 3s] [9c]
+*** SHOWDOWN ***
+Hero: shows [Qd Js] (high card, King)
+Villain4: shows [Ac Td] (high card, Ace)
+Villain4 collected 153000 from pot
+*** SUMMARY ***
+Total pot 153000 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [2c 7d Kh 3s 9c]
+Seat 1: Villain1 (button) folded before Flop
+Seat 2: Villain2 (small blind) folded before Flop
+Seat 3: Villain3 (big blind) folded before Flop
+Seat 4: Villain4 collected (153000)
+Seat 5: Hero showed [Qd Js] and lost with high card, King
+Seat 6: Villain5 folded before Flop
+Seat 7: Villain6 folded before Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# TM91000013 — NEGATIVE: J35 should NOT fire when prior opener exists
+# ============================================================
+# Scenario: 6-handed mid-bubble. CO opens 2.5BB. SB (8BB) 3-bet jams.
+# Hero (BB, 24BB) 4-bet jams 88. CO folds. SB called.
+#
+# pf_raise_count = 3 (CO open + SB jam + Hero 4-bet). Pre-v7.30,
+# J35 fired because Hero reshoved with non-premium <30BB facing
+# 3-8BB villain jam — but the prior CO open changes the EV
+# calculation entirely (Hero's 4-bet jam denies CO + isolates SB).
+#
+# v7.30 P1-3b gate: J35 requires exactly 1 prior raise before Hero
+# (the jam), not 2+ (open + jam = squeeze scenario).
+#
+# Expected: NO J35 mistake fires.
+# ============================================================
+
+Poker Hand #TM91000013: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level20(1500/3000(400)) - 2026/04/07 10:00:13
+Table 'Squeeze' 6-max Seat #5 is the button
+Seat 1: Villain1 (24000 in chips)
+Seat 2: Hero (72000 in chips)
+Seat 3: Villain2 (250000 in chips)
+Seat 4: Villain3 (180000 in chips)
+Seat 5: Villain4 (200000 in chips)
+Seat 6: Villain5 (90000 in chips)
+Villain1: posts the ante 400
+Hero: posts the ante 400
+Villain2: posts the ante 400
+Villain3: posts the ante 400
+Villain4: posts the ante 400
+Villain5: posts the ante 400
+Villain1: posts small blind 1500
+Hero: posts big blind 3000
+*** HOLE CARDS ***
+Dealt to Hero [8c 8d]
+Villain2: folds
+Villain3: raises 4500 to 7500
+Villain4: folds
+Villain5: raises 89600 to 90000 and is all-in
+Villain1: folds
+Hero: raises 64500 to 72000 and is all-in
+Villain3: folds
+*** FLOP *** [3d 4c 3s]
+*** TURN *** [3d 4c 3s] [7s]
+*** RIVER *** [3d 4c 3s 7s] [6d]
+*** SHOWDOWN ***
+Hero: shows [8c 8d] (two pair, Eights and Threes)
+Villain5: shows [4d 4h] (a full house, Fours full of Threes)
+Villain5 collected 162400 from pot
+*** SUMMARY ***
+Total pot 162400 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [3d 4c 3s 7s] [6d]
+Seat 1: Villain1 (small blind) folded before Flop
+Seat 2: Hero (big blind) showed [8c 8d] and lost with two pair, Eights and Threes
+Seat 3: Villain2 folded before Flop
+Seat 4: Villain3 folded before Flop
+Seat 5: Villain4 (button) folded before Flop
+Seat 6: Villain5 collected (162400)
+
+
+# ============================================================
+# TM91000014 — NEGATIVE: J36 should NOT fire on 4-bet jam (open-jam only)
+# ============================================================
+# Scenario: 8-handed late tournament (ft_zone). MP (Hero, 35BB) opens
+# 2.5x. BTN (45BB) 3-bets to 7BB. Hero 4-bet jams TT all-in. BTN folds.
+#
+# Pre-v7.30, J36 fired because pf_allin=True + pfr=True + 30-37BB +
+# ICM phase + non-premium hand. But J36's intuition is "instead of
+# jamming OPEN, use 3-bet sizing" — that doesn't apply to a 4-bet jam
+# (Hero already opened normally; the 4-bet IS the all-in decision).
+#
+# v7.30 P1-3c gate: J36 requires hero raise count == 1 in pf_sequence
+# (only one Hero raise = the open-jam).
+#
+# Expected: NO J36 mistake fires.
+# ============================================================
+
+Poker Hand #TM91000014: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level30(6000/12000(1500)) - 2026/04/07 10:00:14
+Table 'FourBetJam' 8-max Seat #4 is the button
+Seat 1: Villain1 (300000 in chips)
+Seat 2: Villain2 (250000 in chips)
+Seat 3: Hero (420000 in chips)
+Seat 4: Villain3 (540000 in chips)
+Seat 5: Villain4 (300000 in chips)
+Seat 6: Villain5 (250000 in chips)
+Seat 7: Villain6 (300000 in chips)
+Seat 8: Villain7 (300000 in chips)
+Villain1: posts the ante 1500
+Villain2: posts the ante 1500
+Hero: posts the ante 1500
+Villain3: posts the ante 1500
+Villain4: posts the ante 1500
+Villain5: posts the ante 1500
+Villain6: posts the ante 1500
+Villain7: posts the ante 1500
+Villain5: posts small blind 6000
+Villain6: posts big blind 12000
+*** HOLE CARDS ***
+Dealt to Hero [Tc Td]
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Hero: raises 18000 to 30000
+Villain3: raises 54000 to 84000
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Hero: raises 388500 to 418500 and is all-in
+Villain3: folds
+Uncalled bet (334500) returned to Hero
+Hero collected 215500 from pot
+*** SUMMARY ***
+Total pot 215500 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Villain1 folded before Flop
+Seat 2: Villain2 folded before Flop
+Seat 3: Hero collected (215500)
+Seat 4: Villain3 (button) folded before Flop
+Seat 5: Villain4 folded before Flop
+Seat 6: Villain5 (small blind) folded before Flop
+Seat 7: Villain6 (big blind) folded before Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# TM91000015 — NEGATIVE: P4-DrawJamDeep at SPR <= 3 (v7.31 Patch 6)
+#
+# Hero SB 3-bets, gets called by CO. 3BP HU OOP, eff ~73BB, SPR ~2.2.
+# Flop J78 two-tone hearts. Hero (AhTs) has BDFD + gutshot + 1 overcard.
+# Hero jams flop ~218% pot.
+#
+# Without the gate: draw_overbet_jam fires AND eff>=30, so P4 punt promotes.
+# v7.31 Patch 6 prereq: SPR > 4. Hero is at SPR ~2.2 → P4 blocked.
+# Defensible per Dave + Ron's exception #13 (no geometric line at SPR <= 3 OOP).
+#
+# Expected: P4-DrawJamDeep does NOT fire (still surfaces in draw_overbet_jam
+# tracker for awareness, just not promoted to punt).
+# ============================================================
+
+Poker Hand #TM91000015: Tournament #999990, Detector FT $15 Bounty Hold'em No Limit - Level3(150/300(45)) - 2026/04/07 10:00:15
+Table 'P4SPR' 8-max Seat #1 is the button
+Seat 1: Villain1 (24000 in chips)
+Seat 2: Hero (22000 in chips)
+Seat 3: Villain2 (40000 in chips)
+Seat 4: Villain3 (20000 in chips)
+Seat 5: Villain4 (25000 in chips)
+Seat 6: Villain5 (20000 in chips)
+Seat 7: Villain6 (60000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain1: posts the ante 45
+Hero: posts the ante 45
+Villain2: posts the ante 45
+Villain3: posts the ante 45
+Villain4: posts the ante 45
+Villain5: posts the ante 45
+Villain6: posts the ante 45
+Villain7: posts the ante 45
+Hero: posts small blind 150
+Villain2: posts big blind 300
+*** HOLE CARDS ***
+Dealt to Villain1 
+Dealt to Hero [Ah Ts]
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain3: folds
+Villain4: folds
+Villain5: raises 300 to 600
+Villain6: calls 600
+Villain7: folds
+Villain1: folds
+Hero: raises 3450 to 3600
+Villain2: folds
+Villain5: folds
+Villain6: calls 3000
+*** FLOP *** [Js 7h 8h]
+Hero: bets 18355 and is all-in
+Villain6: folds
+Uncalled bet (18355) returned to Hero
+*** SHOWDOWN ***
+Hero collected 8415 from pot
+*** SUMMARY ***
+Total pot 8415 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [Js 7h 8h]
+Seat 1: Villain1 (button) folded before Flop
+Seat 2: Hero (small blind) won (8415)
+Seat 3: Villain2 (big blind) folded before Flop
+Seat 4: Villain3 folded before Flop
+Seat 5: Villain4 folded before Flop
+Seat 6: Villain5 folded before Flop
+Seat 7: Villain6 folded on the Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# TM91000016 — NEGATIVE: J14 Monotone IP No CBet, multiway with donk lead
+# (v7.31 Patch 6)
+#
+# Hero CO opens, SB calls, BB calls. Multiway flop on monotone diamonds.
+# SB donk-leads. BB calls. Hero folds.
+#
+# Without the gate: Hero=PFR, monotone board, IP, no flop c-bet → J14 fires.
+# v7.31 Patch 6 prereq: players_at_flop == 2 (HU) AND hero_faced_prior_flop_bet
+# == False. Hand fails BOTH prereqs (3-way + Hero faced SB lead).
+# Per Ron's exception #11.
+#
+# Expected: J14 does NOT fire.
+# ============================================================
+
+Poker Hand #TM91000016: Tournament #999991, Detector FT $50 Hold'em No Limit - Level2(60/120(15)) - 2026/04/07 10:00:16
+Table 'J14MW' 8-max Seat #4 is the button
+Seat 1: Villain1 (10000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Hero (8600 in chips)
+Seat 4: Villain3 (8500 in chips)
+Seat 5: Villain4 (10000 in chips)
+Seat 6: Villain5 (14000 in chips)
+Seat 7: Villain6 (10000 in chips)
+Seat 8: Villain7 (8000 in chips)
+Villain1: posts the ante 15
+Villain2: posts the ante 15
+Hero: posts the ante 15
+Villain3: posts the ante 15
+Villain4: posts the ante 15
+Villain5: posts the ante 15
+Villain6: posts the ante 15
+Villain7: posts the ante 15
+Villain4: posts small blind 60
+Villain5: posts big blind 120
+*** HOLE CARDS ***
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Hero [8s Js]
+Dealt to Villain3 
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain6: folds
+Villain7: folds
+Villain1: folds
+Villain2: folds
+Hero: raises 144 to 264
+Villain3: folds
+Villain4: calls 204
+Villain5: calls 144
+*** FLOP *** [5d 7d 4d]
+Villain4: bets 301
+Villain5: calls 301
+Hero: folds
+Uncalled bet (0) returned to Villain5
+*** SHOWDOWN ***
+Villain4 collected 1494 from pot
+*** SUMMARY ***
+Total pot 1494 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [5d 7d 4d]
+Seat 1: Villain1 folded before Flop
+Seat 2: Villain2 folded before Flop
+Seat 3: Hero folded on the Flop
+Seat 4: Villain3 (button) folded before Flop
+Seat 5: Villain4 (small blind) collected (1494)
+Seat 6: Villain5 (big blind) folded on the Flop
+Seat 7: Villain6 folded before Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# TM91000017 — NEGATIVE: V15a + V15c on 4-bet then call 5-bet jam HU
+# (v7.31 Patch 6)
+#
+# BTN min-raise → SB 3-bet → UTG cold-call → Hero (BB) 4-bet OOP MW
+# → BTN folds → SB 5-bet jam → UTG folds → Hero calls.
+#
+# Final: pf_action='call', pot_type='4BP', pf_raise_count>=4.
+# Without the gates: V15a fires (Hero "flat-called" 4BP) AND V15c fires
+# (multiway actor count >= 3). Both wrong:
+#   - V15a: Hero RAISED the 4BP, didn't flat. hero_raise_count==1.
+#   - V15c: at the call, only Hero+SB live (HU). mw_at_hero_final == False.
+# Per Ron's exceptions #12, #14. Call vs jam was 100% GTO at 50BB equiv.
+#
+# Expected: NEITHER V15a NOR V15c fires.
+# ============================================================
+
+Poker Hand #TM91000017: Tournament #999992, Detector FT $25 Bounty Hold'em No Limit - Level5(60/120(15)) - 2026/04/07 10:00:17
+Table 'V15Conflate' 8-max Seat #2 is the button
+Seat 1: Villain1 (4800 in chips)
+Seat 2: Villain2 (6700 in chips)
+Seat 3: Villain3 (10500 in chips)
+Seat 4: Hero (13700 in chips)
+Seat 5: Villain4 (15800 in chips)
+Seat 6: Villain5 (8200 in chips)
+Seat 7: Villain6 (7800 in chips)
+Seat 8: Villain7 (12000 in chips)
+Villain4: posts the ante 15
+Villain5: posts the ante 15
+Villain2: posts the ante 15
+Villain6: posts the ante 15
+Hero: posts the ante 15
+Villain7: posts the ante 15
+Villain3: posts the ante 15
+Villain1: posts the ante 15
+Villain3: posts small blind 60
+Hero: posts big blind 120
+*** HOLE CARDS ***
+Dealt to Villain1 
+Dealt to Villain2 
+Dealt to Villain3 
+Dealt to Hero [Th Tc]
+Dealt to Villain4 
+Dealt to Villain5 
+Dealt to Villain6 
+Dealt to Villain7 
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+Villain1: raises 120 to 240
+Villain2: raises 600 to 840
+Villain3: calls 780
+Hero: raises 1800 to 2640
+Villain1: folds
+Villain2: raises 4060 to 6700 and is all-in
+Villain3: folds
+Hero: calls 4060
+*** FLOP *** [3h 4c 7c]
+*** TURN *** [3h 4c 7c] [Kc]
+*** RIVER *** [3h 4c 7c Kc] [7s]
+*** SHOWDOWN ***
+Villain2: shows [Jc Js]
+Hero: shows [Th Tc]
+Villain2 collected 14600 from pot
+*** SUMMARY ***
+Total pot 14600 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [3h 4c 7c Kc 7s]
+Seat 1: Villain1 folded before Flop
+Seat 2: Villain2 (button) showed [Jc Js] and won (14600)
+Seat 3: Villain3 (small blind) folded before Flop
+Seat 4: Hero (big blind) showed [Th Tc] and lost
+Seat 5: Villain4 folded before Flop
+Seat 6: Villain5 folded before Flop
+Seat 7: Villain6 folded before Flop
+Seat 8: Villain7 folded before Flop
+
+
+# ============================================================
+# v7.48 AMIT SESSION FIXTURES (N8, N9, N13 from 2026-05-12)
+# ============================================================
+# TM91000018 — N8 POSITIVE: K4o CO 6BB FI fold = Missed Push CLEAR
+# TM91000019 — N8 NEGATIVE: 73o CO 6BB FI fold (out of range, no fire)
+# TM91000020 — N9 POSITIVE: ATo MP 40BB flat UTG 2.2x = CLEAR
+# TM91000021 — N9 NEGATIVE: AJo MP 40BB flat UTG 2.2x (AJo excluded per Ron)
+# TM91000022 — N13 POSITIVE: 66 SB 28BB 3-bets vs BTN, folds to 4-bet = CLEAR
+# TM91000023 — N13 NEGATIVE: 66 SB 28BB shoves directly over BTN open
+# ============================================================
+
+
+# ============================================================
+# TM91000018 — N8 POSITIVE: K4o CO 6BB FI fold (Amit 2026-05-12)
+# ============================================================
+# Hero at Seat 5 (CO), 6BB stack. Folds first-in.
+# Pre-N8, this did NOT fire because offsuit K wasn't in CO <8BB push range.
+# Post-N8: should fire as CLEAR Missed Push (KXo CO 6BB).
+# Expected: 1 mistake of type 'Missed Push <8BB (CLEAR)'.
+# ============================================================
+
+
+Poker Hand #TM91000018: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:18
+Table 'AmitN8Pos' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Villain3 (20000 in chips)
+Seat 4: Villain4 (20000 in chips)
+Seat 5: Hero (1500 in chips)
+Seat 6: Villain5 (20000 in chips)
+Seat 7: Villain6 (20000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Kh 4c]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: raises 250 to 500
+Villain6: folds
+Villain7: folds
+Villain5 collected 875 from pot
+*** SUMMARY ***
+Total pot 875 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 5: Hero (cutoff) folded before Flop
+Seat 6: Villain5 (button) collected (875)
+Seat 7: Villain6 (small blind) folded before Flop
+Seat 8: Villain7 (big blind) folded before Flop
+
+
+# ============================================================
+# TM91000019 — N8 NEGATIVE: 73o CO 6BB FI fold (Amit 2026-05-12)
+# ============================================================
+# Same setup as TM91000018 but Hero has 73o — out of N8's hand range.
+# 73o is not a King and not in CO push range at any depth.
+# Expected: 0 mistakes of type 'Missed Push <8BB'.
+# (Negative control: ensures N8 only fires for KXo, not all hands.)
+# ============================================================
+
+
+Poker Hand #TM91000019: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:19
+Table 'AmitN8Neg' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Villain3 (20000 in chips)
+Seat 4: Villain4 (20000 in chips)
+Seat 5: Hero (1500 in chips)
+Seat 6: Villain5 (20000 in chips)
+Seat 7: Villain6 (20000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [7h 3c]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Hero: folds
+Villain5: raises 250 to 500
+Villain6: folds
+Villain7: folds
+Villain5 collected 875 from pot
+*** SUMMARY ***
+Total pot 875 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 5: Hero (cutoff) folded before Flop
+Seat 6: Villain5 (button) collected (875)
+Seat 7: Villain6 (small blind) folded before Flop
+Seat 8: Villain7 (big blind) folded before Flop
+
+
+# ============================================================
+# TM91000020 — N9 POSITIVE: ATo MP 40BB flat UTG (Amit 2026-05-12)
+# ============================================================
+# Hero at Seat 3 (MP), 40BB stack, level 5 (late_reg phase, chip-EV).
+# UTG opens 2.2x. UTG+1 folds. Hero MP flats with ATo.
+# Per Amit (Ron-confirmed): MP ATo vs UTG/UTG+1 PFR in chip-EV is
+# fold-or-3bet, not flat. Should fire as CLEAR.
+# Expected: 1 mistake of type 'MP ATo Flat vs PFR (Amit N9)'.
+# ============================================================
+
+
+Poker Hand #TM91000020: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:20
+Table 'AmitN9Pos' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Hero (10000 in chips)
+Seat 4: Villain3 (20000 in chips)
+Seat 5: Villain4 (20000 in chips)
+Seat 6: Villain5 (20000 in chips)
+Seat 7: Villain6 (20000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ad Ts]
+Villain1: raises 300 to 550
+Villain2: folds
+Hero: calls 550
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+*** FLOP *** [Jh 7c 3d]
+Villain1: bets 700
+Hero: folds
+Villain1 collected 1975 from pot
+*** SUMMARY ***
+Total pot 1975 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Villain1 collected (1975)
+Seat 3: Hero folded on the Flop
+
+
+# ============================================================
+# TM91000021 — N9 NEGATIVE: AJo MP 40BB flat UTG (Amit 2026-05-12)
+# ============================================================
+# Same setup as TM91000020 but Hero has AJo.
+# Ron confirmed (2026-05-12): AJo intentionally EXCLUDED from N9 scope —
+# only ATo is the identified leak. Detector must NOT fire on AJo.
+# Expected: 0 mistakes of type 'MP ATo Flat vs PFR (Amit N9)'.
+# ============================================================
+
+
+Poker Hand #TM91000021: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:21
+Table 'AmitN9Neg' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Hero (10000 in chips)
+Seat 4: Villain3 (20000 in chips)
+Seat 5: Villain4 (20000 in chips)
+Seat 6: Villain5 (20000 in chips)
+Seat 7: Villain6 (20000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Villain6: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Ad Js]
+Villain1: raises 300 to 550
+Villain2: folds
+Hero: calls 550
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: folds
+Villain7: folds
+*** FLOP *** [Th 7c 3d]
+Villain1: bets 700
+Hero: folds
+Villain1 collected 1975 from pot
+*** SUMMARY ***
+Total pot 1975 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Villain1 collected (1975)
+Seat 3: Hero folded on the Flop
+
+
+# ============================================================
+# TM91000022 — N13 POSITIVE: 66 SB 28BB 3-bet-fold vs BTN (Amit 2026-05-12)
+# ============================================================
+# Hero at Seat 7 (SB), 28BB stack. BTN opens 2.2x.
+# Hero 3-bets to ~7.5BB (non-all-in). BTN 4-bet jams. Hero folds.
+# Per Amit (Ron-confirmed): no 3-bet-fold with pair <30BB; should
+# have shoved directly. CLEAR mistake.
+# Expected: 1 mistake of type 'SB Pair 3-bet-fold vs LP <=30BB (Amit N13)'.
+# ============================================================
+
+
+Poker Hand #TM91000022: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:22
+Table 'AmitN13Pos' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Villain3 (20000 in chips)
+Seat 4: Villain4 (20000 in chips)
+Seat 5: Villain5 (20000 in chips)
+Seat 6: Villain6 (15000 in chips)
+Seat 7: Hero (7000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Hero: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [6h 6s]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: raises 300 to 550
+Hero: raises 1325 to 1875
+Villain7: folds
+Villain6: raises 13125 to 15000 and is all-in
+Hero: folds
+Uncalled bet (13125) returned to Villain6
+Villain6 collected 4000 from pot
+*** SUMMARY ***
+Total pot 4000 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 6: Villain6 (button) collected (4000)
+Seat 7: Hero (small blind) folded before Flop
+Seat 8: Villain7 (big blind) folded before Flop
+
+
+# ============================================================
+# TM91000023 — N13 NEGATIVE: 66 SB 28BB shoves directly (Amit 2026-05-12)
+# ============================================================
+# Hero at Seat 7 (SB), 28BB stack. BTN opens 2.2x.
+# Hero correctly SHOVES (pf_allin=True). N13 must NOT fire.
+# Expected: 0 mistakes of type 'SB Pair 3-bet-fold vs LP <=30BB'.
+# (Negative control: confirms detector only flags non-all-in 3-bets.)
+# ============================================================
+
+
+Poker Hand #TM91000023: Tournament #999998, Detector FT $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/12 10:00:23
+Table 'AmitN13Neg' 8-max Seat #6 is the button
+Seat 1: Villain1 (20000 in chips)
+Seat 2: Villain2 (20000 in chips)
+Seat 3: Villain3 (20000 in chips)
+Seat 4: Villain4 (20000 in chips)
+Seat 5: Villain5 (20000 in chips)
+Seat 6: Villain6 (15000 in chips)
+Seat 7: Hero (7000 in chips)
+Seat 8: Villain7 (20000 in chips)
+Hero: posts small blind 125
+Villain7: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [6h 6s]
+Villain1: folds
+Villain2: folds
+Villain3: folds
+Villain4: folds
+Villain5: folds
+Villain6: raises 300 to 550
+Hero: raises 6450 to 7000 and is all-in
+Villain7: folds
+Villain6: folds
+Uncalled bet (6450) returned to Hero
+Hero collected 1350 from pot
+*** SUMMARY ***
+Total pot 1350 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 7: Hero (small blind) collected (1350)
+Seat 8: Villain7 (big blind) folded before Flop
+
+
+# ============================================================
+# TM91000024 — N3 POSITIVE: JTs BvB SB folds to BB jam at <=30BB
+# ============================================================
+# Scenario: HU pot (BvB), Hero is SB (button) with JTs, 25BB eff.
+# Hero open-raises, BB jams over the top, Hero FOLDS.
+# Per Amit N3 (2026-05-12): folding JTs to a BB jam at <=30BB is a
+# CLEAR -EV leak — JTs has the equity + dead money to continue.
+# Expected: 1 mistake 'JTs BvB Fold to BB Jam <=30BB (Amit N3)', CLEAR.
+# ============================================================
+
+Poker Hand #TM91000024: Tournament #999997, Detector HU $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 12:00:00
+Table 'N3BvB' 2-max Seat #1 is the button
+Seat 1: Hero (6250 in chips)
+Seat 2: Villain1 (6250 in chips)
+Hero: posts small blind 125
+Villain1: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jh Th]
+Hero: raises 375 to 625
+Villain1: raises 5625 to 6250 and is all-in
+Hero: folds
+Uncalled bet (5625) returned to Villain1
+*** SUMMARY ***
+Total pot 1250 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Seat 1: Hero (small blind) folded before Flop
+Seat 2: Villain1 (big blind) collected (1250)
+
+
+# ============================================================
+# TM91000025 — N3 NEGATIVE: Hero CALLS the BB jam (correct line)
+# ============================================================
+# Same shape as TM91000024 but Hero CALLS the BB jam instead of
+# folding. N3 detects the FOLD leak only — calling JTs here is the
+# Amit-correct line, so N3 must NOT fire (pf_allin True / pf_action
+# != 'fold' both gate it out). Guards against an over-broad detector.
+# Expected: 0 N3 mistakes.
+# ============================================================
+
+Poker Hand #TM91000025: Tournament #999997, Detector HU $10 Bounty Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 12:05:00
+Table 'N3BvB' 2-max Seat #1 is the button
+Seat 1: Hero (6250 in chips)
+Seat 2: Villain1 (6250 in chips)
+Hero: posts small blind 125
+Villain1: posts big blind 250
+*** HOLE CARDS ***
+Dealt to Hero [Jh Th]
+Hero: raises 375 to 625
+Villain1: raises 5625 to 6250 and is all-in
+Hero: calls 5625
+*** FLOP *** [2c 7d 9s]
+*** TURN *** [2c 7d 9s] [4h]
+*** RIVER *** [2c 7d 9s 4h] [Kc]
+*** SHOW DOWN ***
+Hero: shows [Jh Th] (high card King)
+Villain1: shows [Ah Qd] (high card Ace)
+Villain1 collected 12500 from pot
+*** SUMMARY ***
+Total pot 12500 | Rake 0 | Jackpot 0 | Bingo 0 | Fortune 0 | Tax 0
+Board [2c 7d 9s 4h Kc]
+Seat 1: Hero (small blind) showed [Jh Th] and lost with high card King
+Seat 2: Villain1 (big blind) showed [Ah Qd] and won (12500) with high card Ace

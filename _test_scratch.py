@@ -6266,6 +6266,78 @@ check('T-1233-AC-5: genuine 3-way all-in (n_opponents=2) -> NOT auto_clear',
       _wl_3way['items']['TM_3WAY']['bucket'] != 'auto_clear',
       str(_wl_3way['items']['TM_3WAY']['bucket']))
 
+# --- v8.12.11 GPT review #2 pins: decision-node alignment for preflop items ---
+# A preflop chart/range deviation must anchor to the PREFLOP decision, never a
+# later-street node / full-hand action line / contaminated effective stack.
+# DK-1/2: Missed Rejam — Hero called MP's open (hand ran to a river fold). The
+# reviewed decision is the preflop re-jam, so street=preflop and the line stops
+# at Hero's call (no postflop/river bleed).
+_dk_dev = [{'id': 'TM_DK1', 'type': 'Missed Rejam', 'cards': 'QJs', 'pos': 'HJ',
+            'chart': 'REJAM_HJvsMP', 'confidence': 'CLEAR',
+            'opener_position': 'MP', 'stack_bb': 25}]
+_dk_hand = {'id': 'TM_DK1', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'MP', 'position': 'MP', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'HJ', 'action': 'calls', 'amount_bb': 2.2},
+    {'street': 'flop', 'player': 'MP', 'position': 'MP', 'action': 'bets', 'amount_bb': 5.0},
+    {'street': 'flop', 'player': 'Hero', 'position': 'HJ', 'action': 'calls', 'amount_bb': 5.0},
+    {'street': 'river', 'player': 'MP', 'position': 'MP', 'action': 'bets', 'amount_bb': 9.0, 'is_all_in': True},
+    {'street': 'river', 'player': 'Hero', 'position': 'HJ', 'action': 'folds'}]}
+_dk_cand = _mk_cand(id='TM_DK1', cards='JdQd', position='HJ',
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_wl_dk = _awl.build_analyst_worklist({'bestplay_screening': [_dk_cand]},
+    {'preflop_deviations': _dk_dev}, {}, [_dk_hand], '20260101')
+_dk = _wl_dk['items']['TM_DK1']
+check('T-1233-DK-1: preflop deviation anchors decision_node.street=preflop',
+      _dk['decision_node']['street'] == 'preflop'
+      and _dk['decision_kind'] == 'preflop_deviation', str(_dk['decision_node']['street']))
+check('T-1233-DK-2: missed-rejam line stops at Hero call (no postflop bleed)',
+      'Hero calls 2.2' in _dk['canonical_action_line']
+      and 'bets' not in _dk['canonical_action_line']
+      and 'folds' not in _dk['canonical_action_line']
+      and 're-jamming' in _dk['reviewer_question'], _dk['canonical_action_line'])
+# DK-3/4: first-in Missed Open — Hero folded, SB shoved AFTER. Line stops at
+# Hero's fold; effective stack is the clean 81BB, not the overwritten 12BB.
+_dk3_dev = [{'id': 'TM_DK3', 'type': 'Missed Open', 'cards': 'K6s', 'pos': 'CO',
+             'chart': 'OPEN_100BB_CO', 'confidence': 'CLEAR', 'stack_bb': 81}]
+_dk3_hand = {'id': 'TM_DK3', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'UTG', 'position': 'UTG', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'CO', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'folds'},
+    {'street': 'preflop', 'player': 'SB', 'position': 'SB', 'action': 'raises', 'amount_bb': 18.6, 'is_all_in': True},
+    {'street': 'preflop', 'player': 'BB', 'position': 'BB', 'action': 'folds'}]}
+_dk3_cand = _mk_cand(id='TM_DK3', cards='Kc6c', position='CO',
+    eff_stack_at_decision_bb=12.36, effective_stack_bb=81.06, stack_bb=81.06,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_wl_dk3 = _awl.build_analyst_worklist({'mistakes': [_dk3_cand]},
+    {'preflop_deviations': _dk3_dev}, {}, [_dk3_hand], '20260101')
+_dk3 = _wl_dk3['items']['TM_DK3']
+check('T-1233-DK-3: missed-open line stops at Hero fold (no later SB all-in)',
+      _dk3['canonical_action_line'].endswith('Hero folds')
+      and 'all-in' not in _dk3['canonical_action_line'], _dk3['canonical_action_line'])
+check('T-1233-DK-4: first-in open stack not overwritten by later all-in (81 not 12)',
+      _dk3['decision_node']['effective_bb_vs_relevant_villain'] == 81.0,
+      str(_dk3['decision_node']['effective_bb_vs_relevant_villain']))
+# DK-5: BB defend preflop item must not inherit later river/fold context even
+# when the candidate's key_decision_street is a later street.
+_dk5_dev = [{'id': 'TM_DK5', 'type': 'Missed Defend', 'cards': 'K9o', 'pos': 'BB',
+             'chart': 'OPEN_20-40BB_BB', 'confidence': 'CLEAR',
+             'opener_position': 'BTN', 'stack_bb': 40}]
+_dk5_hand = {'id': 'TM_DK5', 'hero': 'Hero', 'action_ledger': [
+    {'street': 'preflop', 'player': 'BTN', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+    {'street': 'preflop', 'player': 'Hero', 'position': 'BB', 'action': 'folds'}]}
+_dk5_cand = _mk_cand(id='TM_DK5', cards='Kh9d', position='BB',
+    action_summary='Folded BB vs BTN, call turn, fold river',
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_wl_dk5 = _awl.build_analyst_worklist({'mistakes': [_dk5_cand]},
+    {'preflop_deviations': _dk5_dev}, {}, [_dk5_hand], '20260101')
+_dk5 = _wl_dk5['items']['TM_DK5']
+check('T-1233-DK-5: BB defend preflop item does not inherit river/fold context',
+      _dk5['decision_node']['street'] == 'preflop'
+      and 'river' not in _dk5['canonical_action_line']
+      and _dk5['decision_node']['hero_actual_action'] == 'folds'
+      and _dk5['canonical_action_line'] == 'BTN raises 2.2 | Hero folds',
+      _dk5['canonical_action_line'] + ' / ' + _dk5['decision_node']['hero_actual_action'])
+
 # ============================================================
 # SUMMARY
 # ============================================================

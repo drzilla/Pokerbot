@@ -69,10 +69,73 @@ def _short(hid):
     return hid[-8:] if isinstance(hid, str) and len(hid) > 8 else hid
 
 
-def _line_from_ledger(hand, decision_street):
+# ---------------------------------------------------------------------------
+# decision kind / basis (GPT review #2: align the reviewed decision)
+# ---------------------------------------------------------------------------
+# A worklist item reviews ONE decision. Its kind decides which street the
+# decision_node, canonical_action_line, and effective stack anchor to. A
+# preflop chart/range deviation must NEVER inherit a later-street node or a
+# full-hand action line.
+_PREFLOP_KINDS = ('preflop_deviation', 'preflop_allin')
+
+
+def _decision_kind(c, dev):
+    if dev is not None:
+        return 'preflop_deviation'   # chart/range deviation IS the decision
+    if c.get('pf_allin'):
+        return 'preflop_allin'
+    if c.get('went_to_sd'):
+        return 'postflop_call_fold'
+    if c.get('villain_archetype'):
+        return 'villain_exploit'
+    return 'low_signal_drill'
+
+
+def _is_preflop_kind(kind):
+    return kind in _PREFLOP_KINDS
+
+
+def _preflop_effective_bb(c, dev):
+    """Clean effective stack for a PREFLOP decision: the deviation's recorded
+    stack, else the hand-nominal stack. Deliberately NOT
+    eff_stack_at_decision_bb, which can be overwritten by a later all-in that
+    happened AFTER Hero's preflop action (the K6s first-in-open bug)."""
+    s = _f(dev.get('stack_bb')) if dev else 0.0
+    if not s:
+        s = _f(c.get('effective_stack_bb')) or _f(c.get('stack_bb'))
+    return round(s, 1)
+
+
+def _hero_preflop_action(hand):
+    """Hero's FIRST voluntary preflop action (the reviewed decision for a
+    preflop deviation): 'calls 2.2', 'folds', 'raises 2.0 all-in', ''."""
+    if not hand:
+        return ''
+    hero = hand.get('hero', 'Hero')
+    for a in (hand.get('action_ledger') or []):
+        if a.get('street') != 'preflop' or a.get('action') == 'posts':
+            continue
+        if a.get('player') == hero:
+            act = a.get('action', '')
+            seg = act
+            amt = a.get('amount_bb')
+            if act in ('raises', 'bets', 'calls') and amt:
+                seg += ' %.1f' % _f(amt)
+            if a.get('is_all_in'):
+                seg += ' all-in'
+            return seg
+    return ''
+
+
+def _line_from_ledger(hand, decision_street, stop_after_hero=False):
     """v8.12.11 (GPT-5): build a real compact action line from the hand's
     action_ledger up to & including the decision street, so the analyst can
-    reason without opening the replay. Marks Hero. Returns '' if no ledger."""
+    reason without opening the replay. Marks Hero. Returns '' if no ledger.
+
+    GPT review #2: when stop_after_hero is set (a preflop chart/range
+    deviation), stop right after Hero's FIRST action on the decision street so
+    the line never bleeds into later villain action (e.g. an SB shove AFTER
+    Hero already folded) or postflop streets."""
     if not hand:
         return ''
     led = hand.get('action_ledger') or []
@@ -90,7 +153,8 @@ def _line_from_ledger(hand, decision_street):
         act = a.get('action', '')
         if act == 'posts':
             continue
-        who = 'Hero' if a.get('player') == hero else (a.get('position') or '?')
+        is_hero = (a.get('player') == hero)
+        who = 'Hero' if is_hero else (a.get('position') or '?')
         amt = a.get('amount_bb')
         seg = f"{who} {act}"
         if act in ('raises', 'bets', 'calls') and amt:
@@ -98,20 +162,29 @@ def _line_from_ledger(hand, decision_street):
         if a.get('is_all_in'):
             seg += " all-in"
         parts.append(seg)
+        if stop_after_hero and is_hero and st == decision_street:
+            break   # Hero's reviewed decision is made; do not read further
     if not parts:
         return ''
-    # mark street boundaries lightly so the analyst sees the structure
     return ' | '.join(parts)[:300]
 
 
-def _canonical_action_line(c, hand=None):
+def _canonical_action_line(c, hand=None, kind=None):
     """Compact street-by-street line so the LLM reasons without the replay.
     Prefer a real ledger walk; fall back to the parser's line_actions; only
-    then the terse action_summary (GPT-5: 'preflop_only' is not enough)."""
-    dm = c.get('decision_math') or {}
-    street = dm.get('key_decision_street') or (
-        'preflop' if c.get('pf_allin') else 'flop')
-    led_line = _line_from_ledger(hand, street)
+    then the terse action_summary (GPT-5: 'preflop_only' is not enough).
+
+    GPT review #2: a PREFLOP-kind item anchors to the preflop street; a
+    preflop deviation additionally stops at Hero's preflop decision."""
+    if _is_preflop_kind(kind):
+        street = 'preflop'
+        stop_after_hero = (kind == 'preflop_deviation')
+    else:
+        dm = c.get('decision_math') or {}
+        street = dm.get('key_decision_street') or (
+            'preflop' if c.get('pf_allin') else 'flop')
+        stop_after_hero = False
+    led_line = _line_from_ledger(hand, street, stop_after_hero=stop_after_hero)
     if led_line:
         return led_line
     for k in ('line_actions', 'action_sequence'):
@@ -120,7 +193,8 @@ def _canonical_action_line(c, hand=None):
             return v.strip()[:300]
         if isinstance(v, list) and v:
             return ', '.join(str(x) for x in v)[:300]
-    base = (c.get('action_summary') or '').strip()
+    # the whole-hand action_summary is misleading for a preflop deviation
+    base = '' if _is_preflop_kind(kind) else (c.get('action_summary') or '').strip()
     pos = c.get('position') or '?'
     cards = c.get('cards') or ''
     return (f"{pos} {cards}: {base}".strip(' :') or 'action unavailable')[:300]
@@ -139,36 +213,57 @@ def _decision_effective_bb(c):
     return round(hero, 1)
 
 
-def _decision_node(c):
+def _decision_node(c, kind=None, dev=None, hand=None):
     dm = c.get('decision_math') or {}
-    street = dm.get('key_decision_street') or (
-        'preflop' if c.get('pf_allin') else 'flop')
+    preflop = _is_preflop_kind(kind)
+    # GPT review #2: a preflop-kind item anchors to preflop, NOT the hand's
+    # key_decision_street (which may be a later street the item is not about).
+    if preflop:
+        street = 'preflop'
+    else:
+        street = dm.get('key_decision_street') or (
+            'preflop' if c.get('pf_allin') else 'flop')
     stblock = (dm.get('streets') or {}).get(street, {}) or {}
     facing = ''
-    if c.get('pf_allin') and c.get('jammer_position'):
+    if kind == 'preflop_deviation' and dev:
+        dtype = dev.get('type') or ''
+        opener = dev.get('opener_position') or dev.get('opener') or ''
+        if 'Open' in dtype:           # first-in: there is no opener Hero faced
+            facing = 'first-in (folds to Hero)'
+        elif opener:
+            facing = f"{opener} open"
+    elif c.get('pf_allin') and c.get('jammer_position'):
         facing = f"{c['jammer_position']} jam"
     elif stblock.get('villain_bet_bb'):
         facing = f"bet {_f(stblock.get('villain_bet_bb')):.1f}BB"
-    eff = _decision_effective_bb(c)
+    # effective stack: preflop deviations use the clean preflop stack (the
+    # K6s first-in-open bug had eff_stack_at_decision_bb overwritten to 12BB).
+    eff = _preflop_effective_bb(c, dev) if kind == 'preflop_deviation' \
+        else _decision_effective_bb(c)
     call_bb = (_f(stblock.get('hero_call_amount_bb'))
                or _f(c.get('hero_committed_bb')) or None)
     # v8.12.11 (GPT-4): a call can never exceed Hero's effective stack. When
-    # the source value is the uncapped villain bet (> eff) or absent, the
-    # capped call price is unknown -> null it (a downstream failure mode is
-    # added) rather than render an impossible "call 130BB at 17BB eff".
+    # the source value is the uncapped villain bet (> eff) -> null it + flag.
+    # A MISSING call price is only a failure for call-type decisions; a
+    # preflop open/re-jam/fold deviation simply has no call to price.
     price_unavailable = False
     if call_bb and eff and call_bb > eff * 1.05:
         call_bb = None
         price_unavailable = True
-    elif not call_bb:
+    elif not call_bb and not preflop:
         price_unavailable = True
     pos = c.get('position') or ''
     closing = bool(pos == 'BB' and not c.get('hero_3bet'))
+    if preflop and hand:
+        hero_act = _hero_preflop_action(hand) or stblock.get('hero_action') or ''
+    else:
+        hero_act = (stblock.get('hero_action')
+                    or c.get('action_summary', '')[:40])
     return {
         'street': street,
+        'decision_kind': kind,
         'hero_action_facing': facing or 'unknown',
-        'hero_actual_action': (stblock.get('hero_action')
-                               or c.get('action_summary', '')[:40]),
+        'hero_actual_action': hero_act,
         'call_amount_bb': round(call_bb, 1) if call_bb else None,
         'price_unavailable': price_unavailable,
         'effective_bb_vs_relevant_villain': eff,
@@ -196,6 +291,7 @@ def _range_membership(c, dev, dev_charts):
         'chart_id': chart_id,                      # debug/source only
         'display_label': chart_display_label(chart_id),
         'hero_hand_status': status,
+        'dev_type': dtype,                         # 'Missed Open'/'Missed Rejam'/'Wide'
         'is_marginal': is_marginal,
         'bottom_5pct_buffer_applied': is_marginal,
     }
@@ -422,11 +518,20 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
                 f"Possible too-wide defend/open ({rng['display_label']}).",
                 'wide_%s' % pos, 40)
     if rng and rng['hero_hand_status'] == 'inside_core':
+        dtype = rng.get('dev_type') or ''
+        if 'Rejam' in dtype or 'Re-jam' in dtype:
+            did = "called instead of re-jamming"
+        elif 'Defend' in dtype:
+            did = "folded instead of defending"
+        elif 'Open' in dtype:
+            did = "folded instead of opening"
+        else:
+            did = "passed up the spot"
         return ('must_review', 'Mistake', 'medium', 'analyst_required',
-                ['ICM/satellite may excuse the fold'],
-                f"{cards} is inside the core {rng['display_label']}; confirm "
-                "the fold is a real leak and not ICM-driven.",
-                f"Missed core open/defend ({rng['display_label']}).",
+                ['ICM/satellite may excuse the decision'],
+                f"{cards} is inside the core {rng['display_label']}; Hero "
+                f"{did} preflop — confirm this is a real leak, not ICM-driven.",
+                f"Missed core spot ({rng['display_label']}).",
                 'missed_core_%s' % pos, 60)
 
     # --- coolers: justified variance, low learning -----------------------
@@ -488,12 +593,18 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         pko = pko_by_hand.get(hid) or pko_by_hand.get(_short(hid)) or {}
         pko = pko if pko.get('enabled') else {}
         dev = devs_by_hand.get(hid)
-        dm_block = ((c.get('decision_math') or {}).get('streets') or {}).get(
-            (c.get('decision_math') or {}).get('key_decision_street', ''), {})
-        dn = _decision_node(c)
+        hand = hands_by_id.get(hid)
+        # GPT review #2: the decision kind anchors node/line/stack to the
+        # reviewed decision. A preflop deviation reads the PREFLOP street block,
+        # never the hand's key_decision_street (which may be a later street).
+        kind = _decision_kind(c, dev)
+        _kds = 'preflop' if _is_preflop_kind(kind) else (
+            (c.get('decision_math') or {}).get('key_decision_street', ''))
+        dm_block = ((c.get('decision_math') or {}).get('streets') or {}).get(_kds, {})
+        dn = _decision_node(c, kind, dev, hand)
         rng = _range_membership(c, dev, dev_charts)
         bnt = _bounty_context(c, pko)
-        action_line = _canonical_action_line(c, hands_by_id.get(hid))
+        action_line = _canonical_action_line(c, hand, kind)
         src_truth = _source_truth(c, pko, dev)
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
@@ -512,10 +623,12 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
             'hero_cards': c.get('cards', ''),          # raw, suits preserved
             'hero_hand_label': _hand_label(c.get('cards')),  # chart notation
             'hero_pos': c.get('position', ''),
+            'decision_kind': kind,                     # GPT review #2: explicit basis
             'effective_bb': dn['effective_bb_vs_relevant_villain'],
             'street': dn['street'],
             'spot_label': (pko.get('spot') or rng and rng['display_label']
-                           or c.get('action_summary', '')[:60] or 'spot'),
+                           or (c.get('action_summary', '')[:60]
+                               if not _is_preflop_kind(kind) else '') or 'spot'),
             'tournament_context': {'format': c.get('format', ''),
                                    'phase': c.get('tournament_phase', '')},
             'canonical_action_line': action_line,

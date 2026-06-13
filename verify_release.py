@@ -34,7 +34,7 @@ MANIFEST = {
     # --- Updated in v8.8.9 + v8.9.0 ---
     "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11-preview: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("e5b010058f07f040dc3ccd5007a04f7f84a646d9874b138047a0a0f4a77ce7b0", 300668, "v8.12.11-preview: 894 tests (+T-1233 Slice E)"),
+    "_test_scratch.py":                     ("52574884c055a27db920b483ccee61d4316e22cc76ac5310b44edb29ee96d4b7", 305816, "v8.12.11-preview: 899 tests (+T-1233 Slice E)"),
     "GEM_Changelog.txt":                    ("6f78ba4fb1f0b2ca3ef9f6be68582d88f6ec214761c348552e64de55d6fcc10a", 38239, "changelog through v8.12.10"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
@@ -73,7 +73,7 @@ MANIFEST = {
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
     # --- New in v8.12.11-preview (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("c9f140c0185ab9016d0a6d6c9fe08a34dd0b41d01b2af7170064ff5be2635c12", 27865, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
+    "gem_analyst_worklist.py": ("cb61daaab05409a53307a98a6b7aa6ba1b868e5543be5df3458df747ca7f8b19", 32898, "v8.12.11-preview: analyst worklist triage engine (proposals)"),
     "gem_chart_labels.py":     ("ed1a842e3e5dd2b9eef64673ed0908a0163c05b6875971f27034e12879958683", 3324, "v8.12.11-preview: chart-id -> human label registry (no raw IDs)"),
 }
 
@@ -872,6 +872,12 @@ CANARIES = [
      "v8.12.11-preview GPT-6: split bounty-context fields"),
     ("gem_analyst_worklist.py", "'price_unavailable'",
      "v8.12.11-preview GPT-4: null-safe call amount + failure mode"),
+    ("gem_analyst_worklist.py", "def _decision_kind(",
+     "v8.12.11-preview GPT#2: explicit decision kind / basis"),
+    ("gem_analyst_worklist.py", "def _preflop_effective_bb(",
+     "v8.12.11-preview GPT#2: clean preflop stack (not overwritten by later all-in)"),
+    ("gem_analyst_worklist.py", "stop_after_hero",
+     "v8.12.11-preview GPT#2: ledger line stops at Hero's preflop decision"),
     ("gem_chart_labels.py", "def chart_display_label(",
      "v8.12.11-preview: chart-id -> human label registry"),
     ("gem_analyzer.py", "build_analyst_worklist",

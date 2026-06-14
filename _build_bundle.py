@@ -16,7 +16,7 @@ import base64, io, os, sys, zipfile, hashlib, datetime
 REPO = os.path.dirname(os.path.abspath(__file__))
 PROJ_FALLBACK = r'C:\Users\ron\Downloads\_proj_inventory\project'
 
-BUNDLE_VERSION = 'v8.12.11'
+BUNDLE_VERSION = 'v8.13.0'
 
 # gem_report_draft package members (zipped under gem_report_draft/)
 PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',

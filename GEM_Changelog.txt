@@ -1,3 +1,151 @@
+v8.13.0 (2026-06-14) -- Slice F: villain exploitation teaching layer
+=========================================================================
+Turns raw villain evidence into coaching-grade exploit teaching. New module
+gem_villain_teaching.py PROJECTS the already-stamped villain intelligence
+(exploit_opportunities / evidence_atoms / read_states + the canonical coaching
+maps) into one constrained "teaching object" per exploit / evidence note that
+answers: villain_did, cue, archetype (+confidence +evidence_count), exploit_now,
+future_exploit, do_not_overadjust, plus source_truth{evidence_atoms, decision_id,
+no_hindsight}.
+
+Hard guarantees (unit-tested, T-VT-01..14):
+- INVENTS NOTHING. Every villain-fact field is copied verbatim from an existing
+  stamped field (exp['evidence_text'] / ['suggests'] / ['so_what'] /
+  ['recommended_exploit'] / ['exploit_read_label'] / SIGNAL_COACHING). Missing
+  source -> field omitted; thin read -> a single fixed fallback line
+  ("Read is weak - one cue only. Use as a review candidate, not an exploit
+  mandate.").
+- NO-HINDSIGHT is structural: showdown-leaked atoms (available_before_action_index
+  = None) can never become a same-hand cue; their action copy is suppressed and
+  source_truth.evidence_atoms carries only strictly-earlier hands.
+- CONFIDENCE wired to real evidence: profiler/population reads cap at low; high
+  needs >=8 atoms + >=2 same-family corroboration; a low read never forces a
+  high-confidence mistake.
+- do_not_overadjust is DERIVED guardrail copy keyed by confidence (never a
+  villain-specific claim).
+- PKO cover reuses the existing coverage_label string verbatim; no bounty BB/$
+  is fabricated.
+- Online vs live is a copy suffix + field only; a live read is never
+  cross-applied into an online report.
+
+Renderer: a compact, additive ".v25-teach" block in the modal context render
+(archetype + confidence + evidence count, the over-adjust guardrail, PKO cover,
+or the thin-read fallback). All copy is pre-built in Python so the renderer only
+displays strings. No detector / dimension / archetype-taxonomy change; no report
+redesign, no Hand Review Queue UI, no strategy-threshold change, no PKO math
+change beyond display. (Browser render pending Chat-env QA - data layer is
+unit-tested; gem_villain_intel return contract + all existing villain tests
+unchanged.)
+
+rev-2 (GPT product-fail fixes): (1) the modal teaching block now renders the
+FULL pre-built teach_lines for non-fallback objects — Read / Villain (the
+villain_did action) / Cue / Now / Next time / Avoid over-adjusting / Bounty —
+not just the header; (2) villain_did is therefore visible in the modal; (3) the
+low-confidence do_not_overadjust default is now generic ("Thin read — confirm
+with more evidence before making a large exploit"), with context-specific lines
+only when the read family is safely mapped (PKO/cold-call, station, nit,
+aggressive); (4) atom-side no-hindsight now REQUIRES same_hand_actionable (not
+just a non-None availability index), so cross-hand aggregates and showdown-leaked
+atoms degrade to review-note fallbacks. Existing cb-* context lines + evidence
+popup + hand modal unchanged.
+
+Tests 979 -> 983 (+T-VT-15..18); verify 39 files + canaries + anti-canaries.
+
+
+v8.12.12 (2026-06-13) -- Slice E.1: analyst report trust + source-truth cleanup
+=========================================================================
+Report-trust fixes surfaced by the 2026-06-12/13 GPT-vs-Claude analyst
+comparison (verdicts converged; the bugs were in how the report LABELLED them):
+
+A. Analyst verdict street/type label. A preflop analyst punt with no `spot`
+   text no longer renders "Postflop punt (analyst)". New street-aware
+   _analyst_punt_street_label() reflects the REVIEWED decision street (analyst
+   `street` -> spot 'PF ALL-IN' marker -> a preflop all-in), never the final
+   all-in/showdown street; unknown degrades to a neutral "Punt (analyst)".
+
+B. Neutral AUTO_ONLY / unreviewed large-loss labels. In an AUTO_ONLY report
+   (or for any hand with no analyst verdict) the Large-Loss Audit (S1.3 + S17.6)
+   no longer shows showdown/situation labels (🪤 vs top-of-range, 🎲
+   unclassified variance, auto ❄️ cooler) as if they were decision-quality
+   verdicts. Such rows now lead with "⏳ awaiting analyst" and attach the auto
+   detector signal / showdown result context SEPARATELY. Only an analyst-
+   confirmed I.7 still renders "❄️ cooler". An unreviewed punt can no longer
+   read as "unlucky" or "justified".
+
+C. source_truth.price_engine provenance. Never 'none' when a price/sizing
+   exists. The decision node owns the source: not_applicable (no call price:
+   first-in open/fold/jam), action_ledger, sidepot_reconciled (capped overjam
+   call-off), candidate_decision_math, pot_odds_v8_12, or unavailable (price
+   needed but unsafe/missing -> price_unavailable + failure mode). v8.12.11
+   all-in sizing invariants preserved (no call_amount_bb > effective without
+   overjam/side-pot; raw jam size vs decision-effective stay separate).
+
+D. Analyst coverage clarity. The TL;DR banner now states the coverage state
+   explicitly: AUTO_ONLY (candidates awaiting; verdict sections INCOMPLETE),
+   ANALYST_PARTIAL (reviewed / worklist-candidate / unreviewed counts + which
+   buckets remain), ANALYST_COMPLETE (all candidates reviewed). compute_report_
+   completeness() stamps awaiting_by_bucket (persisted for --quick). MD and HTML
+   read the same single source. Filename tokens unchanged (AUTO_ONLY when no
+   analyst file; none when loaded).
+
+E. Doc: SESSION_START_STEP0 verify expectation corrected (38/38 files; canary /
+   anti-canary counts grow each rev — final v8.12.12 verify is 292 canaries /
+   10 anti-canaries; extract ~87 files).
+
+-- rev-2 (same v8.12.12 target; Ron's three same-slice trust follow-ups) --
+
+F. Stack Context cover table compares EVERY villain to Hero, not only the BB.
+   New _stack_cover_label() derives cover direction + delta from the real chip
+   stacks (not the upstream hero_covers/covers_hero seat flags, which were set
+   only for the BB seat so MP/HJ/CO/BTN collapsed to a misleading "= equal").
+   Renders "✓ Hero covers +X.XBB" / "✗ Villain covers Hero +X.XBB" / "≈ roughly
+   equal" (only within a 0.1BB tie tolerance, matching the non-bounty branch).
+   Cover direction drives PKO collectibility, so a wrong "= equal" silently
+   mis-stated whether a villain's bounty was winnable. Regression fixture for
+   hand 70391838 (Hero 18.7BB vs 14.3/13.0/24.1/31.8/7.9).
+
+G. PKO bounty-adjusted threshold math, shown only where it is safe. With cover
+   status + estimate known: estimated bounty as "$X ≈ Y.YBB" when a SAFE dollar
+   figure exists in the export (new _pko_bounty_usd() searches the USD overlay),
+   else "≈ Y.YBB" + an explicit "Dollar bounty unavailable in HH export; using
+   estimated bounty model" line (rev-3 — never a fabricated $; a chip→$
+   conversion of the BB model is NOT a valid bounty dollar). Then the thresholds
+   side by side: "Chip-only call needs Z1%; PKO-adjusted call needs ~Z2%"
+   (discount in pp) + the bounty-adjusted EV — shown ONLY when a discount was
+   actually applied (cover known + safe).
+   Mystery / multiway / side-pot-unsafe / collectibility-unresolved spots show
+   "PKO adjustment unavailable / unsafe — review manually" instead of a faked
+   numeric verdict; a non-covering Hero shows "no discount — bounty not
+   collectible". Freezeouts no longer mis-render a bounty line. Existing fields
+   only (gem_bounty / gem_pot_odds); no new PKO engine.
+
+H. Roman verdict codes removed from user-facing copy. New _verdict_display_label()
+   strips the leading code from a verdict label: "III.1 Punt" -> "Punt",
+   "III.4 Read-dependent" -> "Read-dependent", "I.7 Cooler" -> "Cooler", bare
+   "III.2" -> "Mistake". Wired into the leak sites (S17.4.5 reviewed-mistakes
+   table + analyst-argument bullets, BSA reviewed column, Tournament Exits
+   result column [display-only, count keeps the raw code], reclassified/screened
+   notes, hand-modal default). Code-as-shorthand prose reworded (e.g.
+   "analyst-confirmed punts/mistakes", "No GTO-Standard hands"). The internal
+   analyst JSON + taxonomy keep the codes; only DISPLAY copy changes. Section
+   navigation references (e.g. "S17.4", "I.3 Large-Loss Audit") are unchanged.
+   rev-3 extended the sweep to ALL hardcoded codes in visible copy — the verdict
+   legend, section sub-headers (III.3.{i} -> S3.{i}), empty-states ("No
+   read-dependent hands"), tooltips, the cleared-row label, the Picks prose
+   (III.8 -> Pick), and a cross-ref label — and added an AST source-smoke
+   (T-1236-H-6) asserting NO visible render string matches III.[0-9]/I.7
+   (allowlist: docstrings, exact code tokens, quoted map keys, anchors/ids).
+
+I. (DEFERRED — not low-risk) Summary-card coherence. discipline_tier is a
+   rate-based metric consumed by 6+ modules; "✅ Solid Discipline" at 1.08
+   mistakes / 0.32 punts per 100 is correct by its thresholds, not a bug, and
+   most of the diagnosis (skill-vs-variance attribution, punt/mistake counts,
+   fix-list) already renders. Left for a dedicated coherence pass.
+
+No new UI, no Hand Review Queue, no detector/strategy/taxonomy changes. Tests
+939 -> 965 (rev-2 + rev-3 from GPT review #rev-2: full Roman-code sweep + source
+smoke; PKO $X/dollar-unavailable line). Verify 38 files + canaries + anti-canaries.
+
 v8.12.11 (2026-06-13) -- Slice E: analyst_worklist_v1 (LLM triage queue)
 =========================================================================
 New modules:

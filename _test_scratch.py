@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'fe26f55dd92828e405238c3183bd0279745febf8c8281d2da59e2e9401da59a3',
+      _hg_hash == '3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -6564,6 +6564,378 @@ def _no_overprice(_w):
     return True
 check('T-1233-SZ-INV: no item has call_amount_bb > effective stack without overjam/side_pot',
       all(_no_overprice(_w) for _w in [_wl_sz1, _wl_sz2, _wl_sz3, _wl_pa1, _wl_pa2, _wl_pa3]), '')
+
+# ============================================================
+# v8.12.12 / Slice E.1 — report trust + source-truth cleanup (T-1234)
+# ============================================================
+# --- Objective A: analyst punt street/type label ---
+from gem_report_draft.sections_mistakes import _analyst_punt_street_label as _apsl
+check('T-1234-A-1: analyst street=preflop -> Preflop punt (not Postflop)',
+      _apsl({'verdict': 'III.1 Punt', 'street': 'preflop'}, None) == 'Preflop punt (analyst)', '')
+check('T-1234-A-2: analyst street=turn -> Postflop punt',
+      _apsl({'verdict': 'III.1 Punt', 'street': 'turn'}, None) == 'Postflop punt (analyst)', '')
+check('T-1234-A-3: preflop all-in hand (no street/spot) -> Preflop punt, not Postflop',
+      _apsl({'verdict': 'III.1 Punt'}, {'pf_allin': True, 'went_to_sd': True}) == 'Preflop punt (analyst)', '')
+check('T-1234-A-4: spot PF ALL-IN marker -> Preflop punt',
+      _apsl({'verdict': 'III.1 Punt', 'spot': 'BTN 40BB, PF ALL-IN, SD lost'}, None) == 'Preflop punt (analyst)', '')
+check('T-1234-A-5: legacy/unknown street degrades to neutral Punt (not Postflop)',
+      _apsl({'verdict': 'III.1 Punt'}, {'pf_allin': False}) == 'Punt (analyst)', '')
+_sm_src = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-1234-A-6: hardcoded "Postflop punt" fallback removed from the punt table',
+      "type_label = 'Postflop punt (analyst)'" not in _sm_src
+      and '_analyst_punt_street_label(cmt, h)' in _sm_src, '')
+
+# --- Objective B: neutral AUTO_ONLY / unreviewed large-loss labels ---
+from gem_report_draft.sections_financial import _neutral_unreviewed_large_loss_verdict as _nllv
+check('T-1234-B-1: top-of-range loss w/o verdict -> neutral status, no exculpatory verdict',
+      _nllv('top_of_range').startswith('⏳ awaiting analyst')
+      and 'showdown' in _nllv('top_of_range')
+      and '🪤' not in _nllv('top_of_range')
+      and 'vs top-of-range' not in _nllv('top_of_range'), _nllv('top_of_range'))
+check('T-1234-B-2: no signal/context -> plain "awaiting analyst review"',
+      _nllv(None) == '⏳ awaiting analyst review', _nllv(None))
+check('T-1234-B-3: auto-detected cooler -> auto-signal context, not a cooler verdict',
+      _nllv(None, auto_cooler=True).startswith('⏳ awaiting analyst')
+      and 'auto signal' in _nllv(None, auto_cooler=True)
+      and '❄️' not in _nllv(None, auto_cooler=True), _nllv(None, auto_cooler=True))
+_sf_src = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+_x13_src = open('gem_report_draft/sections_xiii.py', encoding='utf-8').read()
+check('T-1234-B-4: S1.3 no longer renders exculpatory variance/cooler as a verdict default',
+      '🎲 unclassified variance' not in _sf_src
+      and '🪤 vs top-of-range' not in _sf_src
+      and 'elif hid in i7_ids:' in _sf_src
+      and '_neutral_unreviewed_large_loss_verdict(' in _sf_src, '')
+check('T-1234-B-5: S17.6 large-loss audit neutralized the same way',
+      '🎲 unclassified variance' not in _x13_src
+      and '🪤 vs top-of-range' not in _x13_src
+      and 'elif hid in i7_ids_full:' in _x13_src, '')
+
+# --- Objective C: source_truth.price_engine provenance (no 'none' w/ a price) ---
+def _pe(_w, _hid):
+    return _w['items'][_hid]['source_truth']['price_engine']
+# reuse PA/SZ/DK fixtures built above
+check('T-1234-C-1: no item with a populated call_amount_bb has price_engine none',
+      all(not (it['decision_node'].get('call_amount_bb')
+               and it['source_truth']['price_engine'] in ('none', None))
+          for _w in [_wl_pa1, _wl_pa2, _wl_pa3, _wl_sz1, _wl_sz2, _wl_sz3,
+                     _wl_dk3, _wl_pol6]
+          for it in _w['items'].values()), '')
+check('T-1234-C-2: first-in open/fold -> price_engine not_applicable (never none)',
+      _pe(_wl_dk3, 'TM_DK3') == 'not_applicable', _pe(_wl_dk3, 'TM_DK3'))
+check('T-1234-C-3: ledger call-off -> action_ledger',
+      _pe(_wl_pa1, 'TM_PA1') == 'action_ledger', _pe(_wl_pa1, 'TM_PA1'))
+check('T-1234-C-4: capped overjam call-off -> sidepot_reconciled',
+      _pe(_wl_sz1, 'TM_SZ1') == 'sidepot_reconciled', _pe(_wl_sz1, 'TM_SZ1'))
+check('T-1234-C-5: unsafe multiway call-off -> unavailable + failure mode',
+      _pe(_wl_sz2, 'TM_SZ2') == 'unavailable'
+      and any('side-pot/overjam reconciliation' in f
+              for f in _wl_sz2['items']['TM_SZ2']['failure_modes']), _pe(_wl_sz2, 'TM_SZ2'))
+check('T-1234-C-6: first-in open-jam (no call price) -> not_applicable, not none',
+      _pe(_wl_sz3, 'TM_SZ3') == 'not_applicable', _pe(_wl_sz3, 'TM_SZ3'))
+_aw_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check('T-1234-C-7: price_engine driven by decision-node price_source (no static none)',
+      "src_truth['price_engine'] = dn['price_source']" in _aw_src
+      and "'price_source':" in _aw_src, '')
+
+# --- Objective D: analyst coverage/status clarity (banners + counts) ---
+from gem_report_data import compute_report_completeness as _crc12
+_cands_d = {'punts': [{'id': 'HD1'}], 'mistakes': [{'id': 'HD2'}]}
+_rc_auto = _crc12({'analyst_commentary': {}}, _cands_d)
+check('T-1234-D-1: no analyst -> AUTO_ONLY, all candidates awaiting',
+      _rc_auto['state'] == 'AUTO_ONLY' and _rc_auto['awaiting_candidates'] == 2
+      and _rc_auto['candidate_need'] == 2, str(_rc_auto))
+_rc_part = _crc12({'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'}}}, _cands_d)
+check('T-1234-D-2: partial -> reviewed/candidate/unreviewed counts + remaining bucket named',
+      _rc_part['state'] == 'ANALYST_PARTIAL' and _rc_part['reviewed_hands'] == 1
+      and _rc_part['candidate_need'] == 2 and _rc_part['awaiting_candidates'] == 1
+      and _rc_part['awaiting_by_bucket'].get('mistakes') == 1, str(_rc_part))
+_rc_done = _crc12({'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'},
+                   'HD2': {'verdict': 'III.5 Justified'}}}, _cands_d)
+check('T-1234-D-3: all candidates reviewed -> ANALYST_COMPLETE, none awaiting',
+      _rc_done['state'] == 'ANALYST_COMPLETE' and _rc_done['awaiting_candidates'] == 0
+      and not _rc_done['awaiting_by_bucket'], str(_rc_done))
+# --quick path: need-bucket persisted, awaiting recomputed without candidates
+_rd_q = {'analyst_commentary': {'HD1': {'verdict': 'III.1 Punt'}},
+         '_candidate_need_ids': ['HD1', 'HD2'],
+         '_candidate_need_bucket': {'HD1': 'punts', 'HD2': 'mistakes'}}
+_rc_q12 = _crc12(_rd_q, None)
+check('T-1234-D-4: --quick (no candidates) still names remaining bucket from persisted map',
+      _rc_q12['state'] == 'ANALYST_PARTIAL'
+      and _rc_q12['awaiting_by_bucket'].get('mistakes') == 1, str(_rc_q12))
+_tldr_src = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+check('T-1234-D-5: TLDR banner covers all three states with counts + remaining buckets',
+      "_rc_state == 'AUTO_ONLY'" in _tldr_src
+      and "_rc_state == 'ANALYST_PARTIAL'" in _tldr_src
+      and "_rc_state == 'ANALYST_COMPLETE'" in _tldr_src
+      and "candidate_need" in _tldr_src and "_awaiting_buckets_phrase" in _tldr_src
+      and "INCOMPLETE" in _tldr_src, '')
+
+# ============================================================
+# v8.12.12 / Slice E.1 rev-2 — report trust (T-1235): F cover table,
+# G PKO bounty-adjusted math, H Roman-code removal, I summary honesty
+# ============================================================
+# --- Objective F: Stack Context cover table — every villain vs Hero ---
+from gem_report_draft.sections_xiv import _stack_cover_label as _scl
+check('T-1235-F-1: shorter villain -> Hero covers + delta (direction shown)',
+      _scl(18.7, 13.0, 1) == '✓ Hero covers +5.7BB', _scl(18.7, 13.0, 1))
+check('T-1235-F-2: deeper villain -> Villain covers Hero + delta (not "= equal")',
+      _scl(18.7, 24.1, 1) == '✗ Villain covers Hero +5.4BB', _scl(18.7, 24.1, 1))
+check('T-1235-F-3: within tolerance -> "≈ roughly equal" only for true near-ties',
+      _scl(18.7, 18.75, 1) == '≈ roughly equal'
+      and _scl(18.7, 18.4, 1) != '≈ roughly equal', _scl(18.7, 18.75, 1))
+# Regression for hand 70391838: Hero SB 18.7BB vs BB/MP/HJ/CO/BTN.
+# v8.12.11 showed BB "✓ Hero covers" but MP/HJ/CO/BTN as a flat "= equal".
+_f70 = {14.3: '✓ Hero covers +4.4BB', 13.0: '✓ Hero covers +5.7BB',
+        24.1: '✗ Villain covers Hero +5.4BB', 31.8: '✗ Villain covers Hero +13.1BB',
+        7.9: '✓ Hero covers +10.8BB'}
+check('T-1235-F-4: hand 70391838 — all 5 villain seats compared to Hero (no "= equal")',
+      all(_scl(18.7, _vb, 1) == _exp for _vb, _exp in _f70.items()),
+      str({_vb: _scl(18.7, _vb, 1) for _vb in _f70}))
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-1235-F-5: cover table wired to helper; buggy flag-only "= equal" branch removed',
+      'def _stack_cover_label(' in _xiv_src
+      and '_stack_cover_label(' in _xiv_src
+      and "vs_str = '= equal'" not in _xiv_src
+      and "f'✗ covers Hero (+" not in _xiv_src, '')
+
+# --- Objective G: PKO bounty-adjusted threshold math (only where safe) ---
+import gem_bounty as _gb
+# Collectibility invariant the render relies on: a discount/value exist only
+# when Hero covers; a non-covering Hero never gets a fabricated discount.
+_bc_cov = _gb.bounty_context('Bounty Hunters', 'post_reg', fmt='BOUNTY', hero_covers=True)
+_bc_nocov = _gb.bounty_context('Bounty Hunters', 'post_reg', fmt='BOUNTY', hero_covers=False)
+check('T-1235-G-1: Hero covers -> positive bounty discount + value (collectible)',
+      _bc_cov['discount_pp'] > 0 and _bc_cov['value_bb'] > 0,
+      f"disc={_bc_cov['discount_pp']} val={_bc_cov['value_bb']}")
+check('T-1235-G-2: Hero does NOT cover -> 0 discount + 0 value (no fabricated discount)',
+      _bc_nocov['discount_pp'] == 0 and _bc_nocov['value_bb'] == 0,
+      f"disc={_bc_nocov['discount_pp']} val={_bc_nocov['value_bb']}")
+check('T-1235-G-3: cover-aware PKO-adjusted threshold rendered + freezeout guard',
+      'PKO-adjusted call needs' in _xiv_src
+      and 'Hero covers ' in _xiv_src and 'bounty collectible' in _xiv_src
+      and "_btype not in (None, 'none')" in _xiv_src
+      and 'hero_covers_field' in _xiv_src, '')
+check('T-1235-G-4: unknown/unsafe -> "review manually"; old misleading copy removed',
+      'PKO adjustment unavailable' in _xiv_src
+      and 'review' in _xiv_src and 'manually' in _xiv_src
+      and '**Bounty-adjusted:** required' not in _xiv_src
+      and 'no discount (Hero does not cover' not in _xiv_src, '')
+check('T-1235-G-5: estimated bounty labelled a model estimate; adj-EV only with discount',
+      'estimated bounty model' in _xiv_src
+      and _xiv_src.index('**Bounty-adjusted EV:**')
+          > _xiv_src.index('PKO-adjusted call needs'), '')
+
+# --- Obj-G rev-3: PKO bounty estimate $X / dollar-unavailable + thresholds ---
+from gem_report_draft.sections_xiv import _pko_bounty_usd as _pbu
+_rd_usd = {'usd_overlay': {'per_tournament': [{'tid': 'T1', 'name': 'PKO 5', 'bounty_usd': 2.5}]}}
+check('T-1236-G-1: safe dollar source present -> bounty $ returned (by tid or name)',
+      _pbu(_rd_usd, {'tournament_id': 'T1'}) == 2.5
+      and _pbu(_rd_usd, {'tournament': 'PKO 5'}) == 2.5, '')
+check('T-1236-G-2: no safe dollar source -> None (caller says unavailable, no fake $)',
+      _pbu({'usd_overlay': {'per_tournament': [{'tid': 'T1'}]}}, {'tournament_id': 'T1'}) is None
+      and _pbu({}, {'tournament_id': 'X'}) is None
+      and _pbu(_rd_usd, {'tournament_id': 'OTHER'}) is None, '')
+check('T-1236-G-3: render shows "$X" when safe, else explicit dollar-unavailable + BB model',
+      '**Estimated bounty:** $' in _xiv_src
+      and '{_vbb:.1f}BB' in _xiv_src
+      and 'Dollar bounty unavailable in HH export' in _xiv_src
+      and 'estimated bounty model' in _xiv_src, '')
+check('T-1236-G-4: chip-only -> PKO-adjusted call thresholds shown side by side',
+      'Chip-only call needs' in _xiv_src and 'PKO-adjusted call needs ~' in _xiv_src, '')
+
+# --- Objective H: strip Roman verdict codes from user-facing copy ---
+from gem_report_draft._hand_grid import _verdict_display_label as _vdl
+_H_CODES = {'III.1 Punt': 'Punt', 'III.2 Mistake': 'Mistake',
+            'III.3 Variance': 'Variance', 'III.4 Read-dependent': 'Read-dependent',
+            'III.5 Justified': 'Justified', 'I.7 Cooler': 'Cooler'}
+check('T-1235-H-1: every Roman-coded verdict label renders code-free',
+      all(_vdl(k) == v for k, v in _H_CODES.items())
+      and not any(_vdl(k).startswith(('III.', 'I.7')) for k in _H_CODES), '')
+check('T-1235-H-2: bare codes map to labels; already-clean / non-verdict pass through',
+      _vdl('III.2') == 'Mistake' and _vdl('I.7') == 'Cooler'
+      and _vdl('Punt') == 'Punt' and _vdl('—') == '—'
+      and _vdl('📊 screened') == '📊 screened' and _vdl('') == '', '')
+from gem_report_draft._hand_grid import _VERDICT_HUMAN as _VH
+check('T-1235-H-3: display-only — taxonomy map + internal code routing intact',
+      _VH.get('III.1') == 'Punt' and _VH.get('I.7') == 'Cooler'
+      and 'III.1 Punt'.startswith('III.1'), '')
+# leak sites wired to the helper
+_sf_src_h = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+_x13_src_h = open('gem_report_draft/sections_xiii.py', encoding='utf-8').read()
+_sm_src_h = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-1235-H-4: verdict-label leak sites route through _verdict_display_label',
+      '_verdict_display_label(' in _xiv_src
+      and '_verdict_display_label(' in _x13_src_h
+      and '_verdict_display_label(' in _sf_src_h
+      and '_verdict_display_label(' in _sm_src_h, '')
+check('T-1235-H-5: raw Roman-code copy removed from user-facing strings',
+      'analyst-confirmed III.1/III.2' not in _x13_src_h
+      and 'III.1 punt / III.2 strategic leak' not in _x13_src_h
+      and 'No III.0 GTO-Standard' not in _sm_src_h
+      and 'I.7 cooler or III.x leak' not in _sm_src_h, '')
+
+# --- Obj-H rev-3: source smoke — NO Roman verdict code in any VISIBLE render
+#     string across the report-draft package. Allowlist (per GPT review):
+#     docstrings, exact code tokens (dict keys / startswith args), quote-wrapped
+#     code tokens (maps / comparisons), anchors/ids, and a tiny set of internal
+#     verdict-set comparison literals. Anything else that still embeds a code is
+#     rendered prose -> fail.
+import ast as _ast_h, os as _os_h, re as _re_h
+_H_CODE = _re_h.compile(r'\bIII\.[0-9]\b|\bI\.7\b')
+_H_EXACT = _re_h.compile(r'^(III\.[0-9]|I\.7)$')
+_H_QUOTED = _re_h.compile(r'''['"](?:III\.[0-9]|I\.7)['"]''')
+_H_ALLOW_LITERALS = {'III.3 Cleared', 'III.5 Justified', 'I.7 Cooler'}
+def _h_doc_ids(_tree):
+    _out = set()
+    for _n in _ast_h.walk(_tree):
+        if isinstance(_n, (_ast_h.Module, _ast_h.FunctionDef, _ast_h.AsyncFunctionDef, _ast_h.ClassDef)):
+            _b = getattr(_n, 'body', [])
+            if _b and isinstance(_b[0], _ast_h.Expr) and isinstance(getattr(_b[0], 'value', None), _ast_h.Constant) and isinstance(_b[0].value.value, str):
+                _out.add(id(_b[0].value))
+    return _out
+def _h_scan(_fp):
+    _tree = _ast_h.parse(open(_fp, encoding='utf-8').read())
+    _docs = _h_doc_ids(_tree)
+    _leaks = []
+    for _n in _ast_h.walk(_tree):
+        if not (isinstance(_n, _ast_h.Constant) and isinstance(_n.value, str)):
+            continue
+        if id(_n) in _docs:
+            continue
+        _s = _n.value
+        if not _H_CODE.search(_s) or _H_EXACT.match(_s):
+            continue
+        if _s.startswith('sec-') or _s.startswith('#sec') or _s in _H_ALLOW_LITERALS:
+            continue
+        if _H_CODE.search(_H_QUOTED.sub('', _s)):
+            _leaks.append((_os_h.path.basename(_fp), _s[:60]))
+    return _leaks
+_rd_dir_h = _os_h.path.join(_os_h.path.dirname(__file__), 'gem_report_draft')
+_h_all_leaks = []
+for _fn_h in sorted(_os_h.listdir(_rd_dir_h)):
+    if _fn_h.endswith('.py'):
+        _h_all_leaks += _h_scan(_os_h.path.join(_rd_dir_h, _fn_h))
+check('T-1236-H-6: no Roman verdict code in any visible render string (report-draft)',
+      not _h_all_leaks, str(_h_all_leaks[:6]))
+check('T-1236-H-7: humanized copy present, Roman render-forms gone (ASCII-safe)',
+      'read-dependent review' in _xiv_src and 'III.4 review' not in _xiv_src
+      and 'Per-hand analysis in the read-dependent section.' in _tldr_src
+      and 'Per-hand analysis in III.4' not in _tldr_src, '')
+
+# ============================================================
+# v8.13.0 — Villain Exploitation Teaching Layer (T-VT)
+# ============================================================
+import gem_villain_teaching as _vt
+_vt_vk = 'T1|abcd1234'
+def _vt_rs(n=9, conf='high', hids=None, primary='\U0001F4DE Sticky Passive'):
+    return {_vt_vk: {'villain_alias': 'Ghost', 'primary_read': primary,
+                     'confidence': conf, 'n_evidence': n,
+                     'evidence_hand_ids': hids or ['H9', 'H7', 'H_now']}}
+_vt_sticky = {_vt_vk: [{'dimension': 'sticky'} for _ in range(3)]}
+def _vt_exp(**kw):
+    b = {'villain_key': _vt_vk, 'hand_id': 'H_now', 'exploit_read_label': 'Sticky Passive',
+         'exploit_read_display': '\U0001F4DE Sticky Passive', 'read_source': 'prior_atoms_mapped',
+         'evidence_text': 'Called river with second pair after Hero double-barreled.',
+         'suggests': 'Villain is sticky/station - calls down with marginal holdings.',
+         'so_what': 'Do not bluff this player multi-street. Value-bet thinner instead.',
+         'recommended_exploit': 'Check back rivers; value-bet thinner.',
+         'available_before_action_index': 2, 'action_index': 5, 'hero_decision_street': 'river'}
+    b.update(kw); return b
+_REQ = {'villain_id', 'villain_alias', 'street', 'villain_did', 'cue', 'archetype',
+        'confidence', 'evidence_count', 'exploit_now', 'future_exploit',
+        'do_not_overadjust', 'source_truth', 'population'}
+_o = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky)
+check('T-VT-01: teaching object has full contract incl source_truth{atoms,decision_id,no_hindsight}',
+      _REQ <= set(_o) and {'evidence_atoms', 'decision_id', 'no_hindsight'} <= set(_o['source_truth']), '')
+check('T-VT-02: villain-fact fields copied verbatim from stamped exploit (no invention)',
+      _o['villain_did'] == 'Called river with second pair after Hero double-barreled.'
+      and _o['cue'].startswith('Villain is sticky/station')
+      and _o['exploit_now'] == 'Do not bluff this player multi-street. Value-bet thinner instead.'
+      and _o['future_exploit'] == 'Check back rivers; value-bet thinner.', '')
+_thin = _vt.teaching_from_exploit(_vt_exp(evidence_text='', suggests=''),
+                                  {_vt_vk: {'n_evidence': 1, 'evidence_hand_ids': ['H_now']}}, {_vt_vk: []})
+check('T-VT-03: thin read -> fixed fallback line, no exploit_now',
+      _thin['fallback'] and _vt.FALLBACK_LINE in _thin['teach_lines'] and _thin['exploit_now'] is None, '')
+_sd = _vt.teaching_from_atom({'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'weak_showdown_call',
+                              'street': 'river', 'action_index': 4, 'available_before_action_index': None,
+                              'evidence_text': 'Showed weak pair.', 'hero_involved': True,
+                              'so_what': 'Value-bet thinner.', 'suggests': 'Sticky.'},
+                             _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VT-04: showdown-only atom (available None) -> no_hindsight False, no exploit_now (no hindsight leak)',
+      _sd['source_truth']['no_hindsight'] is False and _sd['exploit_now'] is None and _sd['fallback'], '')
+check('T-VT-05: prior-atoms read -> no_hindsight True; evidence_atoms are strictly EARLIER hands',
+      _o['source_truth']['no_hindsight'] is True and 'H_now' not in _o['source_truth']['evidence_atoms']
+      and set(_o['source_truth']['evidence_atoms']) == {'H9', 'H7'}, '')
+_pf = _vt.teaching_from_exploit(_vt_exp(read_source='profiler_archetype'),
+                                {_vt_vk: {'n_evidence': 12, 'evidence_hand_ids': ['a', 'b']}}, _vt_sticky)
+check('T-VT-06: profiler_archetype (population, no direct evidence) capped to low confidence',
+      _pf['confidence'] == 'low', _pf['confidence'])
+check('T-VT-07: confidence bands wired to evidence_count + same-type corroboration',
+      _vt.derive_confidence('prior_atoms_mapped', 9, 2) == 'high'
+      and _vt.derive_confidence('prior_atoms_mapped', 5, 1) == 'medium'
+      and _vt.derive_confidence('prior_atoms_mapped', 9, 0) == 'low'
+      and _vt.derive_confidence('prior_atoms_mapped', 2, 2) == 'low', '')
+check('T-VT-08: do_not_overadjust is derived guardrail copy keyed by confidence (never a villain fact)',
+      _o['do_not_overadjust'] == _vt._DO_NOT_OVERADJUST_GENERIC['high']
+      and _thin['do_not_overadjust'] in (set(_vt._LOW_CONF_CONTEXT.values())
+                                         | {_vt._DO_NOT_OVERADJUST_GENERIC['low']})
+      and _vt_vk not in _o['do_not_overadjust'], '')
+import re as _re_vt
+_pko = {'H_now': {'coverage_label': 'covers opener - bounty collectible', 'can_collect_bounty': True}}
+_op = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky, pko_by_hand=_pko)
+check('T-VT-09: PKO cover reuses coverage_label verbatim; no BB/$ fabricated; omitted when absent',
+      _op['pko']['cover_label'] == 'covers opener - bounty collectible' and _op['pko']['collectible'] is True
+      and not _re_vt.search(r'\$|BB', _op['pko']['cover_label']) and 'pko' not in _o, '')
+_live = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky, population='live')
+check('T-VT-10: live read carries live caveat, never the online suffix (no cross-apply)',
+      'do not cross-apply to online' in _live['cue'] and 'online-pool' not in _live['cue']
+      and 'online-pool' in _o['cue'] and 'live read' not in _o['cue'], '')
+_long = _vt.teaching_from_exploit(_vt_exp(evidence_text=' '.join(['w'] * 40), so_what=' '.join(['x'] * 40)),
+                                  _vt_rs(), _vt_sticky)
+check('T-VT-11: villain_did/exploit_now clamped to word caps',
+      len(_long['villain_did'].split()) <= 22 and len(_long['exploit_now'].split()) <= 18, '')
+_noi = _vt.teaching_from_exploit(_vt_exp(read_source='same_hand_pivot', available_before_action_index=None,
+                                         action_index=None, hero_decision_index=None), _vt_rs(), _vt_sticky)
+check('T-VT-12: missing decision index -> decision_id ends |? and same-hand cue is not actionable',
+      _noi['source_truth']['decision_id'].endswith('|?') and _noi['source_truth']['no_hindsight'] is False, '')
+_vtsrc = open('gem_villain_teaching.py', encoding='utf-8').read()
+check('T-VT-13: builder reuses stamped fields (no hardcoded villain facts / invented coaching)',
+      'def build_villain_teaching(' in _vtsrc and "exp.get('so_what')" in _vtsrc
+      and "exp.get('evidence_text')" in _vtsrc and 'FALLBACK_LINE' in _vtsrc, '')
+_built = _vt.build_villain_teaching({'read_states': _vt_rs(), 'atoms_by_villain': _vt_sticky,
+                                     'exploits_by_hand': {'H_now': [_vt_exp()]}, 'atoms_by_hand': {}})
+check('T-VT-14: build_villain_teaching indexes by hand + villain; never raises on partial data',
+      'H_now' in _built['teaching_by_hand'] and _vt_vk in _built['teaching_by_villain']
+      and _vt.build_villain_teaching({})['teaching_by_hand'] == {}, '')
+# --- rev-2 (GPT product-fail fixes) ---
+check('T-VT-15: non-fallback teach_lines render the FULL sequence incl Read + Villain(did)',
+      not _o['fallback']
+      and any(l.startswith('Read:') for l in _o['teach_lines'])
+      and any(l.startswith('Villain:') for l in _o['teach_lines'])
+      and any(l.startswith('Cue:') for l in _o['teach_lines'])
+      and any(l.startswith('Now:') for l in _o['teach_lines'])
+      and any(l.startswith('Next time:') for l in _o['teach_lines'])
+      and any(l.startswith('Avoid over-adjusting:') for l in _o['teach_lines']), '')
+_a_sha = {'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'multiway_donk', 'street': 'flop',
+          'action_index': 3, 'available_before_action_index': 3, 'same_hand_actionable': True,
+          'evidence_text': 'Donk-bet into the field.', 'hero_involved': True,
+          'suggests': 'Loose.', 'so_what': 'Raise donks.'}
+_a_no = dict(_a_sha, hand_id='H3', same_hand_actionable=False, signal='weak_showdown_call')
+_o_sha = _vt.teaching_from_atom(_a_sha, _vt_rs(), _vt_sticky, signal_coaching={})
+_o_no = _vt.teaching_from_atom(_a_no, _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VT-16: atom no-hindsight REQUIRES same_hand_actionable (avail alone is insufficient)',
+      _o_sha['source_truth']['no_hindsight'] is True
+      and _o_no['source_truth']['no_hindsight'] is False
+      and _o_no['fallback'] and _o_no['exploit_now'] is None, '')
+check('T-VT-17: low-confidence guardrail generic by default; PKO line only for PKO/cold-call spots',
+      _vt.derive_do_not_overadjust('low') == _vt._DO_NOT_OVERADJUST_GENERIC['low']
+      and 'cold-call' not in _vt.derive_do_not_overadjust('low')
+      and 'cold-call' in _vt.derive_do_not_overadjust('low', has_pko=True)
+      and _vt.derive_do_not_overadjust('low', 'Nit / Rock') == _vt._LOW_CONF_CONTEXT['Nit / Rock'], '')
+_htmlsrc_vt = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles',
+      'teach_lines.forEach' in _htmlsrc_vt and 'v25-teach-head' in _htmlsrc_vt
+      and 'v25-teach-line' in _htmlsrc_vt, '')
 
 # ============================================================
 # SUMMARY

@@ -371,6 +371,17 @@ def _decision_node(c, kind=None, dev=None, hand=None):
             call_bb, price_unavailable, price_fail, szf = _allin_sizing(
                 is_call, _f(evt.get('amount_bb')), eff, faced_amt,
                 faced_allin, hero_allin)
+            # v8.12.12 Obj-C: price_engine provenance. A jam has no call price
+            # (not_applicable); an unreconcilable price is unavailable; a capped
+            # overjam call-off is sidepot_reconciled; otherwise the ledger.
+            if not is_call:
+                price_source = 'not_applicable'
+            elif price_unavailable:
+                price_source = 'unavailable'
+            elif szf.get('overjam_bb'):
+                price_source = 'sidepot_reconciled'
+            else:
+                price_source = 'action_ledger'
             node = {
                 'street': 'preflop', 'decision_kind': kind,
                 'hero_action_facing': facing or 'unknown',
@@ -379,6 +390,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
                 'price_unavailable': price_unavailable,
                 'price_not_applicable': (not is_call),
                 'price_failure_reason': price_fail,
+                'price_source': price_source,
                 'effective_bb_vs_relevant_villain': szf.get('decision_effective_bb') or eff,
                 'players_behind': None, 'closing_action': closing,
             }
@@ -412,18 +424,28 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         faces_raise = not bool(c.get('first_in'))   # no ledger: use first_in
     price_unavailable = False
     price_not_applicable = False
+    price_source = ''                     # v8.12.12 Obj-C: provenance
     if preflop and not faces_raise:
         call_bb = None
         price_not_applicable = True
+        price_source = 'not_applicable'   # first-in open/fold: no call price
     else:
-        call_bb = (_f(stblock.get('hero_call_amount_bb'))
-                   or (_hero_preflop_call_amount(hand) if preflop else None)
-                   or _f(c.get('hero_committed_bb')) or None)
+        _stb = _f(stblock.get('hero_call_amount_bb'))
+        _led = _hero_preflop_call_amount(hand) if preflop else None
+        _com = _f(c.get('hero_committed_bb'))
+        call_bb = _stb or _led or _com or None
         if call_bb and eff and call_bb > eff * 1.05:
             call_bb = None
             price_unavailable = True
-        elif not call_bb and not preflop:
-            price_unavailable = True
+            price_source = 'unavailable'
+        elif not call_bb:
+            price_unavailable = (not preflop)
+            price_source = 'unavailable'   # a price was relevant but is missing
+        elif _stb:
+            price_source = ('pot_odds_v8_12' if (not preflop and c.get('pot_odds'))
+                            else 'candidate_decision_math')
+        else:                              # ledger call / committed amount
+            price_source = 'action_ledger'
     if preflop and hand:
         hero_act = _hero_preflop_action(hand) or stblock.get('hero_action') or ''
     else:
@@ -437,6 +459,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
         'call_amount_bb': round(call_bb, 1) if call_bb else None,
         'price_unavailable': price_unavailable,
         'price_not_applicable': price_not_applicable,
+        'price_source': price_source,
         'effective_bb_vs_relevant_villain': eff,
         'players_behind': None,           # needs full ledger; left explicit
         'closing_action': closing,
@@ -579,9 +602,11 @@ def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
                   and dn.get('hero_action_facing') != 'unknown')
     if not (known_node or rich_line):
         return False, 'unknown_node'
-    # req: a real price engine must back the decision (never clear on no price)
-    if src_truth.get('price_engine') == 'none':
-        return False, 'price_engine_none'
+    # req: a real price engine must back the decision (never clear on no/unknown
+    # price). 'not_applicable' is fine — a first-in jam has no call price but is
+    # still backed by the push/fold class.
+    if src_truth.get('price_engine') in ('none', 'unavailable'):
+        return False, 'price_engine_unavailable'
     # req: ONE positive qualifying basis. Each is decision-basis evidence that
     # is NOT the revealed hand: chart membership, a computed range-equity
     # cushion, or the push/fold-standard premium short-stack class.
@@ -789,10 +814,12 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         bnt = _bounty_context(c, pko)
         action_line = _canonical_action_line(c, hand, kind)
         src_truth = _source_truth(c, pko, dev)
-        # GPT review #3: a first-in decision has no price -> the price engine is
-        # not_applicable (so the reader never treats null as a missing price).
-        if dn.get('price_not_applicable'):
-            src_truth['price_engine'] = 'not_applicable'
+        # v8.12.12 Obj-C: the decision node owns the price provenance. price_engine
+        # is never 'none' when a price/sizing exists: not_applicable (no call
+        # price), action_ledger / sidepot_reconciled / candidate_decision_math /
+        # pot_odds_v8_12 (populated), or unavailable (needed but unsafe/missing).
+        if dn.get('price_source'):
+            src_truth['price_engine'] = dn['price_source']
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
                            sources_by_id.get(hid, []), src_truth, action_line)

@@ -2552,10 +2552,10 @@ def _emit_section_viii(doc, s, rd, hands):
     # B219 (Ron review 2026-05-25): "what is this / how does it help?" — the
     # section was a bare numbered list with no framing. Explain it.
     doc.w("*This is the session's shortlist of leaks worth deliberate "
-          "practice — the metric-flagged patterns from III.3 Strategic Leaks "
+          "practice — the metric-flagged patterns from the Strategic Leaks section "
           "that persisted or recurred, promoted here so next session has a "
           "concrete focus list instead of \"play better\". Each links into "
-          "III.3 for the analyst judgment (real leak vs. noise) and the "
+          "Strategic Leaks for the analyst judgment (real leak vs. noise) and the "
           "example hands; IV.2 Top Drills turns them into exercises.*")
     doc.w("")
     if promoted:
@@ -3765,7 +3765,7 @@ def _emit_sub_bounty_pko(doc, s, rd, hands):
                   f'bounty-cEV (coverage chains, side-pot bounties) is a '
                   f'documented refinement — listed with true multiway equity '
                   f'so no bounty all-in is invisible. Per-hand verdicts in '
-                  f'III.3 / XIII.4."><strong>Multiway bounty all-ins</strong> '
+                  f'Strategic Leaks / Mistakes."><strong>Multiway bounty all-ins</strong> '
                   f'({_mw_total} — out of HU-flip scope){_trunc_note}</span>')
             doc.w("")
             doc.w("| Hand | Cards | Players | Hero eq | Result |")

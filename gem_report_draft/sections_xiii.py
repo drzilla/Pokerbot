@@ -11,7 +11,7 @@ from gem_report_draft._html import (Doc, _card_html, _cards_html,
     _sort_cards_desc, _describe_made_hand, _SUIT_HTML, _RANK_VALUES, _SUIT_VALUES)
 from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
-    _hero_action_verbs_by_street_from_app)
+    _hero_action_verbs_by_street_from_app, _verdict_display_label, _humanize_verdicts)
 from gem_report_draft._blocks import (raw_reference_block,)
 
 import gem_made_hands as mh
@@ -429,7 +429,7 @@ def _emit_section_xiii(doc, s, rd, hands):
     if _analyst_confirmed:
         _tot = len(clear_list) + len(_analyst_confirmed)
         summary_parts.append(
-            f"{len(_analyst_confirmed)} analyst-confirmed III.1/III.2 "
+            f"{len(_analyst_confirmed)} analyst-confirmed punts/mistakes "
             f"— total {_tot} mistakes ({100.0*_tot/n_h:.2f}/100)")
     if marginal_list:
         summary_parts.append(f"{len(marginal_list)} MARGINAL ({100.0*len(marginal_list)/n_h:.2f}/100)")
@@ -716,10 +716,10 @@ def _emit_section_xiii(doc, s, rd, hands):
               f"({len(judged_hands) + len(_analyst_only)})")
         doc.w("")
         doc.w("*Detector-flagged hands the analyst judged, plus hands the "
-              "analyst graded a mistake (III.1 punt / III.2 strategic leak) "
-              "that the detector did not independently flag. 🔴/III.1/III.2 "
-              "verdicts ARE counted in the mistake ledger; 🟢/🟡 are not. "
-              "Click the appendix link for full hand detail.*")
+              "analyst graded a mistake (punt / strategic leak) "
+              "that the detector did not independently flag. 🔴 punt / "
+              "mistake verdicts ARE counted in the mistake ledger; 🟢/🟡 are "
+              "not. Click the appendix link for full hand detail.*")
         doc.w("")
         _rv_hdr = "| Hand Reference | Cards | Rule(s) / Source | Verdict | Full Detail |"
         _rv_sep = "|---|---|---|---|---|"
@@ -729,7 +729,7 @@ def _emit_section_xiii(doc, s, rd, hands):
             href = _href(ref_m, s['_hands_by_id'])
             cards = _real_cards_pills(ref_m, s['_hands_by_id'])
             rules = "; ".join(m.get('type', '—') for m in group)
-            verdict = cmt.get('verdict', '—')
+            verdict = _verdict_display_label(cmt.get('verdict', '—'))
             appendix_anchor = f"sec-app-hand-{hid[-8:]}"
             _rv_rows.append(f"| {href} | {cards} | {rules} | {verdict} | "
                   f"{_xref(appendix_anchor, label='full HH ↓')} |")
@@ -738,7 +738,7 @@ def _emit_section_xiii(doc, s, rd, hands):
             href = _href(h, s['_hands_by_id']) if h else f"`{hid[-8:]}`"
             cards = (_cards_str_to_pills(''.join(h.get('cards', []) or []))
                      if h else '—')
-            verdict = cmt.get('verdict', '—')
+            verdict = _verdict_display_label(cmt.get('verdict', '—'))
             appendix_anchor = f"sec-app-hand-{hid[-8:]}"
             _rv_rows.append(f"| {href} | {cards} | analyst pass (no detector flag) | "
                   f"{verdict} | {_xref(appendix_anchor, label='full HH ↓')} |")
@@ -750,11 +750,15 @@ def _emit_section_xiii(doc, s, rd, hands):
         for hid, group, cmt in judged_hands:
             argument = cmt.get('argument', '')
             if argument:
-                doc.w(f"- **`{hid[-8:]}`** ({cmt.get('verdict','')}): {argument}")
+                doc.w(f"- **`{hid[-8:]}`** "
+                      f"({_verdict_display_label(cmt.get('verdict',''))}): "
+                      f"{_humanize_verdicts(argument)}")
         for hid, cmt in _analyst_only:
             argument = cmt.get('argument', '')
             if argument:
-                doc.w(f"- **`{hid[-8:]}`** ({cmt.get('verdict','')}): {argument}")
+                doc.w(f"- **`{hid[-8:]}`** "
+                      f"({_verdict_display_label(cmt.get('verdict',''))}): "
+                      f"{_humanize_verdicts(argument)}")
         doc.w("")
     doc.w("")
 
@@ -1075,24 +1079,21 @@ def _emit_section_xiii(doc, s, rd, hands):
                 _oce, _oct = _outcome_label(analyst.get(hid, {}),
                                             default=('👍', 'justified'))
                 verdict = f"{_oce} {_oct} — {_xref('sec-13-3', label='S13.3')}"
-            elif hid in cooler_ids_full:
+            elif hid in i7_ids_full:
+                # analyst-CONFIRMED cooler (I.7) — a real decision verdict.
                 verdict = f"❄️ cooler — {_xref('sec-1-7', label='S1.7')}"
-            elif hid in (rd.get('auto_resolved_ids') or []):
-                # Issue 6 + auto-resolve expansion (Ron 2026-05-30)
-                _ar_label = (rd.get('auto_resolved_labels') or {}).get(hid)
-                verdict = _ar_label or "✅ auto-resolved"
             else:
-                # Issue 4: variance-outcome fallback before "awaiting"
+                # v8.12.12 Obj-B: NO analyst verdict — never imply justified /
+                # cooler / variance for an unreviewed large loss. Lead with
+                # review status, attach auto signal / showdown context apart.
+                from gem_report_draft.sections_financial import (
+                    _neutral_unreviewed_large_loss_verdict as _neutral_llv)
                 _voc_raw = rd.get('variance_outcomes', {}).get(hid)
                 _voc = _voc_raw['outcome'] if isinstance(_voc_raw, dict) else _voc_raw
-                _voc_map = {
-                    'lost_flip': '🪙 lost flip',
-                    'suckout': '🤢 suckout',
-                    'top_of_range': '🪤 vs top-of-range',
-                    'semi_bluff_cooler': '🎲 variance',
-                }
-                # BUG-7: suppress "awaiting analyst" in published reports
-                verdict = _voc_map.get(_voc, "🎲 unclassified variance")
+                _auto_cooler = hid in cooler_ids_full     # auto-only (i7 above)
+                _auto_label = ((rd.get('auto_resolved_labels') or {}).get(hid)
+                               if hid in (rd.get('auto_resolved_ids') or []) else None)
+                verdict = _neutral_llv(_voc, _auto_cooler, _auto_label)
             cards = _cards_str_to_pills(''.join(h.get('cards', [])))
             netbb = h.get('net_bb', 0)
             board_raw = h.get('board') or []
@@ -1169,7 +1170,7 @@ def _emit_section_xiii(doc, s, rd, hands):
             cards = _cards_str_to_pills(''.join(sh.get('cards', []) or []))
             cmt = analyst_bsa.get(hid, {})
             if isinstance(cmt, dict) and cmt.get('verdict'):
-                verdict = f"reviewed — {cmt.get('verdict')}"
+                verdict = f"reviewed — {_verdict_display_label(cmt.get('verdict'))}"
             else:
                 # B228 (Ron 2026-06-01): BSA hands now have XIV.B review
                 # modals — link to the appendix card instead of showing a

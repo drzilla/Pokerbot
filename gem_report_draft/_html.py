@@ -962,6 +962,27 @@ _MODAL_HTML = r"""
         _bl.appendChild(_adiv);
       }
     }
+    /* v8.13.0 Villain Teaching Layer: compact, additive coaching block.
+       Renders the pre-built teaching projection (archetype + confidence +
+       evidence count, the do-not-over-adjust guardrail, PKO cover, and the
+       thin-read fallback). All copy is built in Python (gem_villain_teaching)
+       so the renderer only displays strings and invents nothing. */
+    if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
+      /* rev-2: render the FULL pre-built teaching sequence (Read / Villain /
+         Cue / Now / Next time / Avoid over-adjusting / Bounty), or the single
+         fallback line. All strings are built in Python; the renderer only
+         classifies + displays them. */
+      var _t=ctx.teaching;var _tp=[];
+      _t.teach_lines.forEach(function(ln){
+        var cls='v25-teach-line';
+        if(_t.fallback){cls='v25-teach-weak';}
+        else if(ln.indexOf('Read:')===0){cls='v25-teach-head';}
+        else if(ln.indexOf('Avoid over-adjusting:')===0){cls='v25-teach-guard';}
+        else if(ln.indexOf('Bounty:')===0){cls='v25-teach-pko';}
+        _tp.push('<div class="'+cls+'">'+_esc(ln)+'</div>');
+      });
+      var _td=document.createElement('div');_td.className='v25-teach';_td.innerHTML=_tp.join('');_bl.appendChild(_td);
+    }
     return _bl;
   }
   /* V25: Why this hand — slim reason line below summary */
@@ -5777,6 +5798,13 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-ve-label {{ color: #0f172a; font-weight: 600; }}
   .v25-ve-line {{ font-size: 12px; line-height: 1.4; color: #334155;
     padding-left: 28px; margin-top: 2px; }}
+  /* v8.13.0 villain teaching layer — compact, isolated to avoid cascade */
+  .v25-teach {{ margin: 4px 10px 8px; padding: 6px 8px; border-left: 3px solid #14b8a6;
+    background: #f0fdfa; border-radius: 6px; font-size: 12px; line-height: 1.45; }}
+  .v25-teach-head {{ font-weight: 600; color: #0f766e; margin-bottom: 2px; }}
+  .v25-teach-guard {{ color: #92400e; margin-top: 2px; }}
+  .v25-teach-pko {{ color: #1e3a5f; margin-top: 2px; }}
+  .v25-teach-weak {{ color: #64748b; font-style: italic; }}
   .coaching-analyst_learning {{ border: 1px solid #c084fc; }}
   .cb-header.cb-learning {{ background: #faf5ff; color: #6b21a8; border-bottom: 1px solid #c084fc; }}
   .cb-analyst {{ padding: 8px 12px; font-size: 12px; background: #f0f9ff;

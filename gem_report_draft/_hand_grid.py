@@ -28,6 +28,27 @@ def _humanize_verdicts(text):
         lambda m: _VERDICT_HUMAN.get(m.group(1), m.group(1)), text)
 
 
+# v8.12.12 (Obj-H): strip the leading internal verdict code from a SINGLE
+# verdict label so user-facing copy reads "Punt", not "III.1 Punt". The codes
+# stay in the analyst JSON + taxonomy (this only touches display strings); use
+# _humanize_verdicts() instead for free-form prose that may embed a code.
+_VERDICT_CODE_PREFIX = _re_mod.compile(r'^\s*(III\.\d+|I\.7)\b[\s:.–—\-]*')
+
+
+def _verdict_display_label(verdict):
+    """'III.1 Punt' -> 'Punt'; 'III.4 Read-dependent' -> 'Read-dependent';
+    'I.7 Cooler' -> 'Cooler'; bare 'III.2' -> 'Mistake'. Anything without a
+    leading code (already-clean labels, '—', emoji statuses) is returned as-is.
+    """
+    if not verdict:
+        return verdict
+    m = _VERDICT_CODE_PREFIX.match(verdict)
+    if not m:
+        return verdict
+    rest = verdict[m.end():].strip()
+    return rest or _VERDICT_HUMAN.get(m.group(1), verdict)
+
+
 def _effective_amt(nominal_amt, remaining_actions):
     """Compute effective (callable) amount for an all-in bet/raise.
     The uncalled portion above the deepest live opponent stack is

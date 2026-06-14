@@ -1057,16 +1057,27 @@ def compute_report_completeness(rd, candidates=None):
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
         need = set()
+        need_bucket = {}                       # id -> bucket, persisted for --quick
         for _bk in _COMPLETENESS_NEED_BUCKETS:
             for _c in candidates.get(_bk, []) or []:
                 _cid = _c.get('id') if isinstance(_c, dict) else None
                 if _cid and _cid not in _auto:
                     need.add(_cid)
+                    need_bucket.setdefault(_cid, _bk)
         rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
+        rd['_candidate_need_bucket'] = need_bucket
     else:
         need = set(rd.get('_candidate_need_ids', []) or [])
+        need_bucket = rd.get('_candidate_need_bucket', {}) or {}
 
     awaiting = sorted(need - reviewed_ids)
+    # v8.12.12 Obj-D: per-bucket breakdown of what is still awaiting review, so
+    # the ANALYST_PARTIAL banner can name which buckets remain.
+    awaiting_by_bucket = {}
+    for _aid in awaiting:
+        _bk = need_bucket.get(_aid)
+        if _bk:
+            awaiting_by_bucket[_bk] = awaiting_by_bucket.get(_bk, 0) + 1
     if not reviewed_ids:
         state = 'AUTO_ONLY'
     elif awaiting:
@@ -1081,6 +1092,7 @@ def compute_report_completeness(rd, candidates=None):
         'awaiting_candidates': len(awaiting),
         'awaiting_markers': len(awaiting),
         'awaiting_ids': awaiting[:50],
+        'awaiting_by_bucket': awaiting_by_bucket,
     }
     rd['report_completeness'] = rc
     return rc

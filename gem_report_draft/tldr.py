@@ -560,22 +560,50 @@ def _emit_opening_dashboard(doc, s, rd):
     # (it did on 2026-06-13 and shipped without verdicts).
     _rc = rd.get('report_completeness') or {}
     _rc_state = _rc.get('state', '')
+    # v8.12.12 Obj-D: make the coverage state obvious and quantified, and name
+    # which buckets remain unreviewed. Single doc source -> MD and HTML agree.
+    def _awaiting_buckets_phrase(_rcd):
+        _abb = _rcd.get('awaiting_by_bucket') or {}
+        if not _abb:
+            return ''
+        _pretty = {'punts': 'punts', 'mistakes': 'mistakes',
+                   'all_in_review': 'all-in reviews', 'coolers': 'coolers',
+                   'big_river_calldowns': 'river call-downs',
+                   'bust_audit': 'bust audit', 'read_dependent_screening': 'read-dependent',
+                   'iii4_screening': 'read-dependent', 'bestplay_screening': 'best-play screen',
+                   'blindspot_sample': 'blind-spot sample'}
+        parts = [f"{_n} {_pretty.get(_bk, _bk)}" for _bk, _n in
+                 sorted(_abb.items(), key=lambda kv: -kv[1])]
+        return ' — remaining: ' + ', '.join(parts)
     if _rc_state == 'AUTO_ONLY':
         doc.w("<div style='margin:0 0 14px;padding:12px 16px;border:2px "
               "solid #f59e0b;border-radius:12px;background:#fffbeb;"
               "color:#92400e;font-weight:700'>"
               "⚠️ AUTO-ONLY REPORT — no analyst file loaded. "
               f"{_rc.get('awaiting_candidates', '?')} candidate hands are "
-              "awaiting review and carry no verdicts. Do not treat this as "
-              "the final analyst report.</div>")
+              "awaiting analyst review and carry no verdicts; the verdict "
+              "sections (punts / mistakes / large-loss) are INCOMPLETE. Do not "
+              "treat this as the final analyst report.</div>")
         doc.w("")
     elif _rc_state == 'ANALYST_PARTIAL':
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
               "solid #bfdbfe;border-radius:12px;background:#eff6ff;"
               "color:#1e40af'>"
-              f"ℹ️ Analyst coverage: {_rc.get('reviewed_hands', '?')} hands "
-              f"reviewed · {_rc.get('awaiting_markers', '?')} still awaiting "
-              "analyst review in this report.</div>")
+              f"ℹ️ Analyst coverage — PARTIAL: {_rc.get('reviewed_hands', '?')} "
+              f"hand(s) reviewed of {_rc.get('candidate_need', '?')} worklist "
+              f"candidate(s); {_rc.get('awaiting_candidates', '?')} still "
+              "awaiting review"
+              f"{_awaiting_buckets_phrase(_rc)}. Verdict sections are "
+              "partially complete.</div>")
+        doc.w("")
+    elif _rc_state == 'ANALYST_COMPLETE':
+        doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
+              "solid #bbf7d0;border-radius:12px;background:#f0fdf4;"
+              "color:#166534'>"
+              f"✅ Analyst coverage — COMPLETE: all "
+              f"{_rc.get('candidate_need', '?')} worklist candidate(s) reviewed "
+              f"({_rc.get('reviewed_hands', '?')} hand verdict(s) in this "
+              "report).</div>")
         doc.w("")
     # Game-summary absence: cash/ROI/finish fields degrade silently
     _usd_st = (rd.get('usd_overlay') or {}).get('status', '')
@@ -1694,8 +1722,8 @@ def _emit_tldr(doc, s, rd):
         dominant_pat = max((p for p in groups.keys() if p != 'other'),
                            key=lambda p: sum(abs(_net(h)) for h, _ in groups[p]),
                            default='other')
-        label = (f"III.1 punts — {dominant_pat}" if dominant_pat != 'other'
-                 else "III.1 confirmed punts")
+        label = (f"Punts — {dominant_pat}" if dominant_pat != 'other'
+                 else "Confirmed punts")
         total_bb_100 = _bb_per_100(total_bb)
         detail = (f"**{total_n} confirmed punt{'s' if total_n != 1 else ''}** "
                   f"({total_bb_100:+.2f} BB/100)<br>" + '<br>'.join(pattern_bullets))
@@ -1778,11 +1806,11 @@ def _emit_tldr(doc, s, rd):
                     f"{_n_leak}/{_n_solv} river-solvable -EV vs the pool"
                     + (f", {_n_unsolved} turn/earlier not priced"
                        if _n_unsolved else "")
-                    + ". Per-hand analysis in III.4.<br>")
+                    + ". Per-hand analysis in the read-dependent section.<br>")
         else:
             _hdr = (f"**{iii4_watch['n']} read-dependent calls** — all "
                     f"turn/earlier, not river-solvable, so unpriced this "
-                    f"session. Per-hand analysis in III.4.<br>")
+                    f"session. Per-hand analysis in the read-dependent section.<br>")
         next_session_items.append(('👁', 'Read-dependent calls',
             _hdr + '<br>'.join(_rd_lines),
             'sec-iii-4', _q_bb100))
@@ -2157,8 +2185,8 @@ def _emit_tldr(doc, s, rd):
                 for note in wb['notes']:
                     doc.w(f"- {note}")
             doc.w("")
-            doc.w("**Legend:** 👎 III.1 punt · ⚖️ III.0 GTO-std · 👍 III.3 cleared / III.5 justified · "
-                  "📖 III.4 read-dep · ❄️ I.7 cooler · 🟠 walk-back · ⚪ other")
+            doc.w("**Legend:** 👎 punt · ⚖️ GTO-std · 👍 cleared / justified · "
+                  "📖 read-dep · ❄️ cooler · 🟠 walk-back · ⚪ other")
             doc.w("")
             doc.w("</details>")
             doc.w("")

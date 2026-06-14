@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.13.1-preview"   # Analyst coverage + verdict-contradiction trust fixes
+VERSION = "v8.14.0-preview"   # v8.14 train: + Slice B V25 hand-detail modal redesign
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("f9fd6c4682864a0fddd5a93aae6668ce0daeb29a36ba6e4c6cb54cb1cb3c8466", 53395, "changelog through v8.13.1-preview"),
+    "GEM_Changelog.txt": ("fc1ad1bc23b2a13c819e3ad9d16ff0e690658c7185308ca296a4f9e633af33ba", 55265, "changelog through v8.14.0-preview"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("7945d7e22ad11024cc9d083195dc4a2a8f894a1609705b2ed844558362ba2646", 4169, "STEP0 39/39 files, 313 canaries, 10 anti"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("7eb7d0277ff0c5bce189e51f5d21deb655243539436ef1bac31de0da0e241951", 4169, "STEP0 39/39 files, 318 canaries, 10 anti"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("13ab0bb6f1a6bf56b981779fb36f1d610070dae32628c7fc4486ec1505f57af3", 354311, "v8.13.1: 996 tests (+T-CT-01..08 coverage-trust)"),
+    "_test_scratch.py": ("85dd102778bdf05b2b1ef20e7263ed208eac375debb01ecc9dd02f2e21b18df4", 356739, "v8.14.0 Slice B: 1005 tests (+T-V25HD-01..08)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
     "gem_analyst_worklist.py": ("d20383393e9c27c96f484546d7c8cf030264180ba72a39b376bca183392900b5", 48185, "v8.13.1 P1: loss-screen buckets + effective-stack safety"),
@@ -40,7 +40,7 @@ MANIFEST = {
     "gem_report_data.py": ("294961be030073b67f0291a888bdcd97f4153f0e45d977284e047a8711b62c6b", 222675, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
     "gem_report_draft/_hand_grid.py": ("0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090", 75682, "v8.13.1 P1: push-widget reconciled vs analyst verdict + nearest-chart line"),
     "gem_report_draft/_helpers.py": ("902d86cab4faa4b4660c0e4122de9b19245a45eaae317380674b4f3c06950ecc", 56373, "v8.13.1 P2: monotone over-commit sequence lesson"),
-    "gem_report_draft/_html.py": ("61ae18e924a74a4f70c8cb73a8650d1cbb553ce555f12c08298e9b1ff398d9d0", 359675, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
+    "gem_report_draft/_html.py": ("3e647dc0702350277533d463e68947c6a9a303e0514d52794ccd6d1ceeb8e6e8", 363172, "v8.14.0 Slice B: V25 hand-detail top bar + street header redesign"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
     "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
@@ -739,8 +739,8 @@ CANARIES = [
      "verdict-pill|context-pill",
      "v8.12.5: pill span in the _md_inline stash whitelist (pills render)"),
     ("gem_report_draft/_html.py",
-     "verdict pill rides the top bar",
-     "v8.12.5: modal top bar carries the verdict pill"),
+     "rides the top bar",
+     "v8.12.5/v8.14.0: modal top bar carries the system verdict"),
     ("gem_report_data.py",
      "content-sniffed sibling fallback",
      "v8.12.5: game-summary discovery finds sibling dirs"),
@@ -947,6 +947,17 @@ CANARIES = [
      "v8.13.1 P2: W-POT accepts _pot_odds per-street 'call X into Y' pots"),
     ("gem_report_draft/_helpers.py", "def monotone_overcommit_lesson(",
      "v8.13.1 P2: monotone over-commit sequence lesson (not 'missed flop aggression')"),
+    # ── v8.14.0 Slice B: V25 hand-detail modal redesign (top bar + street headers) ──
+    ("gem_report_draft/_html.py", ".v25-top-identity .v25-top-verdict",
+     "v8.14.0 Slice B: readable-but-not-dominant top-bar system-verdict chip"),
+    ("gem_report_draft/_html.py", "v25-top-hand-label",
+     "v8.14.0 Slice B: Hand label + id render as one clean cluster"),
+    ("gem_report_draft/_html.py", "v25-street-context",
+     "v8.14.0 Slice B: street context chips sit next to the street title"),
+    ("gem_report_draft/_html.py", "v25-strength-chip",
+     "v8.14.0 Slice B: street hand/board-state context chip"),
+    ("gem_report_draft/_html.py", "replace(/I{1,3}[.][0-9]+/g",
+     "v8.14.0 Slice B: top verdict strips raw Roman verdict codes"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

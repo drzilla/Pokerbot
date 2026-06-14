@@ -1,3 +1,37 @@
+v8.14.0-preview (2026-06-14) -- Slice B: V25 hand-detail modal redesign
+=========================================================================
+Makes the V25 hand-review modal easier to scan WITHOUT redesigning the report.
+Only the modal top bar and street headers change; action rows, commentary,
+review controls, leak explorer, hand-list popups, villain/PKO logic, navigation,
+and mobile table/card strategy are untouched. No data, verdict, pot, or
+hand-strength logic changes.
+
+Top bar (gem_report_draft/_html.py):
+- "Hand" is now a yellow label chip next to the white hand id (same font-size +
+  line-height) so the cluster reads as one title, not two mismatched objects.
+- Every top-bar chip uses line-height:1 + align-self:center -> Hand id, hero
+  cards, BB result pill, system-verdict pill, and Close align on one baseline;
+  the verdict chip no longer makes the bar taller.
+- System verdict rides the bar as a readable .v25-top-verdict chip (12px,
+  min-height 28px, uppercase) -- bigger than the old 0.55em pill, not dominant.
+  Color stays from .verdict-pill[data-verdict=...]; raw Roman codes are stripped
+  from the top-verdict copy.
+- BB result pill keeps its outcome color coding (.v25-top-result good/bad/neutral).
+
+Street headers (gem_report_draft/_html.py):
+- Street context now sits NEXT TO the street title as compact readable chips
+  (.v25-pot-chip "NN BB pot" + .v25-strength-chip hand/board state), in a flex
+  row, instead of tiny far-right text. Empty hand-state renders no blank chip.
+- Header stays sticky; long context wraps cleanly. No street shortcut/filter
+  chips added.
+
+Mobile: top identity + street header wrap cleanly (flex-wrap); chips stay
+readable but compact; no horizontal overflow.
+
+Tests: +9 (T-V25HD-01..08) -> 1005 total. v8.13.1 trust tests unchanged. Local
+preview slice of the v8.14.0 train; not merged/pushed/tagged.
+
+
 v8.13.1-preview (2026-06-14) -- Analyst coverage + verdict-contradiction trust
 =========================================================================
 Closes the 2026-06-13 Claude-vs-GPT trust gaps: a report self-declared

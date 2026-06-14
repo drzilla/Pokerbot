@@ -5690,8 +5690,9 @@ _html_1225 = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-1225-PILL-1: verdict-pill in the _md_inline stash whitelist',
       'verdict-pill|context-pill' in _html_1225,
       'pill spans were emitted but escaped on every page until whitelisted')
-check('T-1225-PILL-2: modal top bar clones the verdict pill',
-      'srcPill' in _html_1225 and 'verdict pill rides the top bar' in _html_1225, '')
+check('T-1225-PILL-2: modal top bar clones the verdict pill into the top-verdict chip',
+      'srcPill' in _html_1225 and 'srcPill.cloneNode' in _html_1225
+      and "classList.add('v25-top-verdict')" in _html_1225, '')
 check('T-1225-LAZY-1: PBLazy normalizes TM-form ids before payload lookup',
       'function _norm(hid)' in _html_1225
       and 'matDone[_norm(hid)]' in _html_1225, '')
@@ -7023,6 +7024,41 @@ _ct_aggout = _ct_agg({'verdict': 'MISSED_AGGRESSION', 'street_of_interest': 'flo
                       'net_bb': -40, 'gates': {}})
 check('T-CT-08b: _agg_commentary reframes monotone over-commit (not sole "missed flop aggression")',
       'cheap flop protection' in _ct_aggout, _ct_aggout[:80])
+
+# ============================================================
+# v8.14.0 Slice B — V25 hand-detail modal redesign (top bar + street headers)
+# ============================================================
+_hdr_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_vd_block = _hdr_src.split('.v25-top-identity .v25-top-verdict')[1][:300] if '.v25-top-identity .v25-top-verdict' in _hdr_src else ''
+_shh_i = _hdr_src.find('.v25-street-head {')
+_shh_block = _hdr_src[_shh_i:_shh_i + 320] if _shh_i >= 0 else ''
+
+check('T-V25HD-01: result pill color classes preserved (good/bad/neutral)',
+      '.v25-top-result.good' in _hdr_src and '.v25-top-result.bad' in _hdr_src
+      and '.v25-top-result.neutral' in _hdr_src, '')
+check('T-V25HD-02: system verdict readable in its own top-bar chip (12px, not 0.55em)',
+      '.v25-top-identity .v25-top-verdict' in _hdr_src and 'font-size: 12px' in _vd_block, _vd_block[:80])
+check('T-V25HD-03: top verdict strips raw Roman verdict codes in hydration',
+      "replace(/I{1,3}[.][0-9]+/g,'')" in _hdr_src
+      and "classList.add('v25-top-verdict')" in _hdr_src, '')
+check('T-V25HD-04: street header builds title + context chips next to it',
+      "className='v25-street-context'" in _hdr_src
+      and "className='v25-pot-chip'" in _hdr_src
+      and "className='v25-strength-chip'" in _hdr_src
+      and "sTitle.className='v25-street-title'" in _hdr_src, '')
+check('T-V25HD-04b: .v25-street-head is a flex row (context next to title, not far-right grid)',
+      'display: flex' in _shh_block, _shh_block[:90])
+check('T-V25HD-05: no street shortcut/filter chips added (nav stays hidden)',
+      '.v25-street-nav {{ display: none !important; }}' in _hdr_src
+      and 'v25-street-chip' not in _hdr_src and 'street-filter' not in _hdr_src, '')
+check('T-V25HD-06: action-row / commentary-grid / review-control selectors intact',
+      'grid-action' in _hdr_src and 'v25-street-body' in _hdr_src
+      and 'modal-review' in _hdr_src and 'verdict-chip' in _hdr_src, '')
+check('T-V25HD-07: mobile header wraps cleanly (flex-wrap on street head + top identity)',
+      'flex-wrap: wrap' in _shh_block
+      and '.v25-top-identity {{ flex-wrap: wrap' in _hdr_src, '')
+check('T-V25HD-08: top-bar chips use line-height:1 (verdict chip adds no row-height jump)',
+      'line-height: 1;' in _vd_block, _vd_block[:80])
 
 # ============================================================
 # SUMMARY

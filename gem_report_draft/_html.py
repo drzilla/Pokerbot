@@ -764,7 +764,8 @@ _MODAL_HTML = r"""
     <!-- V25 STICKY TOP BAR -->
     <div class="v25-topbar" id="v25-topbar">
       <div class="v25-top-identity">
-        <h3 class="v25-top-hid" id="hand-modal-title">Hand review</h3>
+        <span class="v25-top-hand-label">Hand</span>
+        <h3 class="v25-top-hid" id="hand-modal-title">review</h3>
         <span class="v25-top-cards" id="v25-top-cards"></span>
         <span class="v25-top-result" id="v25-top-result"></span>
         <span class="v25-top-reviewed" id="v25-top-reviewed" style="display:none"></span>
@@ -1553,16 +1554,29 @@ _MODAL_HTML = r"""
       var sTitle=document.createElement('div');sTitle.className='v25-street-title';
       sTitle.textContent=sName==='preflop'?'PRE-FLOP':sName.toUpperCase();
       sHead.appendChild(sTitle);
-      var sMeta=document.createElement('div');sMeta.className='v25-street-meta';
+      /* v8.14.0 Slice B: street context sits NEXT TO the street name as compact
+         readable chips (pot + hand/board-state), not tiny and far-right. Empty
+         state renders no blank chip. */
+      var sCtx=document.createElement('div');sCtx.className='v25-street-context';
       var potEl=th.querySelector('.pot');
       var texEl=th.querySelector('.board-tex');
       var drawEl=th.querySelector('.draw-profile');
-      var metaParts=[];
-      if(potEl)metaParts.push(clean(potEl.textContent));
-      if(texEl)metaParts.push(clean(texEl.textContent));
-      if(drawEl)metaParts.push(clean(drawEl.textContent));
-      sMeta.textContent=metaParts.join(' · ');
-      sHead.appendChild(sMeta);
+      var potTxt=potEl?clean(potEl.textContent):'';
+      if(potTxt){
+        var potChip=document.createElement('span');potChip.className='v25-pot-chip';
+        potChip.textContent=/pot/i.test(potTxt)?potTxt:(potTxt+' pot');
+        sCtx.appendChild(potChip);
+      }
+      var stateParts=[];
+      if(texEl){var _tx=clean(texEl.textContent);if(_tx)stateParts.push(_tx);}
+      if(drawEl){var _dr=clean(drawEl.textContent);if(_dr)stateParts.push(_dr);}
+      var stateTxt=stateParts.join(' · ');
+      if(stateTxt){
+        var stChip=document.createElement('span');stChip.className='v25-strength-chip';
+        stChip.textContent=stateTxt;
+        sCtx.appendChild(stChip);
+      }
+      if(sCtx.childNodes.length)sHead.appendChild(sCtx);
       section.appendChild(sHead);
       /* Street body: 3-column grid */
       var sBody=document.createElement('div');sBody.className='v25-street-body';
@@ -1983,7 +1997,7 @@ _MODAL_HTML = r"""
   /* V25: top bar hydration — robust extraction with multi-level fallback */
   function _hydrateV25TopBar(hid,mhEl){
     var titleEl=document.getElementById('hand-modal-title');
-    if(titleEl)titleEl.textContent='Hand '+hid;
+    if(titleEl)titleEl.textContent=hid;  /* "Hand" is now a static label chip */
     /* Hero cards — 4-level fallback chain */
     var cardsEl=document.getElementById('v25-top-cards');
     if(cardsEl){
@@ -2024,10 +2038,13 @@ _MODAL_HTML = r"""
           }
         }
       }
-      /* v8.12.5: verdict pill rides the top bar (Ron's v8.12.3 ask — hand
-         id + cards + BB result + verdict together). Clone it from the
-         hand's heading; remove any pill from a previous hydrate first. */
-      var oldPill=resultEl.parentNode.querySelector('.verdict-pill');
+      /* v8.12.5 / v8.14.0 Slice B: the system verdict rides the top bar next to
+         the BB result (hand id + cards + BB result + verdict together). Clone
+         the hand's verdict pill, restyle it readable-but-not-dominant
+         (.v25-top-verdict; color stays from .verdict-pill[data-verdict]), and
+         NEVER expose a raw Roman verdict code in user-facing copy (stripped
+         below). Remove any pill from a previous hydrate first. */
+      var oldPill=resultEl.parentNode.querySelector('.v25-top-verdict');
       if(oldPill)oldPill.remove();
       var srcPill=mhEl.querySelector('.verdict-pill');
       if(!srcPill){
@@ -2036,7 +2053,14 @@ _MODAL_HTML = r"""
         if(!srcArt)srcArt=document.querySelector("article.hand-detail-card[data-hand-id='"+hid+"']");
         if(srcArt)srcPill=srcArt.querySelector('.verdict-pill');
       }
-      if(srcPill)resultEl.parentNode.insertBefore(srcPill.cloneNode(true),resultEl.nextSibling);
+      if(srcPill){
+        var vClone=srcPill.cloneNode(true);
+        vClone.removeAttribute('id');
+        vClone.classList.add('v25-top-verdict');
+        vClone.textContent=clean(vClone.textContent)
+          .replace(/I{1,3}[.][0-9]+/g,'').replace(/[ ]{2,}/g,' ').trim();
+        resultEl.parentNode.insertBefore(vClone,resultEl.nextSibling);
+      }
     }
     /* Review status */
     var revEl=document.getElementById('v25-top-reviewed');
@@ -5892,10 +5916,26 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     border-radius: 22px 22px 0 0; flex-shrink: 0; }}
   .v25-top-identity {{ display: flex; align-items: center; gap: 10px;
     min-width: 0; overflow: hidden; }}
-  .v25-top-hid {{ margin: 0; font-size: 15px; line-height: 1.05; white-space: nowrap; color: #fff; }}
-  .v25-top-cards .card {{ font-size: 15px; min-width: 30px; padding: 2px 7px; }}
+  /* v8.14.0 Slice B: "Hand" label + id are one clean cluster (same size +
+     line-height); every top-bar chip uses line-height:1 so the verdict pill
+     does not create a row-height jump. */
+  .v25-top-hand-label {{ margin: 0; font-size: 15px; line-height: 1; font-weight: 900;
+    color: #f5d75e; white-space: nowrap; align-self: center; }}
+  .v25-top-hid {{ margin: 0; font-size: 15px; line-height: 1; font-weight: 900;
+    white-space: nowrap; color: #fff; align-self: center; }}
+  .v25-top-cards .card {{ font-size: 15px; min-width: 30px; padding: 2px 7px;
+    line-height: 1; align-self: center; }}
   .v25-top-result {{ display: inline-flex; align-items: center; border-radius: 999px;
-    padding: 4px 9px; font-size: 12px; font-weight: 950; white-space: nowrap; }}
+    padding: 4px 9px; font-size: 12px; font-weight: 950; line-height: 1;
+    white-space: nowrap; align-self: center; }}
+  /* v8.14.0 Slice B: system verdict readable but NOT dominant. Size/height from
+     here (2-class selector wins over .verdict-pill's 0.55em); color stays from
+     .verdict-pill[data-verdict=...] (class+attr, higher specificity). */
+  .v25-top-identity .v25-top-verdict {{ display: inline-flex; align-items: center;
+    gap: 6px; min-height: 28px; padding: 5px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 900; line-height: 1; letter-spacing: .4px;
+    text-transform: uppercase; white-space: nowrap; align-self: center;
+    vertical-align: middle; }}
   .v25-top-result.good {{ background: #dcfce7; color: #166534; border: 1px solid #86efac; }}
   .v25-top-result.bad {{ background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }}
   /* GAP-15: neutral result pill */
@@ -5985,16 +6025,28 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     /* P1-2: scroll-margin keeps street header visible below sticky topbar+queue */
     scroll-margin-top: calc(var(--v25-topbar-h) + var(--v25-queue-h) + 8px); }}
   .v25-street-nav {{ display: none !important; }}
+  /* v8.14.0 Slice B: street context sits NEXT TO the title (flex row), not in a
+     tiny far-right grid cell. Wraps cleanly under the title on narrow screens.
+     Sticky behavior unchanged. */
   .v25-street-head {{ background: #121832; color: #fff; padding: 10px 12px;
-    display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px;
-    align-items: center; border-radius: 17px 17px 0 0;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border-radius: 17px 17px 0 0;
     position: sticky !important;
     top: calc(var(--v25-topbar-h, 58px) + var(--v25-queue-h, 0px)) !important;
     z-index: 70 !important;
     box-shadow: 0 3px 12px rgba(15,23,42,.22) !important; }}
-  .v25-street-title {{ font-size: 15px; font-weight: 1000; color: #f5d75e;
-    letter-spacing: .04em; }}
-  .v25-street-meta {{ font-size: 12px; color: #94a3b8; text-align: right; }}
+  .v25-street-title {{ flex: 0 0 auto; font-size: 15px; font-weight: 1000;
+    color: #f5d75e; letter-spacing: .04em; line-height: 1; }}
+  .v25-street-context {{ display: flex; align-items: center; gap: 8px;
+    min-width: 0; flex-wrap: wrap; }}
+  .v25-pot-chip, .v25-strength-chip {{ display: inline-flex; align-items: center;
+    border-radius: 999px; font-size: 12px; font-weight: 800; line-height: 1.25;
+    padding: 5px 10px; }}
+  .v25-pot-chip {{ color: #e5e7eb; border: 1px solid rgba(226,232,240,.45);
+    background: rgba(15,23,42,.35); white-space: nowrap; }}
+  .v25-strength-chip {{ color: #fff; border: 1px solid rgba(147,197,253,.65);
+    background: rgba(29,78,216,.75); white-space: normal; }}
+  .v25-street-meta {{ font-size: 12px; color: #94a3b8; }}
   .v25-street-body {{ padding: 12px; display: grid; gap: 10px; }}
   .v25-section {{ background: #f8fbff; border: 1px solid #e1e8f6;
     border-radius: 14px; padding: 11px; min-width: 0; }}
@@ -6124,7 +6176,13 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   /* ---- V25 mobile overrides ---- */
   @media(max-width:768px){{
     .v25-panel {{ inset: 0; border-radius: 0; }}
-    .v25-topbar {{ border-radius: 0; }}
+    /* v8.14.0 Slice B: top identity + street header WRAP cleanly on mobile
+       (no horizontal overflow; pills stay readable but compact). */
+    .v25-topbar {{ border-radius: 0; min-height: 0; }}
+    .v25-top-identity {{ flex-wrap: wrap; overflow: visible; row-gap: 6px; }}
+    .v25-top-hand-label {{ font-size: 13px; }}
+    .v25-top-identity .v25-top-verdict {{ font-size: 11px; min-height: 24px; padding: 4px 9px; }}
+    .v25-pot-chip, .v25-strength-chip {{ font-size: 11px; padding: 4px 8px; }}
     .v25-street-body {{ grid-template-columns: 1fr; padding: 10px; gap: 9px; }}
     .v25-top-hid {{ font-size: 13px; }}
     .v25-top-cards .card {{ font-size: 11.5px; }}

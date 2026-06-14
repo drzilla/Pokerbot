@@ -242,44 +242,98 @@ def _dashboard_fix_items(s, rd, analyst):
     return items[:4]
 
 
-def _dashboard_hands_to_open(s, rd, analyst, hands_by_id):
-    """Priority hands for review queue."""
-    items = []
-    # III.1 punts first
-    for hid, cmt in ((h, c) for h, c in analyst.items()
-                     if isinstance(c, dict)
-                     and (c.get('verdict', '') or '').startswith('III.1')
-                     and h.startswith('TM')):
-        h_data = hands_by_id.get(hid, {})
+# ── v8.14.0 Slice C: Compact Hand Review Queue ─────────────────────────────
+# Priority bucket order is product-facing and fixed (spec §5.2 / §11.3):
+# punts -> analyst mistakes -> known-leak examples -> auto-clear mistakes ->
+# marginal candidates.
+_REVIEW_QUEUE_BUCKETS = ('punt', 'analyst_mistake', 'known_leak',
+                         'auto_clear', 'marginal')
+_REVIEW_QUEUE_BUCKET_LABEL = {
+    'punt': 'Punt',
+    'analyst_mistake': 'Analyst mistake',
+    'known_leak': 'Known leak',
+    'auto_clear': 'Auto clear',
+    'marginal': 'Marginal',
+}
+# UI label -> canonical status (spec §5.5/§6). "Ignore" is intentionally absent.
+_REVIEW_STATUS_NORMALIZE = {
+    'agree': 'agree', 'debate': 'debate',
+    'report bug': 'report_bug', 'report_bug': 'report_bug', 'bug': 'report_bug',
+    'drill': 'drill', 'rulebook': 'rulebook',
+    'clear': '', '': '', 'none': '', 'null': '',
+}
+# Follow-up statuses (everything that is a marked status other than agree).
+_REVIEW_FOLLOWUP_STATUSES = ('debate', 'report_bug', 'drill', 'rulebook')
+
+
+def normalize_review_status(label):
+    """Map a UI status label to its canonical value. 'Clear'/empty -> ''.
+    'Ignore' is NOT a valid user-facing status and normalizes to '' (rejected)."""
+    if label is None:
+        return ''
+    return _REVIEW_STATUS_NORMALIZE.get(str(label).strip().lower(), '')
+
+
+def build_review_queue(s, rd, analyst, hands_by_id):
+    """v8.14.0 Slice C: prioritized compact review queue. PURE + testable.
+
+    Returns the full ordered list of queue items (the JS handles top-N). Each
+    item: {id, rank, bucket, reason_label, title, net, cards}. Deterministic
+    order: bucket priority -> -abs(net BB) -> hand id. Uses ONLY existing
+    prepared data; degrades gracefully when a source is missing (a hand with no
+    net/cards still appears with id + reason + title)."""
+    analyst = analyst or {}
+    hands_by_id = hands_by_id or {}
+    seen, items = set(), []
+
+    def _add(hid, bucket, title):
+        if not hid or hid in seen:
+            return
+        seen.add(hid)
+        h = hands_by_id.get(hid, {}) or {}
         items.append({
-            'id': hid, 'label': 'Punt',
-            'info': cmt.get('hand_strength', ''),
-            'net': h_data.get('net_bb', 0),
+            'id': hid, 'bucket': bucket,
+            'reason_label': _REVIEW_QUEUE_BUCKET_LABEL[bucket],
+            'title': (title or '').strip(),
+            'net': h.get('net_bb', 0) or 0,
+            'cards': ''.join(h.get('cards', []) or []),
         })
-    # III.2 strategic mistakes
-    for hid, cmt in ((h, c) for h, c in analyst.items()
-                     if isinstance(c, dict)
-                     and (c.get('verdict', '') or '').startswith('III.2')
-                     and h.startswith('TM')):
-        h_data = hands_by_id.get(hid, {})
-        items.append({
-            'id': hid, 'label': 'Strategic leak',
-            'info': cmt.get('hand_strength', ''),
-            'net': h_data.get('net_bb', 0),
-        })
-    # Detector-flagged mistakes not already in analyst
-    analyst_ids = {h for h in analyst if h.startswith('TM')}
+
+    # 1. punts (analyst III.1) ; 2. analyst mistakes (analyst III.2)
+    for _vp, _bucket, _fallback in (('III.1', 'punt', 'Punt — review first.'),
+                                    ('III.2', 'analyst_mistake', 'Strategic leak.')):
+        for hid, cmt in analyst.items():
+            if (isinstance(cmt, dict) and str(hid).startswith('TM')
+                    and (cmt.get('verdict', '') or '').startswith(_vp)):
+                _add(hid, _bucket, cmt.get('hand_strength', '') or _fallback)
+    # 3. known-leak examples (Issue Explorer)
+    for iss in (rd.get('issue_explorer_issues') or rd.get('issue_explorer') or []):
+        if not isinstance(iss, dict):
+            continue
+        _nm = iss.get('name') or iss.get('title') or 'Known-leak example'
+        for hid in (iss.get('all_hand_ids') or iss.get('hand_ids') or []):
+            if str(hid).startswith('TM'):
+                _add(hid, 'known_leak', _nm)
+    # 4. auto-clear mistakes (detector-flagged)
     for m in (s.get('mistakes', []) or []):
-        mid = m.get('id', '')
-        if mid and mid not in analyst_ids:
-            items.append({
-                'id': mid, 'label': 'Detector flag',
-                'info': m.get('desc', ''),
-                'net': m.get('net_bb', 0),
-            })
-    # Sort by abs net, take top 6
-    items.sort(key=lambda x: -abs(x.get('net', 0)))
-    return items[:6]
+        _add(m.get('id', ''), 'auto_clear', m.get('desc', '') or 'Auto-flagged mistake.')
+    # 5. marginal candidates (needs-review + read-dependent screens)
+    for m in ((rd.get('reviewed_mistakes') or {}).get('needs_review') or []):
+        _add(m.get('id', ''), 'marginal', m.get('reason', '') or 'Marginal candidate.')
+    for c in (rd.get('read_dependent_screen') or []):
+        if isinstance(c, dict):
+            _add(c.get('id', ''), 'marginal', 'Read-dependent call.')
+
+    _order = {b: i for i, b in enumerate(_REVIEW_QUEUE_BUCKETS)}
+    items.sort(key=lambda x: (_order[x['bucket']], -abs(x['net']), x['id']))
+    for i, it in enumerate(items, 1):
+        it['rank'] = i
+    return items
+
+
+def _dashboard_hands_to_open(s, rd, analyst, hands_by_id):
+    """Compatibility shim — the prioritized review queue (full list)."""
+    return build_review_queue(s, rd, analyst, hands_by_id)
 
 
 def _dashboard_cooler_summary(s, rd, analyst):
@@ -1087,39 +1141,75 @@ def _emit_opening_dashboard(doc, s, rd):
     if hand_queue or n_coolers or n_big_unclass:
         doc.w('<div class="od-row">')
 
-        # Hands to open
-        doc.w('<div class="od-card">')
-        doc.w('<div class="od-card-header">')
-        doc.w('<div class="od-card-title">Hands to open first</div>')
-        doc.w('<span class="od-badge od-badge-amber">Actionable review queue</span>')
-        doc.w('</div>')
+        # v8.14.0 Slice C: compact prioritized Hand Review Queue (upgrades the
+        # old "Hands to open first" list — same block, not a new section). Rows
+        # are full-row clickable and open the EXISTING V25 modal in queue
+        # context; open/reviewed partition, counts, top-N, and the celebratory
+        # cleared state are managed by the PBReviewQueue JS controller reading
+        # the canonical review store.
+        doc.w('<div class="od-card rq-card" id="review-queue" '
+              f'data-queue-ids="{he(",".join(h["id"][-8:] for h in hand_queue))}" '
+              'data-topn="6">')
+        doc.w('<div class="rq-head">'
+              '<div><div class="rq-title">Hands to open first</div>'
+              '<div class="rq-sub">Review queue · highest priority hands first</div></div>'
+              f'<span class="rq-count" id="rq-count">{len(hand_queue)} open · 0 reviewed</span>'
+              '</div>')
         if hand_queue:
-            doc.w('<div class="od-hand-queue">')
-            for i, h in enumerate(hand_queue, 1):
-                hid = h['id']
-                short_id = hid[-8:]
-                doc.w('<div class="od-hand-row">')
-                # B-V10: show hero cards after the pill
-                _hq_cards = h.get('cards', '')
-                if not _hq_cards:
-                    _hq_hand = hands_by_id.get(h['id'], {})
-                    _hq_cards = ''.join(_hq_hand.get('cards', []))
-                _hq_pills = _cards_str_to_pills(_hq_cards) if _hq_cards else ''
-                doc.w(f'<a href="#sec-app-hand-{short_id}" '
-                      f'class="hand-ref od-hand-id" '
-                      f'data-hand-id="{he(short_id)}">{he(short_id)}</a>'
-                      f'{" " + _hq_pills if _hq_pills else ""}')
-                doc.w(f'<div><span class="od-hand-info">{he(h.get("label", ""))}</span>')
-                if h.get('info'):
-                    doc.w(f'<span class="od-hand-detail">{he(h["info"])}</span>')
-                doc.w('</div>')
-                doc.w(f'<span class="od-hand-tag">Open #{i}</span>')
-                doc.w('</div>')
-            doc.w('</div>')  # hand-queue
+            _bc = {}
+            for h in hand_queue:
+                _bc[h['bucket']] = _bc.get(h['bucket'], 0) + 1
+            _strip = ['<span class="rq-priority-label">Priority</span>']
+            for _bk in _REVIEW_QUEUE_BUCKETS:
+                if _bc.get(_bk):
+                    _strip.append(f'<span class="rq-bcount">'
+                                  f'{he(_REVIEW_QUEUE_BUCKET_LABEL[_bk])} {_bc[_bk]}</span>')
+            doc.w('<div class="rq-priority" title="Priority: punts -> analyst mistakes '
+                  '-> known-leak examples -> auto clear -> marginal.">'
+                  + ' '.join(_strip) + '</div>')
+            doc.w('<div class="rq-list" id="rq-list">')
+            for h in hand_queue:
+                short_id = h['id'][-8:]
+                _h = hands_by_id.get(h['id'])
+                _cards = h.get('cards', '') or (''.join((_h or {}).get('cards', [])))
+                _pills = _cards_str_to_pills(_cards) if _cards else ''
+                _net = round(h.get('net', 0) or 0, 1)
+                _bbcls = 'pos' if _net > 0 else ('neg' if _net < 0 else 'neu')
+                _bbtxt = f"{'+' if _net > 0 else ''}{_net:.1f} BB"
+                # degrade gracefully: only show a BB pill when the hand has data
+                _bb = (f'<span class="bb-pill {_bbcls}">{_bbtxt}</span>'
+                       if _h is not None else '')
+                doc.w(f'<div class="rq-row" role="button" tabindex="0" '
+                      f'data-hand-id="{he(short_id)}" data-bucket="{he(h["bucket"])}">'
+                      f'<span class="rq-rank">{h["rank"]}</span>'
+                      f'<span class="rq-hid">{he(short_id)}</span>'
+                      f'<span class="handcards">{_pills}</span>'
+                      f'<span class="reason reason-{he(h["bucket"])}">{he(h["reason_label"])}</span>'
+                      f'<span class="rq-main"><span class="rq-row-title">'
+                      f'{he(h.get("title", ""))}</span></span>'
+                      f'{_bb}'
+                      f'<span class="rq-status" data-hand-id="{he(short_id)}"></span>'
+                      '</div>')
+            doc.w('</div>')  # rq-list
+            doc.w('<div class="rq-reviewed" id="rq-reviewed" hidden>'
+                  '<button type="button" class="rq-reviewed-head" id="rq-reviewed-head" '
+                  'aria-expanded="false">'
+                  '<span class="rq-rev-label">Reviewed (0) / follow-ups (0)</span> '
+                  '<span class="rq-revchips" id="rq-revchips"></span></button>'
+                  '<div class="rq-reviewed-list" id="rq-reviewed-list" hidden></div>'
+                  '</div>')
+            doc.w('<div class="rq-empty-win" id="rq-empty-win" hidden>'
+                  '<div class="rq-trophy">🏆</div>'
+                  '<div class="rq-win-title">Priority queue cleared — nice work.</div>'
+                  '<div class="rq-win-sub">Review streak complete · +1 session discipline</div>'
+                  '</div>')
+            doc.w('<div class="rq-footer"><span class="rq-foot-note" id="rq-foot-note"></span>'
+                  '<button type="button" class="rq-showall" id="rq-showall" hidden>Show all</button>'
+                  '</div>')
         else:
             doc.w('<p class="od-card-desc">'
                   '⚪ No priority hands flagged this session.</p>')
-        doc.w('</div>')  # hands card
+        doc.w('</div>')  # rq-card
 
         # Coolers / large losses
         doc.w('<div class="od-card cooler-summary-card">')

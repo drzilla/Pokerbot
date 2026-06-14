@@ -15,12 +15,12 @@ VERSION = "v8.14.0-preview"   # v8.14 train: + Slice B V25 hand-detail modal red
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("fc1ad1bc23b2a13c819e3ad9d16ff0e690658c7185308ca296a4f9e633af33ba", 55265, "changelog through v8.14.0-preview"),
+    "GEM_Changelog.txt": ("fcc6c7c2d420c551d9a20693057ee0d788edc9f9041f10ba53f15ef10bcc72a3", 57204, "changelog through v8.14.0-preview Slice C"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("7eb7d0277ff0c5bce189e51f5d21deb655243539436ef1bac31de0da0e241951", 4169, "STEP0 39/39 files, 318 canaries, 10 anti"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("4ab7c87b64a2aa04f761b0464942b53c447803280cccf72f8e4ac96d48396586", 4169, "STEP0 39/39 files, 324 canaries, 10 anti"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("85dd102778bdf05b2b1ef20e7263ed208eac375debb01ecc9dd02f2e21b18df4", 356739, "v8.14.0 Slice B: 1005 tests (+T-V25HD-01..08)"),
+    "_test_scratch.py": ("770c880c643b4abe52415ffaa636677b763e5d1ecd4f7824f33480582c5af9a6", 359893, "v8.14.0 Slice C: 1014 tests (+T-RQ-01..09)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
     "gem_analyst_worklist.py": ("d20383393e9c27c96f484546d7c8cf030264180ba72a39b376bca183392900b5", 48185, "v8.13.1 P1: loss-screen buckets + effective-stack safety"),
@@ -40,7 +40,7 @@ MANIFEST = {
     "gem_report_data.py": ("294961be030073b67f0291a888bdcd97f4153f0e45d977284e047a8711b62c6b", 222675, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
     "gem_report_draft/_hand_grid.py": ("0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090", 75682, "v8.13.1 P1: push-widget reconciled vs analyst verdict + nearest-chart line"),
     "gem_report_draft/_helpers.py": ("902d86cab4faa4b4660c0e4122de9b19245a45eaae317380674b4f3c06950ecc", 56373, "v8.13.1 P2: monotone over-commit sequence lesson"),
-    "gem_report_draft/_html.py": ("3e647dc0702350277533d463e68947c6a9a303e0514d52794ccd6d1ceeb8e6e8", 363172, "v8.14.0 Slice B: V25 hand-detail top bar + street header redesign"),
+    "gem_report_draft/_html.py": ("68b8fe81ccc0754154764810e935e60e3f72c71ff34762614c24b94c9c887be9", 377378, "v8.14.0 Slice C: review-queue controller + Drill/Rulebook chips + compact-queue CSS"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
     "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
@@ -49,7 +49,7 @@ MANIFEST = {
     "gem_report_draft/sections_mistakes.py": ("776b4cb0c239a816fc238a9fe53d4a9310445385ee56ef5adb75f9731b83274e", 123887, "v8.12.12 rev-3 Obj-H: headers/empty-states/Picks de-Romanized"),
     "gem_report_draft/sections_xiii.py": ("61973dc553d74c79fc2fc99d9e9cd9ea2cb6006020cb91b5073384d08d551d08", 66798, "v8.12.12 Obj-H: reviewed-mistakes Roman code removal"),
     "gem_report_draft/sections_xiv.py": ("35661cf68398f5249b893200b097cabba517015896de390a5c970b1945c6262a", 180140, "v8.13.1 P2: W-POT accepts _pot_odds per-street pots"),
-    "gem_report_draft/tldr.py": ("ea2a4814a3b7d58fd63df5aa0bf319a23e807697906f65f5196e600786518a98", 136749, "v8.13.1 P0: coverage line + confidence caveat in banner/top-leaks"),
+    "gem_report_draft/tldr.py": ("5c0bbbcb56c2a2722ae858cbf7fbf27cf25d05e45c8c8443d9dd99c021a19fbc", 142189, "v8.14.0 Slice C: prioritized compact review queue (Hands to open first)"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
@@ -958,6 +958,19 @@ CANARIES = [
      "v8.14.0 Slice B: street hand/board-state context chip"),
     ("gem_report_draft/_html.py", "replace(/I{1,3}[.][0-9]+/g",
      "v8.14.0 Slice B: top verdict strips raw Roman verdict codes"),
+    # ── v8.14.0 Slice C: Compact Hand Review Queue ──
+    ("gem_report_draft/tldr.py", "def build_review_queue(",
+     "v8.14.0 Slice C: prioritized (5-bucket) compact review queue builder"),
+    ("gem_report_draft/tldr.py", "def normalize_review_status(",
+     "v8.14.0 Slice C: status normalizer (Drill/Rulebook in; Ignore rejected)"),
+    ("gem_report_draft/tldr.py", "id=\"review-queue\"",
+     "v8.14.0 Slice C: 'Hands to open first' upgraded to the compact review queue"),
+    ("gem_report_draft/_html.py", "window.PBReviewQueue",
+     "v8.14.0 Slice C: review-queue controller (open/reviewed partition + counts)"),
+    ("gem_report_draft/_html.py", "data-verdict=\"Drill\"",
+     "v8.14.0 Slice C: Drill + Rulebook review statuses in the modal"),
+    ("gem_report_draft/_html.py", "grid-template-areas: \"rank hid main bb\"",
+     "v8.14.0 Slice C: compact queue rows stack on mobile (no horizontal overflow)"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

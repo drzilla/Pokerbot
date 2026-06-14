@@ -2784,7 +2784,9 @@ with open(_html_path, encoding='utf-8') as _f:
         _html_lines.append(_line)
         # v8.12.5: window 2600 -> 2800 (PBLazy norm + pill-whitelist
         # insertions shifted the pinned comment past the old cutoff)
-        if _i > 2800:
+        # v8.14.0 Slice C: 2800 -> 2950 (PBReviewQueue controller insertion
+        # shifted the pinned push-range comment down again)
+        if _i > 2950:
             break
 _html_head = ''.join(_html_lines)
 
@@ -7059,6 +7061,51 @@ check('T-V25HD-07: mobile header wraps cleanly (flex-wrap on street head + top i
       and '.v25-top-identity {{ flex-wrap: wrap' in _hdr_src, '')
 check('T-V25HD-08: top-bar chips use line-height:1 (verdict chip adds no row-height jump)',
       'line-height: 1;' in _vd_block, _vd_block[:80])
+
+# ============================================================
+# v8.14.0 Slice C — Compact Hand Review Queue (T-RQ-*)
+# ============================================================
+from gem_report_draft.tldr import (build_review_queue as _rq_build,
+                                    normalize_review_status as _rq_norm)
+_rqh = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_rqt = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+
+_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'x'},
+          'TMm': {'verdict': 'III.2', 'hand_strength': 'y'}}
+_rq_s = {'mistakes': [{'id': 'TMa', 'desc': 'auto', 'net_bb': -9}]}
+_rq_rd = {'issue_explorer_issues': [{'name': 'Leak', 'all_hand_ids': ['TMk']}],
+          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'm'}]}}
+_rq_hb = {k: {'net_bb': -10, 'cards': ['Ah', 'Kd']} for k in ('TMp', 'TMm', 'TMa', 'TMk', 'TMg')}
+_rq_q = _rq_build(_rq_s, _rq_rd, _rq_an, _rq_hb)
+check('T-RQ-01: queue priority order punt<analyst<known_leak<auto_clear<marginal',
+      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'auto_clear', 'marginal'],
+      str([x['bucket'] for x in _rq_q]))
+check('T-RQ-02: status normalize (Agree/Report bug/Drill/Rulebook/Clear); Ignore rejected',
+      _rq_norm('Agree') == 'agree' and _rq_norm('Report bug') == 'report_bug'
+      and _rq_norm('Drill') == 'drill' and _rq_norm('Rulebook') == 'rulebook'
+      and _rq_norm('Clear') == '' and _rq_norm('Ignore') == '', '')
+check('T-RQ-03: queue item carries id/rank/bucket/reason_label/title/net/cards',
+      all(k in _rq_q[0] for k in ('id', 'rank', 'bucket', 'reason_label', 'title', 'net', 'cards')),
+      str(_rq_q[0]))
+check('T-RQ-04: modal review chips include Drill + Rulebook + Clear; no Ignore status',
+      'data-verdict="Drill"' in _rqh and 'data-verdict="Rulebook"' in _rqh
+      and 'data-verdict="Agree"' in _rqh and 'data-verdict="">Clear' in _rqh
+      and 'data-verdict="Ignore"' not in _rqh, '')
+check('T-RQ-05: PBReviewQueue builds full-queue context (data-queue-ids) + opens via openHand',
+      'window.PBReviewQueue' in _rqh and 'data-queue-ids' in _rqh
+      and 'handIds:ids.slice()' in _rqh and 'function openRow' in _rqh
+      and 'openHand(hid)' in _rqh, '')
+check('T-RQ-06: rq-card renders data-topn + count + show-all + reviewed + celebratory state',
+      'rq-card' in _rqt and 'data-topn=' in _rqt and 'id="rq-count"' in _rqt
+      and 'id="rq-showall"' in _rqt and 'id="rq-reviewed"' in _rqt
+      and 'id="rq-empty-win"' in _rqt, '')
+check('T-RQ-07: compact rows are full-row clickable (role=button) with one reason + BB pill',
+      'class="rq-row" role="button"' in _rqt and 'class="reason reason-' in _rqt
+      and 'bb-pill' in _rqt, '')
+check('T-RQ-08: mobile rq-row uses stacking grid-areas (no horizontal table)',
+      'grid-template-areas: "rank hid main bb"' in _rqh, '')
+check('T-RQ-09: status change refreshes the queue partition/counts',
+      'window.PBReviewQueue.refresh()' in _rqh, '')
 
 # ============================================================
 # SUMMARY

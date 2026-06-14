@@ -1,3 +1,35 @@
+v8.14.0-preview (2026-06-14) -- Slice C: Compact Hand Review Queue
+=========================================================================
+Upgrades the existing "Hands to open first" block into a compact prioritized
+review queue (same block, not a new dashboard/table). Reuses the existing V25
+modal, queue Prev/Next, review store, counts, and Copy Review Notes — no parallel
+systems. No data/verdict/PKO/villain logic changes.
+
+Data (gem_report_draft/tldr.py):
+- build_review_queue() + normalize_review_status() (pure, unit-tested). Fixed
+  priority bucket order: punts -> analyst mistakes -> known-leak examples (Issue
+  Explorer) -> auto-clear mistakes -> marginal candidates; deterministic sort
+  (bucket, -abs(net BB), hand id). Uses only existing prepared data; degrades
+  gracefully (id+reason+title with no fake EV when data is missing).
+
+Render (tldr.py): the queue card emits full-row-clickable compact rows (rank,
+hand id, hero .card pills, ONE reason chip, title, standard BB pill), a priority
+count strip, a reviewed/follow-up section, a celebratory cleared state, and a
+Show-all control. data-queue-ids carries the FULL ordered id list for the modal.
+
+Controller (gem_report_draft/_html.py): window.PBReviewQueue reads the canonical
+review store, partitions open vs reviewed, updates "N open · M reviewed" + the
+"Reviewed (n)/follow-ups (m)" chips, applies top-N (default 6) + Show all, and on
+full-row click sets activeHandQueue to the FULL queue (priority order) and calls
+openHand — so modal Prev/Next walks the whole queue, not the visible top-N.
+Modal review chips add Drill (🎯) + Rulebook (📘); "Ignore" is not offered.
+Queue-marked hands flow through the same store, so Copy Review Notes includes them.
+
+Mobile: same component/DOM; rows stack via grid-areas, reviewed collapsed, no
+horizontal overflow. Tests: +9 (T-RQ-01..09) -> 1014. Local preview slice of the
+v8.14.0 train; not merged/pushed/tagged.
+
+
 v8.14.0-preview (2026-06-14) -- Slice B: V25 hand-detail modal redesign
 =========================================================================
 Makes the V25 hand-review modal easier to scan WITHOUT redesigning the report.

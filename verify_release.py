@@ -10,12 +10,12 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.14.0-preview"   # v8.14 train: + Slice B V25 hand-detail modal redesign
+VERSION = "v8.14.0"   # v8.14.0 final combined release (Slices A-E)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("7105cb0e40bb592711a21edcd2397ea4b6eb1b1a241f05aa7ff508e82114865c", 63552, "v8.14.0 Slice E rev-2: render-wiring + table rename entry"),
+    "GEM_Changelog.txt": ("3b11b5c2311bdfc9785d91552f9e0a1ddf39f1a07dbfccd8b5f80fdc96c6bf66", 65418, "v8.14.0 final: combined release header (Slices A-E)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("824208260c93aeb9c6e4ca97568a5555bacf68bf6794d0a951e354234edd8b79", 4169, "v8.14.0 Slice E rev-2: 340 canaries"),

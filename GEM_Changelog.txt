@@ -1,3 +1,35 @@
+v8.14.0 (2026-06-14) -- FINAL combined release (Slices A-E)
+=========================================================================
+Consolidates the v8.14.0 train. Every slice below passed an independent GPT
+review before commit; this is the final version bump (preview -> v8.14.0) for the
+combined release-candidate smoke. No code changes vs the committed slice tips —
+only the VERSION/BUNDLE_VERSION bump + this header.
+
+Slices (commit tips on feature/analyst-coverage-trust-v8131):
+  A  39c949c  Analyst coverage + verdict-contradiction trust gates (was
+              v8.13.1-preview; folded into the v8.14.0 train)
+  B  6201872  V25 hand-detail modal polish (readable top-bar verdict chip,
+              street context chips)
+  C  05efcdb  Compact Hand Review Queue (prioritized rows -> V25 modal, full
+              queue Prev/Next, Drill/Rulebook statuses)
+  D  568aa7e  Villain Exploitation v2 (8-field teaching contract + Natural8
+              candidate tag mapper; no-hindsight preserved)
+  E  45c8a9f  PKO trust + copy clarity (rendered Bounty-trust strip with
+              threshold reconciliation + contradiction downgrade; table rename;
+              cEV/BB-100 gloss)
+
+State: verify 39/39 files, 340 canaries, 10 anti; tests 1042/1042; bundle
+v8.14.0; clean-extract smoke PASS. RELEASE CANDIDATE — not merged / pushed /
+tagged / in Claude Chat; awaiting final GPT smoke sign-off. Per-slice detail
+(marked "-preview" during development) follows below.
+
+Known follow-ups (not in v8.14.0): on-page PKO overjam chips (needs analyst-
+worklist effective-stack/overjam facts merged into report_data — helper is
+render-ready; do NOT re-derive in the renderer); villain per-villain evidence
+SUMMARY table rendering (data built as teaching_summary, not yet rendered);
+optional 7-column PKO opportunity table; v8.12.12 Slice I summary-card coherence.
+
+
 v8.14.0-preview (2026-06-14) -- Slice E: PKO v2 trust + copy clarity
 =========================================================================
 REV-2 (GPT review): the trust helper is now wired into the REAL rendered report

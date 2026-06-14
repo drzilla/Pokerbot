@@ -172,3 +172,43 @@ def bounty_context(tournament_name, phase, fmt=None, hero_covers=True,
         'basis':          ('per-event ratio model' if bounty_ratio
                            else 'flat table fallback from tournament name + phase'),
     }
+
+
+def bounty_collectibility(hero_stack_bb, villain_stacks_bb, bounty_value_bb,
+                          is_bounty=True):
+    """Canonical bounty collectibility — ONE source of truth (v8.14.1 rev-3).
+
+    Can Hero collect a bounty by winning this all-in? Hero only collects the
+    bounty of an opponent Hero ELIMINATES, i.e. Hero must COVER (out-stack) the
+    relevant villain(s). Returns one of:
+      'collectible'      — bounty in play AND Hero covers every known villain.
+      'not_collectible'  — bounty in play but at least one villain covers Hero.
+      'unknown'          — no bounty to model, or no real opponent-stack data.
+
+    'unknown' is returned (never a fabricated 'collectible') when stacks are
+    missing, so the report never claims Hero "covers" off a zero/absent stack.
+    Both the analyzer's "bounty covers villain" flag and the coaching
+    "bounty not collectible" card read this, so they can never contradict
+    each other on the same hand.
+    """
+    try:
+        bv = float(bounty_value_bb or 0)
+    except (TypeError, ValueError):
+        bv = 0.0
+    if not is_bounty or bv <= 0:
+        return 'unknown'
+    try:
+        hs = float(hero_stack_bb or 0)
+    except (TypeError, ValueError):
+        hs = 0.0
+    stacks = []
+    for v in (villain_stacks_bb or []):
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            continue
+        if fv > 0:
+            stacks.append(fv)
+    if hs <= 0 or not stacks:
+        return 'unknown'
+    return 'collectible' if all(hs > s for s in stacks) else 'not_collectible'

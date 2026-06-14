@@ -358,11 +358,14 @@ def _emit_correct_ranges(doc, group, dev_charts):
         cn = d.get('chart')
         if cn and cn in dev_charts and cn not in seen:
             seen.append(cn)
+    # v8.14.1 rev-4 (Blocker C): show the human chart label, not the raw id
+    # (e.g. "CO open-shove, 10BB", not PUSH_10BB_CO).
+    from gem_chart_labels import chart_display_label as _cdl_h
     for cn in seen:
         hands = dev_charts.get(cn) or []
         if not hands:
             continue
-        doc.w(f"**Correct range — `{cn}`** ({len(hands)} combos): "
+        doc.w(f"**Correct range — {_cdl_h(cn)}** ({len(hands)} combos): "
               f"{_compact_range(hands)}")
         doc.w("")
 

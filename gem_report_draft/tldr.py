@@ -1151,13 +1151,29 @@ def _emit_opening_dashboard(doc, s, rd):
         # context; open/reviewed partition, counts, top-N, and the celebratory
         # cleared state are managed by the PBReviewQueue JS controller reading
         # the canonical review store.
+        # v8.14.1 rev-3 (Blocker 7): when EVERY queued hand is an auto-clear (no
+        # punts / analyst mistakes / leak examples), this is not an urgent "open
+        # first" queue — it is an optional auto-cleared sample. Reframe the
+        # title/sub/count so it never reads as N urgent hands that in fact all
+        # say "no analyst action needed". The count is JS-managed (PBReviewQueue),
+        # so we also flag the card with data-all-auto-clear for the controller.
+        _all_auto = bool(hand_queue) and all(
+            h.get('bucket') == 'auto_clear' for h in hand_queue)
+        _rq_title = ('Auto-cleared sample · optional review' if _all_auto
+                     else 'Hands to open first')
+        _rq_sub = ('Quick-scan sample — nothing here needs analyst action'
+                   if _all_auto
+                   else 'Review queue · highest priority hands first')
+        _rq_count0 = (f'{len(hand_queue)} auto-cleared · 0 reviewed' if _all_auto
+                      else f'{len(hand_queue)} open · 0 reviewed')
         doc.w('<div class="od-card rq-card" id="review-queue" '
               f'data-queue-ids="{he(",".join(h["id"][-8:] for h in hand_queue))}" '
-              'data-topn="6">')
+              + ('data-all-auto-clear="1" ' if _all_auto else '')
+              + 'data-topn="6">')
         doc.w('<div class="rq-head">'
-              '<div><div class="rq-title">Hands to open first</div>'
-              '<div class="rq-sub">Review queue · highest priority hands first</div></div>'
-              f'<span class="rq-count" id="rq-count">{len(hand_queue)} open · 0 reviewed</span>'
+              f'<div><div class="rq-title">{he(_rq_title)}</div>'
+              f'<div class="rq-sub">{he(_rq_sub)}</div></div>'
+              f'<span class="rq-count" id="rq-count">{he(_rq_count0)}</span>'
               '</div>')
         if hand_queue:
             _bc = {}
@@ -2414,6 +2430,18 @@ def _emit_results_attribution(doc, s, rd):
         _dh, _ds, _dr = _day_tbl
         doc.write_block(financial_table_block(
             "s1-1a-daily", "financial_summary", _dh, _ds, _dr))
+        doc.w("")
+        # v8.14.1 rev-3 (Blocker 6): this is the by-day financial table that
+        # actually renders in the report (the S1.0b daily-summary table is gated
+        # out in AUTO_ONLY, so its rev-1 footnote never landed). The Date here is
+        # the CASH-SETTLEMENT (session-end) date from the financials export, which
+        # can roll to the next calendar day when play runs past midnight — so it
+        # may differ from the per-tournament play dates and the report's own date.
+        # Label it rather than leave a silent mismatch.
+        doc.w("*Date = cash-settlement (session-end) date from the financials "
+              "export; it can be the next calendar day when a session runs past "
+              "midnight, so it may differ from the per-tournament play dates and "
+              "the report date.*")
         doc.w("")
 
     # B211 (Ron review 2026-05-25): the human guide to reading this

@@ -15,6 +15,8 @@ from gem_report_draft._hand_grid import (_render_hand_grid_table,
 from gem_report_draft._blocks import (raw_reference_block,)
 
 import gem_made_hands as mh
+# v8.14.1 rev-4 (Blocker C): human chart labels in the deviation-list tables.
+from gem_chart_labels import chart_display_label as _cdl
 
 def _emit_section_xiii(doc, s, rd, hands):
     doc.section("sec-17", "S17. Full Deviation Lists",
@@ -120,7 +122,7 @@ def _emit_section_xiii(doc, s, rd, hands):
         chart = d.get('chart', '—')
         sz = d.get('chart_size', '?')
         bound = d.get('chart_summary', '—') or '—'
-        chart_label = f"`{chart}` (n={sz})" if chart != '—' else '—'
+        chart_label = f"{_cdl(chart)} (n={sz})" if chart != '—' else '—'
         # v7.39 — B32: chart-augmented marker. If the analyzer's sanity check
         # patched this chart's missing premium content, mark it inline so Ron
         # can spot deviations that fired against fixed-up charts vs raw OCR.
@@ -182,7 +184,7 @@ def _emit_section_xiii(doc, s, rd, hands):
         chart = d.get('chart', '—')
         sz = d.get('chart_size', '?')
         bound = d.get('chart_summary', '—') or '—'
-        chart_label = f"`{chart}` (n={sz})" if chart != '—' else '—'
+        chart_label = f"{_cdl(chart)} (n={sz})" if chart != '—' else '—'
         if d.get('chart_augmented'):
             chart_label = f"⚠️ {chart_label} (chart-augmented +{d.get('chart_augmented_count', '?')})"
         sev = d.get('severity', d.get('confidence', '—'))
@@ -273,7 +275,7 @@ def _emit_section_xiii(doc, s, rd, hands):
                 chart = d.get('chart', '—')
                 sz = d.get('chart_size', '?')
                 bound = d.get('chart_summary', '—') or '—'
-                chart_label = f"`{chart}` (n={sz})" if chart != '—' else '—'
+                chart_label = f"{_cdl(chart)} (n={sz})" if chart != '—' else '—'
                 if d.get('chart_augmented'):
                     chart_label = f"⚠️ {chart_label} (chart-augmented +{d.get('chart_augmented_count','?')})"
                 npl = d.get('n_players', '?')

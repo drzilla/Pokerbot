@@ -7,10 +7,23 @@ CSS/JS injected via doc._extra_css/doc._extra_js.
 v8.3.0 (2026-06-04)
 """
 
+import re as _re_ie
 from gem_report_draft import _state
 from gem_report_draft._helpers import (
     _new_badge, _popup_example_ids, _hand_ref, _xref)
 from gem_report_draft._html import _html_escape, _md_inline, _cards_str_to_pills
+from gem_chart_labels import chart_display_label as _cdl_ie
+
+# v8.14.1 rev-4 (Blocker C): humanize any raw chart-id token (PUSH_/REJAM_/
+# CALLJAM_/OPEN_) embedded in a representative-example deviation note, so the
+# issue-explorer never shows a bare key like "PUSH_10BB_HJ" in visible text.
+_CHART_ID_RE = _re_ie.compile(r'(?:PUSH_|REJAM_|CALLJAM_|OPEN_)[0-9A-Za-z_+]+')
+
+
+def _humanize_chart_ids(txt):
+    if not txt:
+        return txt
+    return _CHART_ID_RE.sub(lambda m: _cdl_ie(m.group(0)), txt)
 
 
 def _scrub_internal(text):
@@ -434,8 +447,8 @@ def _build_drawer(h, issue, hbi):
                 _dev = _hand_devs.get(_hid_full) or _hand_devs.get(_hid_short, {})
                 _dev_note = ''
                 if _dev:
-                    _dt = _dev.get('type', '')
-                    _dc = _dev.get('chart', '')
+                    _dt = _humanize_chart_ids(_dev.get('type', ''))
+                    _dc = _humanize_chart_ids(_dev.get('chart', ''))
                     _dev_note = (f'<div style="font-size:11px;color:#888;margin-top:2px">'
                                  f'{_html_escape(_dt)}'
                                  f'{" — " + _html_escape(_dc) if _dc else ""}</div>')

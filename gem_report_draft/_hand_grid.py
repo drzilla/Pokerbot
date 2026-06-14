@@ -10,6 +10,10 @@ from gem_report_draft._html import (_cards_str_to_pills, _card_html,
     _cards_html, _md_inline, _cards_text_to_pills, _sort_cards_desc,
     _describe_made_hand, _KD_CLASS_PATTERNS, _KD_CLASS_VERB, Doc)
 from gem_report_draft import _state
+# v8.14.1 rev-3 (Blocker 4): human-readable chart labels in the REAL hand-detail
+# push/call-jam verdict path (this is the lazy-hand-card render — raw chart ids
+# like PUSH_10BB_UTG / CALLJAM_12BB_vsBTN were leaking here, not just sections_xiv).
+from gem_chart_labels import chart_display_label as _cdl_hg
 
 
 _VERDICT_HUMAN = {
@@ -1170,8 +1174,8 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     # verdict evaluated at the wrong depth.
                     _eff_now = (h.get('eff_stack_bb_at_decision')
                                 or h.get('stack_bb') or 0)
-                    _near_line = (f"Nearest chart: {_pk}; actual effective stack: "
-                                  f"{_eff_now:.1f}BB.")
+                    _near_line = (f"Nearest chart: {_cdl_hg(_pk)}; actual effective "
+                                  f"stack: {_eff_now:.1f}BB.")
                     # v8.13.1 P1: reconcile against the FINAL analyst verdict so
                     # the auto widget never contradicts it.
                     _av_pv = ''
@@ -1183,10 +1187,12 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     if _mode_pv == 'overridden':
                         _in_color = '#6b7280'
                         _verdict_push = (f'↩︎ Auto check flagged {_phc} {_in_label} '
-                                         f'{_pk}, but the analyst cleared it ({_av_pv}).')
+                                         f'the {_cdl_hg(_pk)} range, but the analyst '
+                                         f'cleared it ({_av_pv}).')
                     else:
                         _in_icon = '✅ Correct push' if _in else '❌ Wrong push'
-                        _verdict_push = f'{_in_icon} ({_phc} {_in_label} {_pk}{_range_note})'
+                        _verdict_push = (f'{_in_icon} — {_phc} is {_in_label} the '
+                                         f'{_cdl_hg(_pk)} range{_range_note}')
                         if _mode_pv == 'pre_review':
                             _verdict_push += ' · auto pre-review'
                     _push_html = (f"<div class='push-verdict' style='font-size:0.85em;"
@@ -1213,12 +1219,38 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 _cj_range = _cj_ranges.get(_cj_key, {})
                 if _cj_range and _cj_hc:
                     _cj_in = _cj_hc in _cj_range
-                    _cj_icon = '✅ Correct call' if _cj_in else '❌ Loose call'
                     _cj_color = '#22c55e' if _cj_in else '#f59e0b'
                     _cj_label = 'in' if _cj_in else 'outside'
-                    _cj_verdict = f'{_cj_icon} ({_cj_hc} {_cj_label} {_cj_key})'
+                    # v8.14.1 rev-3 (Blocker 3): CALLJAM_*BB is the NEAREST chart,
+                    # not necessarily this hand's depth — state the actual effective
+                    # stack so a 12BB-chart check on a ~6BB jam never reads as a
+                    # definitive "Loose call" that contradicts the concrete pot-odds
+                    # verdict (the 👍 on the action). Mirror the push-widget
+                    # treatment: reconcile against the FINAL analyst verdict and
+                    # label a not-yet-reviewed auto check as a pre-review heuristic.
+                    _cj_near = (f"Nearest chart: {_cdl_hg(_cj_key)}; actual effective "
+                                f"stack: {_cj_stack:.1f}BB.")
+                    _av_cj = ''
+                    if rd:
+                        _cmt_cj = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                        if isinstance(_cmt_cj, dict):
+                            _av_cj = _cmt_cj.get('verdict', '') or ''
+                    _cj_mode, _ = reconcile_push_widget(_cj_in, _av_cj)
+                    if _cj_mode == 'overridden':
+                        _cj_color = '#6b7280'
+                        _cj_verdict = (f'↩︎ Auto check flagged {_cj_hc} {_cj_label} the '
+                                       f'{_cdl_hg(_cj_key)} range, but the analyst '
+                                       f'cleared it ({_av_cj}).')
+                    else:
+                        _cj_icon = '✅ Correct call' if _cj_in else '❌ Loose call'
+                        _cj_verdict = (f'{_cj_icon} — {_cj_hc} is {_cj_label} the '
+                                       f'{_cdl_hg(_cj_key)} range')
+                        if _cj_mode == 'pre_review':
+                            _cj_verdict += ' · auto pre-review'
                     _calljam_html = (f"<div style='font-size:0.85em;color:{_cj_color};"
-                                    f"font-weight:700;margin-top:2px;'>{_cj_verdict}</div>")
+                                    f"font-weight:700;margin-top:2px;'>{_cj_verdict}"
+                                    f"<span style='display:block;font-weight:400;"
+                                    f"color:#6b7280;font-size:0.92em'>{_cj_near}</span></div>")
     except Exception:
         pass  # gem_ranges import failure — skip verdicts silently
 

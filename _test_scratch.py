@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090',
+      _hg_hash == '4d555582d3b2ca59d834723f5613ba117d27e61d1e93cd728feffe68bb1c5cea',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -5183,6 +5183,152 @@ check('T-H141-17: section id (sec-tldr) lives in data-aid only, never rendered a
       'data-aid="sec-tldr"' in _sub141 and '>sec-tldr<' not in _sub141, '')
 check('T-H141-18: section review preserves verdict + notes inputs (data not lost)',
       'audit-status' in _sub141 and 'audit-notes' in _sub141, '')
+
+# ============================================================
+# v8.14.1-preview rev-3 — REAL-output QA hotfix (T-H141-19..29)
+# These prove the fixes hit the ACTUAL hand-detail render path, not just a
+# helper (the rev-1/rev-2 miss). Each pairs a real-function call with a wiring
+# assertion against the real render module.
+# ============================================================
+from gem_report_draft.sections_xiv import _bounty_trust_strip_md as _bts141
+from gem_bounty import bounty_collectibility as _bc141
+_hg_src141 = open('gem_report_draft/_hand_grid.py', encoding='utf-8').read()
+_cc141 = open('gem_coaching_cards.py', encoding='utf-8').read()
+_ana141b = open('gem_analyzer.py', encoding='utf-8').read()
+
+# B1: trust strip renders for a collectible bounty hand (REAL helper, real reconcile)
+_h141_coll = {'format': 'BOUNTY', 'bounty_value_bb': 4.0,
+              'bounty_collectible': 'collectible', 'jammer_position': 'BTN'}
+_po141_coll = {'required_eq_pct': 39.2, 'required_eq_bounty_pct': None,
+               'n_players_at_showdown': 2, 'bounty': {'value_bb': 4.0, 'discount_pp': 0}}
+_strip_coll = _bts141({}, _h141_coll, _po141_coll)
+check('T-H141-19: Bounty trust strip renders in the real hand-detail path for a collectible hand',
+      _strip_coll.startswith('\U0001f3af **Bounty trust:**')
+      and 'covers the BTN' in _strip_coll and 'collectible' in _strip_coll, _strip_coll)
+
+# B1/B3: chip-only + PKO-adjusted threshold appears when threshold facts exist
+_po141_thr = {'required_eq_pct': 39.0, 'required_eq_bounty_pct': 34.0,
+              'n_players_at_showdown': 2, 'bounty': {'value_bb': 4.0, 'discount_pp': 5.0}}
+_strip_thr = _bts141({}, _h141_coll, _po141_thr)
+check('T-H141-20: trust strip shows chip-only + PKO-adjusted thresholds when facts exist',
+      'Chip-only call needs 39%' in _strip_thr and 'PKO-adjusted needs ~34%' in _strip_thr, _strip_thr)
+
+# B1: explicit threshold-unavailable copy when PKO threshold missing (not silent)
+check('T-H141-21: trust strip states threshold-unavailable when PKO threshold missing',
+      'threshold not modelled' in _strip_coll and 'PKO-adjusted needs' not in _strip_coll, _strip_coll)
+
+# B1 wiring (anti rev-1): the strip is invoked in BOTH real hand-detail paths
+check('T-H141-22: bounty trust strip is wired into BOTH real hand-detail paths (XIV.A + XIV.B)',
+      'def _bounty_trust_strip_md' in _xiv141
+      and '_bounty_trust_strip_md(rd, h, _po)' in _xiv141
+      and '_bounty_trust_strip_md(rd, h, _po_b)' in _xiv141, '')
+
+# B2: collectibility is ONE source — flag + card can never both fire on a hand
+_mx_ok = True
+for _stk, _opp in [(64, [6]), (53, [60]), (53, []), (40, [40])]:
+    _c141 = _bc141(_stk, _opp, 5, True)
+    _icm_covers = (_c141 == 'collectible')
+    _card_notcoll = (_c141 == 'not_collectible')
+    if _icm_covers and _card_notcoll:
+        _mx_ok = False
+check('T-H141-23: bounty cover is ONE source of truth (flag + card mutually exclusive + both read it)',
+      _mx_ok
+      and "h['bounty_collectible'] = _collect" in _ana141b
+      and "'bounty_covers_villain': (_collect == 'collectible')" in _ana141b
+      and "h.get('bounty_collectible')" in _cc141
+      and "bf.get('collectibility') != 'not_collectible'" in _cc141, '')
+
+# B4: raw chart ids gone from the REAL _hand_grid verdict copy; human labels used
+check('T-H141-24: _hand_grid push/call-jam verdicts use human chart labels, not raw ids',
+      'from gem_chart_labels import chart_display_label as _cdl_hg' in _hg_src141
+      and '_cdl_hg(_pk)' in _hg_src141 and '_cdl_hg(_cj_key)' in _hg_src141
+      and "f'{_cj_icon} ({_cj_hc} {_cj_label} {_cj_key})'" not in _hg_src141
+      and "f'{_in_icon} ({_phc} {_in_label} {_pk}{_range_note})'" not in _hg_src141, '')
+
+# B4: sections_xiv Range-check call-jam line humanized (rev-1 missed this one line)
+check('T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key} leak)',
+      "f'{key} ({len(rng)} hand classes){bnd}'" not in _xiv141
+      and 'the {_cdl(key)} range ({len(rng)} hand classes){bnd}' in _xiv141, '')
+
+# B5: required-equity teaching attaches to the compact XIV.B line too (not only XIV.A)
+check('T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)',
+      _xiv141.count('not how often you are') >= 2
+      and '_po_lines_b' in _xiv141 and 'if _req_b:' in _xiv141,
+      'teach-copy count=' + str(_xiv141.count('not how often you are')))
+
+# B6: settlement-date label lands in the REAL results-attribution table path
+_ra_fn141 = _tldr141[_tldr141.index('def _emit_results_attribution'):]
+_ra_fn141 = _ra_fn141[:_ra_fn141.index('\ndef ', 5)]
+check('T-H141-27: financial settlement-date label is in the REAL results-attribution path (S1.1a)',
+      'cash-settlement (session-end) date' in _ra_fn141 and 's1-1a-daily' in _ra_fn141, '')
+
+# B7: all-auto-clear queue reframes title + count (not urgent "open first")
+check('T-H141-28: all-auto-clear queue reframes the urgent "open first" title + count',
+      'Auto-cleared sample · optional review' in _tldr141
+      and 'data-all-auto-clear' in _tldr141 and '_all_auto' in _tldr141
+      and "auto-cleared · '" in _h141b_html, '')
+
+# B3: call-jam chart check reconciled like push — pre-review heuristic + depth caveat,
+# never a bare hard "Loose call" that contradicts the concrete pot-odds verdict.
+check('T-H141-29: call-jam verdict reconciles vs analyst + states nearest-chart depth (no hard contradiction)',
+      'reconcile_push_widget(_cj_in, _av_cj)' in _hg_src141
+      and 'auto pre-review' in _hg_src141.split('Call-jam verdict')[1]
+      and 'actual effective ' in _hg_src141.split('Call-jam verdict')[1]
+      and "_cj_near" in _hg_src141, '')
+
+# B2 (third surface): the PKO all-in audit's no_bounty family ALSO reads the
+# canonical bounty_collectible, so the "Bounty not collectible (covered)" list
+# can't list a hand the per-hand flag + trust strip call collectible (the legacy
+# eff>=jammer test mis-read Hero-covers-a-short-jammer spots like 73281442).
+_pkor141 = open('gem_pko_research.py', encoding='utf-8').read()
+check('T-H141-30: PKO all-in audit defers to canonical bounty_collectible (one source w/ icm + trust strip)',
+      "_canon_collect = h.get('bounty_collectible')" in _pkor141
+      and "if _canon_collect == 'collectible':" in _pkor141
+      and "elif _canon_collect == 'not_collectible':" in _pkor141, '')
+
+# ============================================================
+# v8.14.1-preview rev-4 — remaining real-output blockers (T-H141-31..35)
+# ============================================================
+_helpers141 = open('gem_report_draft/_helpers.py', encoding='utf-8').read()
+
+# rev-4 Blocker B: EVERY reconcile_pko_trust strip states threshold status
+def _has_thresh141(tl):
+    return any(k in tl for k in ('Chip-only call needs', 'threshold not modelled',
+                                 'threshold unavailable'))
+_b_cases = [
+    dict(coverage_bucket='', can_collect_bounty=None, players=2, bounty_value_bb=3.2),
+    dict(coverage_bucket='Hero covers', can_collect_bounty=True, players=3, bounty_value_bb=3.2),
+    dict(coverage_bucket='Hero covered', can_collect_bounty=False, players=2, bounty_value_bb=3.2),
+    dict(coverage_bucket='Hero covers', can_collect_bounty=True, players=2, bounty_value_bb=3.2,
+         discount_pp=6.0, chip_threshold_pct=35.0, pko_threshold_pct=29.0),
+]
+_b_ok = all(_has_thresh141(_pkoE.reconcile_pko_trust(**_c)['trust_line']) for _c in _b_cases)
+check('T-H141-31: every Bounty-trust line states threshold status (chip/PKO or unavailable)',
+      _b_ok, 'a reconcile case left threshold status silent')
+
+# rev-4 Blocker A: XIV.B pill downgrades confident PKO via pko_trust_render (not raw class)
+check('T-H141-32: XIV.B PKO pill downgrades confident class via pko_trust_render (no raw classification)',
+      'pko_trust_render as _pko_trust_render_b' in _xiv141
+      and '{_pkb_cls}** ' in _xiv141
+      and "{_pko_ctx_b.get('classification', 'Review')}** " not in _xiv141, '')
+
+# rev-4 Blocker A behavioral: a 3-way confident PKO class downgrades to Review
+_a_mw = _pkoE.pko_trust_render({'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+        'players_if_hero_continues': 3, 'classification': 'Too wide', 'bounty_value_bb_est': 3.2})
+check('T-H141-33: multiway confident PKO class (Too wide) downgrades to Review in render fn',
+      _a_mw['classification_display'] == 'Review' and _a_mw['downgraded'] is True, _a_mw['classification_display'])
+
+# rev-4 Blocker C: "Correct range" lines humanize the chart id (no raw {_chart}/{cn})
+check('T-H141-34: Correct-range lines use human chart labels, not raw ids',
+      '{_cdl(_chart)} ({len(_combos)} hand classes)' in _xiv141
+      and ' Correct range — {_chart} (' not in _xiv141
+      and '_cdl_h(cn)' in _helpers141
+      and 'Correct range — `{cn}`' not in _helpers141, '')
+
+# rev-4 Blocker D: explicit PKO-unavailable note for unresolved BOUNTY all-ins (XIV.A + XIV.B)
+check('T-H141-35: PKO bounty-math-unavailable note renders for unresolved BOUNTY all-ins (XIV.A + XIV.B)',
+      _xiv141.count('**PKO bounty math:** cover/collectibility') == 2
+      and _xiv141.count("h.get('bounty_collectible') in (None, 'unknown')") == 2, '')
 
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812

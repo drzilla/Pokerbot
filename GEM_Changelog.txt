@@ -1,5 +1,52 @@
 v8.14.1-preview (2026-06-14) -- real-report QA hotfix
 =========================================================================
+REV-4 add-on (4 remaining real-output misses; version stays v8.14.1-preview).
+(A) the compact XIV.B PKO pill printed the RAW classification, so confident
+"PKO Good/Too wide/Missed" still leaked on 3-way / open+caller spots -- it now
+runs the same pko_trust_render downgrade as the XIV.A pill, so multiway /
+unresolved-collectibility spots render "PKO Review". (B) every "Bounty trust:"
+strip now states its threshold status: reconcile_pko_trust appends an explicit
+"chip-vs-PKO threshold unavailable -- review manually" whenever no chip/PKO
+threshold was modelled (cover unresolved / multiway / villain-covers), so no strip
+leaves threshold status silent. (C) the "Correct range -- <chart>" deviation lines
+(sections_xiv x2 + _helpers x1) now show the human chart label via
+chart_display_label (e.g. "SB re-jam vs CO open"), not the raw REJAM_/PUSH_ id.
+(D) a BOUNTY all-in whose collectibility can't be resolved (no reliable jammer
+stack) and that gets neither a pot-odds Bounty-trust strip nor a PKO pill now
+renders an explicit "PKO bounty math: cover/collectibility unresolved from the HH
+export, so this verdict uses chip-chart logic only. Review manually." note in the
+hand detail (73559949), instead of silently omitting bounty math. +5 tests
+(T-H141-31..35) -> 1077. Rest below is rev-3/rev-2/rev-1.
+
+REV-3 add-on (real-OUTPUT QA misses; version stays v8.14.1-preview). rev-1/rev-2
+passed helper tests but several fixes never reached the GENERATED report because
+they were wired into the wrong render path. rev-3 wires them into the ACTUAL
+hand-detail path and proves each in a freshly regenerated real report
+(GEM_Knockman_20260613, 1267 hands). (B1) the reconciled "Bounty trust:" strip now
+renders in the real per-hand pot-odds block (XIV.A + XIV.B) for any bounty hand --
+NOT gated on the BB-defense pko_context that never fires for push/call-jam all-ins
+-- showing cover/collectibility, $X≈YBB, and chip-vs-PKO-or-"threshold not modelled".
+(B2) ONE source of truth for bounty cover: NEW gem_bounty.bounty_collectibility()
+trusts only jammer_stack_bb (the field that names the all-in opponent) and returns
+'unknown' rather than fabricate a cover off eff_stack_bb (the shortest TABLE villain
+-- the 73559949 bug where Hero "covered" a 12.9BB shorty while a 66BB villain
+actually covered Hero). The analyzer stamps h['bounty_collectible']; both the
+"bounty covers villain" flag and the coaching "not collectible" card read it, so no
+hand can claim both. (B3) the call-jam chart check is reconciled vs the analyst
+verdict and labelled "auto pre-review" with the nearest-chart depth (actual
+effective stack), exactly like the push widget -- so a 12BB-chart check on a ~6BB
+jam never reads as a hard "Loose call" that fights the pot-odds. (B4) raw chart ids
+removed from hand-detail verdict copy in _hand_grid (push + call-jam) and the one
+sections_xiv Range-check line rev-1 missed; human labels via chart_display_label.
+(B5) the required-equity teaching line now attaches to EVERY visible Required-equity
+line incl. the compact XIV.B path (73281169/72696769), not only XIV.A. (B6) the
+cash-settlement date label now lands in the REAL results-attribution table
+(_emit_results_attribution / S1.1a) -- the rev-1 footnote sat in the S1.0b daily
+table that AUTO_ONLY never renders. (B7) an all-auto-clear queue is reframed
+"Auto-cleared sample - optional review" (count "N auto-cleared") instead of an
+urgent "Hands to open first". +11 tests (T-H141-19..29) -> 1071. Deferred again
+(documented): chart range-highlight for 73280335/73560115. Rest below is rev-2/rev-1.
+
 REV-2 add-on (review-list cosmetics + section-review separation; version stays
 v8.14.1-preview): (1) the queue's reviewed/completed list stays collapsed by
 default (rq-reviewed-list hidden, head aria-expanded=false) and now shows a caret

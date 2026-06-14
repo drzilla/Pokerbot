@@ -7965,17 +7965,34 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
 
     # ---- BATCH 5 (ACE-4): ICM/BOUNTY RED-FLAG APPROXIMATION ----
     # Rough flags per hand — not full ICM math, just practical warnings.
+    from gem_bounty import bounty_collectibility as _bounty_collectibility
     for h in hands:
         _phase = h.get('tournament_phase', '')
         _fmt = h.get('format', '')
         _stack = h.get('stack_bb', 0) or 0
         _avg_stack = 50  # rough approximation (would need tournament-level data)
+        # v8.14.1 rev-3 (Blocker 2): canonical bounty collectibility — ONE source
+        # of truth shared with the coaching "bounty not collectible" card, so the
+        # "bounty covers villain" flag below can never contradict it (the 73559949
+        # bug). The old `_stack > (jammer_stack_bb or eff_stack_bb or 0)` FABRICATED
+        # "covers": jammer_stack_bb is 0 on complex all-ins (4-bet pots), so it fell
+        # back to eff_stack_bb — which is the SHORTEST table villain, NOT the all-in
+        # opponent (73559949: Hero 52.7BB read "covers" off a 12.9BB shorty while a
+        # 66BB villain actually covered Hero). We now trust ONLY jammer_stack_bb —
+        # the one field that reliably names the all-in opponent — and return
+        # 'unknown' (never a fabricated cover) when it is absent. Unknown is safe:
+        # it asserts neither collectible nor not-collectible, so it can never
+        # contradict the PKO audit's own cover classification.
+        _opp_stk = h.get('jammer_stack_bb')
+        _collect = _bounty_collectibility(
+            _stack, [_opp_stk] if _opp_stk else [], h.get('bounty_value_bb', 0),
+            is_bounty=(_fmt == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0))
+        h['bounty_collectible'] = _collect
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),
             'final_table': _phase in ('final_table', 'ft_zone'),
             'satellite': _fmt == 'SATELLITE',
-            'bounty_covers_villain': (bool(h.get('bounty_value_bb', 0) > 0)
-                                      and (_stack or 0) > (h.get('jammer_stack_bb') or h.get('eff_stack_bb') or 0)),
+            'bounty_covers_villain': (_collect == 'collectible'),
             'hero_covered': (_stack or 0) < (h.get('jammer_stack_bb') or 0) if h.get('jammer_stack_bb') else False,
             'stack_utility': ('low' if _stack < 15 else 'high' if _stack > 80 else 'medium'),
             'icm_flag': None,

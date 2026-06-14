@@ -1854,8 +1854,9 @@ _MODAL_HTML = r"""
         reasons[rd]=(row.getAttribute('data-bucket')||'')+(rt&&rt.textContent?(' — '+rt.textContent):'');
       });
       var nid=normalizeHandId(hid);var idx=ids.indexOf(nid);
-      window.activeHandQueue={contextId:'review_queue',title:'Hands to open first',
-        sourceType:'review_queue',sourcePath:'Hands to open first',
+      var _qt=((r.querySelector('.rq-title')||{}).textContent||'Hands to open first');
+      window.activeHandQueue={contextId:'review_queue',title:_qt,
+        sourceType:'review_queue',sourcePath:_qt,
         handIds:ids.slice(),currentIndex:idx<0?0:idx,viewed:{},reasonByHand:reasons};
       window.activeHandQueue.viewed[nid]=true;
     }
@@ -1879,7 +1880,8 @@ _MODAL_HTML = r"""
       open.forEach(function(row){if(showAll||shown<topn){row.style.display='';shown++;}});
       var follow=reviewed.filter(function(x){return FOLLOWUP[x.st];}).length;
       var cEl=document.getElementById('rq-count');
-      if(cEl)cEl.textContent=open.length+' open · '+reviewed.length+' reviewed';
+      if(cEl){var _allAuto=r.getAttribute('data-all-auto-clear')==='1';
+        cEl.textContent=(_allAuto?(open.length+' auto-cleared · '):(open.length+' open · '))+reviewed.length+' reviewed';}
       var sa=document.getElementById('rq-showall');
       if(sa){if(open.length>topn){sa.hidden=false;sa.textContent=showAll?('Show top '+topn):('Show all '+open.length);}else{sa.hidden=true;}}
       var fn=document.getElementById('rq-foot-note');

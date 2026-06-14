@@ -18,6 +18,10 @@ from gem_report_draft._hand_grid import (_render_hand_grid_table,
 
 import gem_made_hands as mh
 import gem_gtow
+# v8.14.1 rev-4 (Blocker C): module-level chart-label helper so every render
+# function (deviation-range text, XIV.B flag note, range-check) can humanize raw
+# chart ids — it was previously imported only locally inside one function.
+from gem_chart_labels import chart_display_label as _cdl
 
 # v7.80: hole-card nickname for the hand-example grid header. Defensive
 # import — a missing gem_nicknames module must never break a report render.
@@ -118,6 +122,65 @@ def _pko_bounty_usd(rd, h):
         return None
     except Exception:
         return None
+
+
+def _bounty_trust_strip_md(rd, h, _po):
+    """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
+    rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
+    hand — NOT gated on the BB-defense pko_context, which never enables for the
+    push / call-jam all-ins the user actually flagged (73281442, 73559949).
+
+    Reuses the pure, tested reconcile_pko_trust() so cover / collectibility /
+    $ bounty / chip-vs-PKO threshold are reconciled in ONE place; the cover state
+    comes from the canonical h['bounty_collectible'] (the same one-source-of-truth
+    fact the analyzer's "bounty covers villain" flag and the coaching card use),
+    so the strip can never contradict them. When no chip-vs-PKO threshold was
+    modelled, the strip says so explicitly rather than implying a silent verdict.
+    Returns '' for non-bounty hands or when there is nothing concrete to say.
+    """
+    _po = _po or {}
+    _fmt = h.get('format', '')
+    _bnt = _po.get('bounty') or {}
+    _bv = _bnt.get('value_bb') or h.get('bounty_value_bb') or 0
+    _collect = h.get('bounty_collectible')
+    if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible'):
+        return ''
+    try:
+        from gem_pko_research import reconcile_pko_trust
+    except Exception:
+        return ''
+    _cover_bucket = {'collectible': 'Hero covers',
+                     'not_collectible': 'Hero covered'}.get(_collect, '')
+    _can_collect = (True if _collect == 'collectible'
+                    else False if _collect == 'not_collectible' else None)
+    _vpos = h.get('jammer_position') or ''
+    if _collect == 'collectible':
+        _cover_label = (f'Hero covers the {_vpos}; bounty collectible' if _vpos
+                        else 'Hero covers the villain; bounty collectible')
+    elif _collect == 'not_collectible':
+        _cover_label = (f'{_vpos} covers Hero; bounty not collectible' if _vpos
+                        else 'Villain covers Hero; bounty not collectible')
+    else:
+        _cover_label = ''
+    _n_sd = _po.get('n_players_at_showdown') or 2
+    try:
+        _tr = reconcile_pko_trust(
+            coverage_bucket=_cover_bucket,
+            can_collect_bounty=_can_collect,
+            players=_n_sd,
+            coverage_label=_cover_label,
+            bounty_value_bb=_bv,
+            bounty_usd=_pko_bounty_usd(rd, h),
+            discount_pp=_bnt.get('discount_pp', 0) or 0,
+            chip_threshold_pct=_po.get('required_eq_pct'),
+            pko_threshold_pct=_po.get('required_eq_bounty_pct'),
+            overjam_bb=None)
+    except Exception:
+        return ''
+    if not _tr.get('trust_line'):
+        return ''
+    _prefix = '⚠️ ' if _tr.get('contradiction') else '\U0001f3af '
+    return _prefix + '**Bounty trust:** ' + _tr['trust_line']
 
 
 _SIGNAL_LABELS_RENDER = {
@@ -465,7 +528,9 @@ def _deviation_range_text(hid, s):
             # v8.12.8 QA3: bold the token Hero's hand falls under
             _rng_txt = _embolden_hand_in_range(
                 _compact_range(_combos), d.get('cards', ''))
-            return (f" Correct range — {_chart} ({len(_combos)} hand classes): "
+            # v8.14.1 rev-4 (Blocker C): show the human chart label, not the raw
+            # id (e.g. "SB re-jam vs CO open", not REJAM_SBvsCO).
+            return (f" Correct range — {_cdl(_chart)} ({len(_combos)} hand classes): "
                     f"{_rng_txt}. {_vd}.")
         # Inline iso_range (CVJ/Iso-Jam threshold)
         if d.get('iso_range'):
@@ -644,8 +709,8 @@ def _xivb_flag_note(hid, s, rd):
                 # v8.12.8 QA3: bold the token Hero's hand falls under
                 _rng_txt_b = _embolden_hand_in_range(
                     _compact_range(_combos), d.get('cards', ''))
-                expl += (f" Correct range — {_chart} ({len(_combos)} hand classes): "
-                         f"{_rng_txt_b}. {_vd}.")
+                expl += (f" Correct range — {_cdl(_chart)} ({len(_combos)} hand "
+                         f"classes): {_rng_txt_b}. {_vd}.")
             return {'emoji': '\U0001F7E1',
                     'label': t + (f' ({conf})' if conf else ''),
                     'street': 'preflop', 'explanation': expl}
@@ -1132,8 +1197,11 @@ def _allin_range_note(h):
                 icon = '✅' if inside else '❌'
                 boundary = _rb(', '.join(rng.keys())) if hasattr(_rb, '__call__') else ''
                 bnd = f' (boundary: {boundary})' if boundary else ''
+                # v8.14.1 rev-3 (Blocker 4): humanize the call-jam chart id like
+                # the open/re-jam siblings above (rev-1 missed this one line, so
+                # raw CALLJAM_* still leaked into the Range-check copy).
                 parts.append(f'{icon} **{hc}** {"in" if inside else "outside"} '
-                             f'{key} ({len(rng)} hand classes){bnd}')
+                             f'the {_cdl(key)} range ({len(rng)} hand classes){bnd}')
 
     opener = h.get('opener_position', '')
     if opener and pos and stk <= 30:
@@ -2640,6 +2708,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             "modelled discount is ~0 at this depth / "
                             "collectibility unresolved (not a high-confidence "
                             "PKO verdict).")
+            # v8.14.1 rev-3 (Blocker 1): reconciled Bounty-trust strip \u2014 fires for
+            # ANY bounty hand from the canonical cover fact, even when the detailed
+            # bounty block above did not (no _po['bounty'] / no modelled threshold,
+            # which is the common case for the flagged push/call-jam all-ins).
+            _bts = _bounty_trust_strip_md(rd, h, _po)
+            if _bts:
+                _po_lines.append(_bts)
             _ev = _po.get('ev_call_bb')
             _vh = _po.get('verdict_hint', '')
             if _ev is not None:
@@ -2725,6 +2800,21 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             doc.w(f"  {_pko_ctx.get('teaching_note', '')} "
                   f"*{_pko_ctx.get('caveat', '')}*")
             doc.w("")
+            doc.w("</div>")
+            doc.w("")
+
+        # v8.14.1 rev-4 (Blocker D): a BOUNTY all-in whose collectibility can't be
+        # resolved (no reliable jammer stack) gets neither a pot-odds Bounty-trust
+        # strip (no _po) nor a PKO pill (not a BB-defense pko_context) \u2014 so the
+        # bounty math was silently absent (73559949). Render an explicit note so
+        # the user knows WHY rather than leaving it silent. Never fabricates math.
+        if (not _po and not _pko_ctx.get('enabled')
+                and h.get('format') == 'BOUNTY' and h.get('pf_allin')
+                and h.get('bounty_collectible') in (None, 'unknown')):
+            doc.w("<div class='analyst-notes' data-street='preflop'>")
+            doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
+                  "from the HH export, so this verdict uses chip-chart logic only. "
+                  "Review manually.")
             doc.w("</div>")
             doc.w("")
 
@@ -3112,6 +3202,22 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _po_ds_b = f" data-street='{_po_st_b}'" if _po_st_b else ''
                         doc.w(f"<div class='analyst-notes'{_po_ds_b}>")
                         doc.w("📊 " + " · ".join(_po_lines_b))
+                        # v8.14.1 rev-3 (Blocker 5): attach the required-equity
+                        # teaching line to EVERY visible Required-equity line, not
+                        # only the comprehensive XIV.A block. This is the compact
+                        # XIV.B path that 73281169 / 72696769 actually render on.
+                        if _req_b:
+                            doc.w("")
+                            doc.w("*This is the share you need to win versus the "
+                                  "betting/jamming range (including draws and worse "
+                                  "hands) to break even — not how often you are "
+                                  "ahead right now.*")
+                        # v8.14.1 rev-3 (Blocker 1): reconciled Bounty-trust strip on
+                        # the compact XIV.B path too (push/call-jam all-ins land here).
+                        _bts_b = _bounty_trust_strip_md(rd, h, _po_b)
+                        if _bts_b:
+                            doc.w("")
+                            doc.w(_bts_b)
                         doc.w("</div>")
                         doc.w("")
                         _has_notes_b = True
@@ -3152,9 +3258,24 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         'Equal': 'roughly equal stacks',
                         'Mixed': 'mixed coverage'}.get(
                         _pko_ctx_b.get('coverage_bucket', ''), '')
+                    # v8.14.1 rev-4 (Blocker A): downgrade a confident PKO class on
+                    # a multiway / unresolved-collectibility spot, exactly like the
+                    # XIV.A pill — the XIV.B pill previously printed the RAW
+                    # classification, so "PKO Good/Too wide/Missed" still leaked on
+                    # 3-way / open+caller uncertainty spots.
+                    from gem_pko_research import pko_trust_render as _pko_trust_render_b
+                    _po_db = _po_b or {}
+                    _po_bnt_b = _po_db.get('bounty') or {}
+                    _pkb_cls = _pko_trust_render_b(
+                        _pko_ctx_b,
+                        bounty_usd=_pko_bounty_usd(rd, h),
+                        discount_pp=_po_bnt_b.get('discount_pp', 0) or 0,
+                        chip_threshold_pct=_po_db.get('required_eq_pct'),
+                        pko_threshold_pct=_po_db.get('required_eq_bounty_pct'),
+                        overjam_bb=None)['classification_display']
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
                     doc.w(f"🎯 **PKO "
-                          f"{_pko_ctx_b.get('classification', 'Review')}** · "
+                          f"{_pkb_cls}** · "
                           f"{_pko_ctx_b.get('spot', '')} · "
                           f"{_pko_ctx_b.get('depth_bucket', '')} "
                           f"(eff {_pko_ctx_b.get('effective_stack_bb', '?')}bb) "
@@ -3384,6 +3505,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         doc.w(f"📋 {' · '.join(_auto_parts)}")
                         doc.w("</div>")
                         doc.w("")
+
+                # v8.14.1 rev-4 (Blocker D): explicit PKO-unavailable note for a
+                # BOUNTY all-in with unresolved collectibility that got neither a
+                # pot-odds Bounty-trust strip nor a PKO pill (XIV.B parity).
+                if (not _po_b and not _pko_ctx_b.get('enabled')
+                        and h.get('format') == 'BOUNTY' and h.get('pf_allin')
+                        and h.get('bounty_collectible') in (None, 'unknown')):
+                    doc.w("<div class='analyst-notes' data-street='preflop'>")
+                    doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
+                          "unresolved from the HH export, so this verdict uses "
+                          "chip-chart logic only. Review manually.")
+                    doc.w("</div>")
+                    doc.w("")
 
                 # B168 (Ron 2026-05-24): inline audit review row after the hand.
                 doc.w(f"<<REVIEWROW|hand|{hid}|Hand {hid_short} \u2014 "

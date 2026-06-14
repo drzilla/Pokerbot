@@ -764,7 +764,8 @@ _MODAL_HTML = r"""
     <!-- V25 STICKY TOP BAR -->
     <div class="v25-topbar" id="v25-topbar">
       <div class="v25-top-identity">
-        <h3 class="v25-top-hid" id="hand-modal-title">Hand review</h3>
+        <span class="v25-top-hand-label">Hand</span>
+        <h3 class="v25-top-hid" id="hand-modal-title">review</h3>
         <span class="v25-top-cards" id="v25-top-cards"></span>
         <span class="v25-top-result" id="v25-top-result"></span>
         <span class="v25-top-reviewed" id="v25-top-reviewed" style="display:none"></span>
@@ -782,11 +783,14 @@ _MODAL_HTML = r"""
         <button type="button" class="verdict-chip verdict-agree" data-verdict="Agree">👍 Agree</button>
         <button type="button" class="verdict-chip verdict-debate" data-verdict="Debate">🤔 Debate</button>
         <button type="button" class="verdict-chip verdict-bug" data-verdict="Report bug">🐞 Report bug</button>
+        <button type="button" class="verdict-chip verdict-drill" data-verdict="Drill">🎯 Drill</button>
+        <button type="button" class="verdict-chip verdict-rulebook" data-verdict="Rulebook">📘 Rulebook</button>
         <button type="button" class="verdict-clear" data-verdict="">Clear</button>
       </div>
       <select id="modal-review-status" style="display:none">
         <option value="">-- verdict --</option>
         <option>Agree</option><option>Debate</option><option>Report bug</option>
+        <option>Drill</option><option>Rulebook</option>
       </select>
       <textarea id="modal-review-notes" placeholder="Hand review notes — auto-saved while typing"></textarea>
       <div class="save-state" id="modal-save-state">Auto-saved</div>
@@ -968,18 +972,28 @@ _MODAL_HTML = r"""
        thin-read fallback). All copy is built in Python (gem_villain_teaching)
        so the renderer only displays strings and invents nothing. */
     if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
-      /* rev-2: render the FULL pre-built teaching sequence (Read / Villain /
-         Cue / Now / Next time / Avoid over-adjusting / Bounty), or the single
-         fallback line. All strings are built in Python; the renderer only
-         classifies + displays them. */
+      /* v8.14.0 Slice D: render the FULL pre-built teaching contract (What
+         villain did / Cue / Read / Confidence / Exploit now / Exploit future /
+         Do not over-adjust / Bounty / Tag suggestion), or the single fallback
+         line. All strings are built in Python; the renderer only classifies +
+         displays them. The Tag-suggestion line carries the Natural8 candidate
+         client tag; its trailing "(colour)" token drives a small colour swatch. */
       var _t=ctx.teaching;var _tp=[];
       _t.teach_lines.forEach(function(ln){
-        var cls='v25-teach-line';
-        if(_t.fallback){cls='v25-teach-weak';}
+        var cls='v25-teach-line';var attr='';
+        if(ln.indexOf('Tag suggestion:')===0){
+          /* styled (and colour-swatched) even on a fallback read, since
+             'Unsure / Tag-me-later' is itself the takeaway. */
+          cls='v25-teach-tag';
+          var _m=ln.match(/\(([a-z]+)\)\s*$/);
+          if(_m){attr=' data-tag-color="'+_m[1]+'"';}
+        }
+        else if(_t.fallback){cls='v25-teach-weak';}
         else if(ln.indexOf('Read:')===0){cls='v25-teach-head';}
-        else if(ln.indexOf('Avoid over-adjusting:')===0){cls='v25-teach-guard';}
+        else if(ln.indexOf('Confidence:')===0){cls='v25-teach-conf';}
+        else if(ln.indexOf('Do not over-adjust:')===0){cls='v25-teach-guard';}
         else if(ln.indexOf('Bounty:')===0){cls='v25-teach-pko';}
-        _tp.push('<div class="'+cls+'">'+_esc(ln)+'</div>');
+        _tp.push('<div class="'+cls+'"'+attr+'>'+_esc(ln)+'</div>');
       });
       var _td=document.createElement('div');_td.className='v25-teach';_td.innerHTML=_tp.join('');_bl.appendChild(_td);
     }
@@ -1553,16 +1567,29 @@ _MODAL_HTML = r"""
       var sTitle=document.createElement('div');sTitle.className='v25-street-title';
       sTitle.textContent=sName==='preflop'?'PRE-FLOP':sName.toUpperCase();
       sHead.appendChild(sTitle);
-      var sMeta=document.createElement('div');sMeta.className='v25-street-meta';
+      /* v8.14.0 Slice B: street context sits NEXT TO the street name as compact
+         readable chips (pot + hand/board-state), not tiny and far-right. Empty
+         state renders no blank chip. */
+      var sCtx=document.createElement('div');sCtx.className='v25-street-context';
       var potEl=th.querySelector('.pot');
       var texEl=th.querySelector('.board-tex');
       var drawEl=th.querySelector('.draw-profile');
-      var metaParts=[];
-      if(potEl)metaParts.push(clean(potEl.textContent));
-      if(texEl)metaParts.push(clean(texEl.textContent));
-      if(drawEl)metaParts.push(clean(drawEl.textContent));
-      sMeta.textContent=metaParts.join(' · ');
-      sHead.appendChild(sMeta);
+      var potTxt=potEl?clean(potEl.textContent):'';
+      if(potTxt){
+        var potChip=document.createElement('span');potChip.className='v25-pot-chip';
+        potChip.textContent=/pot/i.test(potTxt)?potTxt:(potTxt+' pot');
+        sCtx.appendChild(potChip);
+      }
+      var stateParts=[];
+      if(texEl){var _tx=clean(texEl.textContent);if(_tx)stateParts.push(_tx);}
+      if(drawEl){var _dr=clean(drawEl.textContent);if(_dr)stateParts.push(_dr);}
+      var stateTxt=stateParts.join(' · ');
+      if(stateTxt){
+        var stChip=document.createElement('span');stChip.className='v25-strength-chip';
+        stChip.textContent=stateTxt;
+        sCtx.appendChild(stChip);
+      }
+      if(sCtx.childNodes.length)sHead.appendChild(sCtx);
       section.appendChild(sHead);
       /* Street body: 3-column grid */
       var sBody=document.createElement('div');sBody.className='v25-street-body';
@@ -1788,6 +1815,111 @@ _MODAL_HTML = r"""
   window._queueJump=_queueJump;
   window._queuePrev=_queuePrev;
   window._queueNext=_queueNext;
+
+  /* ── v8.14.0 Slice C: Compact Hand Review Queue controller ────────────────
+     Operates on the server-rendered #review-queue rows (cards stay server-
+     rendered — same .card vocabulary). Partitions open vs reviewed from the
+     canonical review store, updates counts / top-N / celebratory state, and
+     opens a row in the EXISTING V25 modal with the FULL queue as
+     activeHandQueue so Prev/Next walks the whole queue, not the visible top-N. */
+  var _RQ_META={agree:['✅','Agree','agree'],debate:['🟡','Debate','debate'],
+    report_bug:['🐞','Bug','bug'],drill:['🎯','Drill','drill'],
+    rulebook:['📘','Rulebook','rulebook']};
+  function _rqNorm(raw){
+    var k=String(raw||'').trim().toLowerCase();
+    if(k==='report bug'||k==='bug')k='report_bug';
+    if(k==='clear'||k==='none'||k==='null')k='';
+    return _RQ_META[k]?k:'';
+  }
+  window.PBReviewQueue=(function(){
+    var FOLLOWUP={debate:1,report_bug:1,drill:1,rulebook:1};
+    function root(){return document.getElementById('review-queue');}
+    function _status(hid){
+      try{return _rqNorm((_readStore(normalizeHandId(hid))||{}).status);}catch(e){return '';}
+    }
+    function _openQueueFrom(hid){
+      var r=root();if(!r)return;
+      var ids=(r.getAttribute('data-queue-ids')||'').split(',').filter(Boolean);
+      var reasons={};
+      r.querySelectorAll('.rq-row').forEach(function(row){
+        var rd=row.getAttribute('data-hand-id');
+        var rt=row.querySelector('.rq-row-title');
+        reasons[rd]=(row.getAttribute('data-bucket')||'')+(rt&&rt.textContent?(' — '+rt.textContent):'');
+      });
+      var nid=normalizeHandId(hid);var idx=ids.indexOf(nid);
+      window.activeHandQueue={contextId:'review_queue',title:'Hands to open first',
+        sourceType:'review_queue',sourcePath:'Hands to open first',
+        handIds:ids.slice(),currentIndex:idx<0?0:idx,viewed:{},reasonByHand:reasons};
+      window.activeHandQueue.viewed[nid]=true;
+    }
+    function openRow(hid){if(!hid)return;_openQueueFrom(hid);openHand(hid);}
+    function refresh(){
+      var r=root();if(!r)return;
+      var topn=parseInt(r.getAttribute('data-topn')||'6',10)||6;
+      var showAll=r.getAttribute('data-showall')==='1';
+      var rows=Array.prototype.slice.call(r.querySelectorAll('.rq-list .rq-row'));
+      var open=[],reviewed=[],cats={agree:0,debate:0,report_bug:0,drill:0,rulebook:0};
+      rows.forEach(function(row){
+        var hid=row.getAttribute('data-hand-id');var st=_status(hid);
+        var stEl=row.querySelector('.rq-status');
+        if(st){reviewed.push({hid:hid,st:st});cats[st]=(cats[st]||0)+1;row.classList.add('is-reviewed');
+          if(stEl){stEl.className='rq-status status-pill '+_RQ_META[st][2];stEl.textContent=_RQ_META[st][0]+' '+_RQ_META[st][1];}
+        }else{open.push(row);row.classList.remove('is-reviewed');
+          if(stEl){stEl.className='rq-status';stEl.textContent='';}}
+      });
+      rows.forEach(function(row){row.style.display='none';});
+      var shown=0;
+      open.forEach(function(row){if(showAll||shown<topn){row.style.display='';shown++;}});
+      var follow=reviewed.filter(function(x){return FOLLOWUP[x.st];}).length;
+      var cEl=document.getElementById('rq-count');
+      if(cEl)cEl.textContent=open.length+' open · '+reviewed.length+' reviewed';
+      var sa=document.getElementById('rq-showall');
+      if(sa){if(open.length>topn){sa.hidden=false;sa.textContent=showAll?('Show top '+topn):('Show all '+open.length);}else{sa.hidden=true;}}
+      var fn=document.getElementById('rq-foot-note');
+      if(fn)fn.textContent=(open.length>shown&&!showAll)?('Showing top '+shown+' of '+open.length+' — Prev/Next in the modal walks the full queue.'):'';
+      var rev=document.getElementById('rq-reviewed');
+      if(rev){
+        if(reviewed.length){rev.hidden=false;
+          var lab=rev.querySelector('.rq-rev-label');
+          if(lab)lab.textContent='Reviewed ('+reviewed.length+') / follow-ups ('+follow+')';
+          var chips=document.getElementById('rq-revchips');
+          if(chips){var ch=[];['report_bug','debate','drill','rulebook','agree'].forEach(function(k){
+            if(cats[k])ch.push('<span class="rq-revchip '+_RQ_META[k][2]+'">'+_RQ_META[k][0]+' '+_RQ_META[k][1]+' '+cats[k]+'</span>');});
+            chips.innerHTML=ch.join('');}
+          var rl=document.getElementById('rq-reviewed-list');
+          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span><span class="rq-main"></span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
+        }else{rev.hidden=true;}
+      }
+      var win=document.getElementById('rq-empty-win');var list=document.getElementById('rq-list');
+      var cleared=(open.length===0&&rows.length>0);
+      if(win)win.hidden=!cleared;
+      if(list)list.style.display=cleared?'none':'';
+    }
+    function init(){
+      var r=root();if(!r)return;
+      r.addEventListener('click',function(e){
+        if(e.target.closest('#rq-showall')||e.target.closest('#rq-reviewed-head'))return;
+        var row=e.target.closest('.rq-row,.rq-rev-row');
+        if(row&&r.contains(row)){var hid=row.getAttribute('data-hand-id');if(hid)openRow(hid);}
+      });
+      r.addEventListener('keydown',function(e){
+        if(e.key!=='Enter'&&e.key!==' ')return;
+        var row=e.target.closest?e.target.closest('.rq-row,.rq-rev-row'):null;
+        if(row){e.preventDefault();var hid=row.getAttribute('data-hand-id');if(hid)openRow(hid);}
+      });
+      var sa=document.getElementById('rq-showall');
+      if(sa)sa.addEventListener('click',function(e){e.stopPropagation();
+        r.setAttribute('data-showall',r.getAttribute('data-showall')==='1'?'0':'1');refresh();});
+      var rh=document.getElementById('rq-reviewed-head');
+      if(rh)rh.addEventListener('click',function(e){e.stopPropagation();
+        var l=document.getElementById('rq-reviewed-list');if(!l)return;
+        var willOpen=l.hidden;l.hidden=!willOpen;rh.setAttribute('aria-expanded',willOpen?'true':'false');});
+      refresh();
+    }
+    return {init:init,refresh:refresh,openRow:openRow};
+  })();
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){window.PBReviewQueue.init();});}
+  else{window.PBReviewQueue.init();}
   function _queueBackToList(){
     var q=window.activeHandQueue;
     if(!q){closeHand();return;}
@@ -1983,7 +2115,7 @@ _MODAL_HTML = r"""
   /* V25: top bar hydration — robust extraction with multi-level fallback */
   function _hydrateV25TopBar(hid,mhEl){
     var titleEl=document.getElementById('hand-modal-title');
-    if(titleEl)titleEl.textContent='Hand '+hid;
+    if(titleEl)titleEl.textContent=hid;  /* "Hand" is now a static label chip */
     /* Hero cards — 4-level fallback chain */
     var cardsEl=document.getElementById('v25-top-cards');
     if(cardsEl){
@@ -2024,10 +2156,13 @@ _MODAL_HTML = r"""
           }
         }
       }
-      /* v8.12.5: verdict pill rides the top bar (Ron's v8.12.3 ask — hand
-         id + cards + BB result + verdict together). Clone it from the
-         hand's heading; remove any pill from a previous hydrate first. */
-      var oldPill=resultEl.parentNode.querySelector('.verdict-pill');
+      /* v8.12.5 / v8.14.0 Slice B: the system verdict rides the top bar next to
+         the BB result (hand id + cards + BB result + verdict together). Clone
+         the hand's verdict pill, restyle it readable-but-not-dominant
+         (.v25-top-verdict; color stays from .verdict-pill[data-verdict]), and
+         NEVER expose a raw Roman verdict code in user-facing copy (stripped
+         below). Remove any pill from a previous hydrate first. */
+      var oldPill=resultEl.parentNode.querySelector('.v25-top-verdict');
       if(oldPill)oldPill.remove();
       var srcPill=mhEl.querySelector('.verdict-pill');
       if(!srcPill){
@@ -2036,7 +2171,14 @@ _MODAL_HTML = r"""
         if(!srcArt)srcArt=document.querySelector("article.hand-detail-card[data-hand-id='"+hid+"']");
         if(srcArt)srcPill=srcArt.querySelector('.verdict-pill');
       }
-      if(srcPill)resultEl.parentNode.insertBefore(srcPill.cloneNode(true),resultEl.nextSibling);
+      if(srcPill){
+        var vClone=srcPill.cloneNode(true);
+        vClone.removeAttribute('id');
+        vClone.classList.add('v25-top-verdict');
+        vClone.textContent=clean(vClone.textContent)
+          .replace(/I{1,3}[.][0-9]+/g,'').replace(/[ ]{2,}/g,' ').trim();
+        resultEl.parentNode.insertBefore(vClone,resultEl.nextSibling);
+      }
     }
     /* Review status */
     var revEl=document.getElementById('v25-top-reviewed');
@@ -2045,7 +2187,9 @@ _MODAL_HTML = r"""
       if(saved&&saved.status){
         revEl.textContent=saved.status==='Agree'?'Reviewed':
                           saved.status==='Debate'?'Debate':
-                          saved.status==='Report bug'?'Bug':'';
+                          saved.status==='Report bug'?'Bug':
+                          saved.status==='Drill'?'Drill':
+                          saved.status==='Rulebook'?'Rulebook':'';
         revEl.style.display=saved.status?'':'none';
       }else{revEl.style.display='none';}
     }
@@ -2218,11 +2362,16 @@ _MODAL_HTML = r"""
     /* V25: sync top bar reviewed status */
     var revTopEl=document.getElementById('v25-top-reviewed');
     if(revTopEl){
-      revTopEl.textContent=st==='Agree'?'Reviewed':st==='Debate'?'Debate':st==='Report bug'?'Bug':'';
+      revTopEl.textContent=st==='Agree'?'Reviewed':st==='Debate'?'Debate':
+                           st==='Report bug'?'Bug':st==='Drill'?'Drill':
+                           st==='Rulebook'?'Rulebook':'';
       revTopEl.style.display=st?'':'none';
     }
     if(window._gemUpdCount)window._gemUpdCount();
     refreshReviewPanel();
+    /* v8.14.0 Slice C: re-partition the compact review queue (open vs reviewed)
+       and refresh its counts whenever a status changes. */
+    if(window.PBReviewQueue)window.PBReviewQueue.refresh();
     if(window.pbUpdateHandRefs)window.pbUpdateHandRefs(_curHid);
   }
   function setReviewed(hid){
@@ -5630,6 +5779,99 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .od-footer-note {{ margin: 8px 0 0; color: #64748b; font-size: 13px;
     border: 1px dashed var(--line); border-radius: 14px; padding: 10px 12px;
     background: #fbfdff; }}
+  /* ── v8.14.0 Slice C: Compact Hand Review Queue ── */
+  .rq-card {{ padding: 0; overflow: hidden; }}
+  .rq-head {{ display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }}
+  .rq-title {{ font-weight: 950; color: var(--brand, #1e3a8a); font-size: 15px; }}
+  .rq-sub {{ margin-top: 2px; font-size: 12px; color: #64748b; }}
+  .rq-count {{ border-radius: 999px; border: 1px solid #facc15; background: #fffbeb;
+    color: #92400e; font-weight: 900; font-size: 12px; padding: 5px 9px; white-space: nowrap; }}
+  .rq-priority {{ display: flex; gap: 5px; align-items: center; overflow-x: auto;
+    padding: 8px 14px; border-bottom: 1px solid #eef2f7; background: #fffdf4; }}
+  .rq-priority-label {{ font-size: 11px; font-weight: 950; color: #92400e; white-space: nowrap; }}
+  .rq-bcount {{ font-size: 11px; font-weight: 850; padding: 3px 7px; border: 1px solid #fde68a;
+    background: #fff7cc; color: #92400e; border-radius: 999px; white-space: nowrap; }}
+  .rq-list {{ display: grid; }}
+  .rq-row {{ display: grid; grid-template-columns: 26px auto auto auto minmax(0,1fr) auto auto;
+    gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eef2f7;
+    cursor: pointer; min-height: 44px; }}
+  .rq-row:hover {{ background: #f8fafc; }}
+  .rq-row:focus-visible {{ outline: 2px solid var(--brand2, #2563eb); outline-offset: -2px; }}
+  .rq-rank {{ width: 24px; height: 24px; border-radius: 999px; background: #eef2ff;
+    color: #1e3a8a; display: grid; place-items: center; font-size: 12px; font-weight: 950; }}
+  .rq-hid {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #eef2ff; color: #1e40af; border: 1px solid #c7d2fe; border-radius: 999px;
+    padding: 2px 7px; font-weight: 950; font-size: 12px; white-space: nowrap; }}
+  .rq-row .handcards {{ display: inline-flex; gap: 3px; white-space: nowrap; }}
+  .rq-row .reason {{ border-radius: 999px; border: 1px solid #fed7aa; background: #fff7ed;
+    color: #9a3412; padding: 3px 7px; font-size: 11px; font-weight: 850; white-space: nowrap; }}
+  .rq-row .reason-punt {{ background: #fef2f2; color: #991b1b; border-color: #fecaca; }}
+  .rq-row .reason-analyst_mistake {{ background: #fff1f2; color: #9f1239; border-color: #fecdd3; }}
+  .rq-row .reason-known_leak {{ background: #eef2ff; color: #1e40af; border-color: #c7d2fe; }}
+  .rq-row .reason-auto_clear {{ background: #f0fdf4; color: #166534; border-color: #bbf7d0; }}
+  .rq-row .reason-marginal {{ background: #f8fafc; color: #475569; border-color: #e2e8f0; }}
+  .rq-main {{ min-width: 0; }}
+  .rq-row-title {{ font-weight: 800; font-size: 13px; color: #0f172a; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; display: block; }}
+  .rq-row .bb-pill {{ display: inline-flex; align-items: center; border-radius: 5px;
+    padding: 1px 6px; font-size: 12px; font-weight: 950; white-space: nowrap; }}
+  .rq-row .bb-pill.neg {{ background: #fee2e2; color: #991b1b; }}
+  .rq-row .bb-pill.pos {{ background: #dcfce7; color: #166534; }}
+  .rq-row .bb-pill.neu {{ background: #f1f5f9; color: #475569; }}
+  .rq-status {{ font-size: 11px; font-weight: 900; white-space: nowrap; justify-self: end; }}
+  .status-pill {{ display: inline-flex; align-items: center; gap: 4px; border-radius: 999px;
+    border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 2px 8px;
+    font-size: 11px; font-weight: 900; white-space: nowrap; }}
+  .status-pill.agree {{ background: #ecfdf3; color: #166534; border-color: #bbf7d0; }}
+  .status-pill.bug {{ background: #fef2f2; color: #991b1b; border-color: #fecaca; }}
+  .status-pill.debate {{ background: #fffbeb; color: #92400e; border-color: #fde68a; }}
+  .status-pill.drill {{ background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }}
+  .status-pill.rulebook {{ background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }}
+  .rq-row.is-reviewed {{ background: #fbfdff; }}
+  .rq-reviewed {{ border-top: 1px solid #eef2f7; }}
+  .rq-reviewed-head {{ width: 100%; text-align: left; border: 0; background: #f8fafc;
+    cursor: pointer; padding: 9px 14px; font: inherit; font-size: 12px; font-weight: 900;
+    color: #334155; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+  .rq-rev-label {{ white-space: nowrap; }}
+  .rq-revchips {{ display: inline-flex; gap: 5px; flex-wrap: wrap; }}
+  .rq-revchip {{ display: inline-flex; align-items: center; gap: 4px; border-radius: 999px;
+    padding: 2px 7px; font-size: 11px; font-weight: 850; border: 1px solid #e2e8f0; background: #fff; }}
+  .rq-revchip.bug {{ background: #fef2f2; color: #991b1b; border-color: #fecaca; }}
+  .rq-revchip.agree {{ background: #ecfdf3; color: #166534; border-color: #bbf7d0; }}
+  .rq-revchip.debate {{ background: #fffbeb; color: #92400e; border-color: #fde68a; }}
+  .rq-revchip.drill {{ background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }}
+  .rq-revchip.rulebook {{ background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }}
+  .rq-reviewed-list {{ display: grid; }}
+  .rq-rev-row {{ display: grid; grid-template-columns: 26px auto minmax(0,1fr) auto; gap: 8px;
+    align-items: center; width: 100%; text-align: left; border: 0; background: #fff;
+    border-top: 1px solid #f1f5f9; cursor: pointer; padding: 7px 14px; font: inherit; }}
+  .rq-rev-row:hover {{ background: #f8fafc; }}
+  .rq-empty-win {{ padding: 18px 14px; text-align: center;
+    background: linear-gradient(180deg,#ffffff,#f0fdf4); }}
+  .rq-trophy {{ font-size: 26px; }}
+  .rq-win-title {{ font-weight: 950; color: #166534; margin-top: 2px; }}
+  .rq-win-sub {{ color: #475569; font-size: 12px; }}
+  .rq-footer {{ display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 9px 14px; background: #f8fafc; }}
+  .rq-foot-note {{ font-size: 12px; color: #475569; }}
+  .rq-showall {{ border: 1px solid #c7d2fe; background: #eef2ff; color: #1e40af;
+    border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px;
+    font-weight: 900; cursor: pointer; }}
+  .rq-showall:hover {{ background: #dbeafe; }}
+  @media(max-width:620px){{
+    .rq-row {{ grid-template-columns: 22px auto minmax(0,1fr) auto;
+      grid-template-areas: "rank hid main bb" "rank cards main status"; gap: 5px 6px;
+      padding: 9px 10px; min-height: 52px; }}
+    .rq-row .rq-rank {{ grid-area: rank; }}
+    .rq-row .rq-hid {{ grid-area: hid; justify-self: start; }}
+    .rq-row .handcards {{ grid-area: cards; }}
+    .rq-row .reason {{ display: none; }}
+    .rq-row .rq-main {{ grid-area: main; }}
+    .rq-row .bb-pill {{ grid-area: bb; justify-self: end; }}
+    .rq-row .rq-status {{ grid-area: status; justify-self: end; }}
+    .rq-row-title {{ white-space: normal; }}
+  }}
   @media(max-width:980px){{
     .od-row {{ grid-template-columns: 1fr !important; }}
     .opening-metric-grid {{ grid-template-columns: repeat(3, 1fr) !important; }}
@@ -5697,6 +5939,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     color: #92400e; }}
   .verdict-chip.verdict-bug.active {{ background: #fef2f2; border-color: #fecaca;
     color: #991b1b; }}
+  /* v8.14.0 Slice C: Drill + Rulebook review statuses */
+  .verdict-chip.verdict-drill.active {{ background: #eff6ff; border-color: #bfdbfe;
+    color: #1d4ed8; }}
+  .verdict-chip.verdict-rulebook.active {{ background: #f5f3ff; border-color: #ddd6fe;
+    color: #6d28d9; }}
   .verdict-clear {{ border: 0; background: transparent; color: #64748b;
     text-decoration: underline; text-underline-offset: 3px; font-weight: 700;
     cursor: pointer; padding: 6px 4px; font-family: inherit; font-size: 0.82em; }}
@@ -5805,6 +6052,19 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-guard {{ color: #92400e; margin-top: 2px; }}
   .v25-teach-pko {{ color: #1e3a5f; margin-top: 2px; }}
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
+  /* v8.14.0 Slice D: confidence line + Natural8 candidate-tag swatch */
+  .v25-teach-conf {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  .v25-teach-tag {{ margin-top: 3px; font-weight: 600; color: #334155;
+    border-left: 3px solid #cbd5e1; padding-left: 6px; }}
+  .v25-teach-tag[data-tag-color="red"] {{ border-left-color: #dc2626; color: #991b1b; }}
+  .v25-teach-tag[data-tag-color="purple"] {{ border-left-color: #7c3aed; color: #5b21b6; }}
+  .v25-teach-tag[data-tag-color="brown"] {{ border-left-color: #92400e; color: #78350f; }}
+  .v25-teach-tag[data-tag-color="orange"] {{ border-left-color: #ea580c; color: #9a3412; }}
+  .v25-teach-tag[data-tag-color="pink"] {{ border-left-color: #db2777; color: #9d174d; }}
+  .v25-teach-tag[data-tag-color="blue"] {{ border-left-color: #2563eb; color: #1e40af; }}
+  .v25-teach-tag[data-tag-color="cyan"] {{ border-left-color: #0891b2; color: #155e75; }}
+  .v25-teach-tag[data-tag-color="lime"] {{ border-left-color: #65a30d; color: #3f6212; }}
+  .v25-teach-tag[data-tag-color="yellow"] {{ border-left-color: #ca8a04; color: #854d0e; }}
   .coaching-analyst_learning {{ border: 1px solid #c084fc; }}
   .cb-header.cb-learning {{ background: #faf5ff; color: #6b21a8; border-bottom: 1px solid #c084fc; }}
   .cb-analyst {{ padding: 8px 12px; font-size: 12px; background: #f0f9ff;
@@ -5892,10 +6152,26 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     border-radius: 22px 22px 0 0; flex-shrink: 0; }}
   .v25-top-identity {{ display: flex; align-items: center; gap: 10px;
     min-width: 0; overflow: hidden; }}
-  .v25-top-hid {{ margin: 0; font-size: 15px; line-height: 1.05; white-space: nowrap; color: #fff; }}
-  .v25-top-cards .card {{ font-size: 15px; min-width: 30px; padding: 2px 7px; }}
+  /* v8.14.0 Slice B: "Hand" label + id are one clean cluster (same size +
+     line-height); every top-bar chip uses line-height:1 so the verdict pill
+     does not create a row-height jump. */
+  .v25-top-hand-label {{ margin: 0; font-size: 15px; line-height: 1; font-weight: 900;
+    color: #f5d75e; white-space: nowrap; align-self: center; }}
+  .v25-top-hid {{ margin: 0; font-size: 15px; line-height: 1; font-weight: 900;
+    white-space: nowrap; color: #fff; align-self: center; }}
+  .v25-top-cards .card {{ font-size: 15px; min-width: 30px; padding: 2px 7px;
+    line-height: 1; align-self: center; }}
   .v25-top-result {{ display: inline-flex; align-items: center; border-radius: 999px;
-    padding: 4px 9px; font-size: 12px; font-weight: 950; white-space: nowrap; }}
+    padding: 4px 9px; font-size: 12px; font-weight: 950; line-height: 1;
+    white-space: nowrap; align-self: center; }}
+  /* v8.14.0 Slice B: system verdict readable but NOT dominant. Size/height from
+     here (2-class selector wins over .verdict-pill's 0.55em); color stays from
+     .verdict-pill[data-verdict=...] (class+attr, higher specificity). */
+  .v25-top-identity .v25-top-verdict {{ display: inline-flex; align-items: center;
+    gap: 6px; min-height: 28px; padding: 5px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 900; line-height: 1; letter-spacing: .4px;
+    text-transform: uppercase; white-space: nowrap; align-self: center;
+    vertical-align: middle; }}
   .v25-top-result.good {{ background: #dcfce7; color: #166534; border: 1px solid #86efac; }}
   .v25-top-result.bad {{ background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }}
   /* GAP-15: neutral result pill */
@@ -5985,16 +6261,28 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     /* P1-2: scroll-margin keeps street header visible below sticky topbar+queue */
     scroll-margin-top: calc(var(--v25-topbar-h) + var(--v25-queue-h) + 8px); }}
   .v25-street-nav {{ display: none !important; }}
+  /* v8.14.0 Slice B: street context sits NEXT TO the title (flex row), not in a
+     tiny far-right grid cell. Wraps cleanly under the title on narrow screens.
+     Sticky behavior unchanged. */
   .v25-street-head {{ background: #121832; color: #fff; padding: 10px 12px;
-    display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px;
-    align-items: center; border-radius: 17px 17px 0 0;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border-radius: 17px 17px 0 0;
     position: sticky !important;
     top: calc(var(--v25-topbar-h, 58px) + var(--v25-queue-h, 0px)) !important;
     z-index: 70 !important;
     box-shadow: 0 3px 12px rgba(15,23,42,.22) !important; }}
-  .v25-street-title {{ font-size: 15px; font-weight: 1000; color: #f5d75e;
-    letter-spacing: .04em; }}
-  .v25-street-meta {{ font-size: 12px; color: #94a3b8; text-align: right; }}
+  .v25-street-title {{ flex: 0 0 auto; font-size: 15px; font-weight: 1000;
+    color: #f5d75e; letter-spacing: .04em; line-height: 1; }}
+  .v25-street-context {{ display: flex; align-items: center; gap: 8px;
+    min-width: 0; flex-wrap: wrap; }}
+  .v25-pot-chip, .v25-strength-chip {{ display: inline-flex; align-items: center;
+    border-radius: 999px; font-size: 12px; font-weight: 800; line-height: 1.25;
+    padding: 5px 10px; }}
+  .v25-pot-chip {{ color: #e5e7eb; border: 1px solid rgba(226,232,240,.45);
+    background: rgba(15,23,42,.35); white-space: nowrap; }}
+  .v25-strength-chip {{ color: #fff; border: 1px solid rgba(147,197,253,.65);
+    background: rgba(29,78,216,.75); white-space: normal; }}
+  .v25-street-meta {{ font-size: 12px; color: #94a3b8; }}
   .v25-street-body {{ padding: 12px; display: grid; gap: 10px; }}
   .v25-section {{ background: #f8fbff; border: 1px solid #e1e8f6;
     border-radius: 14px; padding: 11px; min-width: 0; }}
@@ -6124,7 +6412,13 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   /* ---- V25 mobile overrides ---- */
   @media(max-width:768px){{
     .v25-panel {{ inset: 0; border-radius: 0; }}
-    .v25-topbar {{ border-radius: 0; }}
+    /* v8.14.0 Slice B: top identity + street header WRAP cleanly on mobile
+       (no horizontal overflow; pills stay readable but compact). */
+    .v25-topbar {{ border-radius: 0; min-height: 0; }}
+    .v25-top-identity {{ flex-wrap: wrap; overflow: visible; row-gap: 6px; }}
+    .v25-top-hand-label {{ font-size: 13px; }}
+    .v25-top-identity .v25-top-verdict {{ font-size: 11px; min-height: 24px; padding: 4px 9px; }}
+    .v25-pot-chip, .v25-strength-chip {{ font-size: 11px; padding: 4px 8px; }}
     .v25-street-body {{ grid-template-columns: 1fr; padding: 10px; gap: 9px; }}
     .v25-top-hid {{ font-size: 13px; }}
     .v25-top-cards .card {{ font-size: 11.5px; }}

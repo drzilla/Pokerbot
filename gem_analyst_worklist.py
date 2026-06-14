@@ -28,9 +28,14 @@ BUCKETS = ('must_review', 'review_if_time', 'aggregate_only',
            'auto_clear', 'drill_candidate')
 
 # Candidate buckets we read, in rough descending review value.
+# v8.13.1 P1: the two loss-coverage screens are appended LAST so a hand that is
+# already a punt/mistake/cooler/bust keeps its richer classification (first ctx
+# wins in dedup), while a hand that reached the worklist ONLY via a loss screen
+# is still force-reviewed via _classify's screen branch.
 _SOURCE_BUCKETS = ('punts', 'mistakes', 'all_in_review', 'big_river_calldowns',
                    'coolers', 'iii4_screening', 'read_dependent_screening',
-                   'bust_audit', 'bestplay_screening', 'blindspot_sample')
+                   'bust_audit', 'bestplay_screening', 'blindspot_sample',
+                   'biggest_loss_screen', 'postflop_loss_screen')
 
 _RANK_VAL = {r: i for i, r in enumerate('23456789TJQKA', 2)}
 
@@ -329,6 +334,45 @@ def _decision_effective_bb(c):
     return round(hero, 1)
 
 
+# v8.13.1 P1: short-shove depth. At or below this EFFECTIVE stack a preflop jam
+# is standard short-stack shove territory, NOT a "deep overjam". A verdict that
+# claims a deep overjam while the effective stack is this short is almost always
+# confusing Hero's TOTAL stack with the effective stack vs live opponents
+# (2026-06-13: Q8s SB jam, total 33.6BB / effective vs BB 18.0BB, was falsely
+# flagged a 34BB overjam).
+SHORT_SHOVE_MAX_BB = 25.0
+
+
+def effective_stack_safety(hero_total_bb, eff_vs_opponents_bb, overjam_bb=None):
+    """Pure / testable. Any shove / overjam / sizing-leak verdict must display
+    Hero's TOTAL stack, the EFFECTIVE stack vs live opponents, and the depth the
+    decision is evaluated at. Returns:
+      {'hero_total_bb', 'effective_vs_opponents_bb', 'eval_depth_bb',
+       'safety_line', 'warn'}
+    eval_depth_bb is the EFFECTIVE stack (what the decision MUST be evaluated
+    at). warn is True when a deep overjam is claimed at short-shove depth — the
+    signal of total-vs-effective confusion."""
+    total = _f(hero_total_bb)
+    eff = _f(eff_vs_opponents_bb)
+    oj = _f(overjam_bb)
+    depth = eff if eff > 0 else total
+    warn = bool(oj and oj > 0 and 0 < eff <= SHORT_SHOVE_MAX_BB)
+    if total and eff and total > eff + 0.5:
+        safety_line = (f"Hero stack {total:.1f}BB; effective vs live opponents "
+                       f"{eff:.1f}BB -> evaluate as {eff:.0f}BB shove, not "
+                       f"{total:.0f}BB overjam.")
+    elif eff:
+        safety_line = (f"Hero stack {total:.1f}BB; effective vs live opponents "
+                       f"{eff:.1f}BB (equal) -> evaluate at {eff:.0f}BB.")
+    else:
+        safety_line = ''
+    return {'hero_total_bb': round(total, 1) if total else None,
+            'effective_vs_opponents_bb': round(eff, 1) if eff else None,
+            'eval_depth_bb': round(depth, 1) if depth else None,
+            'safety_line': safety_line,
+            'warn': warn}
+
+
 def _decision_node(c, kind=None, dev=None, hand=None):
     dm = c.get('decision_math') or {}
     preflop = _is_preflop_kind(kind)
@@ -395,6 +439,26 @@ def _decision_node(c, kind=None, dev=None, hand=None):
                 'players_behind': None, 'closing_action': closing,
             }
             node.update(szf)
+            # v8.13.1 P1: any shove/overjam/sizing verdict must DISPLAY Hero
+            # total stack, the effective stack vs live opponents, and the eval
+            # depth — and WARN when a deep overjam is claimed at short-shove
+            # depth (the total-vs-effective confusion that mislabelled Q8s).
+            _ess = effective_stack_safety(
+                c.get('stack_bb'),
+                szf.get('decision_effective_bb') or eff,
+                szf.get('overjam_bb'))
+            node['hero_total_bb'] = _ess['hero_total_bb']
+            node['effective_vs_opponents_bb'] = _ess['effective_vs_opponents_bb']
+            node['eval_depth_bb'] = _ess['eval_depth_bb']
+            node['eff_stack_safety_line'] = _ess['safety_line']
+            node['eff_stack_warn'] = _ess['warn']
+            if _ess['warn']:
+                import sys as _sys_es
+                print(f"  WARNING EFF-STACK: Hand {c.get('id')} overjam "
+                      f"{szf.get('overjam_bb')}BB claimed at effective "
+                      f"{_ess['effective_vs_opponents_bb']}BB "
+                      f"(<= {SHORT_SHOVE_MAX_BB:.0f}BB short-shove) — verify "
+                      f"Hero total vs effective.", file=_sys_es.stderr)
             return node
         # no ledger -> fall through to the generic logic (uses first_in etc.)
 
@@ -749,6 +813,18 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
                 [], "Confirm this is a structural cooler, not a leak.",
                 "Cooler — both players committed strong; review only for "
                 "closure.", 'cooler', 20)
+
+    # --- v8.13.1 P1: loss-coverage screens (force-review, NOT auto-mistake) -
+    # A hand that reached the worklist ONLY via a loss screen (biggest-loss or
+    # postflop-loss) and was not classified above must still be cleared or
+    # classified by the analyst — that is the 2026-06-13 gap (significant
+    # losses absent from the worklist). It is a coverage rule, not a verdict.
+    if c.get('screen_reason'):
+        return ('must_review', 'Review required', 'medium', 'analyst_required',
+                ['loss may be variance, not a leak'],
+                f"{cards} {pos}: clear as variance or name the leak.",
+                c.get('screen_reason'),
+                'loss_screen', 58)
 
     # --- postflop / river calldowns + leftover candidates ----------------
     if c.get('went_to_sd') and not c.get('pf_allin') and _f(c.get('net_bb')) < -8:

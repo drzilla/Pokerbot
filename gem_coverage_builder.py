@@ -53,6 +53,63 @@ def _is_core_push(hs, pos, stack_bb):
     return is_core, pr
 
 
+# v8.13.1 P1: postflop-loss coverage threshold. Single configurable point —
+# a hand that lost at least this many BB postflop is force-screened into the
+# worklist so ANALYST_COMPLETE cannot be claimed while it is unreviewed.
+POSTFLOP_LOSS_SCREEN_BB = -15.0
+
+
+def _reached_flop_h(h):
+    """True iff Hero saw a flop (had a postflop decision). Board is a list of
+    community cards; a showdown also implies postflop. Used to exclude
+    preflop-only losses from the postflop-loss screen."""
+    b = h.get('board') or []
+    if isinstance(b, (list, tuple)):
+        n = len(b)
+    else:
+        n = len(str(b).replace(' ', '')) // 2
+    return n >= 3 or bool(h.get('went_to_sd'))
+
+
+def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_BB):
+    """v8.13.1 P1 (analyst-coverage trust): force critical-loss hands into the
+    review set. Pure + testable — returns id lists, no rendering / no candidate
+    context. Two coverage screens (NOT mistake detectors):
+
+      biggest_loss_screen   — every stack_trajectories[*].biggest_loss_id that
+                              is an actual loss (the 2026-06-13 gap: a
+                              per-tournament biggest loss, TM6072806503, was
+                              absent from the worklist though correctly cleared
+                              on manual review).
+      postflop_loss_screen  — every hand with net_bb <= threshold that reached
+                              the flop and was NOT a preflop all-in (the
+                              missing -40/-26/-19BB postflop losses).
+
+    A hand is screened into at most one bucket (biggest-loss wins) so the
+    worklist does not double-count it.
+    """
+    hands_by_id = {h.get('id'): h for h in (hands or [])}
+    seen, biggest, postflop = set(), [], []
+    for _tid, _traj in (stats.get('stack_trajectories', {}) or {}).items():
+        blid = (_traj or {}).get('biggest_loss_id')
+        h = hands_by_id.get(blid)
+        if not blid or blid in seen or not h or (h.get('net_bb') or 0) >= 0:
+            continue
+        seen.add(blid)
+        biggest.append(blid)
+    for h in (hands or []):
+        hid = h.get('id')
+        if not hid or hid in seen or h.get('pf_allin'):
+            continue
+        if (h.get('net_bb') or 0) > postflop_threshold_bb:   # threshold is negative
+            continue
+        if not _reached_flop_h(h):
+            continue
+        seen.add(hid)
+        postflop.append(hid)
+    return {'biggest_loss_screen': biggest, 'postflop_loss_screen': postflop}
+
+
 def build_and_write(stats, hands, report_data, pname_file, session_dir,
                     ranges=None, timing=None):
     """Build analyst candidates, auto-verdicts, worksheet. Mutates report_data in place.
@@ -87,6 +144,9 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         'read_dependent_screening': [],
         'bestplay_screening': [],
         'big_river_calldowns': [],
+        # v8.13.1 P1: coverage screens — force critical-loss hands into review.
+        'biggest_loss_screen': [],
+        'postflop_loss_screen': [],
     }
     hands_by_id = {h.get('id'): h for h in hands}
     # Build EAI lookup BEFORE _hand_ctx (hero_realized_eq_at_allin needs it)
@@ -1461,12 +1521,28 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
                                     f'inside push range, ran into top of calling range '
                                     f'({_eq_av*100:.0f}% equity). Standard push, lost to variance.',
                                     'III.5')}
+                # v8.13.1 P1 (verdict-contradiction): only assert chart
+                # membership when it was actually resolved. When _in_push is
+                # None the engine could not place the hand in a push chart, so
+                # the auto TL;DR must NOT claim "inside the push range" — that
+                # false claim is what contradicted the hand-grid push widget on
+                # 2026-06-13 (KJo UTG+1: TL;DR "inside push range / standard"
+                # vs widget "outside PUSH_10BB_UTG+1").
+                if _in_push is True:
+                    _r2_push_arg = (
+                        f'Short-stack open-shove ({_cards} {_pos} {_stack:.0f}BB) '
+                        f'inside the push range — standard, result is variance.')
+                else:
+                    _r2_push_arg = (
+                        f'Short-stack open-shove ({_cards} {_pos} {_stack:.0f}BB) '
+                        f'— standard by stack depth, but push-chart membership is '
+                        f'unresolved; verify against the nearest chart before '
+                        f'treating it as automatic.')
                 return {'verdict': 'III.5 Justified', 'outcome': 'standard_push',
-                        'confidence': 'HIGH', 'auto_rule': 'R2_open_shove_push',
-                        'argument': _build_math_argument(
-                            f'Short-stack open-shove ({_cards} {_pos} {_stack:.0f}BB) '
-                            f'inside the push range — standard, result is variance.',
-                            'III.5')}
+                        'confidence': 'HIGH' if _in_push is True else 'MEDIUM',
+                        'auto_rule': 'R2_open_shove_push',
+                        'membership_resolved': _in_push is True,
+                        'argument': _build_math_argument(_r2_push_arg, 'III.5')}
 
             # R3/R4: 3-bet jammer — eq splits flip vs cooler
             if _role == 'threebet_jam':
@@ -2253,6 +2329,26 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
           f"{len(candidates['read_dependent_screening'])} read-dep screening + "
           f"{len(candidates['bestplay_screening'])} bestplay screening + "
           f"{_n_bs} blindspot sample)")
+
+    # ── v8.13.1 P1: coverage screens (biggest-loss + postflop-loss). These are
+    #    COVERAGE rules, not mistake detectors — each screened hand must be
+    #    cleared or classified by the analyst, and gates ANALYST_COMPLETE.
+    _screens = build_loss_screens(stats, hands)
+    for _blid in _screens['biggest_loss_screen']:
+        _bctx = _hand_ctx(_blid)
+        _bctx['screen_reason'] = 'Per-tournament biggest loss; must clear or classify.'
+        candidates['biggest_loss_screen'].append(_bctx)
+    for _plid in _screens['postflop_loss_screen']:
+        _pctx = _hand_ctx(_plid)
+        _net_pl = (hands_by_id.get(_plid, {}) or {}).get('net_bb', 0) or 0
+        _pctx['screen_reason'] = (
+            f'Postflop loss {_net_pl:.0f}BB (<= {POSTFLOP_LOSS_SCREEN_BB:.0f}BB); '
+            'must clear or classify.')
+        candidates['postflop_loss_screen'].append(_pctx)
+    report_data['loss_screen_counts'] = {
+        'biggest_loss_screen': len(candidates['biggest_loss_screen']),
+        'postflop_loss_screen': len(candidates['postflop_loss_screen']),
+    }
 
     # v7.60: surface the read-dependent screener output to the renderer so
     # the flagged calls are visible in III.4 this session (awaiting analyst

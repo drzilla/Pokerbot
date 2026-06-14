@@ -1148,21 +1148,22 @@ def _emit_iii_clinical_picks(doc, s, rd, hands):
         doc.w("*Bounty-format BB defense spots where GTOWizard PKO aggregates "
               "differ from Classic/ICM. Counts are clickable. **Missed** = "
               "Hero folded where the Classic chart says defend (chart-backed). "
-              "**Too wide** = Hero continued and the Classic detector says too "
-              "loose. **Review** = aggregate PKO pressure marks a study spot — "
+              "**Wrong** (too wide) = Hero continued and the Classic detector "
+              "says too loose. **Review** = aggregate PKO pressure marks a study spot — "
               "NOT a confirmed mistake. Deltas are quoted as ranges because "
               "they are stack-set dependent; small samples are drill cues, "
               "not frequency reads.*")
         doc.w("")
         _trows = pr.get('teaching_rows', []) or []
         if _trows:
-            # v8.12.0b (Ron review): compact 7-column layout — one row per
-            # research bucket, dims folded into the Spot cell, Missed+Too wide
-            # merged into one Flagged column (both are rare), Good/Action-mix
-            # folded into the drill cue. Δ shown as relative % of the Classic
-            # defend rate where that baseline was recorded.
-            doc.w("| Spot | PKO Δ | Seen | Actual | Flagged | Review | Drill cue |")
-            doc.w("|---|---|---|---|---|---|---|")
+            # v8.14.0 Slice E rev-2 (GPT Blocker 3): renamed Spot -> Opportunity
+            # and split the old merged "Flagged" into explicit Wrong (continued
+            # too loose) + Missed (folded a chart defend). Counts stay the
+            # clickable control (no separate "Hands" column). Review kept — it is
+            # the dominant PKO bucket and must keep its own clickable count.
+            doc.w("| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed | "
+                  "Review | Drill cue |")
+            doc.w("|---|---|---|---|---|---|---|---|")
             for _r in _trows:
                 _rng = _r.get('delta_range_pp', [0, 0])
                 _base = _r.get('classic_defend_pct')
@@ -1183,18 +1184,16 @@ def _emit_iii_clinical_picks(doc, s, rd, hands):
                     return _rcc(len(_c[col]), _c[col],
                                 "PKO BB Defense → " + _r['spot'] + " → "
                                 + _r['depth'] + " → " + col)
-                _flag_ids = _c['Missed'] + _c['Too wide']
-                _flag_cell = _rcc(len(_flag_ids), _flag_ids,
-                                  "PKO BB Defense → " + _r['spot']
-                                  + " → Flagged (Missed + Too wide)")
                 _cue = str(_r.get('drill_cue', ''))
                 _mix = str(_r.get('action_mix', 'n/r'))
                 if _mix and _mix != 'n/r':
                     _cue = (_cue + ' · ' if _cue else '') + _mix
+                # Wrong = Too wide (continued too loose); Missed = folded a chart
+                # defend; each count is its own clickable hand-list trigger.
                 doc.w("| " + _spot_cell + " | " + _dtxt + " | "
                       + _t('Seen') + " | " + _t('Actual') + " | "
-                      + _flag_cell + " | " + _t('Review') + " | "
-                      + _cue + " |")
+                      + _t('Too wide') + " | " + _t('Missed') + " | "
+                      + _t('Review') + " | " + _cue + " |")
             doc.w("")
             doc.w("*Relative % is shown where the Classic defend baseline was "
                   "recorded (3 buckets); the remaining baselines are queued "

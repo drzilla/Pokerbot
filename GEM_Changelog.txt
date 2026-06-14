@@ -1,3 +1,254 @@
+v8.14.0 (2026-06-14) -- FINAL combined release (Slices A-E)
+=========================================================================
+Consolidates the v8.14.0 train. Every slice below passed an independent GPT
+review before commit; this is the final version bump (preview -> v8.14.0) for the
+combined release-candidate smoke. No code changes vs the committed slice tips —
+only the VERSION/BUNDLE_VERSION bump + this header.
+
+Slices (commit tips on feature/analyst-coverage-trust-v8131):
+  A  39c949c  Analyst coverage + verdict-contradiction trust gates (was
+              v8.13.1-preview; folded into the v8.14.0 train)
+  B  6201872  V25 hand-detail modal polish (readable top-bar verdict chip,
+              street context chips)
+  C  05efcdb  Compact Hand Review Queue (prioritized rows -> V25 modal, full
+              queue Prev/Next, Drill/Rulebook statuses)
+  D  568aa7e  Villain Exploitation v2 (8-field teaching contract + Natural8
+              candidate tag mapper; no-hindsight preserved)
+  E  45c8a9f  PKO trust + copy clarity (rendered Bounty-trust strip with
+              threshold reconciliation + contradiction downgrade; table rename;
+              cEV/BB-100 gloss)
+
+State: verify 39/39 files, 340 canaries, 10 anti; tests 1042/1042; bundle
+v8.14.0; clean-extract smoke PASS. RELEASE CANDIDATE — not merged / pushed /
+tagged / in Claude Chat; awaiting final GPT smoke sign-off. Per-slice detail
+(marked "-preview" during development) follows below.
+
+Known follow-ups (not in v8.14.0): on-page PKO overjam chips (needs analyst-
+worklist effective-stack/overjam facts merged into report_data — helper is
+render-ready; do NOT re-derive in the renderer); villain per-villain evidence
+SUMMARY table rendering (data built as teaching_summary, not yet rendered);
+optional 7-column PKO opportunity table; v8.12.12 Slice I summary-card coherence.
+
+
+v8.14.0-preview (2026-06-14) -- Slice E: PKO v2 trust + copy clarity
+=========================================================================
+REV-2 (GPT review): the trust helper is now wired into the REAL rendered report
+path, not helper-only. (1) NEW gem_pko_research.pko_trust_render() re-reconciles
+the stamped pko_context cover facts WITH the per-hand pot-odds facts (chip-only
+vs PKO-adjusted threshold, discount, $ bounty, overjam) and DOWNGRADES a
+confident PKO classification (Good/Missed/Too wide) to "Review" on a trust
+contradiction. (2) sections_xiv.py PKO pill calls it with the in-scope pot-odds
+(_po) facts, so the on-page "Bounty trust:" strip now shows the threshold
+reconciliation (e.g. "Chip-only call needs 35%; PKO-adjusted needs ~29%") and an
+all-in overjam line when present; a contradiction renders "⚠️ ... PKO trust check
+failed" instead of a confident verdict. (3) GPT Blocker 3: PKO opportunity table
+header renamed Spot->Opportunity and the merged "Flagged" split into explicit
+"Wrong" (continued too loose) + "Missed" (folded a chart defend); the dominant
+"Review" column is kept with its clickable count (no separate Hands column). +4
+render-fixture tests (T-PKOE-15..18); T-PKOE-10/11 + T-V8120B-5 updated -> 1042.
++3 canaries -> 340. Overjam is helper-complete + render-ready + proven, but the
+BB-defend PKO pill has no render-reachable overjam source (it lives in the
+separate analyst_worklist JSON), so on-page overjam awaits the worklist->report
+merge (documented follow-up). Rest of the entry below is rev-1.
+
+Makes PKO bounty decisions trustworthy and easy to read, and glosses the worst
+dense unit copy. No new detector; no strategy-logic change; no report redesign.
+Most PKO surfacing already existed (bounty $X ≈ YBB + estimate fallback, concrete
+cover/collectibility labels, chip-vs-PKO-adjusted threshold, clickable count-cell
+opportunity tables with no redundant Hands column). Slice E adds the missing
+piece: a single reconciliation guard so a bounty conclusion can never contradict
+its own math.
+
+PKO trust reconciliation (gem_pko_research.reconcile_pko_trust, pure + tested):
+collapses the stamped cover / collectibility / multiway / bounty facts into ONE
+compact concrete "trust line" and flags contradictions —
+  * Hero covers but bounty marked not collectible;
+  * a bounty discount applied while the bounty is not collectible;
+  * villain covers Hero yet a discount is applied;
+  * PKO-adjusted threshold higher than the chip-only threshold despite a positive
+    discount.
+Multiway / ambiguous side-pot spots set suppress_overclaim and add an explicit
+"bounty impact uncertain (side-pot/cover ambiguous)" note; equal/near-equal
+stacks read "collectible only if Hero wins outright"; overjam chips Hero cannot
+win are surfaced; a missing exact bounty shows the estimate ("≈ Y.YBB (estimated
+bounty model)") and never fabricates a $. Concrete copy mirrors the user spec:
+"Villain covers Hero; bounty discount does not help Hero.", etc. Stamped onto the
+PKO context as pko_trust and rendered as a compact "Bounty trust:" strip in the
+PKO pill (gem_report_draft/sections_xiv.py); a contradiction renders with a ⚠️
+flag instead of a confident claim.
+
+Copy clarity (gem_report_draft/sections_financial.py): the intra-session arc
+table now carries a one-line gloss — "cEV/100 = chip-EV per 100 hands (% of
+starting stack); BB/100 = big blinds won per 100 hands" — so the two rate units
+are not unexplained. Navigation abbreviations (SPR / 3BP / SRP) are unchanged;
+hand-verdict copy already strips Roman codes (_verdict_display_label).
+
+Tests: +14 (T-PKOE-01..14) -> 1038. Local preview slice of the v8.14.0 train;
+not merged/pushed/tagged. NOTE: PKO trust strip is proven by helper unit tests +
+render-wiring canaries; a generated-report browser pass on real PKO hands is a
+final-QA item (see FINAL_QA_CHECKLIST_v8140.md).
+
+
+v8.14.0-preview (2026-06-14) -- Slice D: Villain Exploitation v2
+=========================================================================
+Turns the villain teaching block from "visible" into "actionable". The per-hand
+projection now answers a compact, fixed teaching contract and recommends a
+candidate Natural8 client tag. No new detector, scoring, or read taxonomy — this
+is still a pure projection of the already-stamped villain_intel; it invents
+nothing and the v8.13.0 no-hindsight gates are unchanged.
+
+Per-hand teaching contract (gem_villain_teaching._teach_lines), in order:
+  What villain did -> Cue -> Read -> Confidence -> Exploit now ->
+  Exploit future -> Do not over-adjust -> Bounty -> Tag suggestion
+(Renamed from the v8.13.0 labels: Villain/Now/Next time/Avoid over-adjusting.)
+
+Natural8 candidate tags (gem_villain_teaching.suggest_natural8_tag): maps a
+derived read family to Ron's client colour tag — Danger Reg (red, high-confidence
+aggression), Solid Reg (purple), Nit/Rock (brown), Calling Station (orange,
+sticky/loose-passive/station), Maniac/LAG (pink), Fish (blue), Whale (cyan), Fun
+Rec/Gambler (lime). Weak evidence (low confidence, a single cue, hindsight-gated,
+or an unmapped read) yields the explicit "Unsure / Tag-me-later" (yellow) tag —
+a tag is never forced. The "Candidate" qualifier is dropped only at high
+confidence; the read label itself reads "Candidate <X>" / "Unknown / Tag-me-later"
+unless high confidence.
+
+Evidence aggregation (gem_villain_teaching.build_villain_evidence_summary): a
+deterministic per-villain roll-up grouped by STABLE villain id (not by alias —
+aliases are display-only and truncated to 3 + "+N more"). Each row carries the
+strongest object's read, confidence, evidence count, cue, exploit, and candidate
+tag. Exposed as teaching_summary in build_villain_teaching() output; data only
+(rendering of the summary table is a follow-up — not wired this slice).
+
+Render (gem_report_draft/_html.py): the teach-line classifier learns the new
+labels, adds a Confidence line style, and renders the Tag suggestion line with a
+small Natural8 colour swatch (data-tag-color, driven by the trailing "(colour)"
+token) — shown even on a fallback read, since "Unsure / Tag-me-later" is itself
+the takeaway. No modal/top-bar/street-header/queue change.
+
+Tests: +10 (T-VX-01..10), T-VT-15 updated to the renamed contract -> 1024. Local
+preview slice of the v8.14.0 train; not merged/pushed/tagged.
+
+
+v8.14.0-preview (2026-06-14) -- Slice C: Compact Hand Review Queue
+=========================================================================
+Upgrades the existing "Hands to open first" block into a compact prioritized
+review queue (same block, not a new dashboard/table). Reuses the existing V25
+modal, queue Prev/Next, review store, counts, and Copy Review Notes — no parallel
+systems. No data/verdict/PKO/villain logic changes.
+
+Data (gem_report_draft/tldr.py):
+- build_review_queue() + normalize_review_status() (pure, unit-tested). Fixed
+  priority bucket order: punts -> analyst mistakes -> known-leak examples (Issue
+  Explorer) -> auto-clear mistakes -> marginal candidates; deterministic sort
+  (bucket, -abs(net BB), hand id). Uses only existing prepared data; degrades
+  gracefully (id+reason+title with no fake EV when data is missing).
+
+Render (tldr.py): the queue card emits full-row-clickable compact rows (rank,
+hand id, hero .card pills, ONE reason chip, title, standard BB pill), a priority
+count strip, a reviewed/follow-up section, a celebratory cleared state, and a
+Show-all control. data-queue-ids carries the FULL ordered id list for the modal.
+
+Controller (gem_report_draft/_html.py): window.PBReviewQueue reads the canonical
+review store, partitions open vs reviewed, updates "N open · M reviewed" + the
+"Reviewed (n)/follow-ups (m)" chips, applies top-N (default 6) + Show all, and on
+full-row click sets activeHandQueue to the FULL queue (priority order) and calls
+openHand — so modal Prev/Next walks the whole queue, not the visible top-N.
+Modal review chips add Drill (🎯) + Rulebook (📘); "Ignore" is not offered.
+Queue-marked hands flow through the same store, so Copy Review Notes includes them.
+
+Mobile: same component/DOM; rows stack via grid-areas, reviewed collapsed, no
+horizontal overflow. Tests: +9 (T-RQ-01..09) -> 1014. Local preview slice of the
+v8.14.0 train; not merged/pushed/tagged.
+
+
+v8.14.0-preview (2026-06-14) -- Slice B: V25 hand-detail modal redesign
+=========================================================================
+Makes the V25 hand-review modal easier to scan WITHOUT redesigning the report.
+Only the modal top bar and street headers change; action rows, commentary,
+review controls, leak explorer, hand-list popups, villain/PKO logic, navigation,
+and mobile table/card strategy are untouched. No data, verdict, pot, or
+hand-strength logic changes.
+
+Top bar (gem_report_draft/_html.py):
+- "Hand" is now a yellow label chip next to the white hand id (same font-size +
+  line-height) so the cluster reads as one title, not two mismatched objects.
+- Every top-bar chip uses line-height:1 + align-self:center -> Hand id, hero
+  cards, BB result pill, system-verdict pill, and Close align on one baseline;
+  the verdict chip no longer makes the bar taller.
+- System verdict rides the bar as a readable .v25-top-verdict chip (12px,
+  min-height 28px, uppercase) -- bigger than the old 0.55em pill, not dominant.
+  Color stays from .verdict-pill[data-verdict=...]; raw Roman codes are stripped
+  from the top-verdict copy.
+- BB result pill keeps its outcome color coding (.v25-top-result good/bad/neutral).
+
+Street headers (gem_report_draft/_html.py):
+- Street context now sits NEXT TO the street title as compact readable chips
+  (.v25-pot-chip "NN BB pot" + .v25-strength-chip hand/board state), in a flex
+  row, instead of tiny far-right text. Empty hand-state renders no blank chip.
+- Header stays sticky; long context wraps cleanly. No street shortcut/filter
+  chips added.
+
+Mobile: top identity + street header wrap cleanly (flex-wrap); chips stay
+readable but compact; no horizontal overflow.
+
+Tests: +9 (T-V25HD-01..08) -> 1005 total. v8.13.1 trust tests unchanged. Local
+preview slice of the v8.14.0 train; not merged/pushed/tagged.
+
+
+v8.13.1-preview (2026-06-14) -- Analyst coverage + verdict-contradiction trust
+=========================================================================
+Closes the 2026-06-13 Claude-vs-GPT trust gaps: a report self-declared
+ANALYST_COMPLETE after reviewing 5 hands while every meaningful postflop loss
+(incl. the -40BB biggest loss) went unreviewed, and per-hand verdicts contradicted
+the auto widgets. Coverage is now ENFORCED, not assumed.
+
+P0 -- ANALYST_COMPLETE gated on critical coverage (gem_report_data.py):
+- compute_report_completeness now requires that the loss / confirmed-error hands
+  (mistakes, punts, coolers, bust audit, biggest-loss screen, postflop-loss
+  screen) are reviewed (or auto-resolved). ANY unreviewed critical hand -> the
+  report is ANALYST_PARTIAL, never ANALYST_COMPLETE.
+- New quantified coverage line ("Analyst coverage: N reviewed - M/M
+  significant-loss hands reviewed - 0 critical unreviewed"; incomplete ->
+  "Analyst coverage incomplete: K critical hands unreviewed - not final.").
+  Rendered in the TL;DR banner (amber when incomplete). Top-leaks section carries
+  a provisional "coaching confidence reduced" caveat when coverage is incomplete.
+
+P1 -- coverage screens (gem_coverage_builder.py / gem_analyst_worklist.py):
+- build_loss_screens() forces every per-tournament stack_trajectories
+  biggest_loss_id and every postflop hand with net_bb <= -15 (configurable
+  POSTFLOP_LOSS_SCREEN_BB) into the worklist as biggest_loss_screen /
+  postflop_loss_screen ("must clear or classify" -- coverage rules, NOT mistakes).
+
+P1 -- verdict / auto-widget contradiction (gem_report_draft/_hand_grid.py):
+- reconcile_push_widget(): the auto push/range check is reconciled against the
+  FINAL analyst verdict -- labelled "auto pre-review" when unreviewed, shown as
+  overridden when the analyst cleared a flagged hand, and never as a bare "Wrong
+  push" that contradicts a Justified verdict. The widget now also states the
+  NEAREST chart + the actual effective stack. tldr_contradicts_verdict() reframes
+  a stale "standard" TL;DR on a hand graded a mistake. R2 auto-verdict only
+  claims "inside the push range" when membership was actually resolved.
+
+P1 -- effective-stack safety (gem_analyst_worklist.py):
+- effective_stack_safety(): every shove/overjam/sizing verdict displays Hero
+  TOTAL stack, the EFFECTIVE stack vs live opponents, and the eval depth, and
+  WARNS when a deep overjam is claimed at short-shove depth (the total-vs-
+  effective confusion that mislabelled the Q8s SB jam a 34BB overjam).
+
+P2 -- W-POT lint (gem_report_draft/sections_xiv.py):
+- "call X into Y" now validates Y against the hand's _pot_odds per-street pots
+  (pot-before-call / total), not only street-start windows -- correct pot odds
+  like "call 7BB into 19.9BB" no longer false-flag.
+
+P2 -- monotone over-commit lesson (gem_report_draft/_helpers.py):
+- monotone_overcommit_lesson(): on a monotone (flush) board where Hero checked
+  the flop then over-committed the turn, the lesson names the SEQUENCE leak
+  (skipped cheap flop protection -> over-committed turn jam), not merely
+  "missed flop aggression".
+
+Tests: +13 (T-CT-01..08, all 8 trust groups) -> 996 total. Local-only preview;
+not merged / pushed / tagged.
+
+
 v8.13.0 (2026-06-14) -- Slice F: villain exploitation teaching layer
 =========================================================================
 Turns raw villain evidence into coaching-grade exploit teaching. New module

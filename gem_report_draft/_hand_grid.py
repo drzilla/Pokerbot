@@ -204,10 +204,15 @@ def _note_inline(text):
     return _md_inline(_cards_text_to_pills(_humanize_verdicts(text or '')))
 
 
-def _emit_structured_note(doc, note, note_num, is_bound):
+def _emit_structured_note(doc, note, note_num, is_bound, analyst_verdict=''):
     """Render a structured analyst argument into the yellow notes block:
     TL;DR row (carries the numbered pill), uppercase section sub-headers,
-    and <ul> bullet runs — instead of one prose blob."""
+    and <ul> bullet runs — instead of one prose blob.
+
+    v8.13.1 P1: if the FINAL analyst verdict is a confirmed mistake/punt but the
+    TL;DR still asserts a 'standard / inside push range' read (stale auto copy),
+    the contradiction is reframed in-line — a Mistake verdict must never render
+    a 'standard' TL;DR."""
     pill_done = False
     for kind, payload in _parse_structured_argument(note):
         pill = ''
@@ -215,8 +220,13 @@ def _emit_structured_note(doc, note, note_num, is_bound):
             pill = f"<span class='note-num'>{note_num}</span> "
             pill_done = True
         if kind == 'tldr':
+            _tldr_txt = payload
+            if tldr_contradicts_verdict(_tldr_txt, analyst_verdict):
+                _tldr_txt = (_tldr_txt + '  *(auto pre-review framing — superseded '
+                             'by the analyst verdict below: graded a mistake, not '
+                             'standard).*')
             doc.w(f"<p class='note-tldr'>{pill}<strong>TL;DR:</strong> "
-                  f"{_note_inline(payload)}</p>")
+                  f"{_note_inline(_tldr_txt)}</p>")
         elif kind == 'section':
             doc.w(f"<p class='note-section'>{pill}{_note_inline(payload)}</p>")
         elif kind == 'bullets':
@@ -463,6 +473,46 @@ def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
         notes.append('**Math:** ' + matchup.strip())
 
     return notes, action_to_note_num, action_to_tone, single_narrative_note_num
+
+
+# ── v8.13.1 P1: verdict-contradiction reconciliation ──────────────────────
+# A final analyst verdict must never coexist with a contradictory auto
+# push/range widget (2026-06-13: KJo UTG+1 rendered "TL;DR standard / inside
+# push range" AND "❌ Wrong push" on the same hand). These pure helpers decide
+# how the auto check is presented given the analyst's final verdict.
+_ANALYST_CLEARED_PREFIXES = ('III.0', 'III.3', 'III.4', 'III.5', 'I.7')
+_ANALYST_MISTAKE_PREFIXES = ('III.1', 'III.2')
+
+
+def reconcile_push_widget(in_range, analyst_verdict):
+    """Decide how to present the auto push/range check given the FINAL analyst
+    verdict. Returns (mode, note):
+      'pre_review' — no analyst verdict yet; the auto check is a heuristic, not
+                     a final verdict, so it is labelled 'auto pre-review'.
+      'overridden' — analyst cleared/justified a hand the auto check flagged out
+                     of range; show the override, not a bare 'Wrong push'.
+      'agree'      — analyst and auto check agree (cleared+in, or a mistake).
+    """
+    av = (analyst_verdict or '').strip()
+    if not av:
+        return ('pre_review', 'auto pre-review')
+    if av.startswith(_ANALYST_CLEARED_PREFIXES):
+        return ('overridden', 'analyst cleared') if not in_range else ('agree', '')
+    if av.startswith(_ANALYST_MISTAKE_PREFIXES):
+        return ('agree', '')
+    return ('pre_review', 'auto pre-review')
+
+
+def tldr_contradicts_verdict(argument, analyst_verdict):
+    """True iff a TL;DR asserts a 'standard / inside push range / justified'
+    read while the FINAL analyst verdict is a confirmed mistake/punt — the
+    contradiction that must be suppressed."""
+    if not (analyst_verdict or '').strip().startswith(_ANALYST_MISTAKE_PREFIXES):
+        return False
+    low = (argument or '').lower()
+    return ('inside the push range' in low or 'inside push range' in low
+            or 'standard, result is variance' in low or 'standard push' in low
+            or ' justified' in low)
 
 
 def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_num,
@@ -1111,14 +1161,39 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 if _prange:
                     _in = _phc in _prange
                     _in_label = 'in' if _in else 'outside'
-                    _in_icon = '✅ Correct push' if _in else '❌ Wrong push'
                     _in_color = '#22c55e' if _in else '#ef4444'
                     _boundary = _rb_push(', '.join(_prange.keys()))
                     _range_note = f' (boundary: {_boundary})' if _boundary else ''
-                    _verdict_push = f'{_in_icon} ({_phc} {_in_label} {_pk}{_range_note})'
+                    # v8.13.1 P1: PUSH_10BB is the NEAREST chart, not necessarily
+                    # this hand's depth — state that honestly with the actual
+                    # effective stack so the widget never reads as a definitive
+                    # verdict evaluated at the wrong depth.
+                    _eff_now = (h.get('eff_stack_bb_at_decision')
+                                or h.get('stack_bb') or 0)
+                    _near_line = (f"Nearest chart: {_pk}; actual effective stack: "
+                                  f"{_eff_now:.1f}BB.")
+                    # v8.13.1 P1: reconcile against the FINAL analyst verdict so
+                    # the auto widget never contradicts it.
+                    _av_pv = ''
+                    if rd:
+                        _cmt_pv = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                        if isinstance(_cmt_pv, dict):
+                            _av_pv = _cmt_pv.get('verdict', '') or ''
+                    _mode_pv, _note_pv = reconcile_push_widget(_in, _av_pv)
+                    if _mode_pv == 'overridden':
+                        _in_color = '#6b7280'
+                        _verdict_push = (f'↩︎ Auto check flagged {_phc} {_in_label} '
+                                         f'{_pk}, but the analyst cleared it ({_av_pv}).')
+                    else:
+                        _in_icon = '✅ Correct push' if _in else '❌ Wrong push'
+                        _verdict_push = f'{_in_icon} ({_phc} {_in_label} {_pk}{_range_note})'
+                        if _mode_pv == 'pre_review':
+                            _verdict_push += ' · auto pre-review'
                     _push_html = (f"<div class='push-verdict' style='font-size:0.85em;"
                                  f"color:{_in_color};font-weight:700;"
-                                 f"margin-top:2px;'>{_verdict_push}</div>")
+                                 f"margin-top:2px;'>{_verdict_push}"
+                                 f"<span style='display:block;font-weight:400;"
+                                 f"color:#6b7280;font-size:0.92em'>{_near_line}</span></div>")
                     _safe_verdict = _html_mod.escape(_verdict_push, quote=True)
                     _push_verdict_attr = f" data-push-verdict='{_safe_verdict}'"
 
@@ -1345,6 +1420,12 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 break
 
         doc.w("<div class='analyst-notes'>")
+        # v8.13.1 P1: final analyst verdict for TL;DR-vs-verdict reconciliation
+        _hand_av = ''
+        if rd:
+            _cmt_av = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+            if isinstance(_cmt_av, dict):
+                _hand_av = _cmt_av.get('verdict', '') or ''
         street_labels = {'preflop': 'PRE-FLOP', 'flop': 'FLOP',
                          'turn': 'TURN', 'river': 'RIVER'}
         for street in ('preflop', 'flop', 'turn', 'river'):
@@ -1367,7 +1448,8 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 # B146 (v7.71): a structured argument renders as TL;DR +
                 # section sub-headers + bullets, bypassing the prose-mangler.
                 if _argument_is_structured(note):
-                    _emit_structured_note(doc, note, note_num, is_bound)
+                    _emit_structured_note(doc, note, note_num, is_bound,
+                                          analyst_verdict=_hand_av)
                     continue
                 sub_rows = _structure_note(note)
                 for j, (emoji, text) in enumerate(sub_rows):

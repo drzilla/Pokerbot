@@ -1413,6 +1413,13 @@ def _emit_section_i(doc, s, rd, hands):
         # cev_session.cev_per_stack_per_100 from gem_cev.py. Weighted average
         # across quartiles (Σ cev_per_100_q * n_resolved_q / Σ n_resolved_q)
         # reconciles with session cEV/100. Display multiplies by 100 for %.
+        # v8.14.0 Slice E (copy clarity): one concise gloss for the two
+        # rate units so the acronyms are not unexplained in the body.
+        doc.w("*cEV/100 = chip-EV per 100 hands (% of starting stack); "
+              "BB/100 = big blinds won per 100 hands. cEV/100 is the spine "
+              "metric because BB/100 does not aggregate across MTT blind "
+              "levels.*")
+        doc.w("")
         doc.w("| Quartile | VPIP | Mistakes/100 | cEV/100 | BB/100 | Time Range |")
         doc.w("|---|---|---|---|---|---|")
         for q in quartiles:

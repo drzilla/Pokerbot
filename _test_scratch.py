@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77',
+      _hg_hash == '0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -2784,7 +2784,9 @@ with open(_html_path, encoding='utf-8') as _f:
         _html_lines.append(_line)
         # v8.12.5: window 2600 -> 2800 (PBLazy norm + pill-whitelist
         # insertions shifted the pinned comment past the old cutoff)
-        if _i > 2800:
+        # v8.14.0 Slice C: 2800 -> 2950 (PBReviewQueue controller insertion
+        # shifted the pinned push-range comment down again)
+        if _i > 2950:
             break
 _html_head = ''.join(_html_lines)
 
@@ -4970,6 +4972,120 @@ check('T-PKO-22: snapshot count equals sum of teaching Seen cells',
 check('T-PKO-23: enrich fail-soft on garbage input',
       _pko.enrich_pko_contexts(None, None, None).get('enabled') in (True, False), '')
 
+# ============================================================
+# v8.14.0 — Slice E: PKO v2 trust reconciliation + copy clarity (T-PKOE-*)
+# ============================================================
+import re as _re_pkoe
+import gem_pko_research as _pkoE
+_e1 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True,
+                                players=2, coverage_label='covers opener — bounty collectible',
+                                bounty_value_bb=4.0, bounty_usd=5.0)
+check('T-PKOE-01: Hero covers villain -> collectible trust line + $X conversion',
+      _e1['cover_state'] == 'hero_covers' and _e1['collectible'] is True
+      and 'collectible' in _e1['trust_line'] and '$5.00' in _e1['trust_line']
+      and not _e1['contradiction'], _e1['trust_line'])
+_e2 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covered', can_collect_bounty=False,
+                                players=2,
+                                coverage_label='covered by opener — opener bounty not collectible')
+check('T-PKOE-02: Villain covers Hero -> bounty discount does not help Hero',
+      _e2['cover_state'] == 'hero_covered' and _e2['collectible'] is False
+      and 'does not help Hero' in _e2['trust_line'] and not _e2['contradiction'], _e2['trust_line'])
+_e3a = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=True, players=2)
+_e3b = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=False, players=2)
+check('T-PKOE-03: near-equal/equal stacks handled safely (collectible only if Hero wins)',
+      _e3a['cover_state'] == 'equal' and 'only if Hero wins outright' in _e3a['trust_line']
+      and 'not collectible' in _e3b['trust_line'] and not _e3a['contradiction'], _e3a['trust_line'])
+_e4 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=3,
+                                coverage_label='covers CO only — that bounty collectible; HJ covers Hero')
+check('T-PKOE-04: multiway partial cover -> suppress over-claim + uncertain note',
+      _e4['multiway'] is True and _e4['suppress_overclaim'] is True
+      and 'uncertain' in _e4['trust_line'].lower() and not _e4['contradiction'], _e4['trust_line'])
+_e5 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                bounty_value_bb=3.2, bounty_usd=None)
+check('T-PKOE-05: missing exact bounty -> estimate model display (no fabricated $)',
+      'estimated bounty model' in _e5['bounty_display'] and '3.2BB' in _e5['trust_line']
+      and '$' not in _e5['trust_line'], _e5['trust_line'])
+_e6 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                bounty_value_bb=3.2, bounty_usd=5.0)
+check('T-PKOE-06: bounty dollar-to-BB conversion appears ($X = YBB)',
+      _e6['bounty_display'] == '$5.00 ≈ 3.2BB' and '$5.00 ≈ 3.2BB' in _e6['trust_line'], _e6['bounty_display'])
+_c_a = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=False, players=2)
+_c_b = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=False, players=2, discount_pp=8.0)
+_c_c = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covered', can_collect_bounty=None, players=2, discount_pp=8.0)
+_c_d = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                 discount_pp=8.0, chip_threshold_pct=35.0, pko_threshold_pct=40.0)
+_c_ok = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                  discount_pp=8.0, chip_threshold_pct=40.0, pko_threshold_pct=32.0)
+check('T-PKOE-07: trust guard flags cover/collect/discount/threshold conflicts; clean PKO math passes',
+      _c_a['contradiction'] and _c_b['contradiction'] and _c_c['contradiction'] and _c_d['contradiction']
+      and not _c_ok['contradiction'] and 'PKO trust check failed' in _c_a['trust_line'], '')
+_ctxE = _pkoE.build_pko_context(_mk_hand(hero_stack=18.0, opener_stack=16.0))
+check('T-PKOE-08: build_pko_context stamps a reconciled pko_trust object',
+      bool(_ctxE.get('enabled')) and isinstance(_ctxE.get('pko_trust'), dict)
+      and _ctxE['pko_trust'].get('cover_state') == 'hero_covers'
+      and bool(_ctxE['pko_trust'].get('trust_line')), '')
+_e9 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                overjam_bb=12.0, bounty_value_bb=4.0, bounty_usd=5.0)
+check('T-PKOE-09: overjam side-pot chips Hero cannot win are surfaced',
+      'Hero cannot win' in _e9['trust_line'] and '12.0BB' in _e9['trust_line'], _e9['trust_line'])
+_xiv_src_e = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-PKOE-10: PKO pill wires pko_trust_render with pot-odds threshold facts + downgraded class + strip',
+      '_pko_trust_render(' in _xiv_src_e
+      and "_pk_render['classification_display']" in _xiv_src_e
+      and "_pk_render.get('strip_md')" in _xiv_src_e
+      and 'required_eq_bounty_pct' in _xiv_src_e, '')
+_sm_src_e = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-PKOE-11: PKO opportunity table renamed (Opportunity/Wrong/Missed), clickable counts, no Hands column',
+      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_src_e
+      and 'Review | Drill cue |' in _sm_src_e and '| Spot | PKO' not in _sm_src_e
+      and '_rcc(' in _sm_src_e, '')
+_fin_src_e = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-PKOE-12: dense cEV/BB-100 units carry a concise body gloss',
+      'cEV/100 = chip-EV per 100 hands' in _fin_src_e
+      and 'BB/100 = big blinds won per 100 hands' in _fin_src_e, '')
+_draft_src_e = open('gem_report_draft/draft.py', encoding='utf-8').read()
+_m_nav_e = _re_pkoe.search(r'_NAV_LABELS\s*=\s*\{(.*?)\n\s*\}', _draft_src_e, _re_pkoe.S)
+_nav_vals_e = _re_pkoe.findall(r":\s*'([^']*)'", _m_nav_e.group(1)) if _m_nav_e else []
+check('T-PKOE-13: navigation labels stay compact (<=28 chars; abbreviations preserved)',
+      bool(_nav_vals_e) and max(len(v) for v in _nav_vals_e) <= 28
+      and any(('3BP' in v) or ('SRP' in v) or ('SPR' in v) for v in _nav_vals_e),
+      str(max(len(v) for v in _nav_vals_e) if _nav_vals_e else 'no-match'))
+from gem_report_draft._hand_grid import _verdict_display_label as _vdl_e
+check('T-PKOE-14: no raw Roman verdict codes in normal hand verdict copy (codes stripped to labels)',
+      _vdl_e('III.2 Punt') == 'Punt' and _vdl_e('I.7 Cooler') == 'Cooler'
+      and not _re_pkoe.match(r'^I{1,3}\.[0-9]', _vdl_e('III.1 Read-dependent')), '')
+# --- rev-2: render-path (fixture) tests for pko_trust_render (Blocker 1 + 2) ---
+_ctxE2 = _pkoE.build_pko_context(_mk_hand(hero_stack=20.0, opener_stack=16.0))
+_rnd_ok = _pkoE.pko_trust_render(_ctxE2, bounty_usd=5.0, discount_pp=8.0,
+                                 chip_threshold_pct=35.0, pko_threshold_pct=29.0)
+check('T-PKOE-15: render strip carries chip-vs-PKO threshold reconciliation; clean class kept',
+      _rnd_ok['downgraded'] is False and not _rnd_ok['contradiction']
+      and _rnd_ok['strip_md'].startswith('\U0001F3AF **Bounty trust:**')
+      and 'Chip-only call needs 35%' in _rnd_ok['strip_md']
+      and 'PKO-adjusted needs ~29%' in _rnd_ok['strip_md'], _rnd_ok['strip_md'])
+_ctx_contra = {'coverage_bucket': 'Hero covers', 'can_collect_bounty': False,
+               'players_if_hero_continues': 2, 'classification': 'Good',
+               'coverage_label': 'covers opener — bounty collectible', 'bounty_value_bb_est': None}
+_rnd_bad = _pkoE.pko_trust_render(_ctx_contra)
+check('T-PKOE-16: render-path DOWNGRADES a confident PKO class to Review on a trust contradiction',
+      _rnd_bad['contradiction'] is True and _rnd_bad['downgraded'] is True
+      and _rnd_bad['classification_display'] == 'Review'
+      and _rnd_bad['strip_md'].startswith('⚠️ ')
+      and 'PKO trust check failed' in _rnd_bad['strip_md'], _rnd_bad['strip_md'])
+_ctx_thr = {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+            'players_if_hero_continues': 2, 'classification': 'Missed', 'bounty_value_bb_est': None}
+_rnd_thr = _pkoE.pko_trust_render(_ctx_thr, discount_pp=8.0,
+                                  chip_threshold_pct=35.0, pko_threshold_pct=40.0)
+check('T-PKOE-17: PKO-adjusted threshold ABOVE chip despite discount -> render contradiction + downgrade',
+      _rnd_thr['contradiction'] is True and _rnd_thr['classification_display'] == 'Review'
+      and 'PKO trust check failed' in _rnd_thr['strip_md'], _rnd_thr['strip_md'])
+_rnd_oj = _pkoE.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'bounty_value_bb_est': 4.0, 'classification': 'Review'},
+    bounty_usd=5.0, overjam_bb=12.0)
+check('T-PKOE-18: overjam chips Hero cannot win surface in the rendered strip',
+      'Hero cannot win' in _rnd_oj['strip_md'] and '12.0BB' in _rnd_oj['strip_md'], _rnd_oj['strip_md'])
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',
@@ -5101,8 +5217,9 @@ check('T-V8120B-4: teaching rows aggregate by research bucket',
       and len({r['bucket'] for r in _agg_b['teaching_rows']})
       == len(_agg_b['teaching_rows']), '')
 _sm_812b = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-V8120B-5: S4.2 is the compact 7-column layout',
-      '| Spot | PKO Δ | Seen | Actual | Flagged | Review | Drill cue |' in _sm_812b, '')
+check('T-V8120B-5: S4.2 is the compact layout (v8.14.0 Slice E rev-2: Opportunity/Wrong/Missed)',
+      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_812b
+      and 'Review | Drill cue |' in _sm_812b, '')
 _sx_812b = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-V8120B-6: pill no longer embeds a span (md would escape it)',
       "pko-cov-chip'>" not in _sx_812b, '')
@@ -5690,8 +5807,9 @@ _html_1225 = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-1225-PILL-1: verdict-pill in the _md_inline stash whitelist',
       'verdict-pill|context-pill' in _html_1225,
       'pill spans were emitted but escaped on every page until whitelisted')
-check('T-1225-PILL-2: modal top bar clones the verdict pill',
-      'srcPill' in _html_1225 and 'verdict pill rides the top bar' in _html_1225, '')
+check('T-1225-PILL-2: modal top bar clones the verdict pill into the top-verdict chip',
+      'srcPill' in _html_1225 and 'srcPill.cloneNode' in _html_1225
+      and "classList.add('v25-top-verdict')" in _html_1225, '')
 check('T-1225-LAZY-1: PBLazy normalizes TM-form ids before payload lookup',
       'function _norm(hid)' in _html_1225
       and 'matDone[_norm(hid)]' in _html_1225, '')
@@ -6908,14 +7026,16 @@ check('T-VT-14: build_villain_teaching indexes by hand + villain; never raises o
       'H_now' in _built['teaching_by_hand'] and _vt_vk in _built['teaching_by_villain']
       and _vt.build_villain_teaching({})['teaching_by_hand'] == {}, '')
 # --- rev-2 (GPT product-fail fixes) ---
-check('T-VT-15: non-fallback teach_lines render the FULL sequence incl Read + Villain(did)',
+check('T-VT-15: non-fallback teach_lines render the FULL Slice-D contract (8 labels)',
       not _o['fallback']
-      and any(l.startswith('Read:') for l in _o['teach_lines'])
-      and any(l.startswith('Villain:') for l in _o['teach_lines'])
+      and any(l.startswith('What villain did:') for l in _o['teach_lines'])
       and any(l.startswith('Cue:') for l in _o['teach_lines'])
-      and any(l.startswith('Now:') for l in _o['teach_lines'])
-      and any(l.startswith('Next time:') for l in _o['teach_lines'])
-      and any(l.startswith('Avoid over-adjusting:') for l in _o['teach_lines']), '')
+      and any(l.startswith('Read:') for l in _o['teach_lines'])
+      and any(l.startswith('Confidence:') for l in _o['teach_lines'])
+      and any(l.startswith('Exploit now:') for l in _o['teach_lines'])
+      and any(l.startswith('Exploit future:') for l in _o['teach_lines'])
+      and any(l.startswith('Do not over-adjust:') for l in _o['teach_lines'])
+      and any(l.startswith('Tag suggestion:') for l in _o['teach_lines']), '')
 _a_sha = {'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'multiway_donk', 'street': 'flop',
           'action_index': 3, 'available_before_action_index': 3, 'same_hand_actionable': True,
           'evidence_text': 'Donk-bet into the field.', 'hero_involved': True,
@@ -6936,6 +7056,252 @@ _htmlsrc_vt = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles',
       'teach_lines.forEach' in _htmlsrc_vt and 'v25-teach-head' in _htmlsrc_vt
       and 'v25-teach-line' in _htmlsrc_vt, '')
+
+# ============================================================
+# v8.14.0 — Slice D: Villain Exploitation v2 (T-VX-*)
+#   8-field per-hand teaching contract + Natural8 candidate-tag mapper +
+#   candidate read language + stable-identity evidence aggregation.
+# ============================================================
+_VX_CONTRACT = ['What villain did:', 'Cue:', 'Read:', 'Confidence:', 'Exploit now:',
+                'Exploit future:', 'Do not over-adjust:', 'Tag suggestion:']
+check('T-VX-01: full per-hand teaching contract (8 labels) + tag_suggestion{label,color,kind} present',
+      all(any(l.startswith(p) for l in _o['teach_lines']) for p in _VX_CONTRACT)
+      and {'label', 'color', 'kind'} <= set(_o['tag_suggestion']), '')
+check('T-VX-02: candidate read language unless high conf; weak read -> Unsure/yellow (never forced)',
+      _vt._candidate_archetype('Sticky Passive', 'medium') == 'Candidate Sticky Passive'
+      and _vt._candidate_archetype('Sticky Passive', 'high') == 'Sticky Passive'
+      and _vt._candidate_archetype('', 'low') == 'Unknown / Tag-me-later'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'low', 5, True)['kind'] == 'unsure'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'high', 1, True)['kind'] == 'unsure'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'high', 9, False)['color'] == 'yellow', '')
+check('T-VX-03: repeated sticky/passive -> Calling Station (orange) at high conf, exploit present',
+      _o['tag_suggestion']['label'] == 'Calling Station' and _o['tag_suggestion']['color'] == 'orange'
+      and _o['tag_suggestion']['kind'] == 'station' and _o['exploit_now']
+      and 'Tag suggestion: Calling Station (orange)' in _o['teach_lines'], '')
+_vx_ars = {_vt_vk: {'villain_alias': 'Storm', 'primary_read': 'Aggressive', 'confidence': 'high',
+                    'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7', 'H_now']}}
+_vx_aatoms = {_vt_vk: [{'dimension': 'aggressive'} for _ in range(3)]}
+_vx_aggro = _vt.teaching_from_exploit(
+    _vt_exp(exploit_read_label='Aggressive', exploit_read_display='Aggressive',
+            evidence_text='Check-raised turn after floating the flop.',
+            suggests='Delayed aggression - piles on pressure on later streets.',
+            so_what='Respect the turn check-raise; do not auto-barrel.',
+            recommended_exploit='Pot-control turns; let him keep bluffing.'),
+    _vx_ars, _vx_aatoms)
+check('T-VX-04: aggression -> Danger Reg (red) high conf / Candidate Maniac-LAG (pink) medium; exploit respects raise',
+      _vx_aggro['tag_suggestion']['label'] == 'Danger Reg' and _vx_aggro['tag_suggestion']['color'] == 'red'
+      and 'Respect' in (_vx_aggro['exploit_now'] or '') and not _vx_aggro['fallback']
+      and _vt.suggest_natural8_tag('Aggressive', 'medium', 5, True)['label'] == 'Candidate Maniac/LAG'
+      and _vt.suggest_natural8_tag('Aggressive', 'medium', 5, True)['color'] == 'pink', '')
+_vx_sd = _vt.teaching_from_atom(
+    {'villain_key': _vt_vk, 'hand_id': 'H8', 'signal': 'weak_showdown_call', 'street': 'river',
+     'action_index': 4, 'available_before_action_index': None, 'hero_involved': True,
+     'evidence_text': 'Tabled bottom pair at showdown.', 'so_what': 'Value-bet thinner.',
+     'suggests': 'Sticky.'}, _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VX-05: showdown-only atom -> fallback, no exploit_now, Unsure tag, no_hindsight False',
+      _vx_sd['fallback'] and _vx_sd['exploit_now'] is None
+      and _vx_sd['tag_suggestion']['kind'] == 'unsure'
+      and _vx_sd['source_truth']['no_hindsight'] is False
+      and _vt.FALLBACK_LINE in _vx_sd['teach_lines'], '')
+_vx_hni = _vt.build_villain_teaching(
+    {'read_states': _vt_rs(), 'atoms_by_villain': _vt_sticky, 'exploits_by_hand': {},
+     'atoms_by_hand': {'Hx': [{'villain_key': _vt_vk, 'hand_id': 'Hx', 'signal': 'weak_showdown_call',
+                               'street': 'river', 'action_index': 2, 'available_before_action_index': 2,
+                               'same_hand_actionable': True, 'evidence_text': 'x', 'hero_involved': False,
+                               'suggests': 's', 'so_what': 'w'}]}})
+check('T-VX-06: hero-not-involved atoms never create a same-hand teaching object (no fake live read)',
+      not _vx_hni['teaching_by_hand'].get('Hx'), '')
+_vx_contra = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(n=9),
+                                       {_vt_vk: [{'dimension': 'aggressive'} for _ in range(9)]})
+check('T-VX-07: uncorroborated/contradictory cues -> low conf + Unsure tag + candidate read (not forced)',
+      _vx_contra['confidence'] == 'low' and _vx_contra['tag_suggestion']['kind'] == 'unsure'
+      and not _vx_contra['fallback']
+      and any(l.startswith('Read: Candidate') for l in _vx_contra['teach_lines']), '')
+_vx_many = []
+for _vxi in range(6):
+    _vx_rsi = {_vt_vk: {'villain_alias': 'Seat%d' % _vxi, 'primary_read': '\U0001F4DE Sticky Passive',
+                        'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7']}}
+    _vx_many.append(_vt.teaching_from_exploit(_vt_exp(), _vx_rsi, _vt_sticky))
+_vx_summ = _vt.build_villain_evidence_summary({_vt_vk: _vx_many}, max_aliases=3)
+check('T-VX-08: evidence summary groups by STABLE id + truncates long alias list (no overflow)',
+      len(_vx_summ) == 1 and _vx_summ[0]['villain_id'] == _vt_vk
+      and _vx_summ[0]['alias_count'] == 6 and 'more' in _vx_summ[0]['alias']
+      and _vx_summ[0]['tag_label'] == 'Calling Station', '')
+check('T-VX-09: v8.13.0 no-hindsight gates intact (prior=actionable True; showdown=False)',
+      _o['source_truth']['no_hindsight'] is True and _sd['source_truth']['no_hindsight'] is False
+      and 'def _no_hindsight(' in _vtsrc and 'same_hand_actionable' in _vtsrc, '')
+check('T-VX-10: renderer classifies new contract lines (tag swatch + confidence + guard rename)',
+      "indexOf('Tag suggestion:')" in _htmlsrc_vt and "indexOf('Do not over-adjust:')" in _htmlsrc_vt
+      and "indexOf('Confidence:')" in _htmlsrc_vt and 'v25-teach-tag' in _htmlsrc_vt
+      and 'v25-teach-conf' in _htmlsrc_vt and 'data-tag-color' in _htmlsrc_vt
+      and 'Avoid over-adjusting:' not in _htmlsrc_vt, '')
+
+# ============================================================
+# v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)
+# ============================================================
+import gem_report_data as _ctrd
+import gem_coverage_builder as _ctcb
+import gem_analyst_worklist as _ctwl
+from gem_report_draft._hand_grid import (reconcile_push_widget as _ct_rpw,
+                                          tldr_contradicts_verdict as _ct_tcv)
+from gem_report_draft.sections_xiv import _wpot_claim_ok as _ct_wpot
+from gem_report_draft._helpers import (monotone_overcommit_lesson as _ct_mol,
+                                       _agg_commentary as _ct_agg)
+
+# P0 #1: completion gate — 5 reviewed, 0/14 significant losses -> NOT COMPLETE
+_ct_cands = {'postflop_loss_screen': [{'id': f'L{i}'} for i in range(14)],
+             'mistakes': [], 'punts': [], 'coolers': [], 'bust_audit': [],
+             'biggest_loss_screen': []}
+_ct_rc1 = _ctrd.compute_report_completeness(
+    {'analyst_commentary': {f'R{i}': {} for i in range(5)}}, candidates=_ct_cands)
+check('T-CT-01: 5 reviewed / 0-of-14 significant losses is NOT ANALYST_COMPLETE',
+      _ct_rc1['state'] == 'ANALYST_PARTIAL' and _ct_rc1['critical_unreviewed'] == 14,
+      str(_ct_rc1.get('state')))
+
+# P0 #2: coverage line — incomplete warns "not final"; complete shows N/M
+check('T-CT-02a: incomplete coverage line says "not final"',
+      'not final' in _ct_rc1['coverage_line']
+      and _ct_rc1['critical_coverage_ok'] is False, _ct_rc1['coverage_line'])
+_ct_rc2 = _ctrd.compute_report_completeness(
+    {'analyst_commentary': {f'L{i}': {} for i in range(14)}}, candidates=_ct_cands)
+check('T-CT-02b: complete coverage renders "14/14 significant-loss" + 0 critical + COMPLETE',
+      _ct_rc2['state'] == 'ANALYST_COMPLETE'
+      and '14/14 significant-loss' in _ct_rc2['coverage_line']
+      and _ct_rc2['critical_unreviewed'] == 0, _ct_rc2['coverage_line'])
+
+# P1 #3/#4: biggest-loss + postflop-loss screens
+_ct_hands = [
+  {'id':'TM_BL','net_bb':-12.0,'pf_allin':False,'board':['Ah','Kd','2c'],'went_to_sd':True,'cards':['9h','9d'],'position':'BTN'},
+  {'id':'TM_PF','net_bb':-40.0,'pf_allin':False,'board':['Qc','8c','3c'],'went_to_sd':True,'cards':['Ah','Qd'],'position':'CO'},
+  {'id':'TM_WIN','net_bb':30.0,'pf_allin':False,'board':['2h','3d','4c'],'went_to_sd':True,'cards':['Ac','Ad'],'position':'BB'}]
+_ct_stats = {'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_BL'}}}
+_ct_scr = _ctcb.build_loss_screens(_ct_stats, _ct_hands)
+check('T-CT-03: every stack_trajectories biggest_loss_id is screened',
+      'TM_BL' in _ct_scr['biggest_loss_screen'], str(_ct_scr))
+check('T-CT-04: postflop loss <= -15BB screened; winners/small losses not',
+      'TM_PF' in _ct_scr['postflop_loss_screen']
+      and 'TM_WIN' not in _ct_scr['postflop_loss_screen']
+      and 'TM_BL' not in _ct_scr['postflop_loss_screen'], str(_ct_scr))
+_ct_wcands = {
+  'biggest_loss_screen':[{'id':'TM_BL','screen_reason':'Per-tournament biggest loss; must clear or classify.','position':'BTN','cards':'9h9d','net_bb':-12.0,'went_to_sd':True}],
+  'postflop_loss_screen':[{'id':'TM_PF','screen_reason':'Postflop loss -40BB (<= -15BB); must clear or classify.','position':'CO','cards':'AhQd','net_bb':-40.0,'went_to_sd':True}]}
+_ct_wl = _ctwl.build_analyst_worklist(_ct_wcands, _ct_stats, {}, _ct_hands, '20260613')
+check('T-CT-04b: screened hands reach the worklist with their screen source bucket',
+      'TM_BL' in _ct_wl['items']
+      and 'biggest_loss_screen' in (_ct_wl['items']['TM_BL'].get('candidate_sources') or [])
+      and 'TM_PF' in _ct_wl['items']
+      and 'postflop_loss_screen' in (_ct_wl['items']['TM_PF'].get('candidate_sources') or []), '')
+
+# P1 #5: verdict contradiction
+check('T-CT-05a: final Justified does NOT render bare "Wrong push" (overridden)',
+      _ct_rpw(False, 'III.5 Justified')[0] == 'overridden', str(_ct_rpw(False, 'III.5 Justified')))
+check('T-CT-05b: no analyst verdict -> auto pre-review',
+      _ct_rpw(False, '')[0] == 'pre_review', '')
+check('T-CT-05c: final Mistake + "standard" TL;DR is a flagged contradiction',
+      _ct_tcv('inside the push range — standard, result is variance.', 'III.2 Mistake') is True
+      and _ct_tcv('inside the push range — standard', 'III.5 Justified') is False, '')
+
+# P1 #6: effective stack
+_ct_es = _ctwl.effective_stack_safety(33.6, 18.0, overjam_bb=15.6)
+check('T-CT-06: SB shove total 33.6 / eff 18 evaluated at 18BB (not 33), with warn',
+      _ct_es['eval_depth_bb'] == 18.0 and _ct_es['warn'] is True
+      and '18BB shove' in _ct_es['safety_line'] and 'not 34BB' in _ct_es['safety_line'], str(_ct_es))
+
+# P2 #7: W-POT
+check('T-CT-07: "call 7 into 19.9" passes when _pot_odds per-street pot is 19.9',
+      _ct_wpot(19.9, {'per_street_calls': [{'pot_before_call_bb': 19.9, 'total_pot_bb': 26.9}]}, [('turn', 12.9, 14.0)]) is True
+      and _ct_wpot(50.0, {'per_street_calls': [{'pot_before_call_bb': 19.9}]}, [('turn', 12.9, 14.0)]) is False, '')
+
+# P2 #8: AQ monotone lesson
+_ct_les = _ct_mol('Qc 8c 3c Kc', {'flop': 'xc', 'turn': 'jam'}, net_bb=-40)
+check('T-CT-08a: monotone over-commit lesson names protection+turn, not only "missed flop aggression"',
+      bool(_ct_les) and 'not just missed flop aggression' in _ct_les
+      and 'cheap flop protection' in _ct_les and 'turn' in _ct_les, (_ct_les or '')[:80])
+_ct_aggout = _ct_agg({'verdict': 'MISSED_AGGRESSION', 'street_of_interest': 'flop',
+                      'hsa': {'flop': 'xc', 'turn': 'jam'}, 'board': 'Qc 8c 3c Kc',
+                      'net_bb': -40, 'gates': {}})
+check('T-CT-08b: _agg_commentary reframes monotone over-commit (not sole "missed flop aggression")',
+      'cheap flop protection' in _ct_aggout, _ct_aggout[:80])
+
+# ============================================================
+# v8.14.0 Slice B — V25 hand-detail modal redesign (top bar + street headers)
+# ============================================================
+_hdr_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_vd_block = _hdr_src.split('.v25-top-identity .v25-top-verdict')[1][:300] if '.v25-top-identity .v25-top-verdict' in _hdr_src else ''
+_shh_i = _hdr_src.find('.v25-street-head {')
+_shh_block = _hdr_src[_shh_i:_shh_i + 320] if _shh_i >= 0 else ''
+
+check('T-V25HD-01: result pill color classes preserved (good/bad/neutral)',
+      '.v25-top-result.good' in _hdr_src and '.v25-top-result.bad' in _hdr_src
+      and '.v25-top-result.neutral' in _hdr_src, '')
+check('T-V25HD-02: system verdict readable in its own top-bar chip (12px, not 0.55em)',
+      '.v25-top-identity .v25-top-verdict' in _hdr_src and 'font-size: 12px' in _vd_block, _vd_block[:80])
+check('T-V25HD-03: top verdict strips raw Roman verdict codes in hydration',
+      "replace(/I{1,3}[.][0-9]+/g,'')" in _hdr_src
+      and "classList.add('v25-top-verdict')" in _hdr_src, '')
+check('T-V25HD-04: street header builds title + context chips next to it',
+      "className='v25-street-context'" in _hdr_src
+      and "className='v25-pot-chip'" in _hdr_src
+      and "className='v25-strength-chip'" in _hdr_src
+      and "sTitle.className='v25-street-title'" in _hdr_src, '')
+check('T-V25HD-04b: .v25-street-head is a flex row (context next to title, not far-right grid)',
+      'display: flex' in _shh_block, _shh_block[:90])
+check('T-V25HD-05: no street shortcut/filter chips added (nav stays hidden)',
+      '.v25-street-nav {{ display: none !important; }}' in _hdr_src
+      and 'v25-street-chip' not in _hdr_src and 'street-filter' not in _hdr_src, '')
+check('T-V25HD-06: action-row / commentary-grid / review-control selectors intact',
+      'grid-action' in _hdr_src and 'v25-street-body' in _hdr_src
+      and 'modal-review' in _hdr_src and 'verdict-chip' in _hdr_src, '')
+check('T-V25HD-07: mobile header wraps cleanly (flex-wrap on street head + top identity)',
+      'flex-wrap: wrap' in _shh_block
+      and '.v25-top-identity {{ flex-wrap: wrap' in _hdr_src, '')
+check('T-V25HD-08: top-bar chips use line-height:1 (verdict chip adds no row-height jump)',
+      'line-height: 1;' in _vd_block, _vd_block[:80])
+
+# ============================================================
+# v8.14.0 Slice C — Compact Hand Review Queue (T-RQ-*)
+# ============================================================
+from gem_report_draft.tldr import (build_review_queue as _rq_build,
+                                    normalize_review_status as _rq_norm)
+_rqh = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_rqt = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+
+_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'x'},
+          'TMm': {'verdict': 'III.2', 'hand_strength': 'y'}}
+_rq_s = {'mistakes': [{'id': 'TMa', 'desc': 'auto', 'net_bb': -9}]}
+_rq_rd = {'issue_explorer_issues': [{'name': 'Leak', 'all_hand_ids': ['TMk']}],
+          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'm'}]}}
+_rq_hb = {k: {'net_bb': -10, 'cards': ['Ah', 'Kd']} for k in ('TMp', 'TMm', 'TMa', 'TMk', 'TMg')}
+_rq_q = _rq_build(_rq_s, _rq_rd, _rq_an, _rq_hb)
+check('T-RQ-01: queue priority order punt<analyst<known_leak<auto_clear<marginal',
+      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'auto_clear', 'marginal'],
+      str([x['bucket'] for x in _rq_q]))
+check('T-RQ-02: status normalize (Agree/Report bug/Drill/Rulebook/Clear); Ignore rejected',
+      _rq_norm('Agree') == 'agree' and _rq_norm('Report bug') == 'report_bug'
+      and _rq_norm('Drill') == 'drill' and _rq_norm('Rulebook') == 'rulebook'
+      and _rq_norm('Clear') == '' and _rq_norm('Ignore') == '', '')
+check('T-RQ-03: queue item carries id/rank/bucket/reason_label/title/net/cards',
+      all(k in _rq_q[0] for k in ('id', 'rank', 'bucket', 'reason_label', 'title', 'net', 'cards')),
+      str(_rq_q[0]))
+check('T-RQ-04: modal review chips include Drill + Rulebook + Clear; no Ignore status',
+      'data-verdict="Drill"' in _rqh and 'data-verdict="Rulebook"' in _rqh
+      and 'data-verdict="Agree"' in _rqh and 'data-verdict="">Clear' in _rqh
+      and 'data-verdict="Ignore"' not in _rqh, '')
+check('T-RQ-05: PBReviewQueue builds full-queue context (data-queue-ids) + opens via openHand',
+      'window.PBReviewQueue' in _rqh and 'data-queue-ids' in _rqh
+      and 'handIds:ids.slice()' in _rqh and 'function openRow' in _rqh
+      and 'openHand(hid)' in _rqh, '')
+check('T-RQ-06: rq-card renders data-topn + count + show-all + reviewed + celebratory state',
+      'rq-card' in _rqt and 'data-topn=' in _rqt and 'id="rq-count"' in _rqt
+      and 'id="rq-showall"' in _rqt and 'id="rq-reviewed"' in _rqt
+      and 'id="rq-empty-win"' in _rqt, '')
+check('T-RQ-07: compact rows are full-row clickable (role=button) with one reason + BB pill',
+      'class="rq-row" role="button"' in _rqt and 'class="reason reason-' in _rqt
+      and 'bb-pill' in _rqt, '')
+check('T-RQ-08: mobile rq-row uses stacking grid-areas (no horizontal table)',
+      'grid-template-areas: "rank hid main bb"' in _rqh, '')
+check('T-RQ-09: status change refreshes the queue partition/counts',
+      'window.PBReviewQueue.refresh()' in _rqh, '')
 
 # ============================================================
 # SUMMARY

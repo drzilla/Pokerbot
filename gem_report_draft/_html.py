@@ -972,18 +972,28 @@ _MODAL_HTML = r"""
        thin-read fallback). All copy is built in Python (gem_villain_teaching)
        so the renderer only displays strings and invents nothing. */
     if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
-      /* rev-2: render the FULL pre-built teaching sequence (Read / Villain /
-         Cue / Now / Next time / Avoid over-adjusting / Bounty), or the single
-         fallback line. All strings are built in Python; the renderer only
-         classifies + displays them. */
+      /* v8.14.0 Slice D: render the FULL pre-built teaching contract (What
+         villain did / Cue / Read / Confidence / Exploit now / Exploit future /
+         Do not over-adjust / Bounty / Tag suggestion), or the single fallback
+         line. All strings are built in Python; the renderer only classifies +
+         displays them. The Tag-suggestion line carries the Natural8 candidate
+         client tag; its trailing "(colour)" token drives a small colour swatch. */
       var _t=ctx.teaching;var _tp=[];
       _t.teach_lines.forEach(function(ln){
-        var cls='v25-teach-line';
-        if(_t.fallback){cls='v25-teach-weak';}
+        var cls='v25-teach-line';var attr='';
+        if(ln.indexOf('Tag suggestion:')===0){
+          /* styled (and colour-swatched) even on a fallback read, since
+             'Unsure / Tag-me-later' is itself the takeaway. */
+          cls='v25-teach-tag';
+          var _m=ln.match(/\(([a-z]+)\)\s*$/);
+          if(_m){attr=' data-tag-color="'+_m[1]+'"';}
+        }
+        else if(_t.fallback){cls='v25-teach-weak';}
         else if(ln.indexOf('Read:')===0){cls='v25-teach-head';}
-        else if(ln.indexOf('Avoid over-adjusting:')===0){cls='v25-teach-guard';}
+        else if(ln.indexOf('Confidence:')===0){cls='v25-teach-conf';}
+        else if(ln.indexOf('Do not over-adjust:')===0){cls='v25-teach-guard';}
         else if(ln.indexOf('Bounty:')===0){cls='v25-teach-pko';}
-        _tp.push('<div class="'+cls+'">'+_esc(ln)+'</div>');
+        _tp.push('<div class="'+cls+'"'+attr+'>'+_esc(ln)+'</div>');
       });
       var _td=document.createElement('div');_td.className='v25-teach';_td.innerHTML=_tp.join('');_bl.appendChild(_td);
     }
@@ -6042,6 +6052,19 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-guard {{ color: #92400e; margin-top: 2px; }}
   .v25-teach-pko {{ color: #1e3a5f; margin-top: 2px; }}
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
+  /* v8.14.0 Slice D: confidence line + Natural8 candidate-tag swatch */
+  .v25-teach-conf {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  .v25-teach-tag {{ margin-top: 3px; font-weight: 600; color: #334155;
+    border-left: 3px solid #cbd5e1; padding-left: 6px; }}
+  .v25-teach-tag[data-tag-color="red"] {{ border-left-color: #dc2626; color: #991b1b; }}
+  .v25-teach-tag[data-tag-color="purple"] {{ border-left-color: #7c3aed; color: #5b21b6; }}
+  .v25-teach-tag[data-tag-color="brown"] {{ border-left-color: #92400e; color: #78350f; }}
+  .v25-teach-tag[data-tag-color="orange"] {{ border-left-color: #ea580c; color: #9a3412; }}
+  .v25-teach-tag[data-tag-color="pink"] {{ border-left-color: #db2777; color: #9d174d; }}
+  .v25-teach-tag[data-tag-color="blue"] {{ border-left-color: #2563eb; color: #1e40af; }}
+  .v25-teach-tag[data-tag-color="cyan"] {{ border-left-color: #0891b2; color: #155e75; }}
+  .v25-teach-tag[data-tag-color="lime"] {{ border-left-color: #65a30d; color: #3f6212; }}
+  .v25-teach-tag[data-tag-color="yellow"] {{ border-left-color: #ca8a04; color: #854d0e; }}
   .coaching-analyst_learning {{ border: 1px solid #c084fc; }}
   .cb-header.cb-learning {{ background: #faf5ff; color: #6b21a8; border-bottom: 1px solid #c084fc; }}
   .cb-analyst {{ padding: 8px 12px; font-size: 12px; background: #f0f9ff;

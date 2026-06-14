@@ -27,7 +27,18 @@ HARD CONSTRAINTS (do not relax — see GPT review history):
     BB/$ is ever synthesised here.
   * Online vs live: population is a copy suffix + a field only; it changes no
     threshold and never cross-applies a live read into an online report.
+
+v8.14.0 (Slice D — Villain Exploitation v2): the same projection now also
+answers the compact per-hand teaching contract (What villain did / Cue / Read /
+Confidence / Exploit now / Exploit future / Do not over-adjust / Tag suggestion)
+and maps the derived read to a CANDIDATE Natural8 client tag (label + colour).
+The tag is a pure projection of the existing read + confidence + no-hindsight
+state — weak evidence yields the explicit "Unsure / Tag-me-later" (yellow) tag
+rather than a forced colour, and the "Candidate" qualifier is dropped only at
+high confidence. No new detector, scoring, or taxonomy is introduced here.
 """
+
+import re
 
 # Single fixed fallback line for thin / hindsight-gated reads (slice spec).
 FALLBACK_LINE = ("Read is weak — one cue only. Use as a review candidate, "
@@ -66,6 +77,84 @@ def derive_do_not_overadjust(confidence, read_label='', has_pko=False):
                 return _LOW_CONF_CONTEXT[key]
         return _DO_NOT_OVERADJUST_GENERIC['low']
     return _DO_NOT_OVERADJUST_GENERIC.get(confidence, _DO_NOT_OVERADJUST_GENERIC['low'])
+
+
+# ── Natural8 client tag taxonomy (Slice D) ──────────────────────────────────
+# Ron's Natural8 colour-tag scheme. We map a DERIVED read family -> a candidate
+# client tag. This is a projection, not a new classifier: the read itself comes
+# from gem_villain_intel; here we only translate it into the tag Ron would apply
+# in his client, and only when the evidence is strong enough to suggest one.
+_N8_TAG_UNSURE = ('Unsure / Tag-me-later', 'yellow')
+_N8_TAGS = {
+    'danger':  ('Danger Reg', 'red'),
+    'solid':   ('Solid Reg', 'purple'),
+    'nit':     ('Nit/Rock', 'brown'),
+    'station': ('Calling Station', 'orange'),
+    'aggro':   ('Maniac/LAG', 'pink'),
+    'fish':    ('Fish', 'blue'),
+    'whale':   ('Whale', 'cyan'),
+    'funrec':  ('Fun Rec / Gambler', 'lime'),
+}
+
+
+def _archetype_family(archetype):
+    """Map a read/archetype label to a tag-family key (or None when unmapped).
+
+    Tolerant of emoji prefixes and the 'Candidate ' qualifier; matches the
+    canonical read phrases. 'Unknown'/missing -> None (no forced tag)."""
+    a = (archetype or '').lower()
+    if not a or 'unknown' in a:
+        return None
+    if 'danger' in a:
+        return 'danger'
+    if 'maniac' in a or re.search(r'\blag\b', a) or 'aggressive' in a or 'aggro' in a:
+        return 'aggro'
+    if 'nit' in a or 'rock' in a:
+        return 'nit'
+    if 'station' in a or 'sticky' in a or 'loose passive' in a or 'calling' in a:
+        return 'station'
+    if 'solid' in a:
+        return 'solid'
+    if 'whale' in a:
+        return 'whale'
+    if 'fish' in a:
+        return 'fish'
+    if 'fun rec' in a or 'gambler' in a or 'recreation' in a:
+        return 'funrec'
+    return None
+
+
+def suggest_natural8_tag(archetype, confidence, evidence_count, no_hindsight):
+    """Suggest a CANDIDATE Natural8 client tag {label, color, kind} for a read.
+
+    Pure projection — invents no read. Weak evidence (low confidence, a single
+    cue, hindsight-gated, or an unmapped archetype) returns the explicit
+    'Unsure / Tag-me-later' (yellow) tag rather than forcing a colour. The
+    'Candidate ' qualifier is dropped only at high confidence. High-confidence
+    aggression escalates Maniac/LAG -> Danger Reg (the tournament threat tag)."""
+    n = int(evidence_count or 0)
+    fam = _archetype_family(archetype)
+    if confidence == 'low' or n <= 1 or not no_hindsight or fam is None:
+        return {'label': _N8_TAG_UNSURE[0], 'color': _N8_TAG_UNSURE[1], 'kind': 'unsure'}
+    # A well-corroborated aggressive read is a 'Danger Reg', not just a Maniac.
+    if fam == 'aggro' and confidence == 'high':
+        fam = 'danger'
+    label, color = _N8_TAGS[fam]
+    if confidence != 'high':
+        label = 'Candidate ' + label
+    return {'label': label, 'color': color, 'kind': fam}
+
+
+def _candidate_archetype(archetype, confidence):
+    """Read label for display: 'Candidate <X>' unless high confidence; an
+    unknown/missing read becomes the explicit 'Unknown / Tag-me-later'."""
+    a = (archetype or '').strip()
+    if not a or a.lower() == 'unknown':
+        return 'Unknown / Tag-me-later'
+    if confidence == 'high':
+        return a
+    return 'Candidate ' + a
+
 
 # Canonical exploit read-label -> the atom dimensions that CORROBORATE it.
 # Used only to count same-decision-type evidence for confidence (no new scoring).
@@ -160,38 +249,55 @@ def _pko_subobject(pko_by_hand, hand_id):
     return out
 
 
+def _tag_line(obj):
+    """The 'Tag suggestion:' line from the object's stamped tag, or None."""
+    tag = obj.get('tag_suggestion') or {}
+    if tag.get('label'):
+        return 'Tag suggestion: %s (%s)' % (tag['label'], tag.get('color') or 'yellow')
+    return None
+
+
 def _teach_lines(obj):
-    """Pre-render the FULL compact teaching sequence in PYTHON so the renderer
-    only displays strings (it cannot invent facts). rev-2: emits the whole
-    sequence (Read header -> Villain -> Cue -> Now -> Next time -> Avoid
-    over-adjusting -> Bounty) for non-fallback objects; a single fallback line
-    for thin / hindsight-gated objects."""
+    """Pre-render the FULL compact teaching contract in PYTHON so the renderer
+    only displays strings (it cannot invent facts). Slice D order:
+
+        What villain did -> Cue -> Read -> Confidence -> Exploit now ->
+        Exploit future -> Do not over-adjust -> Bounty -> Tag suggestion
+
+    For thin / hindsight-gated objects only the fixed fallback line is shown,
+    followed by the (always 'Unsure / Tag-me-later') tag line so the report
+    still tells Ron what to do in his client: tag later."""
     if obj.get('fallback'):
-        return [FALLBACK_LINE]
+        lines = [FALLBACK_LINE]
+        tl = _tag_line(obj)
+        if tl:
+            lines.append(tl)
+        return lines
     lines = []
-    head = []
-    if obj.get('archetype'):
-        head.append(str(obj['archetype']))
-    if obj.get('confidence'):
-        head.append(str(obj['confidence']) + ' confidence')
-    ec = obj.get('evidence_count')
-    if isinstance(ec, int):
-        head.append('%d cue%s' % (ec, '' if ec == 1 else 's'))
-    if head:
-        lines.append('Read: ' + ' · '.join(head))
     if obj.get('villain_did'):
-        lines.append('Villain: ' + obj['villain_did'])
+        lines.append('What villain did: ' + obj['villain_did'])
     if obj.get('cue'):
         lines.append('Cue: ' + obj['cue'])
+    lines.append('Read: ' + _candidate_archetype(obj.get('archetype'),
+                                                  obj.get('confidence')))
+    if obj.get('confidence'):
+        conf = str(obj['confidence'])
+        ec = obj.get('evidence_count')
+        if isinstance(ec, int):
+            conf += ' · %d cue%s' % (ec, '' if ec == 1 else 's')
+        lines.append('Confidence: ' + conf)
     if obj.get('exploit_now'):
-        lines.append('Now: ' + obj['exploit_now'])
+        lines.append('Exploit now: ' + obj['exploit_now'])
     if obj.get('future_exploit'):
-        lines.append('Next time: ' + obj['future_exploit'])
+        lines.append('Exploit future: ' + obj['future_exploit'])
     if obj.get('do_not_overadjust'):
-        lines.append('Avoid over-adjusting: ' + obj['do_not_overadjust'])
+        lines.append('Do not over-adjust: ' + obj['do_not_overadjust'])
     pko = obj.get('pko')
     if pko and pko.get('cover_label'):
         lines.append('Bounty: ' + pko['cover_label'])
+    tl = _tag_line(obj)
+    if tl:
+        lines.append(tl)
     return lines or [FALLBACK_LINE]
 
 
@@ -205,6 +311,17 @@ def _finalize(obj):
     thin = (not obj.get('villain_did') and not obj.get('cue'))
     if thin:
         obj['fallback'] = True
+    # Natural8 candidate tag (Slice D). A fallback / weak read is explicitly
+    # 'Unsure / Tag-me-later' — never a forced colour; otherwise project the
+    # derived read + confidence + no-hindsight state into a candidate tag.
+    if obj.get('fallback'):
+        obj['tag_suggestion'] = {'label': _N8_TAG_UNSURE[0],
+                                 'color': _N8_TAG_UNSURE[1], 'kind': 'unsure'}
+    else:
+        nh = bool((obj.get('source_truth') or {}).get('no_hindsight'))
+        obj['tag_suggestion'] = suggest_natural8_tag(
+            obj.get('archetype'), obj.get('confidence'),
+            obj.get('evidence_count'), nh)
     obj['teach_lines'] = _teach_lines(obj)
     return obj
 
@@ -339,11 +456,72 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
     return _finalize(obj)
 
 
+_CONF_RANK = {'high': 3, 'medium': 2, 'low': 1}
+
+
+def _best_obj(objs):
+    """The strongest teaching object for a villain: prefer non-fallback, then
+    higher confidence, then more evidence, then one carrying an exploit. Pure +
+    deterministic (no time/random)."""
+    def _key(o):
+        return (0 if o.get('fallback') else 1,
+                _CONF_RANK.get(o.get('confidence'), 0),
+                int(o.get('evidence_count') or 0),
+                1 if o.get('exploit_now') else 0)
+    return sorted(objs, key=_key, reverse=True)[0]
+
+
+def build_villain_evidence_summary(teaching_by_villain, *, max_aliases=3):
+    """Compact per-villain evidence roll-up (Slice D, secondary view).
+
+    Groups already-built teaching objects by their STABLE villain id (the read
+    key), NOT by alias — aliases are display-only and can change between hands.
+    Returns a deterministic list of rows (one per villain), each cell read off
+    the strongest object for that villain. Invents nothing; hindsight-gated /
+    fallback-only villains summarise honestly (Unsure tag, '—' exploit). The
+    alias list is truncated to ``max_aliases`` with a '+N more' suffix so a long
+    seat history never overflows a compact row.
+    """
+    rows = []
+    for vk, raw in (teaching_by_villain or {}).items():
+        objs = [o for o in (raw or []) if o]
+        if not objs:
+            continue
+        best = _best_obj(objs)
+        aliases = []
+        for o in objs:
+            al = (o.get('villain_alias') or '').strip()
+            if al and al not in aliases:
+                aliases.append(al)
+        alias_disp = ', '.join(aliases[:max_aliases])
+        if len(aliases) > max_aliases:
+            alias_disp += ' +%d more' % (len(aliases) - max_aliases)
+        tag = best.get('tag_suggestion') or {}
+        rows.append({
+            'villain_id': vk,
+            'alias': alias_disp or (best.get('villain_alias') or 'Unknown'),
+            'alias_count': len(aliases),
+            'archetype': best.get('archetype') or 'Unknown',
+            'confidence': best.get('confidence') or 'low',
+            'evidence_count': int(best.get('evidence_count') or 0),
+            'cue': best.get('cue') or '',
+            'tag_label': tag.get('label') or _N8_TAG_UNSURE[0],
+            'tag_color': tag.get('color') or _N8_TAG_UNSURE[1],
+            'exploit': best.get('exploit_now') or '—',
+            'n_objects': len(objs),
+            'actionable': bool(best.get('exploit_now')) and not best.get('fallback'),
+        })
+    rows.sort(key=lambda r: (-_CONF_RANK.get(r['confidence'], 0),
+                             -r['evidence_count'], r['villain_id']))
+    return rows
+
+
 def build_villain_teaching(villain_intel, *, population='online', pko_by_hand=None):
     """Public entry. Project villain_intel into render-facing teaching objects.
 
     Returns {'teaching_by_hand': {hand_id: [obj, ...]},
              'teaching_by_villain': {villain_key: [obj, ...]},
+             'teaching_summary': [row, ...],   # per-stable-villain roll-up
              'population': population}.
     Never raises on partial data — missing pieces degrade to fallbacks.
     """
@@ -393,4 +571,5 @@ def build_villain_teaching(villain_intel, *, population='online', pko_by_hand=No
             _emit(hand_id, obj)
 
     return {'teaching_by_hand': by_hand, 'teaching_by_villain': by_villain,
+            'teaching_summary': build_villain_evidence_summary(by_villain),
             'population': population}

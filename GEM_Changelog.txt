@@ -1,3 +1,43 @@
+v8.14.0-preview (2026-06-14) -- Slice D: Villain Exploitation v2
+=========================================================================
+Turns the villain teaching block from "visible" into "actionable". The per-hand
+projection now answers a compact, fixed teaching contract and recommends a
+candidate Natural8 client tag. No new detector, scoring, or read taxonomy — this
+is still a pure projection of the already-stamped villain_intel; it invents
+nothing and the v8.13.0 no-hindsight gates are unchanged.
+
+Per-hand teaching contract (gem_villain_teaching._teach_lines), in order:
+  What villain did -> Cue -> Read -> Confidence -> Exploit now ->
+  Exploit future -> Do not over-adjust -> Bounty -> Tag suggestion
+(Renamed from the v8.13.0 labels: Villain/Now/Next time/Avoid over-adjusting.)
+
+Natural8 candidate tags (gem_villain_teaching.suggest_natural8_tag): maps a
+derived read family to Ron's client colour tag — Danger Reg (red, high-confidence
+aggression), Solid Reg (purple), Nit/Rock (brown), Calling Station (orange,
+sticky/loose-passive/station), Maniac/LAG (pink), Fish (blue), Whale (cyan), Fun
+Rec/Gambler (lime). Weak evidence (low confidence, a single cue, hindsight-gated,
+or an unmapped read) yields the explicit "Unsure / Tag-me-later" (yellow) tag —
+a tag is never forced. The "Candidate" qualifier is dropped only at high
+confidence; the read label itself reads "Candidate <X>" / "Unknown / Tag-me-later"
+unless high confidence.
+
+Evidence aggregation (gem_villain_teaching.build_villain_evidence_summary): a
+deterministic per-villain roll-up grouped by STABLE villain id (not by alias —
+aliases are display-only and truncated to 3 + "+N more"). Each row carries the
+strongest object's read, confidence, evidence count, cue, exploit, and candidate
+tag. Exposed as teaching_summary in build_villain_teaching() output; data only
+(rendering of the summary table is a follow-up — not wired this slice).
+
+Render (gem_report_draft/_html.py): the teach-line classifier learns the new
+labels, adds a Confidence line style, and renders the Tag suggestion line with a
+small Natural8 colour swatch (data-tag-color, driven by the trailing "(colour)"
+token) — shown even on a fallback read, since "Unsure / Tag-me-later" is itself
+the takeaway. No modal/top-bar/street-header/queue change.
+
+Tests: +10 (T-VX-01..10), T-VT-15 updated to the renamed contract -> 1024. Local
+preview slice of the v8.14.0 train; not merged/pushed/tagged.
+
+
 v8.14.0-preview (2026-06-14) -- Slice C: Compact Hand Review Queue
 =========================================================================
 Upgrades the existing "Hands to open first" block into a compact prioritized

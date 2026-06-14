@@ -6911,14 +6911,16 @@ check('T-VT-14: build_villain_teaching indexes by hand + villain; never raises o
       'H_now' in _built['teaching_by_hand'] and _vt_vk in _built['teaching_by_villain']
       and _vt.build_villain_teaching({})['teaching_by_hand'] == {}, '')
 # --- rev-2 (GPT product-fail fixes) ---
-check('T-VT-15: non-fallback teach_lines render the FULL sequence incl Read + Villain(did)',
+check('T-VT-15: non-fallback teach_lines render the FULL Slice-D contract (8 labels)',
       not _o['fallback']
-      and any(l.startswith('Read:') for l in _o['teach_lines'])
-      and any(l.startswith('Villain:') for l in _o['teach_lines'])
+      and any(l.startswith('What villain did:') for l in _o['teach_lines'])
       and any(l.startswith('Cue:') for l in _o['teach_lines'])
-      and any(l.startswith('Now:') for l in _o['teach_lines'])
-      and any(l.startswith('Next time:') for l in _o['teach_lines'])
-      and any(l.startswith('Avoid over-adjusting:') for l in _o['teach_lines']), '')
+      and any(l.startswith('Read:') for l in _o['teach_lines'])
+      and any(l.startswith('Confidence:') for l in _o['teach_lines'])
+      and any(l.startswith('Exploit now:') for l in _o['teach_lines'])
+      and any(l.startswith('Exploit future:') for l in _o['teach_lines'])
+      and any(l.startswith('Do not over-adjust:') for l in _o['teach_lines'])
+      and any(l.startswith('Tag suggestion:') for l in _o['teach_lines']), '')
 _a_sha = {'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'multiway_donk', 'street': 'flop',
           'action_index': 3, 'available_before_action_index': 3, 'same_hand_actionable': True,
           'evidence_text': 'Donk-bet into the field.', 'hero_involved': True,
@@ -6939,6 +6941,85 @@ _htmlsrc_vt = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles',
       'teach_lines.forEach' in _htmlsrc_vt and 'v25-teach-head' in _htmlsrc_vt
       and 'v25-teach-line' in _htmlsrc_vt, '')
+
+# ============================================================
+# v8.14.0 — Slice D: Villain Exploitation v2 (T-VX-*)
+#   8-field per-hand teaching contract + Natural8 candidate-tag mapper +
+#   candidate read language + stable-identity evidence aggregation.
+# ============================================================
+_VX_CONTRACT = ['What villain did:', 'Cue:', 'Read:', 'Confidence:', 'Exploit now:',
+                'Exploit future:', 'Do not over-adjust:', 'Tag suggestion:']
+check('T-VX-01: full per-hand teaching contract (8 labels) + tag_suggestion{label,color,kind} present',
+      all(any(l.startswith(p) for l in _o['teach_lines']) for p in _VX_CONTRACT)
+      and {'label', 'color', 'kind'} <= set(_o['tag_suggestion']), '')
+check('T-VX-02: candidate read language unless high conf; weak read -> Unsure/yellow (never forced)',
+      _vt._candidate_archetype('Sticky Passive', 'medium') == 'Candidate Sticky Passive'
+      and _vt._candidate_archetype('Sticky Passive', 'high') == 'Sticky Passive'
+      and _vt._candidate_archetype('', 'low') == 'Unknown / Tag-me-later'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'low', 5, True)['kind'] == 'unsure'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'high', 1, True)['kind'] == 'unsure'
+      and _vt.suggest_natural8_tag('Sticky Passive', 'high', 9, False)['color'] == 'yellow', '')
+check('T-VX-03: repeated sticky/passive -> Calling Station (orange) at high conf, exploit present',
+      _o['tag_suggestion']['label'] == 'Calling Station' and _o['tag_suggestion']['color'] == 'orange'
+      and _o['tag_suggestion']['kind'] == 'station' and _o['exploit_now']
+      and 'Tag suggestion: Calling Station (orange)' in _o['teach_lines'], '')
+_vx_ars = {_vt_vk: {'villain_alias': 'Storm', 'primary_read': 'Aggressive', 'confidence': 'high',
+                    'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7', 'H_now']}}
+_vx_aatoms = {_vt_vk: [{'dimension': 'aggressive'} for _ in range(3)]}
+_vx_aggro = _vt.teaching_from_exploit(
+    _vt_exp(exploit_read_label='Aggressive', exploit_read_display='Aggressive',
+            evidence_text='Check-raised turn after floating the flop.',
+            suggests='Delayed aggression - piles on pressure on later streets.',
+            so_what='Respect the turn check-raise; do not auto-barrel.',
+            recommended_exploit='Pot-control turns; let him keep bluffing.'),
+    _vx_ars, _vx_aatoms)
+check('T-VX-04: aggression -> Danger Reg (red) high conf / Candidate Maniac-LAG (pink) medium; exploit respects raise',
+      _vx_aggro['tag_suggestion']['label'] == 'Danger Reg' and _vx_aggro['tag_suggestion']['color'] == 'red'
+      and 'Respect' in (_vx_aggro['exploit_now'] or '') and not _vx_aggro['fallback']
+      and _vt.suggest_natural8_tag('Aggressive', 'medium', 5, True)['label'] == 'Candidate Maniac/LAG'
+      and _vt.suggest_natural8_tag('Aggressive', 'medium', 5, True)['color'] == 'pink', '')
+_vx_sd = _vt.teaching_from_atom(
+    {'villain_key': _vt_vk, 'hand_id': 'H8', 'signal': 'weak_showdown_call', 'street': 'river',
+     'action_index': 4, 'available_before_action_index': None, 'hero_involved': True,
+     'evidence_text': 'Tabled bottom pair at showdown.', 'so_what': 'Value-bet thinner.',
+     'suggests': 'Sticky.'}, _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VX-05: showdown-only atom -> fallback, no exploit_now, Unsure tag, no_hindsight False',
+      _vx_sd['fallback'] and _vx_sd['exploit_now'] is None
+      and _vx_sd['tag_suggestion']['kind'] == 'unsure'
+      and _vx_sd['source_truth']['no_hindsight'] is False
+      and _vt.FALLBACK_LINE in _vx_sd['teach_lines'], '')
+_vx_hni = _vt.build_villain_teaching(
+    {'read_states': _vt_rs(), 'atoms_by_villain': _vt_sticky, 'exploits_by_hand': {},
+     'atoms_by_hand': {'Hx': [{'villain_key': _vt_vk, 'hand_id': 'Hx', 'signal': 'weak_showdown_call',
+                               'street': 'river', 'action_index': 2, 'available_before_action_index': 2,
+                               'same_hand_actionable': True, 'evidence_text': 'x', 'hero_involved': False,
+                               'suggests': 's', 'so_what': 'w'}]}})
+check('T-VX-06: hero-not-involved atoms never create a same-hand teaching object (no fake live read)',
+      not _vx_hni['teaching_by_hand'].get('Hx'), '')
+_vx_contra = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(n=9),
+                                       {_vt_vk: [{'dimension': 'aggressive'} for _ in range(9)]})
+check('T-VX-07: uncorroborated/contradictory cues -> low conf + Unsure tag + candidate read (not forced)',
+      _vx_contra['confidence'] == 'low' and _vx_contra['tag_suggestion']['kind'] == 'unsure'
+      and not _vx_contra['fallback']
+      and any(l.startswith('Read: Candidate') for l in _vx_contra['teach_lines']), '')
+_vx_many = []
+for _vxi in range(6):
+    _vx_rsi = {_vt_vk: {'villain_alias': 'Seat%d' % _vxi, 'primary_read': '\U0001F4DE Sticky Passive',
+                        'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7']}}
+    _vx_many.append(_vt.teaching_from_exploit(_vt_exp(), _vx_rsi, _vt_sticky))
+_vx_summ = _vt.build_villain_evidence_summary({_vt_vk: _vx_many}, max_aliases=3)
+check('T-VX-08: evidence summary groups by STABLE id + truncates long alias list (no overflow)',
+      len(_vx_summ) == 1 and _vx_summ[0]['villain_id'] == _vt_vk
+      and _vx_summ[0]['alias_count'] == 6 and 'more' in _vx_summ[0]['alias']
+      and _vx_summ[0]['tag_label'] == 'Calling Station', '')
+check('T-VX-09: v8.13.0 no-hindsight gates intact (prior=actionable True; showdown=False)',
+      _o['source_truth']['no_hindsight'] is True and _sd['source_truth']['no_hindsight'] is False
+      and 'def _no_hindsight(' in _vtsrc and 'same_hand_actionable' in _vtsrc, '')
+check('T-VX-10: renderer classifies new contract lines (tag swatch + confidence + guard rename)',
+      "indexOf('Tag suggestion:')" in _htmlsrc_vt and "indexOf('Do not over-adjust:')" in _htmlsrc_vt
+      and "indexOf('Confidence:')" in _htmlsrc_vt and 'v25-teach-tag' in _htmlsrc_vt
+      and 'v25-teach-conf' in _htmlsrc_vt and 'data-tag-color' in _htmlsrc_vt
+      and 'Avoid over-adjusting:' not in _htmlsrc_vt, '')
 
 # ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)

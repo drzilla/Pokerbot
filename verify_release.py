@@ -15,12 +15,12 @@ VERSION = "v8.14.0-preview"   # v8.14 train: + Slice B V25 hand-detail modal red
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("fcc6c7c2d420c551d9a20693057ee0d788edc9f9041f10ba53f15ef10bcc72a3", 57204, "changelog through v8.14.0-preview Slice C"),
+    "GEM_Changelog.txt": ("1e4789a9efb5ecc6445fe56dbfa03685d6cc3d8060df7c2a1913d24560206707", 59663, "v8.14.0 Slice D: villain exploitation v2 entry"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("4ab7c87b64a2aa04f761b0464942b53c447803280cccf72f8e4ac96d48396586", 4169, "STEP0 39/39 files, 324 canaries, 10 anti"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("3b2be8bb0fefa0add53e828d2e53e1c071df7038d5ba3c4ad1cab7ff1d3e2fc1", 4169, "v8.14.0 Slice D: 333 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("770c880c643b4abe52415ffaa636677b763e5d1ecd4f7824f33480582c5af9a6", 359893, "v8.14.0 Slice C: 1014 tests (+T-RQ-01..09)"),
+    "_test_scratch.py": ("3595603937b49ee76046fdabbc109d22820fb3f3824fccaa325e61672e59cc74", 366223, "v8.14.0 Slice D: +T-VX-01..10 villain v2 (1024 tests)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
     "gem_analyst_worklist.py": ("d20383393e9c27c96f484546d7c8cf030264180ba72a39b376bca183392900b5", 48185, "v8.13.1 P1: loss-screen buckets + effective-stack safety"),
@@ -40,7 +40,7 @@ MANIFEST = {
     "gem_report_data.py": ("294961be030073b67f0291a888bdcd97f4153f0e45d977284e047a8711b62c6b", 222675, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
     "gem_report_draft/_hand_grid.py": ("0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090", 75682, "v8.13.1 P1: push-widget reconciled vs analyst verdict + nearest-chart line"),
     "gem_report_draft/_helpers.py": ("902d86cab4faa4b4660c0e4122de9b19245a45eaae317380674b4f3c06950ecc", 56373, "v8.13.1 P2: monotone over-commit sequence lesson"),
-    "gem_report_draft/_html.py": ("68b8fe81ccc0754154764810e935e60e3f72c71ff34762614c24b94c9c887be9", 377378, "v8.14.0 Slice C: review-queue controller + Drill/Rulebook chips + compact-queue CSS"),
+    "gem_report_draft/_html.py": ("dd769479329181ae79ba31fd34fb1fa5eb5d7fc5540947fdf0ada0cacfb90867", 379097, "v8.14.0 Slice D: teach-line contract classifier + Natural8 tag swatch + Confidence style"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
     "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
@@ -53,7 +53,7 @@ MANIFEST = {
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
-    "gem_villain_teaching.py": ("1d4d8a18d1d4878d69fc1263c99e40fc80ed432b759cf6142257c16eb982b4b2", 17926, "v8.13.0: villain teaching projection (no invention)"),
+    "gem_villain_teaching.py": ("9d3acc7704ce1b66eb20c4d21f6e8220400eb17104dd0189e9aaa75f405a9486", 25886, "v8.14.0 Slice D: teaching contract + Natural8 candidate tags + evidence aggregation"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -924,6 +924,25 @@ CANARIES = [
      "v8.13.0 rev-2: generic/context-safe low-confidence guardrail (not PKO-specific by default)"),
     ("gem_villain_teaching.py", "same_hand_actionable",
      "v8.13.0 rev-2: atom no-hindsight requires same_hand_actionable"),
+    # ── v8.14.0 Slice D: villain exploitation v2 (teaching contract + N8 tags) ──
+    ("gem_villain_teaching.py", "def suggest_natural8_tag(",
+     "v8.14.0 Slice D: Natural8 candidate client-tag mapper (label+colour)"),
+    ("gem_villain_teaching.py", "_N8_TAG_UNSURE",
+     "v8.14.0 Slice D: weak read -> explicit 'Unsure / Tag-me-later' (never forced)"),
+    ("gem_villain_teaching.py", "def _candidate_archetype(",
+     "v8.14.0 Slice D: candidate read language unless high confidence"),
+    ("gem_villain_teaching.py", "def build_villain_evidence_summary(",
+     "v8.14.0 Slice D: per-STABLE-villain evidence aggregation"),
+    ("gem_villain_teaching.py", "What villain did: ",
+     "v8.14.0 Slice D: per-hand teaching contract label"),
+    ("gem_villain_teaching.py", "Tag suggestion: ",
+     "v8.14.0 Slice D: tag-suggestion teach line (label + colour)"),
+    ("gem_report_draft/_html.py", "v25-teach-tag",
+     "v8.14.0 Slice D: Natural8 candidate-tag swatch in the teaching block"),
+    ("gem_report_draft/_html.py", "Do not over-adjust:",
+     "v8.14.0 Slice D: renamed guardrail label in the teach-line classifier"),
+    ("gem_report_draft/_html.py", "data-tag-color",
+     "v8.14.0 Slice D: tag colour-swatch attribute (driven by the (colour) token)"),
     # ── v8.13.1: analyst-coverage + verdict-contradiction trust ──
     ("gem_report_data.py", "_CRITICAL_NEED_BUCKETS",
      "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage"),

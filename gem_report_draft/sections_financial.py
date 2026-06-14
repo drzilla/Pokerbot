@@ -14,7 +14,7 @@ from gem_report_draft._blocks import (financial_table_block,
     variance_ledger_block, hand_evidence_table_block, metric_table_block)
 from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
-    _hero_action_verbs_by_street_from_app)
+    _hero_action_verbs_by_street_from_app, _verdict_display_label)
 from gem_report_draft.sections_xiv import (_eai_one_liner, _per_tourney_one_liner,
     _short_tournament, _generate_cheat_sheet)
 from gem_report_draft.sections_mistakes import _emit_mental_game
@@ -765,7 +765,7 @@ def _emit_section_i(doc, s, rd, hands):
               f'underdog who won (by Hero). Equity is the true multiway '
               f'all-in number at the moment of the all-in. Variance, not '
               f'leaks — separated here so they are not confused with the '
-              f'structural coolers in I.7.">'
+              f'structural coolers.">'
               f'<strong>\U0001f922 Suckout ledger</strong> — {len(_sk_against)} against Hero · '
               f'{len(_sk_by)} by Hero</span>')
         doc.w("")
@@ -2441,8 +2441,10 @@ def _emit_sub_large_loss_audit(doc, s, rd, hands):
         doc.w("| Tournament | Exit Hand | Cards | Stack | %Lost | Equity | Result | Hands |")
         doc.w("|---|---|---|---|---|---|---|---|")
         for row in _bust_rows:
+            # Obj-H: strip the verdict code at DISPLAY time only — row[6] keeps
+            # the raw code so the _n_busted count above still recognises it.
             doc.w(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | "
-                  f"{row[5]} | {row[6]} | {row[7]} |")
+                  f"{row[5]} | {_verdict_display_label(row[6])} | {row[7]} |")
         doc.w("")
 
 

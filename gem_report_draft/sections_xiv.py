@@ -13,7 +13,8 @@ from gem_report_draft._html import (Doc, _card_html, _cards_html,
     _sort_cards_desc, _describe_made_hand, _SUIT_HTML, _RANK_VALUES, _SUIT_VALUES)
 from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
-    _hero_action_verbs_by_street_from_app, _split_argument_into_notes)
+    _hero_action_verbs_by_street_from_app, _split_argument_into_notes,
+    _verdict_display_label)
 
 import gem_made_hands as mh
 import gem_gtow
@@ -31,6 +32,50 @@ def _street_attr(v):
     """Return a validated street name for data-street attribute, or empty string."""
     s = str(v or '').lower().replace('-', '').replace('_', '').replace(' ', '')
     return s if s in {'preflop', 'flop', 'turn', 'river'} else ''
+
+
+def _stack_cover_label(hero_chips, villain_chips, bb_chips, tol_bb=0.1):
+    """v8.12.12 (Obj-F): cover status of one villain vs Hero, computed from the
+    real chip stacks — NOT from upstream seat['hero_covers']/['covers_hero']
+    flags, which were only correct for the BB seat (others fell through to a
+    flat '= equal'). Compares EVERY seat to Hero and reports direction + delta.
+
+    Returns '✓ Hero covers +X.XBB' when Hero has the larger stack,
+    '✗ Villain covers Hero +X.XBB' when the villain does, and '≈ roughly equal'
+    only when the two stacks are within ``tol_bb`` big blinds (true near-ties).
+    Cover direction drives PKO bounty collectibility, so a wrong '= equal' here
+    silently mis-states whether a villain's bounty is even winnable.
+    """
+    bb = bb_chips or 1
+    delta = ((hero_chips or 0) - (villain_chips or 0)) / bb   # +ve => Hero deeper
+    if abs(delta) < tol_bb:
+        return '≈ roughly equal'
+    if delta > 0:
+        return f'✓ Hero covers +{delta:.1f}BB'
+    return f'✗ Villain covers Hero +{-delta:.1f}BB'
+
+
+def _pko_bounty_usd(rd, h):
+    """v8.12.12 rev-3 (Obj-G): a SAFE per-bounty dollar value for the estimated-
+    bounty line, or None. Searches the USD overlay's per-tournament entry for an
+    explicit bounty-face dollar amount (``bounty_usd``). Returns None when no
+    clean dollar figure exists in the export — the caller then says so rather
+    than fabricating one. A chip→$ conversion of the model BB estimate is NOT a
+    valid bounty dollar value (MTT chips are not redeemable dollars), so it is
+    never synthesised here. Never raises.
+    """
+    try:
+        _tid = h.get('tournament_id') or h.get('tournament') or ''
+        _tname = h.get('tournament') or ''
+        for _t in ((rd.get('usd_overlay') or {}).get('per_tournament') or []):
+            if str(_t.get('tid', '')) == str(_tid) or (
+                    _tname and _t.get('name') == _tname):
+                _usd = _t.get('bounty_usd')
+                if isinstance(_usd, (int, float)) and _usd > 0:
+                    return float(_usd)
+        return None
+    except Exception:
+        return None
 
 
 _SIGNAL_LABELS_RENDER = {
@@ -246,11 +291,11 @@ def _bust_verdict(h):
     if 'allin' in str(h.get('pf_action','')).lower() or h.get('pf_allin'):
         return "PF AI — verify equity vs jam range"
     if 'xr-ai' in asum:
-        return "🟡 turn x/r AI — III.4 review"
+        return "🟡 turn x/r AI — read-dependent review"
     if 'callAI' in asum:
         return "🟡 called AI — pot-odds vs range check"
     if h.get('went_to_sd'):
-        return "saw SD — see I.7 cooler / III.4 review"
+        return "saw SD — see cooler / read-dependent review"
     return "see line"
 
 
@@ -1718,7 +1763,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         #   📖  III.4 Read-dependent   (verdict depends on read)
         #   👎  III.1 Punt             (clear mistake)
         verdict_emoji = ''
-        verdict_label = verdict or '—'
+        # v8.12.12 (Obj-H): default to the code-stripped label so an unmapped
+        # verdict never leaks "III.x"/"I.7" into the modal header.
+        verdict_label = _verdict_display_label(verdict) or '—'
         if verdict.startswith('I.7'):
             verdict_emoji = '❄️'
             verdict_label = 'Cooler'
@@ -1941,12 +1988,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     if seat.get('is_hero'):
                         vs_str = '—'
                     elif is_bounty:
-                        if seat.get('hero_covers'):
-                            vs_str = f'✓ Hero covers (–{(hero_stack_chips - seat["stack_chips"]) / (app_details.get("bb_size_chips") or 1):.1f}BB)'
-                        elif seat.get('covers_hero'):
-                            vs_str = f'✗ covers Hero (+{(seat["stack_chips"] - hero_stack_chips) / (app_details.get("bb_size_chips") or 1):.1f}BB)'
-                        else:
-                            vs_str = '= equal'
+                        # v8.12.12 (Obj-F): compute cover direction + delta from
+                        # the real chip stacks for EVERY villain, not the upstream
+                        # hero_covers/covers_hero flags (only the BB seat was set;
+                        # the rest collapsed to a misleading '= equal').
+                        vs_str = _stack_cover_label(
+                            hero_stack_chips, seat.get('stack_chips') or 0,
+                            app_details.get('bb_size_chips'))
                     else:
                         diff = (seat["stack_chips"] - hero_stack_chips) / (app_details.get("bb_size_chips") or 1)
                         if diff > 0.1: vs_str = f'+{diff:.1f}BB'
@@ -2439,24 +2487,77 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _re is not None:
                 _po_lines.append(f"*Realized vs shown:* {_re:.1f}% *(result-derived)*")
             if _po.get('bounty'):
+                # v8.12.12 (Obj-G): PKO bounty-adjusted threshold math, shown
+                # ONLY where the cover status + estimate are known and the math
+                # is safe. Collectibility comes from hero_covers_field (the same
+                # real-stack signal the cover table now uses); the bounty value
+                # and discount are MODEL estimates and are labelled as such.
+                # Unknown / mystery / multiway / side-pot-unsafe spots never get
+                # a numeric verdict \u2014 they degrade to an explicit "review
+                # manually" cue instead of fabricated precision.
                 _bnt = _po['bounty']
+                _btype = _bnt.get('bounty_type')
+                _covers = _po.get('hero_covers_field')
                 _req_b = _po.get('required_eq_bounty_pct')
-                if _req_b is not None:
-                    _po_lines.append(
-                        f"**Bounty-adjusted:** required {_req_b:.1f}% "
-                        f"(discount {_bnt.get('discount_pp', 0):.1f}pp)")
-                elif _po.get('bounty_caveat'):
-                    # v8.12.0: mystery/multiway spots get a caveat, never a
-                    # numeric discount (review guardrail).
-                    _po_lines.append(
-                        f"**Bounty:** {_po['bounty_caveat']}")
-                else:
-                    _po_lines.append(
-                        "**Bounty:** no discount (Hero does not cover \u2014 "
-                        "bounty not collectible)")
-                _ev_b = _po.get('ev_call_bounty_bb')
-                if _ev_b is not None:
-                    _po_lines.append(f"**Bounty-adjusted EV:** {_ev_b:+.1f}BB")
+                _vbb = _bnt.get('value_bb') or 0
+                _caveat = _po.get('bounty_caveat')
+                # Skip the whole block for a pure freezeout (no bounty to model).
+                if (_btype not in (None, 'none')) or _req_b is not None \
+                        or _vbb > 0 or _caveat:
+                    # Estimated bounty value. value_bb is 0 unless Hero covers,
+                    # so this only shows for a collectible bounty. Show the real
+                    # dollar figure as "$X \u2248 YBB" when a SAFE one exists in the
+                    # export; otherwise state the dollar value is unavailable and
+                    # fall back to the BB model estimate (never fabricate a $).
+                    if _vbb > 0:
+                        _usd = _pko_bounty_usd(rd, h)
+                        if _usd:
+                            _po_lines.append(
+                                f"**Estimated bounty:** ${_usd:,.2f} \u2248 "
+                                f"{_vbb:.1f}BB *(estimated bounty model)*")
+                        else:
+                            _po_lines.append(
+                                f"**Estimated bounty value:** \u2248 {_vbb:.1f}BB "
+                                f"*(estimated bounty model \u2014 "
+                                f"{_bnt.get('method', 'flat_table')})*")
+                            _po_lines.append(
+                                "*Dollar bounty unavailable in HH export; using "
+                                "estimated bounty model.*")
+                    if _req_b is not None:
+                        # Discount was applied -> Hero covers + safe (the producer
+                        # zeroes the discount otherwise). Show the chip-only call
+                        # threshold next to the PKO-adjusted one so the discount
+                        # is explicit.
+                        _po_lines.append(
+                            f"**Chip-only call needs "
+                            f"{_po.get('required_eq_pct', '\u2014')}%; "
+                            f"PKO-adjusted call needs ~{_req_b:.1f}%** "
+                            f"(\u2212{_bnt.get('discount_pp', 0):.1f}pp; "
+                            "Hero covers \u2014 bounty collectible)")
+                        _ev_b = _po.get('ev_call_bounty_bb')
+                        if _ev_b is not None:
+                            _po_lines.append(
+                                f"**Bounty-adjusted EV:** {_ev_b:+.1f}BB")
+                    elif _caveat:
+                        # Mystery / multiway: value or collectibility unresolved.
+                        _po_lines.append(
+                            "**PKO adjustment unavailable / unsafe \u2014 review "
+                            f"manually:** {_caveat}")
+                    elif _covers is False:
+                        # Cover status known: Hero does NOT cover -> the bounty is
+                        # genuinely not collectible. A real conclusion, not a
+                        # fabrication.
+                        _po_lines.append(
+                            "**Bounty:** no discount \u2014 Hero does not cover the "
+                            "relevant villain, so the bounty is not collectible.")
+                    else:
+                        # Covers but modelled discount rounds to ~0, or
+                        # collectibility otherwise unresolved -> no verdict.
+                        _po_lines.append(
+                            "**PKO adjustment unavailable \u2014 review manually:** "
+                            "modelled discount is ~0 at this depth / "
+                            "collectibility unresolved (not a high-confidence "
+                            "PKO verdict).")
             _ev = _po.get('ev_call_bb')
             _vh = _po.get('verdict_hint', '')
             if _ev is not None:

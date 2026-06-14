@@ -10,18 +10,18 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.12.12-preview"   # Slice E.1: report trust + source-truth (GPT review)
+VERSION = "v8.12.12"   # Slice E.1: report trust + source-truth (final)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
     # --- Unchanged from v8.8.8 (not in v8.8.9 or v8.9.0 packages) ---
     "gem_villain_intel.py":                 ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
-    "gem_report_draft/sections_iv_xii.py":  ("487cbb4bb9d37f6b4c3e993bbe3d92f3366f0d02b427f9f691e240837c311fe2", 229064, "v8.12.0: S5.7 language fix"),
+    "gem_report_draft/sections_iv_xii.py":  ("1c4770874231d1a71be18c440570848846516342f23c91a4dab926beb043ed6d", 229092, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
     "gem_report_draft/_helpers.py":         ("47a3008eadb90ca3f0ce8931bbd901086e122f3c764a0b1a16ad43e71978d0c1", 53961, "v8.12.8 QA-GPT: pot ledger increment fix"),
-    "gem_report_draft/_hand_grid.py":      ("fe26f55dd92828e405238c3183bd0279745febf8c8281d2da59e2e9401da59a3", 70098, "v8.12.8 QA-GPT: grid pot deltas + eff-call cap"),
-    "gem_report_draft/sections_xiii.py":    ("c13dc428fbcf83e62583dfb5a7b26d0f9b1fe9d46c3bdceda293c92aabe8e092", 66496, "v8.12.2: nowrap revert (md whitelist)"),
-    "gem_report_draft/sections_mistakes.py": ("d3ee3f757cc1f86976b94fdca07ff28433df6f8349d79d8f921466068e4eaf20", 123681, "v8.12.9: roman strip"),
+    "gem_report_draft/_hand_grid.py":      ("3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77", 70985, "v8.12.12 Obj-H: verdict-label code-strip helper"),
+    "gem_report_draft/sections_xiii.py":    ("61973dc553d74c79fc2fc99d9e9cd9ea2cb6006020cb91b5073384d08d551d08", 66798, "v8.12.12 Obj-H: reviewed-mistakes Roman code removal"),
+    "gem_report_draft/sections_mistakes.py": ("776b4cb0c239a816fc238a9fe53d4a9310445385ee56ef5adb75f9731b83274e", 123887, "v8.12.12 rev-3 Obj-H: headers/empty-states/Picks de-Romanized"),
     "gem_report_draft/_state.py":           ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/sections_issue_explorer.py": ("aea126a0aa3682d366b58170e3370a02951f026157b5925f42cf11b2a7ed0be8", 49493, "v8.9.4: IE mobile cards/bottom-sheet + BUG-3 raw string"),
     "gem_parser.py":                        ("81a255eddf4b5065c9b38d92c3e255571e455bf220d0171a1cb79485362a7735", 103111, "v8.12.0a B150: table_size = dealt players (+table_capacity)"),
@@ -34,12 +34,12 @@ MANIFEST = {
     # --- Updated in v8.8.9 + v8.9.0 ---
     "gem_analyzer.py":                      ("9f12e6ef3c396ae89a0fda7280044bc615d13a0c8c5d6836c1b35ad87c3bf2bf", 563708, "v8.12.11: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("e385c5f778345c1225933f487a540a82d5d6bb4a228d79127658a257224f8164", 336935, "v8.12.11: 921 tests (+T-1233 Slice E)"),
-    "GEM_Changelog.txt":                    ("7a5716aaaa92767e4121aaa92e7ccc36772557a6e96daeee54de690726987f86", 43304, "changelog through v8.12.11"),
+    "_test_scratch.py":                     ("d5b926c709eae11247ffdac6f66dd62c79ef83c65ddb53a1e903b306b6f4d59c", 346313, "v8.12.12 rev-3: 965 tests (+T-1236 F/G/H source smoke)"),
+    "GEM_Changelog.txt":                    ("3629716a77de4e9c533028ab4aec72bd58ebb106a5a453239e3f0c9c5e27735d", 46917, "changelog through v8.12.12 (final)"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
-    "gem_report_draft/sections_financial.py": ("1382e637f33297a8d1a10da4586735751a1f6c78b9d57fec421839cc4d68943e", 128029, "v8.12.2: nowrap revert (md whitelist)"),
-    "gem_report_draft/sections_xiv.py":     ("860286a25f8b2e2d3cffb23e4c613849aefb1a7d8079e93dfeb45febe8124977", 170404, "v8.12.9: eff disclosure + no-replay reason"),
+    "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
+    "gem_report_draft/sections_xiv.py":     ("1743b2922810cae7f79d299999376987d96b9374103047cdeaaeb61bcc5fadd5", 176366, "v8.12.12 rev-3 Obj-F/G/H: cover table + PKO $-aware math + Roman sweep"),
 
     # --- New in v8.9.0 ---
     "Poker_Ranges_Text.txt":                ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
@@ -59,7 +59,7 @@ MANIFEST = {
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
 
     # --- New in v8.12.0 ---
-    "SESSION_START_STEP0_package_rebuild.txt": ("20521360d844bbb4e3e1ce43b977065cc70973642cae873096ecfa0114b1be1a", 4168, "v8.12.12: 38/38 verify expectation"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("ab69cd32504147815ad8347932680a039f3a7a324197185041d088b8a39ac58f", 4169, "v8.12.12 rev-3: 38/38 verify, 292 canaries / 10 anti"),
     "gem_pko_research.py":           ("432107e7475ed2e1897c50822e26f4df4c88a4e5bc7289edbb9de95ae74eca66", 40497, "v8.12.9: partial-coverage seat naming"),
 
     # --- New in v8.12.0 ---
@@ -68,7 +68,7 @@ MANIFEST = {
     # --- New in v8.9.9 ---
     "gem_coverage_builder.py":              ("2580723a3f818fe571db6ba0b2f08ebacab574b6e521011b7d0da4dd5bc9146f", 121455, "v8.12.9: result-equity luck label"),
     # --- New in v8.12.4 ---
-    "gem_report_draft/tldr.py": ("c8025302c2401fd00c2731756640c96615b76e6de57da56dfdbdfdfc63faa31f", 138074, "v8.12.10: completeness/summary banners"),
+    "gem_report_draft/tldr.py": ("2bda84871f461db22f555987db9e026094c23e8949e65219dd16a0905a11317b", 138070, "v8.12.12 rev-3 Obj-H: legend + read-dep prose de-Romanized"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
@@ -908,6 +908,20 @@ CANARIES = [
      "v8.12.12 Obj-D: per-bucket unreviewed breakdown"),
     ("gem_report_draft/tldr.py", "ANALYST_COMPLETE",
      "v8.12.12 Obj-D: complete-coverage banner"),
+
+    # v8.12.12 rev-2/rev-3 / Slice E.1 (F-H) — cover table, PKO math, Roman removal
+    ("gem_report_draft/sections_xiv.py", "def _stack_cover_label(",
+     "v8.12.12 Obj-F: per-villain cover direction+delta helper"),
+    ("gem_report_draft/sections_xiv.py", "PKO-adjusted call needs",
+     "v8.12.12 Obj-G: chip-only vs PKO-adjusted call threshold (cover-aware)"),
+    ("gem_report_draft/sections_xiv.py", "Dollar bounty unavailable in HH export",
+     "v8.12.12 rev-3 Obj-G: explicit dollar-unavailable fallback (no faked $)"),
+    ("gem_report_draft/sections_xiv.py", "def _pko_bounty_usd(",
+     "v8.12.12 rev-3 Obj-G: safe per-bounty dollar lookup (None when absent)"),
+    ("gem_report_draft/sections_xiv.py", "PKO adjustment unavailable",
+     "v8.12.12 Obj-G: unsafe/unknown PKO -> review manually (no faked discount)"),
+    ("gem_report_draft/_hand_grid.py", "def _verdict_display_label(",
+     "v8.12.12 Obj-H: strip Roman verdict code from user-facing labels"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).
@@ -940,6 +954,10 @@ ANTI_CANARIES = [
      "v8.12.12 Obj-B: exculpatory variance verdict resurfaced in S17.6 large-loss"),
     ("gem_villain_intel.py", "+ ('s' if suited else 'o')",
      "v8.12.9: JJo-producing label builder resurfaced"),
+    # v8.12.12 Obj-F: the BB-only "= equal" cover fallback must stay retired
+    # (every villain seat is now compared to Hero from the real chip stacks).
+    ("gem_report_draft/sections_xiv.py", "vs_str = '= equal'",
+     "v8.12.12 Obj-F: BB-only '= equal' cover fallback resurfaced"),
     # v8.12.11 GPT-3: the old broad auto_clear gate must stay retired.
     ("gem_analyst_worklist.py", "is_premium or (eff and eff <= 22)",
      "v8.12.11 GPT-3: broad auto_clear gate resurfaced (premium-OR-short)"),

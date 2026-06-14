@@ -23,7 +23,7 @@ from gem_report_draft._helpers import (_wilson_ci, _clr, _clr_min, _clr_naive,
 from gem_report_draft._html import (Doc, _card_html, _cards_html,
     _cards_str_to_pills, _cards_text_to_pills, _real_cards_pills, _md_inline, _html_escape,
     _sort_cards_desc, _describe_made_hand, _SUIT_HTML, _RANK_VALUES, _SUIT_VALUES)
-from gem_report_draft._hand_grid import _humanize_verdicts
+from gem_report_draft._hand_grid import _humanize_verdicts, _verdict_display_label
 from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
     _hero_action_verbs_by_street_from_app)
@@ -436,7 +436,7 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
 
     if not iii1_ids:
         doc.w("✅ No punts confirmed (auto-detector findings overridden by "
-              "analyst, no analyst III.1 verdicts).")
+              "analyst, no analyst punt verdicts).")
     else:
         _m1_hdr = "| Hand Reference | Cards | Type | EV | Source |"
         _m1_sep = "|---|---|---|---|---|"
@@ -516,7 +516,9 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
                         _vshort = f" {_vl}"
                         break
                 _det_tag = ph.get('type', '—')
-                _vlabel = _vshort.strip() if _vshort else v
+                # Obj-H: III.1 isn't in _VERDICT_SHORT; strip the code so the
+                # fallback reads "Punt", never the raw "III.1 Punt".
+                _vlabel = _vshort.strip() if _vshort else _verdict_display_label(v)
                 doc.w(f"- {ref} ({_cards_str_to_pills(ph.get('cards','—'))}) "
                       f"→ reclassified as {_vlabel} (was auto-flagged {_det_tag})")
             doc.w("")
@@ -679,7 +681,7 @@ def _emit_iii_strategic_leaks(doc, s, rd, hands):
             agg = core.get('agg_vs_reactor_delta_pct')
             base = (f"Aggressor pot-control gap: {agg:.1f}pp asymmetry"
                     if agg else "Aggressor-vs-Reactor asymmetry")
-            return (base, 'sec-iii-5', 'III.5')
+            return (base, 'sec-iii-5', 'Justified')
         if 'hu c-bet' in n or 'hu cbet' in n:
             ip_pct = csv.get('Flop_CBet_HU', 0)
             return (f"Flop HU C-Bet IP {ip_pct:.1f}% vs target 60-75% — overcbetting auto-pilot zone",
@@ -874,7 +876,7 @@ def _emit_iii_strategic_leaks(doc, s, rd, hands):
             doc.w(f"🔴 **{_verdict_counts['real']} confirmed real leak"
                   f"{'s' if _verdict_counts['real']>1 else ''} this session** "
                   f"— see Status column for which ones, and expand the matching "
-                  f"III.3.N detail block for example hands.")
+                  f"S3.N detail block for example hands.")
         elif _verdict_counts['pending']:
             # When ALL leaks are pending, it means no analyst pass was run.
             # Don't alarm the user — these are metric flags, not confirmed leaks.
@@ -1004,7 +1006,7 @@ def _emit_iii_strategic_leaks(doc, s, rd, hands):
                 doc.w(f"*S3.{i} {name} — analyst noted but detail is thin.*")
                 doc.w("")
                 continue
-            doc.w(f"<details><summary><strong>III.3.{i} {name}</strong> "
+            doc.w(f"<details><summary><strong>S3.{i} {name}</strong> "
                   f"— full reasoning + example hands ({n_examples})</summary>")
             doc.w("")
             if cmt.get('metric_summary'):
@@ -1532,7 +1534,7 @@ def _emit_sub_cleared_pop(doc, s, rd, hands):
                 _oce, _oct = _outcome_label(cmt)
                 _oct_disp = (_oct[:1].upper() + _oct[1:]) if _oct else 'Cleared'
                 _m3_rows.append(f"| {href} | {cards} | {type_label} | "
-                      f"{_oce} III.3 {_oct_disp} |")
+                      f"{_oce} {_oct_disp} |")
         # <details> boundary: block is INSIDE the <details>; open/close tags
         # are prose OUTSIDE. Do NOT move <details> into the block.
         _m3_blk = hand_evidence_table_block("iii3-cleared", _m3_hdr, _m3_sep, _m3_rows)
@@ -1671,7 +1673,7 @@ def _emit_sub_read_dep(doc, s, rd, hands):
         if isinstance(cmt, dict) and cmt.get('verdict', '').startswith('III.4'):
             iii4_entries.append((hid, cmt))
     if not iii4_entries:
-        doc.w("⚪ No hands re-classified to III.4 this session "
+        doc.w("⚪ No hands re-classified to read-dependent this session "
               "(analyst step produced no read-dependent verdicts).")
         doc.w("")
     else:
@@ -1780,7 +1782,7 @@ def _emit_sub_read_dep(doc, s, rd, hands):
             v_gto = sc.get('verdict_gto', '—')
             sev = sc.get('flip_severity', '—')
             _acmt = _ascreen.get(hid) if isinstance(_ascreen.get(hid), dict) else None
-            v_analyst = (_acmt.get('verdict') or '📊 screened') if _acmt else '📊 screened'
+            v_analyst = (_verdict_display_label(_acmt.get('verdict')) or '📊 screened') if _acmt else '📊 screened'
             axis = sc.get('decision_axis', '—')
             if len(axis) > 90:
                 axis = axis[:88] + '…'
@@ -1799,7 +1801,7 @@ def _emit_sub_justified(doc, s, rd, hands):
     # III.5 Justified Variance
     doc.subsection("sec-13-3", "S13.3 Justified Variance",
                    "correct decisions, bad outcomes")
-    doc.w("Hands not classified to I.7 cooler or III.x leak default here. "
+    doc.w("Hands not classified as a cooler or a strategic leak default here. "
           "Bust hands with 1-2-action-back analysis showing correct line:")
     doc.w("")
     doc.w("*See I.3 Large-Loss Audit for the full list with verdicts.*")
@@ -2067,7 +2069,7 @@ def _emit_sub_picks(doc, s, rd, hands):
         if _n_bp_adjudicated >= 20:
             doc.w(f"⚠️ **0 Picks from {_n_bp_adjudicated} adjudicated "
                   f"screening candidates.** Every bestplay candidate received "
-                  f"a verdict but none was graded III.8 — with this many "
+                  f"a verdict but none was graded a Pick — with this many "
                   f"candidates, checklist §9 expects 5-10 curated Picks. "
                   f"This usually means the candidates were batch-closed; "
                   f"re-review the strongest screening hands for genuine "
@@ -2119,7 +2121,7 @@ def _emit_sub_picks(doc, s, rd, hands):
             doc.w(f"**Structural screen — unpromoted candidates ({len(provisional)})** "
                   f"— the screen surfaced these as possibly "
                   f"well-played, but \"well played\" is an analyst call. No "
-                  f"archetype is assigned until an analyst writes a `III.8` "
+                  f"archetype is assigned until an analyst writes a Pick "
                   f"verdict; the columns below are the structural facts only.")
             doc.w("")
             _m6_hdr = "| # | Hand Reference | Cards | Structural signal |"
@@ -2144,7 +2146,7 @@ def _emit_sub_picks(doc, s, rd, hands):
             doc.w("")
             doc.w(f"*{len(provisional)} candidate(s) screened from "
                   f"{len(_scored)} structural candidates. To turn one into a "
-                  f"Pick, add a `III.8` analyst verdict with an `archetype` "
+                  f"Pick, add a Pick analyst verdict with an `archetype` "
                   f"field — until then it is a lead, not a verdict.*")
             doc.w("")
         # B173 (Ron 2026-05-24): the screened-candidates table is structural
@@ -2213,7 +2215,7 @@ def _emit_sub_read_dep_picks(doc, s, rd, hands):
           + ")*")
     doc.w("")
     if not showing:
-        doc.w("⚪ No III.4 read-dependent hands this session.")
+        doc.w("⚪ No read-dependent hands this session.")
         doc.w("")
         return
 
@@ -2281,7 +2283,7 @@ def _emit_sub_gto_standard_picks(doc, s, rd, hands):
           + ")*")
     doc.w("")
     if not showing:
-        doc.w("⚪ No III.0 GTO-Standard hands this session.")
+        doc.w("⚪ No GTO-Standard hands this session.")
         doc.w("")
         return
 

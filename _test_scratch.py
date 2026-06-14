@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'fe26f55dd92828e405238c3183bd0279745febf8c8281d2da59e2e9401da59a3',
+      _hg_hash == '3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -6669,6 +6669,158 @@ check('T-1234-D-5: TLDR banner covers all three states with counts + remaining b
       and "_rc_state == 'ANALYST_COMPLETE'" in _tldr_src
       and "candidate_need" in _tldr_src and "_awaiting_buckets_phrase" in _tldr_src
       and "INCOMPLETE" in _tldr_src, '')
+
+# ============================================================
+# v8.12.12 / Slice E.1 rev-2 — report trust (T-1235): F cover table,
+# G PKO bounty-adjusted math, H Roman-code removal, I summary honesty
+# ============================================================
+# --- Objective F: Stack Context cover table — every villain vs Hero ---
+from gem_report_draft.sections_xiv import _stack_cover_label as _scl
+check('T-1235-F-1: shorter villain -> Hero covers + delta (direction shown)',
+      _scl(18.7, 13.0, 1) == '✓ Hero covers +5.7BB', _scl(18.7, 13.0, 1))
+check('T-1235-F-2: deeper villain -> Villain covers Hero + delta (not "= equal")',
+      _scl(18.7, 24.1, 1) == '✗ Villain covers Hero +5.4BB', _scl(18.7, 24.1, 1))
+check('T-1235-F-3: within tolerance -> "≈ roughly equal" only for true near-ties',
+      _scl(18.7, 18.75, 1) == '≈ roughly equal'
+      and _scl(18.7, 18.4, 1) != '≈ roughly equal', _scl(18.7, 18.75, 1))
+# Regression for hand 70391838: Hero SB 18.7BB vs BB/MP/HJ/CO/BTN.
+# v8.12.11 showed BB "✓ Hero covers" but MP/HJ/CO/BTN as a flat "= equal".
+_f70 = {14.3: '✓ Hero covers +4.4BB', 13.0: '✓ Hero covers +5.7BB',
+        24.1: '✗ Villain covers Hero +5.4BB', 31.8: '✗ Villain covers Hero +13.1BB',
+        7.9: '✓ Hero covers +10.8BB'}
+check('T-1235-F-4: hand 70391838 — all 5 villain seats compared to Hero (no "= equal")',
+      all(_scl(18.7, _vb, 1) == _exp for _vb, _exp in _f70.items()),
+      str({_vb: _scl(18.7, _vb, 1) for _vb in _f70}))
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-1235-F-5: cover table wired to helper; buggy flag-only "= equal" branch removed',
+      'def _stack_cover_label(' in _xiv_src
+      and '_stack_cover_label(' in _xiv_src
+      and "vs_str = '= equal'" not in _xiv_src
+      and "f'✗ covers Hero (+" not in _xiv_src, '')
+
+# --- Objective G: PKO bounty-adjusted threshold math (only where safe) ---
+import gem_bounty as _gb
+# Collectibility invariant the render relies on: a discount/value exist only
+# when Hero covers; a non-covering Hero never gets a fabricated discount.
+_bc_cov = _gb.bounty_context('Bounty Hunters', 'post_reg', fmt='BOUNTY', hero_covers=True)
+_bc_nocov = _gb.bounty_context('Bounty Hunters', 'post_reg', fmt='BOUNTY', hero_covers=False)
+check('T-1235-G-1: Hero covers -> positive bounty discount + value (collectible)',
+      _bc_cov['discount_pp'] > 0 and _bc_cov['value_bb'] > 0,
+      f"disc={_bc_cov['discount_pp']} val={_bc_cov['value_bb']}")
+check('T-1235-G-2: Hero does NOT cover -> 0 discount + 0 value (no fabricated discount)',
+      _bc_nocov['discount_pp'] == 0 and _bc_nocov['value_bb'] == 0,
+      f"disc={_bc_nocov['discount_pp']} val={_bc_nocov['value_bb']}")
+check('T-1235-G-3: cover-aware PKO-adjusted threshold rendered + freezeout guard',
+      'PKO-adjusted call needs' in _xiv_src
+      and 'Hero covers ' in _xiv_src and 'bounty collectible' in _xiv_src
+      and "_btype not in (None, 'none')" in _xiv_src
+      and 'hero_covers_field' in _xiv_src, '')
+check('T-1235-G-4: unknown/unsafe -> "review manually"; old misleading copy removed',
+      'PKO adjustment unavailable' in _xiv_src
+      and 'review' in _xiv_src and 'manually' in _xiv_src
+      and '**Bounty-adjusted:** required' not in _xiv_src
+      and 'no discount (Hero does not cover' not in _xiv_src, '')
+check('T-1235-G-5: estimated bounty labelled a model estimate; adj-EV only with discount',
+      'estimated bounty model' in _xiv_src
+      and _xiv_src.index('**Bounty-adjusted EV:**')
+          > _xiv_src.index('PKO-adjusted call needs'), '')
+
+# --- Obj-G rev-3: PKO bounty estimate $X / dollar-unavailable + thresholds ---
+from gem_report_draft.sections_xiv import _pko_bounty_usd as _pbu
+_rd_usd = {'usd_overlay': {'per_tournament': [{'tid': 'T1', 'name': 'PKO 5', 'bounty_usd': 2.5}]}}
+check('T-1236-G-1: safe dollar source present -> bounty $ returned (by tid or name)',
+      _pbu(_rd_usd, {'tournament_id': 'T1'}) == 2.5
+      and _pbu(_rd_usd, {'tournament': 'PKO 5'}) == 2.5, '')
+check('T-1236-G-2: no safe dollar source -> None (caller says unavailable, no fake $)',
+      _pbu({'usd_overlay': {'per_tournament': [{'tid': 'T1'}]}}, {'tournament_id': 'T1'}) is None
+      and _pbu({}, {'tournament_id': 'X'}) is None
+      and _pbu(_rd_usd, {'tournament_id': 'OTHER'}) is None, '')
+check('T-1236-G-3: render shows "$X" when safe, else explicit dollar-unavailable + BB model',
+      '**Estimated bounty:** $' in _xiv_src
+      and '{_vbb:.1f}BB' in _xiv_src
+      and 'Dollar bounty unavailable in HH export' in _xiv_src
+      and 'estimated bounty model' in _xiv_src, '')
+check('T-1236-G-4: chip-only -> PKO-adjusted call thresholds shown side by side',
+      'Chip-only call needs' in _xiv_src and 'PKO-adjusted call needs ~' in _xiv_src, '')
+
+# --- Objective H: strip Roman verdict codes from user-facing copy ---
+from gem_report_draft._hand_grid import _verdict_display_label as _vdl
+_H_CODES = {'III.1 Punt': 'Punt', 'III.2 Mistake': 'Mistake',
+            'III.3 Variance': 'Variance', 'III.4 Read-dependent': 'Read-dependent',
+            'III.5 Justified': 'Justified', 'I.7 Cooler': 'Cooler'}
+check('T-1235-H-1: every Roman-coded verdict label renders code-free',
+      all(_vdl(k) == v for k, v in _H_CODES.items())
+      and not any(_vdl(k).startswith(('III.', 'I.7')) for k in _H_CODES), '')
+check('T-1235-H-2: bare codes map to labels; already-clean / non-verdict pass through',
+      _vdl('III.2') == 'Mistake' and _vdl('I.7') == 'Cooler'
+      and _vdl('Punt') == 'Punt' and _vdl('—') == '—'
+      and _vdl('📊 screened') == '📊 screened' and _vdl('') == '', '')
+from gem_report_draft._hand_grid import _VERDICT_HUMAN as _VH
+check('T-1235-H-3: display-only — taxonomy map + internal code routing intact',
+      _VH.get('III.1') == 'Punt' and _VH.get('I.7') == 'Cooler'
+      and 'III.1 Punt'.startswith('III.1'), '')
+# leak sites wired to the helper
+_sf_src_h = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+_x13_src_h = open('gem_report_draft/sections_xiii.py', encoding='utf-8').read()
+_sm_src_h = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-1235-H-4: verdict-label leak sites route through _verdict_display_label',
+      '_verdict_display_label(' in _xiv_src
+      and '_verdict_display_label(' in _x13_src_h
+      and '_verdict_display_label(' in _sf_src_h
+      and '_verdict_display_label(' in _sm_src_h, '')
+check('T-1235-H-5: raw Roman-code copy removed from user-facing strings',
+      'analyst-confirmed III.1/III.2' not in _x13_src_h
+      and 'III.1 punt / III.2 strategic leak' not in _x13_src_h
+      and 'No III.0 GTO-Standard' not in _sm_src_h
+      and 'I.7 cooler or III.x leak' not in _sm_src_h, '')
+
+# --- Obj-H rev-3: source smoke — NO Roman verdict code in any VISIBLE render
+#     string across the report-draft package. Allowlist (per GPT review):
+#     docstrings, exact code tokens (dict keys / startswith args), quote-wrapped
+#     code tokens (maps / comparisons), anchors/ids, and a tiny set of internal
+#     verdict-set comparison literals. Anything else that still embeds a code is
+#     rendered prose -> fail.
+import ast as _ast_h, os as _os_h, re as _re_h
+_H_CODE = _re_h.compile(r'\bIII\.[0-9]\b|\bI\.7\b')
+_H_EXACT = _re_h.compile(r'^(III\.[0-9]|I\.7)$')
+_H_QUOTED = _re_h.compile(r'''['"](?:III\.[0-9]|I\.7)['"]''')
+_H_ALLOW_LITERALS = {'III.3 Cleared', 'III.5 Justified', 'I.7 Cooler'}
+def _h_doc_ids(_tree):
+    _out = set()
+    for _n in _ast_h.walk(_tree):
+        if isinstance(_n, (_ast_h.Module, _ast_h.FunctionDef, _ast_h.AsyncFunctionDef, _ast_h.ClassDef)):
+            _b = getattr(_n, 'body', [])
+            if _b and isinstance(_b[0], _ast_h.Expr) and isinstance(getattr(_b[0], 'value', None), _ast_h.Constant) and isinstance(_b[0].value.value, str):
+                _out.add(id(_b[0].value))
+    return _out
+def _h_scan(_fp):
+    _tree = _ast_h.parse(open(_fp, encoding='utf-8').read())
+    _docs = _h_doc_ids(_tree)
+    _leaks = []
+    for _n in _ast_h.walk(_tree):
+        if not (isinstance(_n, _ast_h.Constant) and isinstance(_n.value, str)):
+            continue
+        if id(_n) in _docs:
+            continue
+        _s = _n.value
+        if not _H_CODE.search(_s) or _H_EXACT.match(_s):
+            continue
+        if _s.startswith('sec-') or _s.startswith('#sec') or _s in _H_ALLOW_LITERALS:
+            continue
+        if _H_CODE.search(_H_QUOTED.sub('', _s)):
+            _leaks.append((_os_h.path.basename(_fp), _s[:60]))
+    return _leaks
+_rd_dir_h = _os_h.path.join(_os_h.path.dirname(__file__), 'gem_report_draft')
+_h_all_leaks = []
+for _fn_h in sorted(_os_h.listdir(_rd_dir_h)):
+    if _fn_h.endswith('.py'):
+        _h_all_leaks += _h_scan(_os_h.path.join(_rd_dir_h, _fn_h))
+check('T-1236-H-6: no Roman verdict code in any visible render string (report-draft)',
+      not _h_all_leaks, str(_h_all_leaks[:6]))
+check('T-1236-H-7: humanized copy present, Roman render-forms gone (ASCII-safe)',
+      'read-dependent review' in _xiv_src and 'III.4 review' not in _xiv_src
+      and 'Per-hand analysis in the read-dependent section.' in _tldr_src
+      and 'Per-hand analysis in III.4' not in _tldr_src, '')
 
 # ============================================================
 # SUMMARY

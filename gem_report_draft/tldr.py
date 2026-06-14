@@ -1722,8 +1722,8 @@ def _emit_tldr(doc, s, rd):
         dominant_pat = max((p for p in groups.keys() if p != 'other'),
                            key=lambda p: sum(abs(_net(h)) for h, _ in groups[p]),
                            default='other')
-        label = (f"III.1 punts — {dominant_pat}" if dominant_pat != 'other'
-                 else "III.1 confirmed punts")
+        label = (f"Punts — {dominant_pat}" if dominant_pat != 'other'
+                 else "Confirmed punts")
         total_bb_100 = _bb_per_100(total_bb)
         detail = (f"**{total_n} confirmed punt{'s' if total_n != 1 else ''}** "
                   f"({total_bb_100:+.2f} BB/100)<br>" + '<br>'.join(pattern_bullets))
@@ -1806,11 +1806,11 @@ def _emit_tldr(doc, s, rd):
                     f"{_n_leak}/{_n_solv} river-solvable -EV vs the pool"
                     + (f", {_n_unsolved} turn/earlier not priced"
                        if _n_unsolved else "")
-                    + ". Per-hand analysis in III.4.<br>")
+                    + ". Per-hand analysis in the read-dependent section.<br>")
         else:
             _hdr = (f"**{iii4_watch['n']} read-dependent calls** — all "
                     f"turn/earlier, not river-solvable, so unpriced this "
-                    f"session. Per-hand analysis in III.4.<br>")
+                    f"session. Per-hand analysis in the read-dependent section.<br>")
         next_session_items.append(('👁', 'Read-dependent calls',
             _hdr + '<br>'.join(_rd_lines),
             'sec-iii-4', _q_bb100))
@@ -2185,8 +2185,8 @@ def _emit_tldr(doc, s, rd):
                 for note in wb['notes']:
                     doc.w(f"- {note}")
             doc.w("")
-            doc.w("**Legend:** 👎 III.1 punt · ⚖️ III.0 GTO-std · 👍 III.3 cleared / III.5 justified · "
-                  "📖 III.4 read-dep · ❄️ I.7 cooler · 🟠 walk-back · ⚪ other")
+            doc.w("**Legend:** 👎 punt · ⚖️ GTO-std · 👍 cleared / justified · "
+                  "📖 read-dep · ❄️ cooler · 🟠 walk-back · ⚪ other")
             doc.w("")
             doc.w("</details>")
             doc.w("")

@@ -6823,6 +6823,121 @@ check('T-1236-H-7: humanized copy present, Roman render-forms gone (ASCII-safe)'
       and 'Per-hand analysis in III.4' not in _tldr_src, '')
 
 # ============================================================
+# v8.13.0 — Villain Exploitation Teaching Layer (T-VT)
+# ============================================================
+import gem_villain_teaching as _vt
+_vt_vk = 'T1|abcd1234'
+def _vt_rs(n=9, conf='high', hids=None, primary='\U0001F4DE Sticky Passive'):
+    return {_vt_vk: {'villain_alias': 'Ghost', 'primary_read': primary,
+                     'confidence': conf, 'n_evidence': n,
+                     'evidence_hand_ids': hids or ['H9', 'H7', 'H_now']}}
+_vt_sticky = {_vt_vk: [{'dimension': 'sticky'} for _ in range(3)]}
+def _vt_exp(**kw):
+    b = {'villain_key': _vt_vk, 'hand_id': 'H_now', 'exploit_read_label': 'Sticky Passive',
+         'exploit_read_display': '\U0001F4DE Sticky Passive', 'read_source': 'prior_atoms_mapped',
+         'evidence_text': 'Called river with second pair after Hero double-barreled.',
+         'suggests': 'Villain is sticky/station - calls down with marginal holdings.',
+         'so_what': 'Do not bluff this player multi-street. Value-bet thinner instead.',
+         'recommended_exploit': 'Check back rivers; value-bet thinner.',
+         'available_before_action_index': 2, 'action_index': 5, 'hero_decision_street': 'river'}
+    b.update(kw); return b
+_REQ = {'villain_id', 'villain_alias', 'street', 'villain_did', 'cue', 'archetype',
+        'confidence', 'evidence_count', 'exploit_now', 'future_exploit',
+        'do_not_overadjust', 'source_truth', 'population'}
+_o = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky)
+check('T-VT-01: teaching object has full contract incl source_truth{atoms,decision_id,no_hindsight}',
+      _REQ <= set(_o) and {'evidence_atoms', 'decision_id', 'no_hindsight'} <= set(_o['source_truth']), '')
+check('T-VT-02: villain-fact fields copied verbatim from stamped exploit (no invention)',
+      _o['villain_did'] == 'Called river with second pair after Hero double-barreled.'
+      and _o['cue'].startswith('Villain is sticky/station')
+      and _o['exploit_now'] == 'Do not bluff this player multi-street. Value-bet thinner instead.'
+      and _o['future_exploit'] == 'Check back rivers; value-bet thinner.', '')
+_thin = _vt.teaching_from_exploit(_vt_exp(evidence_text='', suggests=''),
+                                  {_vt_vk: {'n_evidence': 1, 'evidence_hand_ids': ['H_now']}}, {_vt_vk: []})
+check('T-VT-03: thin read -> fixed fallback line, no exploit_now',
+      _thin['fallback'] and _vt.FALLBACK_LINE in _thin['teach_lines'] and _thin['exploit_now'] is None, '')
+_sd = _vt.teaching_from_atom({'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'weak_showdown_call',
+                              'street': 'river', 'action_index': 4, 'available_before_action_index': None,
+                              'evidence_text': 'Showed weak pair.', 'hero_involved': True,
+                              'so_what': 'Value-bet thinner.', 'suggests': 'Sticky.'},
+                             _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VT-04: showdown-only atom (available None) -> no_hindsight False, no exploit_now (no hindsight leak)',
+      _sd['source_truth']['no_hindsight'] is False and _sd['exploit_now'] is None and _sd['fallback'], '')
+check('T-VT-05: prior-atoms read -> no_hindsight True; evidence_atoms are strictly EARLIER hands',
+      _o['source_truth']['no_hindsight'] is True and 'H_now' not in _o['source_truth']['evidence_atoms']
+      and set(_o['source_truth']['evidence_atoms']) == {'H9', 'H7'}, '')
+_pf = _vt.teaching_from_exploit(_vt_exp(read_source='profiler_archetype'),
+                                {_vt_vk: {'n_evidence': 12, 'evidence_hand_ids': ['a', 'b']}}, _vt_sticky)
+check('T-VT-06: profiler_archetype (population, no direct evidence) capped to low confidence',
+      _pf['confidence'] == 'low', _pf['confidence'])
+check('T-VT-07: confidence bands wired to evidence_count + same-type corroboration',
+      _vt.derive_confidence('prior_atoms_mapped', 9, 2) == 'high'
+      and _vt.derive_confidence('prior_atoms_mapped', 5, 1) == 'medium'
+      and _vt.derive_confidence('prior_atoms_mapped', 9, 0) == 'low'
+      and _vt.derive_confidence('prior_atoms_mapped', 2, 2) == 'low', '')
+check('T-VT-08: do_not_overadjust is derived guardrail copy keyed by confidence (never a villain fact)',
+      _o['do_not_overadjust'] == _vt._DO_NOT_OVERADJUST_GENERIC['high']
+      and _thin['do_not_overadjust'] in (set(_vt._LOW_CONF_CONTEXT.values())
+                                         | {_vt._DO_NOT_OVERADJUST_GENERIC['low']})
+      and _vt_vk not in _o['do_not_overadjust'], '')
+import re as _re_vt
+_pko = {'H_now': {'coverage_label': 'covers opener - bounty collectible', 'can_collect_bounty': True}}
+_op = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky, pko_by_hand=_pko)
+check('T-VT-09: PKO cover reuses coverage_label verbatim; no BB/$ fabricated; omitted when absent',
+      _op['pko']['cover_label'] == 'covers opener - bounty collectible' and _op['pko']['collectible'] is True
+      and not _re_vt.search(r'\$|BB', _op['pko']['cover_label']) and 'pko' not in _o, '')
+_live = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky, population='live')
+check('T-VT-10: live read carries live caveat, never the online suffix (no cross-apply)',
+      'do not cross-apply to online' in _live['cue'] and 'online-pool' not in _live['cue']
+      and 'online-pool' in _o['cue'] and 'live read' not in _o['cue'], '')
+_long = _vt.teaching_from_exploit(_vt_exp(evidence_text=' '.join(['w'] * 40), so_what=' '.join(['x'] * 40)),
+                                  _vt_rs(), _vt_sticky)
+check('T-VT-11: villain_did/exploit_now clamped to word caps',
+      len(_long['villain_did'].split()) <= 22 and len(_long['exploit_now'].split()) <= 18, '')
+_noi = _vt.teaching_from_exploit(_vt_exp(read_source='same_hand_pivot', available_before_action_index=None,
+                                         action_index=None, hero_decision_index=None), _vt_rs(), _vt_sticky)
+check('T-VT-12: missing decision index -> decision_id ends |? and same-hand cue is not actionable',
+      _noi['source_truth']['decision_id'].endswith('|?') and _noi['source_truth']['no_hindsight'] is False, '')
+_vtsrc = open('gem_villain_teaching.py', encoding='utf-8').read()
+check('T-VT-13: builder reuses stamped fields (no hardcoded villain facts / invented coaching)',
+      'def build_villain_teaching(' in _vtsrc and "exp.get('so_what')" in _vtsrc
+      and "exp.get('evidence_text')" in _vtsrc and 'FALLBACK_LINE' in _vtsrc, '')
+_built = _vt.build_villain_teaching({'read_states': _vt_rs(), 'atoms_by_villain': _vt_sticky,
+                                     'exploits_by_hand': {'H_now': [_vt_exp()]}, 'atoms_by_hand': {}})
+check('T-VT-14: build_villain_teaching indexes by hand + villain; never raises on partial data',
+      'H_now' in _built['teaching_by_hand'] and _vt_vk in _built['teaching_by_villain']
+      and _vt.build_villain_teaching({})['teaching_by_hand'] == {}, '')
+# --- rev-2 (GPT product-fail fixes) ---
+check('T-VT-15: non-fallback teach_lines render the FULL sequence incl Read + Villain(did)',
+      not _o['fallback']
+      and any(l.startswith('Read:') for l in _o['teach_lines'])
+      and any(l.startswith('Villain:') for l in _o['teach_lines'])
+      and any(l.startswith('Cue:') for l in _o['teach_lines'])
+      and any(l.startswith('Now:') for l in _o['teach_lines'])
+      and any(l.startswith('Next time:') for l in _o['teach_lines'])
+      and any(l.startswith('Avoid over-adjusting:') for l in _o['teach_lines']), '')
+_a_sha = {'villain_key': _vt_vk, 'hand_id': 'H2', 'signal': 'multiway_donk', 'street': 'flop',
+          'action_index': 3, 'available_before_action_index': 3, 'same_hand_actionable': True,
+          'evidence_text': 'Donk-bet into the field.', 'hero_involved': True,
+          'suggests': 'Loose.', 'so_what': 'Raise donks.'}
+_a_no = dict(_a_sha, hand_id='H3', same_hand_actionable=False, signal='weak_showdown_call')
+_o_sha = _vt.teaching_from_atom(_a_sha, _vt_rs(), _vt_sticky, signal_coaching={})
+_o_no = _vt.teaching_from_atom(_a_no, _vt_rs(), _vt_sticky, signal_coaching={})
+check('T-VT-16: atom no-hindsight REQUIRES same_hand_actionable (avail alone is insufficient)',
+      _o_sha['source_truth']['no_hindsight'] is True
+      and _o_no['source_truth']['no_hindsight'] is False
+      and _o_no['fallback'] and _o_no['exploit_now'] is None, '')
+check('T-VT-17: low-confidence guardrail generic by default; PKO line only for PKO/cold-call spots',
+      _vt.derive_do_not_overadjust('low') == _vt._DO_NOT_OVERADJUST_GENERIC['low']
+      and 'cold-call' not in _vt.derive_do_not_overadjust('low')
+      and 'cold-call' in _vt.derive_do_not_overadjust('low', has_pko=True)
+      and _vt.derive_do_not_overadjust('low', 'Nit / Rock') == _vt._LOW_CONF_CONTEXT['Nit / Rock'], '')
+_htmlsrc_vt = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles',
+      'teach_lines.forEach' in _htmlsrc_vt and 'v25-teach-head' in _htmlsrc_vt
+      and 'v25-teach-line' in _htmlsrc_vt, '')
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')

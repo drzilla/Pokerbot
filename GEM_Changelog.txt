@@ -1,3 +1,57 @@
+v8.13.0 (2026-06-14) -- Slice F: villain exploitation teaching layer
+=========================================================================
+Turns raw villain evidence into coaching-grade exploit teaching. New module
+gem_villain_teaching.py PROJECTS the already-stamped villain intelligence
+(exploit_opportunities / evidence_atoms / read_states + the canonical coaching
+maps) into one constrained "teaching object" per exploit / evidence note that
+answers: villain_did, cue, archetype (+confidence +evidence_count), exploit_now,
+future_exploit, do_not_overadjust, plus source_truth{evidence_atoms, decision_id,
+no_hindsight}.
+
+Hard guarantees (unit-tested, T-VT-01..14):
+- INVENTS NOTHING. Every villain-fact field is copied verbatim from an existing
+  stamped field (exp['evidence_text'] / ['suggests'] / ['so_what'] /
+  ['recommended_exploit'] / ['exploit_read_label'] / SIGNAL_COACHING). Missing
+  source -> field omitted; thin read -> a single fixed fallback line
+  ("Read is weak - one cue only. Use as a review candidate, not an exploit
+  mandate.").
+- NO-HINDSIGHT is structural: showdown-leaked atoms (available_before_action_index
+  = None) can never become a same-hand cue; their action copy is suppressed and
+  source_truth.evidence_atoms carries only strictly-earlier hands.
+- CONFIDENCE wired to real evidence: profiler/population reads cap at low; high
+  needs >=8 atoms + >=2 same-family corroboration; a low read never forces a
+  high-confidence mistake.
+- do_not_overadjust is DERIVED guardrail copy keyed by confidence (never a
+  villain-specific claim).
+- PKO cover reuses the existing coverage_label string verbatim; no bounty BB/$
+  is fabricated.
+- Online vs live is a copy suffix + field only; a live read is never
+  cross-applied into an online report.
+
+Renderer: a compact, additive ".v25-teach" block in the modal context render
+(archetype + confidence + evidence count, the over-adjust guardrail, PKO cover,
+or the thin-read fallback). All copy is pre-built in Python so the renderer only
+displays strings. No detector / dimension / archetype-taxonomy change; no report
+redesign, no Hand Review Queue UI, no strategy-threshold change, no PKO math
+change beyond display. (Browser render pending Chat-env QA - data layer is
+unit-tested; gem_villain_intel return contract + all existing villain tests
+unchanged.)
+
+rev-2 (GPT product-fail fixes): (1) the modal teaching block now renders the
+FULL pre-built teach_lines for non-fallback objects — Read / Villain (the
+villain_did action) / Cue / Now / Next time / Avoid over-adjusting / Bounty —
+not just the header; (2) villain_did is therefore visible in the modal; (3) the
+low-confidence do_not_overadjust default is now generic ("Thin read — confirm
+with more evidence before making a large exploit"), with context-specific lines
+only when the read family is safely mapped (PKO/cold-call, station, nit,
+aggressive); (4) atom-side no-hindsight now REQUIRES same_hand_actionable (not
+just a non-None availability index), so cross-hand aggregates and showdown-leaked
+atoms degrade to review-note fallbacks. Existing cb-* context lines + evidence
+popup + hand modal unchanged.
+
+Tests 979 -> 983 (+T-VT-15..18); verify 39 files + canaries + anti-canaries.
+
+
 v8.12.12 (2026-06-13) -- Slice E.1: analyst report trust + source-truth cleanup
 =========================================================================
 Report-trust fixes surfaced by the 2026-06-12/13 GPT-vs-Claude analyst

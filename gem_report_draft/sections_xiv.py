@@ -1175,6 +1175,22 @@ def _build_hand_opponent_contexts(hands, s, rd, *, analyst_review=None):
     aliases = vi.get('villain_aliases', {}) or {}
     read_states = vi.get('read_states', {}) or {}
 
+    # v8.13.0: villain exploitation teaching-layer inputs. The teaching object
+    # is a render-facing PROJECTION of the already-stamped exploit/atom/read
+    # data (gem_villain_teaching invents nothing). Attached per context below.
+    try:
+        from gem_villain_teaching import (teaching_from_exploit as _vt_exp,
+                                          teaching_from_atom as _vt_atom)
+        from gem_villain_intel import SIGNAL_COACHING as _vt_sig
+        _vt_ok = True
+    except Exception:
+        _vt_ok = False
+    _vt_atoms_by_villain = vi.get('atoms_by_villain', {}) or {}
+    _vt_pko_by_hand = (rd.get('pko_research') or {}).get('by_hand', {}) or {}
+    # GG sessions are online MTT/PKO; live reads are never cross-applied here.
+    _vt_population = (s.get('session_population')
+                     or rd.get('session_population') or 'online')
+
     # v8.9.0-prep: analyst review overlay lookup
     # by_hv: (hand_id_short, villain_key) → list of analyst review dicts
     _ar_by_hv = {}
@@ -1281,6 +1297,10 @@ def _build_hand_opponent_contexts(hands, s, rd, *, analyst_review=None):
                 _ctx['analyst_coaching'] = _ar.get('analyst_coaching', '')
                 _ctx['analyst_severity'] = _ar.get('analyst_severity', '')
                 _ctx['analyst_note'] = _ar.get('analyst_note', '')
+            if _vt_ok:
+                _ctx['teaching'] = _vt_exp(exp, read_states, _vt_atoms_by_villain,
+                                           population=_vt_population,
+                                           pko_by_hand=_vt_pko_by_hand)
             contexts.append(_ctx)
 
         # --- Bucket C: atoms with no exploit in this hand ---
@@ -1342,6 +1362,11 @@ def _build_hand_opponent_contexts(hands, s, rd, *, analyst_review=None):
                 _ctx['analyst_coaching'] = _ar.get('analyst_coaching', '')
                 _ctx['analyst_severity'] = _ar.get('analyst_severity', '')
                 _ctx['analyst_note'] = _ar.get('analyst_note', '')
+            if _vt_ok:
+                _ctx['teaching'] = _vt_atom(atom, read_states, _vt_atoms_by_villain,
+                                            signal_coaching=_vt_sig,
+                                            population=_vt_population,
+                                            pko_by_hand=_vt_pko_by_hand)
             contexts.append(_ctx)
 
         # --- Bucket D: villain with known read but no atom/exploit ---

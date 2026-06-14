@@ -10,14 +10,14 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.12.12"   # Slice E.1: report trust + source-truth (final)
+VERSION = "v8.13.0"   # Slice F: villain exploitation teaching layer (final)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
     # --- Unchanged from v8.8.8 (not in v8.8.9 or v8.9.0 packages) ---
     "gem_villain_intel.py":                 ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
-    "gem_report_draft/sections_iv_xii.py":  ("1c4770874231d1a71be18c440570848846516342f23c91a4dab926beb043ed6d", 229092, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
+    "gem_report_draft/sections_iv_xii.py":  ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
     "gem_report_draft/_helpers.py":         ("47a3008eadb90ca3f0ce8931bbd901086e122f3c764a0b1a16ad43e71978d0c1", 53961, "v8.12.8 QA-GPT: pot ledger increment fix"),
     "gem_report_draft/_hand_grid.py":      ("3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77", 70985, "v8.12.12 Obj-H: verdict-label code-strip helper"),
     "gem_report_draft/sections_xiii.py":    ("61973dc553d74c79fc2fc99d9e9cd9ea2cb6006020cb91b5073384d08d551d08", 66798, "v8.12.12 Obj-H: reviewed-mistakes Roman code removal"),
@@ -32,14 +32,14 @@ MANIFEST = {
     "gem_pot_odds.py":                      ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
 
     # --- Updated in v8.8.9 + v8.9.0 ---
-    "gem_analyzer.py":                      ("9f12e6ef3c396ae89a0fda7280044bc615d13a0c8c5d6836c1b35ad87c3bf2bf", 563708, "v8.12.11: analyst_worklist emit hook"),
+    "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11: analyst_worklist emit hook"),
     "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("d5b926c709eae11247ffdac6f66dd62c79ef83c65ddb53a1e903b306b6f4d59c", 346313, "v8.12.12 rev-3: 965 tests (+T-1236 F/G/H source smoke)"),
-    "GEM_Changelog.txt":                    ("3629716a77de4e9c533028ab4aec72bd58ebb106a5a453239e3f0c9c5e27735d", 46917, "changelog through v8.12.12 (final)"),
+    "_test_scratch.py":                     ("9f92d13303a2d9f0ec41c82b7a8173e6cb5a9e7f78bbf51d91197842ab636447", 348568, "v8.12.12 rev-3: 965 tests (+T-1236 F/G/H source smoke)"),
+    "GEM_Changelog.txt":                    ("df610b91ac729a28a304c82c1d91865a757488fc296e153181c48b3dbd5259bb", 50153, "changelog through v8.12.12 (final)"),
     "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
-    "gem_report_draft/_html.py":            ("5a2f1e1e84d9d9369bdfac6ee97832a8c5325ac178662eddb650102574568a99", 357880, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
+    "gem_report_draft/_html.py":            ("61ae18e924a74a4f70c8cb73a8650d1cbb553ce555f12c08298e9b1ff398d9d0", 359675, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
     "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
-    "gem_report_draft/sections_xiv.py":     ("1743b2922810cae7f79d299999376987d96b9374103047cdeaaeb61bcc5fadd5", 176366, "v8.12.12 rev-3 Obj-F/G/H: cover table + PKO $-aware math + Roman sweep"),
+    "gem_report_draft/sections_xiv.py":     ("29511816e8cefba1b227a2f5bf3424b74e7eb81b42dc04a4a5c6f18990037b7a", 177799, "v8.12.12 rev-3 Obj-F/G/H: cover table + PKO $-aware math + Roman sweep"),
 
     # --- New in v8.9.0 ---
     "Poker_Ranges_Text.txt":                ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
@@ -59,7 +59,7 @@ MANIFEST = {
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
 
     # --- New in v8.12.0 ---
-    "SESSION_START_STEP0_package_rebuild.txt": ("ab69cd32504147815ad8347932680a039f3a7a324197185041d088b8a39ac58f", 4169, "v8.12.12 rev-3: 38/38 verify, 292 canaries / 10 anti"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("46cdc904284e5f009ca891551d9d1d4d9eec4179038a59e0d0e776ef8ab29523", 4169, "v8.12.12 rev-3: 38/38 verify, 292 canaries / 10 anti"),
     "gem_pko_research.py":           ("432107e7475ed2e1897c50822e26f4df4c88a4e5bc7289edbb9de95ae74eca66", 40497, "v8.12.9: partial-coverage seat naming"),
 
     # --- New in v8.12.0 ---
@@ -68,13 +68,16 @@ MANIFEST = {
     # --- New in v8.9.9 ---
     "gem_coverage_builder.py":              ("2580723a3f818fe571db6ba0b2f08ebacab574b6e521011b7d0da4dd5bc9146f", 121455, "v8.12.9: result-equity luck label"),
     # --- New in v8.12.4 ---
-    "gem_report_draft/tldr.py": ("2bda84871f461db22f555987db9e026094c23e8949e65219dd16a0905a11317b", 138070, "v8.12.12 rev-3 Obj-H: legend + read-dep prose de-Romanized"),
+    "gem_report_draft/tldr.py": ("9fe1da906664c36f8d1dd93cdc62db97c8c06060f2159bc57fa0b8f03f150969", 135445, "v8.12.12 rev-3 Obj-H: legend + read-dep prose de-Romanized"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
 
     # --- New in v8.12.11 (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("0e202ae536a0c911880d719b7aaf52064cd95e4e416568ac52fc2e27832c2995", 44869, "v8.12.11: analyst worklist triage engine (proposals)"),
-    "gem_chart_labels.py":     ("bf6da5586e9ef444f52a8710b9ac5e710355ee335b4441f04879a6674db4a389", 3418, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
+    "gem_analyst_worklist.py": ("2399abe8e9e9171bdaed193657cb9ed491a004cf0d583f5f0a93553cb586a51b", 43940, "v8.12.11: analyst worklist triage engine (proposals)"),
+    "gem_chart_labels.py":     ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
+
+    # --- New in v8.13.0 (Slice F: villain exploitation teaching layer) ---
+    "gem_villain_teaching.py": ("1d4d8a18d1d4878d69fc1263c99e40fc80ed432b759cf6142257c16eb982b4b2", 17926, "v8.13.0: villain teaching projection (no invention)"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -922,6 +925,29 @@ CANARIES = [
      "v8.12.12 Obj-G: unsafe/unknown PKO -> review manually (no faked discount)"),
     ("gem_report_draft/_hand_grid.py", "def _verdict_display_label(",
      "v8.12.12 Obj-H: strip Roman verdict code from user-facing labels"),
+
+    # v8.13.0 — Slice F: villain exploitation teaching layer
+    ("gem_villain_teaching.py", "def build_villain_teaching(",
+     "v8.13.0: villain teaching projection builder"),
+    ("gem_villain_teaching.py", "FALLBACK_LINE =",
+     "v8.13.0: fixed safe-fallback line for thin/hindsight-gated reads"),
+    ("gem_villain_teaching.py", "def _no_hindsight(",
+     "v8.13.0: structural no-hindsight guard (showdown atoms can't be a cue)"),
+    ("gem_villain_teaching.py", "do_not_overadjust",
+     "v8.13.0: derived over-adjust guardrail copy (never a villain fact)"),
+    ("gem_report_draft/sections_xiv.py", "_ctx['teaching'] = _vt_exp(",
+     "v8.13.0: teaching object attached to exploit contexts"),
+    ("gem_report_draft/sections_xiv.py", "_ctx['teaching'] = _vt_atom(",
+     "v8.13.0: teaching object attached to evidence contexts"),
+    ("gem_report_draft/_html.py", "v25-teach",
+     "v8.13.0: compact villain teaching block in the modal context render"),
+    # v8.13.0 rev-2 (GPT product-fail fixes)
+    ("gem_report_draft/_html.py", "teach_lines.forEach",
+     "v8.13.0 rev-2: renderer shows the FULL teach_lines (incl villain_did), not just the header"),
+    ("gem_villain_teaching.py", "def derive_do_not_overadjust(",
+     "v8.13.0 rev-2: generic/context-safe low-confidence guardrail (not PKO-specific by default)"),
+    ("gem_villain_teaching.py", "same_hand_actionable",
+     "v8.13.0 rev-2: atom no-hindsight requires same_hand_actionable"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

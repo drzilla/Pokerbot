@@ -30,7 +30,7 @@ before reading other files or running any pipeline step:
 2. Verify before proceeding:
        python -c "import gem_report_draft, gem_analyzer; print('imports OK')"
        python verify_release.py --project-dir .
-   Both must pass: expect a clean v8.12.11+ copy — 38/38 files, 292 canaries,
+   Both must pass: expect a clean v8.12.11+ copy — 39/39 files, 302 canaries,
    10 anti-canaries (the count grows as modules/canaries are added each release).
    On any failure STOP and tell Ron — do not improvise a report.
 

@@ -2712,7 +2712,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # ANY bounty hand from the canonical cover fact, even when the detailed
             # bounty block above did not (no _po['bounty'] / no modelled threshold,
             # which is the common case for the flagged push/call-jam all-ins).
-            _bts = _bounty_trust_strip_md(rd, h, _po)
+            # v8.14.1 consistency-fix (Blocker 2): when a BB-defense pko_context is
+            # enabled, the PKO pill below renders its OWN, more specific Bounty-trust
+            # strip \u2014 suppress this generic pot-odds strip so the hand never shows
+            # two Bounty-trust lines for the same decision (prefer the specific one).
+            _pko_will_strip = bool(((rd.get('pko_research') or {}).get('by_hand', {})
+                                    .get(hid) or h.get('pko_context') or {}).get('enabled'))
+            _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)
             if _bts:
                 _po_lines.append(_bts)
             _ev = _po.get('ev_call_bb')
@@ -3214,7 +3220,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                   "ahead right now.*")
                         # v8.14.1 rev-3 (Blocker 1): reconciled Bounty-trust strip on
                         # the compact XIV.B path too (push/call-jam all-ins land here).
-                        _bts_b = _bounty_trust_strip_md(rd, h, _po_b)
+                        # v8.14.1 consistency-fix (Blocker 2): suppress this generic
+                        # strip when the XIV.B PKO pill below will render its own more
+                        # specific Bounty-trust strip (BB-defense pko_context enabled),
+                        # so 72696769 / 73281169 show exactly one Bounty-trust line.
+                        _pko_will_strip_b = bool(((rd.get('pko_research') or {})
+                                                  .get('by_hand', {}).get(hid)
+                                                  or h.get('pko_context') or {}).get('enabled'))
+                        _bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)

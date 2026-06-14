@@ -15,16 +15,16 @@ VERSION = "v8.14.1-preview"   # v8.14.1 real-report QA hotfix (preview)
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("5f2f90747c8e938060eb8ca5e50bd8108b30118a364d32a485d1107b637e812d", 74009, "v8.14.1-preview hotfix entry (+rev-2/3/4 +xway-fix)"),
+    "GEM_Changelog.txt": ("b69b6bcaa80b258242bb3b734ab4a94579d6ff118b378e44ad1f6c8f420aaf99", 75776, "v8.14.1-preview hotfix entry (+rev-2/3/4 +xway-fix)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("edba1f04fadf67dd08ff45195bcc890450da3938d5933b56b9b74323a6fe8985", 4169, "v8.14.1: 40 files, 352 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("87978a7b6515c57085e6e4f18dd2555a5f8d1075b292df1b86905e26394f42ec", 396285, "v8.14.1 xway-fix: +T-XWAY-01..06 (1083 tests)"),
+    "_test_scratch.py": ("6a49bfac2c6b369b70bd9395f9d4f41ecb847511db8b4ab7e61f6b178479efc4", 397581, "v8.14.1 xway-fix: +T-XWAY-01..06 (1083 tests)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
-    "gem_analyzer.py": ("21150067a3326b6ccb6962b4a9325449bba9a91d1e3015874b1261bec98937ad", 556481, "v8.14.1 rev-3: canonical bounty_collectible (jammer-only; no eff-stack fabrication)"),
+    "gem_analyzer.py": ("41833733de83b37d169fbe9f7e30407ce4c2cd6f3961252bc9ed3bbdf19aed75", 560663, "v8.14.1 rev-3: canonical bounty_collectible (jammer-only; no eff-stack fabrication)"),
     "gem_chart_labels.py": ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
     "gem_coaching_cards.py": ("9327a09b5edb2e1d7e384f592c2f4d4d61ed5c10f67c239aa4be09365901efa3", 47332, "v8.14.1 rev-3: not-collectible card reads canonical collectibility"),
     "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
@@ -48,7 +48,7 @@ MANIFEST = {
     "gem_report_draft/sections_iv_xii.py": ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
     "gem_report_draft/sections_xiii.py": ("a2cc0cda22624a0176ceadd53bcedee56b97638e3a4f5ecc958eb34b616386f6", 66945, "v8.14.1 rev-4: deviation-table chart labels (chart_display_label)"),
-    "gem_report_draft/sections_xiv.py": ("46f0965a6c235d12c90d9df594d9482a44e58372cac5825cd8c92bef16cece12", 189972, "v8.14.1 rev-4: module chart-label import + XIV.B PKO downgrade + Correct-range labels + PKO-unavailable note"),
+    "gem_report_draft/sections_xiv.py": ("57471889080a6281cd3bd170b7ae2d1ced4b744e72545eb7cb5199b943e7f266", 191153, "v8.14.1 rev-4: module chart-label import + XIV.B PKO downgrade + Correct-range labels + PKO-unavailable note"),
     "gem_report_draft/tldr.py": ("bfecebcfd2cc5e752e1cfddd7b8b35be902dfb396ba958bcf78ede94fed7f9d3", 145320, "v8.14.1 rev-3: settlement-date in results-attribution + all-auto-clear queue reframe"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),

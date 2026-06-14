@@ -1,5 +1,31 @@
 v8.14.1-preview (2026-06-14) -- real-report QA hotfix
 =========================================================================
+CONSISTENCY-FIX add-on (analyst-report output acceptance; version stays
+v8.14.1-preview; no strategy-logic change). Two trust issues in the packaged
+analyst report were fixed.
+(1) Analyst status was internally inconsistent: the report rendered
+ANALYST_PARTIAL while the run manifest + structured run log still said
+AUTO_ONLY with the stale AUTO_ONLY_V1 output paths. Cause: the manifest/run-log
+are written only by the full pass, which ran AUTO_ONLY before the quick analyst
+re-render produced the packaged report. The --quick path (when not a
+section-only re-render) now patches the existing run manifest -- analyst_status,
+analyst_hand_entries, candidate_hands_awaiting, analyst_coverage_line, outputs
+(the V1 html/md), rerendered_quick=True, quick cli_flags + timing -- and
+rewrites the run log from the updated manifest with "(quick analyst re-render)"
+markers, so report, manifest, and run log now agree. The coverage line itself
+is unchanged and accurate: the remaining unreviewed candidates are
+mistakes-bucket + bust-audit hands (NOT lower-priority screening), so the
+"critical hands unreviewed -- not final" warning correctly reflects a genuine
+ANALYST_PARTIAL report.
+(2) Duplicate "Bounty trust:" lines: BB-defense PKO hands (72696769, 73281169)
+rendered two trust strips -- the generic pot-odds strip AND the specific PKO-pill
+strip -- with different collectibility framing. Both XIV.A (_po_lines) and XIV.B
+(_po_lines_b) now suppress the generic _bounty_trust_strip_md whenever the PKO
+pill will render its own strip for the hand, so each decision shows exactly one
+Bounty trust line (the more specific one) while non-PKO bounty hands keep their
+single generic strip. +2 tests (T-CONSIST-01..02) -> 1085. Rest below is
+xway-fix/rev-4/rev-3/rev-2/rev-1.
+
 XWAY-FIX add-on (false multiway in folded-through pots; version stays
 v8.14.1-preview). Product rule: "X-way" must mean players still CONTESTING the
 pot at the relevant decision -- not players dealt, table seats, or players who

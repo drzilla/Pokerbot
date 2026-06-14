@@ -5401,6 +5401,25 @@ check('T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to R
       _xw_mw['suppress_overclaim'] is True and _xw_mw['downgraded'] is True
       and _xw_mw['classification_display'] == 'Review', _xw_mw['classification_display'])
 
+# ============================================================
+# v8.14.1-preview analyst-report consistency-fix (T-CONSIST-01..02)
+# ============================================================
+# T-CONSIST-01: a BB-defense PKO hand must not render TWO "Bounty trust:" strips
+# (the generic pot-odds strip + the specific PKO-pill strip). Both XIV.A and
+# XIV.B suppress the generic strip when the PKO pill will render its own.
+check('T-CONSIST-01: generic Bounty-trust strip suppressed when PKO pill renders its own (XIV.A + XIV.B)',
+      "_bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)" in _xiv141
+      and "_bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)" in _xiv141
+      and _xiv141.count('_pko_will_strip') >= 2, '')
+
+# T-CONSIST-02: a quick analyst re-render refreshes the run manifest + run log so
+# they agree with the analyst report (was left as the prior AUTO_ONLY full pass).
+check('T-CONSIST-02: --quick re-render rewrites manifest + run-log with the analyst status',
+      "_qman['analyst_status'] = _rc_q.get('state')" in _ana141
+      and "_qman['outputs'] = {'html': html_path, 'md': md_path}" in _ana141
+      and 'Run manifest updated (quick re-render)' in _ana141
+      and 'Run log updated (quick re-render)' in _ana141, '')
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',

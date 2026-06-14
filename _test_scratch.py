@@ -5330,6 +5330,77 @@ check('T-H141-35: PKO bounty-math-unavailable note renders for unresolved BOUNTY
       _xiv141.count('**PKO bounty math:** cover/collectibility') == 2
       and _xiv141.count("h.get('bounty_collectible') in (None, 'unknown')") == 2, '')
 
+# ============================================================
+# v8.14.1-preview xway-fix — "X-way" must mean LIVE contenders at the decision,
+# not players dealt / who saw the flop then folded (T-XWAY-01..06)
+# ============================================================
+import gem_villain_intel as _vi_xw
+# T-XWAY-01: _live_players_at excludes players who folded BEFORE the action index
+_al_xw = [
+    {'street': 'preflop', 'player': 'P1', 'action': 'raises', 'position': 'CO'},
+    {'street': 'preflop', 'player': 'P2', 'action': 'calls', 'position': 'SB'},
+    {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'position': 'BB'},
+    {'street': 'flop', 'player': 'P2', 'action': 'checks', 'position': 'SB'},
+    {'street': 'flop', 'player': 'Hero', 'action': 'checks', 'position': 'BB'},
+    {'street': 'flop', 'player': 'P1', 'action': 'bets', 'position': 'CO'},
+    {'street': 'flop', 'player': 'P2', 'action': 'calls', 'position': 'SB'},
+    {'street': 'flop', 'player': 'Hero', 'action': 'folds', 'position': 'BB'},
+    {'street': 'turn', 'player': 'P2', 'action': 'bets', 'position': 'SB'},
+]
+check('T-XWAY-01: _live_players_at counts only live (not folded) at the decision index',
+      _vi_xw._live_players_at(_al_xw, 8) == 2 and _vi_xw._live_players_at(_al_xw, 3) == 3, '')
+
+# T-XWAY-02: a turn donk after a flop fold (2-way live) is NOT flagged multiway
+_h_false_xw = {'id': 'TFALSE', 'tournament_id': 'T', 'hero': 'Hero', 'position': 'BB',
+               'cards': ['Ah', 'Kd'], 'board': ['2c', '7d', '9s', 'Js'],
+               'action_ledger': _al_xw,
+               'villains': {'P1': {'position': 'CO'}, 'P2': {'position': 'SB'}}}
+check('T-XWAY-02: turn donk into a 2-way (flop-folded-through) pot is NOT a multiway donk',
+      len(_vi_xw.detect_multiway_donk(_h_false_xw, 'Hero', {})) == 0,
+      'false multiway donk still fires')
+
+# T-XWAY-03: a turn donk with 3 genuinely live IS flagged, message says 3-way
+_al_true_xw = [
+    {'street': 'preflop', 'player': 'P1', 'action': 'raises', 'position': 'CO'},
+    {'street': 'preflop', 'player': 'P2', 'action': 'calls', 'position': 'SB'},
+    {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'position': 'BB'},
+    {'street': 'flop', 'player': 'P2', 'action': 'checks', 'position': 'SB'},
+    {'street': 'flop', 'player': 'Hero', 'action': 'checks', 'position': 'BB'},
+    {'street': 'flop', 'player': 'P1', 'action': 'checks', 'position': 'CO'},
+    {'street': 'turn', 'player': 'P2', 'action': 'bets', 'position': 'SB'},
+]
+_h_true_xw = {'id': 'TTRUE', 'tournament_id': 'T', 'hero': 'Hero', 'position': 'BB',
+              'cards': ['Ah', 'Kd'], 'board': ['2c', '7d', '9s', 'Js'],
+              'action_ledger': _al_true_xw,
+              'villains': {'P1': {'position': 'CO'}, 'P2': {'position': 'SB'}}}
+_a_true_xw = _vi_xw.detect_multiway_donk(_h_true_xw, 'Hero', {})
+check('T-XWAY-03: turn donk with 3 genuinely live remains a multiway donk (message 3-way)',
+      len(_a_true_xw) == 1 and '3-way pot' in _a_true_xw[0].get('evidence_text', ''),
+      str(len(_a_true_xw)))
+
+# T-XWAY-04: the donk message uses the live count, not the flop-start n_to_flop
+_vi_src_xw = open('gem_villain_intel.py', encoding='utf-8').read()
+check('T-XWAY-04: multiway-donk message uses live-at-bet count (_n_live), not flop n_to_flop',
+      '_n_live = _live_players_at(al, idx)' in _vi_src_xw
+      and 'into PFR in {_n_live}-way pot' in _vi_src_xw
+      and 'into PFR in {n_to_flop}-way pot' not in _vi_src_xw, '')
+
+# T-XWAY-05: PKO trust does NOT downgrade for a HU spot (earlier folded callers
+# are not counted; players=2 is not multiway)
+_xw_hu = _pkoE.pko_trust_render({'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+         'players_if_hero_continues': 2, 'classification': 'Good', 'bounty_value_bb_est': 3.2,
+         'coverage_label': 'covers opener — bounty collectible'})
+check('T-XWAY-05: HU PKO spot is not multiway-suppressed and keeps its confident class',
+      _xw_hu['suppress_overclaim'] is False and _xw_hu['downgraded'] is False
+      and _xw_hu['classification_display'] == 'Good', _xw_hu['classification_display'])
+
+# T-XWAY-06: PKO trust DOES downgrade when 3+ are live in the bounty decision
+_xw_mw = _pkoE.pko_trust_render({'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+         'players_if_hero_continues': 3, 'classification': 'Good', 'bounty_value_bb_est': 3.2})
+check('T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to Review',
+      _xw_mw['suppress_overclaim'] is True and _xw_mw['downgraded'] is True
+      and _xw_mw['classification_display'] == 'Review', _xw_mw['classification_display'])
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',

@@ -918,11 +918,27 @@ def detect_repeated_blind_overfold(hands, hero_name, aliases):
     return atoms
 
 
+def _live_players_at(al, upto_idx):
+    """v8.14.1 xway-fix: distinct dealt players who have NOT folded by action
+    index `upto_idx` — the live, still-contesting field at that decision point.
+
+    This is the ONLY correct "N-way" basis per the product rule: NOT players
+    dealt in, NOT table seats, NOT players who saw an earlier street and then
+    folded. A turn donk after a player folds the flop is 2-way, even though 3
+    saw the flop.
+    """
+    dealt = set(a.get('player') for a in al)
+    folded = set(a.get('player') for j, a in enumerate(al)
+                 if j < upto_idx and a.get('action') == 'folds')
+    return len(dealt - folded)
+
+
 def detect_multiway_donk(hand, hero_name, aliases):
-    """Detect: villain donk-bets into PFR in multiway pot (3+ players to flop).
+    """Detect: villain donk-bets into PFR in a pot that is STILL multiway at the
+    donk (3+ players live at that street's decision, not merely 3+ to the flop).
 
     Signal: multiway_donk | Badge: note | Dimension: loose_passive
-    Only fires in multiway (3+ to flop), non-PFR villain.
+    Only fires when 3+ are still live at the donk; non-PFR villain.
     """
     atoms = []
     al = hand.get('action_ledger') or []
@@ -975,6 +991,12 @@ def detect_multiway_donk(hand, hero_name, aliases):
         _bettor_pos_n = _pos_order.get(a.get('position', ''), 99)
         if _bettor_pos_n >= _pfr_pos_n:
             continue  # bettor is in position or same — stab, not donk
+        # v8.14.1 xway-fix: the pot must STILL be multiway at THIS donk. n_to_flop
+        # is the flop-START field count; a turn donk after a flop fold is HU, so
+        # use the live count at the bet for both the gate and the message.
+        _n_live = _live_players_at(al, idx)
+        if _n_live < 3:
+            continue
         vk = f"{tid}|{a['player']}"
         va = aliases.get(vk, {})
         _valias = va.get('alias', a['player'][:8])
@@ -985,7 +1007,7 @@ def detect_multiway_donk(hand, hero_name, aliases):
             strength=2, same_hand_actionable=True,
             hero_involved=hero_in,
             evidence_text=(f"{_valias} donk-bet "
-                           f"{a['street']} into PFR in {n_to_flop}-way pot."),
+                           f"{a['street']} into PFR in {_n_live}-way pot."),
             read_impact='Loose-passive +2 (donk)',
             available_before=idx + 1,
             hero_position=_hpos,
@@ -993,7 +1015,7 @@ def detect_multiway_donk(hand, hero_name, aliases):
             board=_board_str,
             villain_action=f"donk-bet {a['street']}",
             context_text=(f"Hero {_hpos}; {_valias} donk-bet into PFR in "
-                          f"{n_to_flop}-way pot on {a['street']}."),
+                          f"{_n_live}-way pot on {a['street']}."),
         )
         atom['villain_position'] = a.get('position', '?')
         atoms.append(atom)

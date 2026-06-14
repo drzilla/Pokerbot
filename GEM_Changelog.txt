@@ -1,5 +1,23 @@
 v8.14.1-preview (2026-06-14) -- real-report QA hotfix
 =========================================================================
+XWAY-FIX add-on (false multiway in folded-through pots; version stays
+v8.14.1-preview). Product rule: "X-way" must mean players still CONTESTING the
+pot at the relevant decision -- not players dealt, table seats, or players who
+saw an earlier street and then folded. gem_villain_intel.detect_multiway_donk
+printed "{street} into PFR in {n_to_flop}-way pot" using the flop-START field
+count for ALL streets, so a TURN donk after a flop fold read "3-way" when the
+turn was actually heads-up (50 such turn donks in the Knockman 2026-06-13
+report). NEW _live_players_at(al, idx) counts only dealt players who have not
+folded by the bet's action index; the detector now gates each donk on that live
+count (>=3) and prints it, so a turn/river donk into a now-HU pot is neither
+flagged as a "multiway donk" nor labelled N-way. Audited the other X-way
+surfaces and confirmed they already use the live decision count: the PKO
+BB-defense pill (players_if_hero_continues = opener + callers live at Hero's
+defense, folds excluded), the PKO all-in audit (eai_n_allin = the actual all-in
+opponents), pot-odds n_players_at_showdown, and the coaching multiway_caution
+(players_at_flop = entered, not dealt). +6 tests (T-XWAY-01..06) -> 1083. Rest
+below is rev-4/rev-3/rev-2/rev-1.
+
 REV-4 add-on (4 remaining real-output misses; version stays v8.14.1-preview).
 (A) the compact XIV.B PKO pill printed the RAW classification, so confident
 "PKO Good/Too wide/Missed" still leaked on 3-way / open+caller spots -- it now

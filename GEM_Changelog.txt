@@ -1,3 +1,62 @@
+v8.14.0-preview (2026-06-14) -- Slice E: PKO v2 trust + copy clarity
+=========================================================================
+REV-2 (GPT review): the trust helper is now wired into the REAL rendered report
+path, not helper-only. (1) NEW gem_pko_research.pko_trust_render() re-reconciles
+the stamped pko_context cover facts WITH the per-hand pot-odds facts (chip-only
+vs PKO-adjusted threshold, discount, $ bounty, overjam) and DOWNGRADES a
+confident PKO classification (Good/Missed/Too wide) to "Review" on a trust
+contradiction. (2) sections_xiv.py PKO pill calls it with the in-scope pot-odds
+(_po) facts, so the on-page "Bounty trust:" strip now shows the threshold
+reconciliation (e.g. "Chip-only call needs 35%; PKO-adjusted needs ~29%") and an
+all-in overjam line when present; a contradiction renders "⚠️ ... PKO trust check
+failed" instead of a confident verdict. (3) GPT Blocker 3: PKO opportunity table
+header renamed Spot->Opportunity and the merged "Flagged" split into explicit
+"Wrong" (continued too loose) + "Missed" (folded a chart defend); the dominant
+"Review" column is kept with its clickable count (no separate Hands column). +4
+render-fixture tests (T-PKOE-15..18); T-PKOE-10/11 + T-V8120B-5 updated -> 1042.
++3 canaries -> 340. Overjam is helper-complete + render-ready + proven, but the
+BB-defend PKO pill has no render-reachable overjam source (it lives in the
+separate analyst_worklist JSON), so on-page overjam awaits the worklist->report
+merge (documented follow-up). Rest of the entry below is rev-1.
+
+Makes PKO bounty decisions trustworthy and easy to read, and glosses the worst
+dense unit copy. No new detector; no strategy-logic change; no report redesign.
+Most PKO surfacing already existed (bounty $X ≈ YBB + estimate fallback, concrete
+cover/collectibility labels, chip-vs-PKO-adjusted threshold, clickable count-cell
+opportunity tables with no redundant Hands column). Slice E adds the missing
+piece: a single reconciliation guard so a bounty conclusion can never contradict
+its own math.
+
+PKO trust reconciliation (gem_pko_research.reconcile_pko_trust, pure + tested):
+collapses the stamped cover / collectibility / multiway / bounty facts into ONE
+compact concrete "trust line" and flags contradictions —
+  * Hero covers but bounty marked not collectible;
+  * a bounty discount applied while the bounty is not collectible;
+  * villain covers Hero yet a discount is applied;
+  * PKO-adjusted threshold higher than the chip-only threshold despite a positive
+    discount.
+Multiway / ambiguous side-pot spots set suppress_overclaim and add an explicit
+"bounty impact uncertain (side-pot/cover ambiguous)" note; equal/near-equal
+stacks read "collectible only if Hero wins outright"; overjam chips Hero cannot
+win are surfaced; a missing exact bounty shows the estimate ("≈ Y.YBB (estimated
+bounty model)") and never fabricates a $. Concrete copy mirrors the user spec:
+"Villain covers Hero; bounty discount does not help Hero.", etc. Stamped onto the
+PKO context as pko_trust and rendered as a compact "Bounty trust:" strip in the
+PKO pill (gem_report_draft/sections_xiv.py); a contradiction renders with a ⚠️
+flag instead of a confident claim.
+
+Copy clarity (gem_report_draft/sections_financial.py): the intra-session arc
+table now carries a one-line gloss — "cEV/100 = chip-EV per 100 hands (% of
+starting stack); BB/100 = big blinds won per 100 hands" — so the two rate units
+are not unexplained. Navigation abbreviations (SPR / 3BP / SRP) are unchanged;
+hand-verdict copy already strips Roman codes (_verdict_display_label).
+
+Tests: +14 (T-PKOE-01..14) -> 1038. Local preview slice of the v8.14.0 train;
+not merged/pushed/tagged. NOTE: PKO trust strip is proven by helper unit tests +
+render-wiring canaries; a generated-report browser pass on real PKO hands is a
+final-QA item (see FINAL_QA_CHECKLIST_v8140.md).
+
+
 v8.14.0-preview (2026-06-14) -- Slice D: Villain Exploitation v2
 =========================================================================
 Turns the villain teaching block from "visible" into "actionable". The per-hand

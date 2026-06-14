@@ -2672,7 +2672,21 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                      if _pk_rng[0] != _pk_rng[1] else f"{_pk_rng[0]:+.1f}pp")
             _pk_players = {2: 'HU', 3: '3-way', 4: '4-way'}.get(
                 _pko_ctx.get('players_if_hero_continues'), '?')
-            _pk_cls = _pko_ctx.get('classification', 'Review')
+            # v8.14.0 Slice E rev-2: re-reconcile the stamped cover facts WITH
+            # the per-hand pot-odds facts (chip-only vs PKO-adjusted threshold,
+            # discount, $ bounty) so the on-page strip proves the FULL math, and
+            # downgrade a confident PKO classification on a trust contradiction.
+            from gem_pko_research import pko_trust_render as _pko_trust_render
+            _po_d = _po or {}
+            _po_bnt = _po_d.get('bounty') or {}
+            _pk_render = _pko_trust_render(
+                _pko_ctx,
+                bounty_usd=_pko_bounty_usd(rd, h),
+                discount_pp=_po_bnt.get('discount_pp', 0) or 0,
+                chip_threshold_pct=_po_d.get('required_eq_pct'),
+                pko_threshold_pct=_po_d.get('required_eq_bounty_pct'),
+                overjam_bb=None)
+            _pk_cls = _pk_render['classification_display']
             # v8.12.8: exact-stack coverage label from the context builder
             # (collectibility from real stacks); legacy map only as fallback
             _cov_lbl = _pko_ctx.get('coverage_label') or {
@@ -2690,6 +2704,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                   f"\u00b7 \u0394 {_pk_d} aggregate"
                   + (f" \u00b7 {_cov_lbl}"
                      if _cov_lbl else ""))
+            # Slice E rev-2: compact reconciled "Bounty trust:" strip (cover /
+            # collectibility / bounty $ / chip-vs-PKO threshold), with a visible
+            # contradiction flag so a bounty conclusion can never fight its math.
+            if _pk_render.get('strip_md'):
+                doc.w("")
+                doc.w("  " + _pk_render['strip_md'])
             doc.w("")
             doc.w(f"  {_pko_ctx.get('teaching_note', '')} "
                   f"*{_pko_ctx.get('caveat', '')}*")

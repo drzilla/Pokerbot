@@ -257,6 +257,190 @@ def depth_band(eff_bb):
     return None, False, 'out_of_scope_deep'
 
 
+def _pko_sentence(s):
+    """Normalize a fragment into one concrete sentence (capital + period)."""
+    s = (s or '').strip()
+    if not s:
+        return ''
+    if s[-1] not in '.!?':
+        s += '.'
+    return s[0].upper() + s[1:]
+
+
+def reconcile_pko_trust(*, coverage_bucket=None, can_collect_bounty=None,
+                        players=2, coverage_label='', bounty_value_bb=None,
+                        bounty_usd=None, discount_pp=0.0,
+                        chip_threshold_pct=None, pko_threshold_pct=None,
+                        overjam_bb=None, caveat=''):
+    """Slice E — single PKO trust reconciliation. PURE.
+
+    Collapses the already-stamped cover / collectibility / bounty facts into ONE
+    compact, concrete "trust line", and flags any internal contradiction so the
+    report never shows a bounty conclusion that fights its own math. Invents no
+    stacks or dollar values — it only re-states and cross-checks inputs.
+
+    Returns a dict: trust_line, cover_state, collectible, multiway,
+    discount_applies, contradiction(+reason), suppress_overclaim,
+    bounty_display, threshold_line.
+    """
+    cb = (coverage_bucket or '').strip()
+    cl = (coverage_label or '')
+    cll = cl.lower()
+    multiway = int(players or 2) > 2
+    collectible = can_collect_bounty  # may be True / False / None
+    try:
+        discount_pp = float(discount_pp or 0)
+    except Exception:
+        discount_pp = 0.0
+    discount_applies = discount_pp > 0
+
+    if cb == 'Hero covers':
+        cover_state = 'hero_covers'
+    elif cb == 'Hero covered':
+        cover_state = 'hero_covered'
+    elif cb in ('Equal', 'Near-equal', 'near-equal'):
+        cover_state = 'equal'
+    elif cb == 'Mixed':
+        cover_state = 'mixed'
+    else:
+        cover_state = 'unknown'
+
+    # ---- contradiction guard (the trust gate) ----
+    contradiction, reason = False, ''
+    if cover_state == 'hero_covers' and collectible is False:
+        contradiction = True
+        reason = 'Hero covers the villain but the bounty is marked not collectible.'
+    elif discount_applies and collectible is False:
+        contradiction = True
+        reason = 'A bounty discount is applied although the bounty is not collectible.'
+    elif cover_state == 'hero_covered' and discount_applies:
+        contradiction = True
+        reason = 'Villain covers Hero, so a bounty discount should not apply to Hero.'
+    elif (discount_applies and chip_threshold_pct is not None
+          and pko_threshold_pct is not None
+          and pko_threshold_pct > chip_threshold_pct + 0.05):
+        contradiction = True
+        reason = ('PKO-adjusted threshold is higher than the chip-only threshold '
+                  'despite a positive bounty discount.')
+
+    # ---- over-claim suppression (multiway / ambiguous side-pot) ----
+    multiway_full_cover = 'all bounties collectible' in cll
+    suppress = bool(caveat) or cover_state in ('mixed', 'unknown')
+    if multiway and not multiway_full_cover:
+        suppress = True
+
+    # ---- bounty display (never fabricates a $ figure) ----
+    if bounty_value_bb and float(bounty_value_bb) > 0:
+        if bounty_usd:
+            bounty_display = '$%0.2f ≈ %.1fBB' % (float(bounty_usd),
+                                                       float(bounty_value_bb))
+        else:
+            bounty_display = ('≈ %.1fBB (estimated bounty model)'
+                              % float(bounty_value_bb))
+    else:
+        bounty_display = 'bounty value unavailable'
+
+    # ---- threshold reconciliation line (only when a discount is in play) ----
+    if (chip_threshold_pct is not None and pko_threshold_pct is not None
+            and discount_applies):
+        threshold_line = ('Chip-only call needs %.0f%%; PKO-adjusted needs ~%.0f%% '
+                          '(−%.1fpp)' % (float(chip_threshold_pct),
+                                              float(pko_threshold_pct), discount_pp))
+    else:
+        threshold_line = ''
+
+    # ---- primary concrete sentence ----
+    if contradiction:
+        primary = 'PKO trust check failed — ' + reason
+    elif cover_state == 'hero_covers':
+        primary = cl or 'Hero covers the villain; bounty collectible'
+    elif cover_state == 'hero_covered':
+        primary = 'Villain covers Hero; bounty discount does not help Hero'
+    elif cover_state == 'equal':
+        primary = ('Near-equal stacks; bounty collectible only if Hero wins outright'
+                   if collectible is not False else
+                   'Near-equal stacks; opener has Hero just covered (bounty not collectible)')
+    elif cover_state == 'mixed':
+        primary = cl or ('Multiway: bounty impact uncertain because side-pot/cover '
+                         'is ambiguous')
+    else:
+        primary = 'Cover/collectibility unresolved; treat the bounty effect as uncertain'
+
+    extra = []
+    if not contradiction:
+        if (multiway and suppress and cover_state != 'hero_covered'
+                and 'uncertain' not in primary.lower()):
+            extra.append('multiway: bounty impact uncertain (side-pot/cover ambiguous)')
+        if overjam_bb and float(overjam_bb) > 0:
+            extra.append('side-pot ~%.1fBB Hero cannot win' % float(overjam_bb))
+        if bounty_value_bb and float(bounty_value_bb) > 0:
+            extra.append(bounty_display)
+        elif caveat:
+            extra.append('exact bounty unavailable — using estimate')
+        if threshold_line:
+            extra.append(threshold_line)
+
+    trust_line = ' '.join(_pko_sentence(p) for p in ([primary] + extra) if p)
+
+    return {
+        'trust_line': trust_line,
+        'cover_state': cover_state,
+        'collectible': collectible,
+        'multiway': multiway,
+        'discount_applies': discount_applies,
+        'contradiction': contradiction,
+        'contradiction_reason': reason,
+        'suppress_overclaim': bool(suppress),
+        'bounty_display': bounty_display,
+        'threshold_line': threshold_line,
+    }
+
+
+# Confident PKO classifications that must NOT survive a trust contradiction.
+_PKO_CONFIDENT_CLS = ('Good', 'Missed', 'Too wide')
+
+
+def pko_trust_render(pko_ctx, *, bounty_usd=None, discount_pp=0.0,
+                     chip_threshold_pct=None, pko_threshold_pct=None,
+                     overjam_bb=None):
+    """Render-path PKO trust (Slice E rev-2). PURE + fixture-testable.
+
+    Re-reconciles the stamped pko_context COVER facts WITH the per-hand pot-odds
+    facts (chip-only vs PKO-adjusted threshold, discount, overjam) so the on-page
+    "Bounty trust:" strip proves the FULL reconciliation — not just cover/bounty.
+    On a trust contradiction it DOWNGRADES a confident PKO classification to
+    'Review' so the report never shows a confident PKO verdict that fights its
+    own math. Returns the render payload incl. the exact markdown strip.
+    """
+    ctx = pko_ctx or {}
+    tr = reconcile_pko_trust(
+        coverage_bucket=ctx.get('coverage_bucket'),
+        can_collect_bounty=ctx.get('can_collect_bounty'),
+        players=ctx.get('players_if_hero_continues', 2),
+        coverage_label=ctx.get('coverage_label', ''),
+        bounty_value_bb=ctx.get('bounty_value_bb_est'),
+        bounty_usd=bounty_usd, discount_pp=discount_pp,
+        chip_threshold_pct=chip_threshold_pct, pko_threshold_pct=pko_threshold_pct,
+        overjam_bb=overjam_bb)
+    cls = ctx.get('classification', 'Review')
+    if tr['contradiction'] and cls in _PKO_CONFIDENT_CLS:
+        cls_display, downgraded = 'Review', True
+    else:
+        cls_display, downgraded = cls, False
+    prefix = '⚠️ ' if tr['contradiction'] else '\U0001F3AF '
+    strip_md = (prefix + '**Bounty trust:** ' + tr['trust_line']) if tr['trust_line'] else ''
+    return {
+        'trust_line': tr['trust_line'],
+        'strip_md': strip_md,
+        'prefix': prefix,
+        'contradiction': tr['contradiction'],
+        'contradiction_reason': tr['contradiction_reason'],
+        'suppress_overclaim': tr['suppress_overclaim'],
+        'classification_display': cls_display,
+        'downgraded': downgraded,
+    }
+
+
 def _phase_full_conf(phase):
     return (phase or '') in ('bubble_zone', 'post_bubble')
 
@@ -572,6 +756,13 @@ def build_pko_context(h, classic_ids=None):
         _bounty_txt = 'Exact bounty size unavailable in GG export.'
         _bounty_reason = 'bounty_size_unknown_in_gg_export'
 
+    # Slice E: single reconciled PKO trust line (cover / collectibility /
+    # multiway / bounty), with the contradiction guard. Threshold/discount and
+    # overjam live in the pot-odds layer; the strip here states the cover facts.
+    _pko_trust = reconcile_pko_trust(
+        coverage_bucket=cov, can_collect_bounty=can_collect, players=players,
+        coverage_label=coverage_label, bounty_value_bb=(_bvbb or None))
+
     ctx.update({
         'enabled': True,
         'decision_family': 'BB_DEFEND_VS_OPEN',
@@ -610,6 +801,7 @@ def build_pko_context(h, classic_ids=None):
         'teaching_note': teach,
         'caveat': ('Aggregate GTOW research — Review cue, not a confirmed '
                    'mistake. ' + _bounty_txt),
+        'pko_trust': _pko_trust,
     })
     return ctx
 

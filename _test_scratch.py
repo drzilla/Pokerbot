@@ -4972,6 +4972,120 @@ check('T-PKO-22: snapshot count equals sum of teaching Seen cells',
 check('T-PKO-23: enrich fail-soft on garbage input',
       _pko.enrich_pko_contexts(None, None, None).get('enabled') in (True, False), '')
 
+# ============================================================
+# v8.14.0 — Slice E: PKO v2 trust reconciliation + copy clarity (T-PKOE-*)
+# ============================================================
+import re as _re_pkoe
+import gem_pko_research as _pkoE
+_e1 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True,
+                                players=2, coverage_label='covers opener — bounty collectible',
+                                bounty_value_bb=4.0, bounty_usd=5.0)
+check('T-PKOE-01: Hero covers villain -> collectible trust line + $X conversion',
+      _e1['cover_state'] == 'hero_covers' and _e1['collectible'] is True
+      and 'collectible' in _e1['trust_line'] and '$5.00' in _e1['trust_line']
+      and not _e1['contradiction'], _e1['trust_line'])
+_e2 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covered', can_collect_bounty=False,
+                                players=2,
+                                coverage_label='covered by opener — opener bounty not collectible')
+check('T-PKOE-02: Villain covers Hero -> bounty discount does not help Hero',
+      _e2['cover_state'] == 'hero_covered' and _e2['collectible'] is False
+      and 'does not help Hero' in _e2['trust_line'] and not _e2['contradiction'], _e2['trust_line'])
+_e3a = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=True, players=2)
+_e3b = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=False, players=2)
+check('T-PKOE-03: near-equal/equal stacks handled safely (collectible only if Hero wins)',
+      _e3a['cover_state'] == 'equal' and 'only if Hero wins outright' in _e3a['trust_line']
+      and 'not collectible' in _e3b['trust_line'] and not _e3a['contradiction'], _e3a['trust_line'])
+_e4 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=3,
+                                coverage_label='covers CO only — that bounty collectible; HJ covers Hero')
+check('T-PKOE-04: multiway partial cover -> suppress over-claim + uncertain note',
+      _e4['multiway'] is True and _e4['suppress_overclaim'] is True
+      and 'uncertain' in _e4['trust_line'].lower() and not _e4['contradiction'], _e4['trust_line'])
+_e5 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                bounty_value_bb=3.2, bounty_usd=None)
+check('T-PKOE-05: missing exact bounty -> estimate model display (no fabricated $)',
+      'estimated bounty model' in _e5['bounty_display'] and '3.2BB' in _e5['trust_line']
+      and '$' not in _e5['trust_line'], _e5['trust_line'])
+_e6 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                bounty_value_bb=3.2, bounty_usd=5.0)
+check('T-PKOE-06: bounty dollar-to-BB conversion appears ($X = YBB)',
+      _e6['bounty_display'] == '$5.00 ≈ 3.2BB' and '$5.00 ≈ 3.2BB' in _e6['trust_line'], _e6['bounty_display'])
+_c_a = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=False, players=2)
+_c_b = _pkoE.reconcile_pko_trust(coverage_bucket='Equal', can_collect_bounty=False, players=2, discount_pp=8.0)
+_c_c = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covered', can_collect_bounty=None, players=2, discount_pp=8.0)
+_c_d = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                 discount_pp=8.0, chip_threshold_pct=35.0, pko_threshold_pct=40.0)
+_c_ok = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                  discount_pp=8.0, chip_threshold_pct=40.0, pko_threshold_pct=32.0)
+check('T-PKOE-07: trust guard flags cover/collect/discount/threshold conflicts; clean PKO math passes',
+      _c_a['contradiction'] and _c_b['contradiction'] and _c_c['contradiction'] and _c_d['contradiction']
+      and not _c_ok['contradiction'] and 'PKO trust check failed' in _c_a['trust_line'], '')
+_ctxE = _pkoE.build_pko_context(_mk_hand(hero_stack=18.0, opener_stack=16.0))
+check('T-PKOE-08: build_pko_context stamps a reconciled pko_trust object',
+      bool(_ctxE.get('enabled')) and isinstance(_ctxE.get('pko_trust'), dict)
+      and _ctxE['pko_trust'].get('cover_state') == 'hero_covers'
+      and bool(_ctxE['pko_trust'].get('trust_line')), '')
+_e9 = _pkoE.reconcile_pko_trust(coverage_bucket='Hero covers', can_collect_bounty=True, players=2,
+                                overjam_bb=12.0, bounty_value_bb=4.0, bounty_usd=5.0)
+check('T-PKOE-09: overjam side-pot chips Hero cannot win are surfaced',
+      'Hero cannot win' in _e9['trust_line'] and '12.0BB' in _e9['trust_line'], _e9['trust_line'])
+_xiv_src_e = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-PKOE-10: PKO pill wires pko_trust_render with pot-odds threshold facts + downgraded class + strip',
+      '_pko_trust_render(' in _xiv_src_e
+      and "_pk_render['classification_display']" in _xiv_src_e
+      and "_pk_render.get('strip_md')" in _xiv_src_e
+      and 'required_eq_bounty_pct' in _xiv_src_e, '')
+_sm_src_e = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-PKOE-11: PKO opportunity table renamed (Opportunity/Wrong/Missed), clickable counts, no Hands column',
+      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_src_e
+      and 'Review | Drill cue |' in _sm_src_e and '| Spot | PKO' not in _sm_src_e
+      and '_rcc(' in _sm_src_e, '')
+_fin_src_e = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-PKOE-12: dense cEV/BB-100 units carry a concise body gloss',
+      'cEV/100 = chip-EV per 100 hands' in _fin_src_e
+      and 'BB/100 = big blinds won per 100 hands' in _fin_src_e, '')
+_draft_src_e = open('gem_report_draft/draft.py', encoding='utf-8').read()
+_m_nav_e = _re_pkoe.search(r'_NAV_LABELS\s*=\s*\{(.*?)\n\s*\}', _draft_src_e, _re_pkoe.S)
+_nav_vals_e = _re_pkoe.findall(r":\s*'([^']*)'", _m_nav_e.group(1)) if _m_nav_e else []
+check('T-PKOE-13: navigation labels stay compact (<=28 chars; abbreviations preserved)',
+      bool(_nav_vals_e) and max(len(v) for v in _nav_vals_e) <= 28
+      and any(('3BP' in v) or ('SRP' in v) or ('SPR' in v) for v in _nav_vals_e),
+      str(max(len(v) for v in _nav_vals_e) if _nav_vals_e else 'no-match'))
+from gem_report_draft._hand_grid import _verdict_display_label as _vdl_e
+check('T-PKOE-14: no raw Roman verdict codes in normal hand verdict copy (codes stripped to labels)',
+      _vdl_e('III.2 Punt') == 'Punt' and _vdl_e('I.7 Cooler') == 'Cooler'
+      and not _re_pkoe.match(r'^I{1,3}\.[0-9]', _vdl_e('III.1 Read-dependent')), '')
+# --- rev-2: render-path (fixture) tests for pko_trust_render (Blocker 1 + 2) ---
+_ctxE2 = _pkoE.build_pko_context(_mk_hand(hero_stack=20.0, opener_stack=16.0))
+_rnd_ok = _pkoE.pko_trust_render(_ctxE2, bounty_usd=5.0, discount_pp=8.0,
+                                 chip_threshold_pct=35.0, pko_threshold_pct=29.0)
+check('T-PKOE-15: render strip carries chip-vs-PKO threshold reconciliation; clean class kept',
+      _rnd_ok['downgraded'] is False and not _rnd_ok['contradiction']
+      and _rnd_ok['strip_md'].startswith('\U0001F3AF **Bounty trust:**')
+      and 'Chip-only call needs 35%' in _rnd_ok['strip_md']
+      and 'PKO-adjusted needs ~29%' in _rnd_ok['strip_md'], _rnd_ok['strip_md'])
+_ctx_contra = {'coverage_bucket': 'Hero covers', 'can_collect_bounty': False,
+               'players_if_hero_continues': 2, 'classification': 'Good',
+               'coverage_label': 'covers opener — bounty collectible', 'bounty_value_bb_est': None}
+_rnd_bad = _pkoE.pko_trust_render(_ctx_contra)
+check('T-PKOE-16: render-path DOWNGRADES a confident PKO class to Review on a trust contradiction',
+      _rnd_bad['contradiction'] is True and _rnd_bad['downgraded'] is True
+      and _rnd_bad['classification_display'] == 'Review'
+      and _rnd_bad['strip_md'].startswith('⚠️ ')
+      and 'PKO trust check failed' in _rnd_bad['strip_md'], _rnd_bad['strip_md'])
+_ctx_thr = {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+            'players_if_hero_continues': 2, 'classification': 'Missed', 'bounty_value_bb_est': None}
+_rnd_thr = _pkoE.pko_trust_render(_ctx_thr, discount_pp=8.0,
+                                  chip_threshold_pct=35.0, pko_threshold_pct=40.0)
+check('T-PKOE-17: PKO-adjusted threshold ABOVE chip despite discount -> render contradiction + downgrade',
+      _rnd_thr['contradiction'] is True and _rnd_thr['classification_display'] == 'Review'
+      and 'PKO trust check failed' in _rnd_thr['strip_md'], _rnd_thr['strip_md'])
+_rnd_oj = _pkoE.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'bounty_value_bb_est': 4.0, 'classification': 'Review'},
+    bounty_usd=5.0, overjam_bb=12.0)
+check('T-PKOE-18: overjam chips Hero cannot win surface in the rendered strip',
+      'Hero cannot win' in _rnd_oj['strip_md'] and '12.0BB' in _rnd_oj['strip_md'], _rnd_oj['strip_md'])
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',
@@ -5103,8 +5217,9 @@ check('T-V8120B-4: teaching rows aggregate by research bucket',
       and len({r['bucket'] for r in _agg_b['teaching_rows']})
       == len(_agg_b['teaching_rows']), '')
 _sm_812b = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-V8120B-5: S4.2 is the compact 7-column layout',
-      '| Spot | PKO Δ | Seen | Actual | Flagged | Review | Drill cue |' in _sm_812b, '')
+check('T-V8120B-5: S4.2 is the compact layout (v8.14.0 Slice E rev-2: Opportunity/Wrong/Missed)',
+      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_812b
+      and 'Review | Drill cue |' in _sm_812b, '')
 _sx_812b = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-V8120B-6: pill no longer embeds a span (md would escape it)',
       "pko-cov-chip'>" not in _sx_812b, '')

@@ -1,3 +1,57 @@
+v8.13.1-preview (2026-06-14) -- Analyst coverage + verdict-contradiction trust
+=========================================================================
+Closes the 2026-06-13 Claude-vs-GPT trust gaps: a report self-declared
+ANALYST_COMPLETE after reviewing 5 hands while every meaningful postflop loss
+(incl. the -40BB biggest loss) went unreviewed, and per-hand verdicts contradicted
+the auto widgets. Coverage is now ENFORCED, not assumed.
+
+P0 -- ANALYST_COMPLETE gated on critical coverage (gem_report_data.py):
+- compute_report_completeness now requires that the loss / confirmed-error hands
+  (mistakes, punts, coolers, bust audit, biggest-loss screen, postflop-loss
+  screen) are reviewed (or auto-resolved). ANY unreviewed critical hand -> the
+  report is ANALYST_PARTIAL, never ANALYST_COMPLETE.
+- New quantified coverage line ("Analyst coverage: N reviewed - M/M
+  significant-loss hands reviewed - 0 critical unreviewed"; incomplete ->
+  "Analyst coverage incomplete: K critical hands unreviewed - not final.").
+  Rendered in the TL;DR banner (amber when incomplete). Top-leaks section carries
+  a provisional "coaching confidence reduced" caveat when coverage is incomplete.
+
+P1 -- coverage screens (gem_coverage_builder.py / gem_analyst_worklist.py):
+- build_loss_screens() forces every per-tournament stack_trajectories
+  biggest_loss_id and every postflop hand with net_bb <= -15 (configurable
+  POSTFLOP_LOSS_SCREEN_BB) into the worklist as biggest_loss_screen /
+  postflop_loss_screen ("must clear or classify" -- coverage rules, NOT mistakes).
+
+P1 -- verdict / auto-widget contradiction (gem_report_draft/_hand_grid.py):
+- reconcile_push_widget(): the auto push/range check is reconciled against the
+  FINAL analyst verdict -- labelled "auto pre-review" when unreviewed, shown as
+  overridden when the analyst cleared a flagged hand, and never as a bare "Wrong
+  push" that contradicts a Justified verdict. The widget now also states the
+  NEAREST chart + the actual effective stack. tldr_contradicts_verdict() reframes
+  a stale "standard" TL;DR on a hand graded a mistake. R2 auto-verdict only
+  claims "inside the push range" when membership was actually resolved.
+
+P1 -- effective-stack safety (gem_analyst_worklist.py):
+- effective_stack_safety(): every shove/overjam/sizing verdict displays Hero
+  TOTAL stack, the EFFECTIVE stack vs live opponents, and the eval depth, and
+  WARNS when a deep overjam is claimed at short-shove depth (the total-vs-
+  effective confusion that mislabelled the Q8s SB jam a 34BB overjam).
+
+P2 -- W-POT lint (gem_report_draft/sections_xiv.py):
+- "call X into Y" now validates Y against the hand's _pot_odds per-street pots
+  (pot-before-call / total), not only street-start windows -- correct pot odds
+  like "call 7BB into 19.9BB" no longer false-flag.
+
+P2 -- monotone over-commit lesson (gem_report_draft/_helpers.py):
+- monotone_overcommit_lesson(): on a monotone (flush) board where Hero checked
+  the flop then over-committed the turn, the lesson names the SEQUENCE leak
+  (skipped cheap flop protection -> over-committed turn jam), not merely
+  "missed flop aggression".
+
+Tests: +13 (T-CT-01..08, all 8 trust groups) -> 996 total. Local-only preview;
+not merged / pushed / tagged.
+
+
 v8.13.0 (2026-06-14) -- Slice F: villain exploitation teaching layer
 =========================================================================
 Turns raw villain evidence into coaching-grade exploit teaching. New module

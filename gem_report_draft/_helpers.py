@@ -510,6 +510,43 @@ _AGG_ACTION_WORDS = {
 }
 
 
+def monotone_overcommit_lesson(board, hsa, net_bb=None, spr=None):
+    """v8.13.1 P2: monotone-board over-commit SEQUENCE leak. When the flop is
+    monotone (a flush is already possible), Hero CHECKED the flop (skipped cheap
+    protection), then OVER-COMMITTED the turn (jam / big bet), the real leak is
+    the SEQUENCE — not merely 'missed flop aggression'. The turn jam folds out
+    worse hands and only gets called by flushes. Returns the corrected lesson,
+    or '' if the pattern does not apply. Pure / testable.
+
+    (2026-06-13: TM6072950898 AQ two-pair jam into a monotone Qc8c3c board lost
+    -40BB and was framed as 'missed flop aggression' — the connected error is
+    skipped cheap flop protection -> over-committed turn.)"""
+    cards = ([str(x) for x in board] if isinstance(board, (list, tuple))
+             else str(board or '').split())
+    if len(cards) < 3:
+        return ''
+    suits = [c[1] for c in cards[:3] if len(c) >= 2]
+    if len(suits) < 3 or len(set(suits)) != 1:
+        return ''   # flop is not monotone
+    hsa = hsa or {}
+    flop_a = str(hsa.get('flop', '')).lower()
+    turn_a = str(hsa.get('turn', '')).lower()
+    # Hero did NOT bet the flop (checked / check-called), then committed big on
+    # the turn (jam / all-in / bet / raise).
+    flop_checked = (('x' in flop_a or 'check' in flop_a or 'call' in flop_a)
+                    and not ('cbet' in flop_a or flop_a in ('b', 'bet', 'raise')))
+    turn_overcommit = ('jam' in turn_a or 'allin' in turn_a or 'all-in' in turn_a
+                       or turn_a in ('b', 'bet', 'raise', 'r'))
+    if not (flop_checked and turn_overcommit):
+        return ''
+    return ("The leak is the sequence, not just missed flop aggression: you "
+            "skipped cheap flop protection on a monotone (flush) board, then "
+            "used the turn jam as the first protection action when SPR was "
+            "already too low. Bet a small flop with no flush card, and do not "
+            "pot-jam the turn — the jam folds out worse hands and gets called "
+            "by flushes.")
+
+
 def _agg_commentary(c):
     """One-line actionable read for a VII.11 candidate: which action, what
     should have happened, and why (failed-gate reasons). Shared by VII.11
@@ -532,7 +569,13 @@ def _agg_commentary(c):
     # terms, not how many gates passed. The 5 checks, in plain words, are:
     # strong-enough hand · board favours betting · villain's range pays ·
     # the spot is value/mixed (not pure exploit) · a worse hand calls.
-    if verdict == 'MISSED_AGGRESSION':
+    # v8.13.1 P2: monotone-board over-commit takes precedence — the leak is the
+    # sequence (skipped cheap flop protection -> over-committed turn), not
+    # merely "missed flop aggression".
+    _mono_lesson = monotone_overcommit_lesson(c.get('board'), hsa, c.get('net_bb'))
+    if _mono_lesson:
+        lead = _mono_lesson
+    elif verdict == 'MISSED_AGGRESSION':
         lead = (f"Clear missed value-bet on the {st}: you had a strong "
                 f"enough hand, the board and villain's range both favoured "
                 f"betting, and worse hands would have paid. {act.capitalize()} "

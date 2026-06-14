@@ -586,6 +586,10 @@ def _emit_opening_dashboard(doc, s, rd):
               "treat this as the final analyst report.</div>")
         doc.w("")
     elif _rc_state == 'ANALYST_PARTIAL':
+        # v8.13.1 P0: when the gap is CRITICAL coverage (loss/confirmed-error
+        # hands unreviewed), surface the coverage line in amber + "not final".
+        _crit_n = _rc.get('critical_unreviewed', 0)
+        _cov_line = _rc.get('coverage_line', '')
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
               "solid #bfdbfe;border-radius:12px;background:#eff6ff;"
               "color:#1e40af'>"
@@ -594,7 +598,12 @@ def _emit_opening_dashboard(doc, s, rd):
               f"candidate(s); {_rc.get('awaiting_candidates', '?')} still "
               "awaiting review"
               f"{_awaiting_buckets_phrase(_rc)}. Verdict sections are "
-              "partially complete.</div>")
+              "partially complete."
+              + (f"<div style='margin-top:6px;font-weight:800;color:#b45309'>"
+                 f"⚠️ {_cov_line}</div>" if _crit_n else
+                 (f"<div style='margin-top:6px;font-weight:600'>{_cov_line}</div>"
+                  if _cov_line else ""))
+              + "</div>")
         doc.w("")
     elif _rc_state == 'ANALYST_COMPLETE':
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
@@ -603,7 +612,11 @@ def _emit_opening_dashboard(doc, s, rd):
               f"✅ Analyst coverage — COMPLETE: all "
               f"{_rc.get('candidate_need', '?')} worklist candidate(s) reviewed "
               f"({_rc.get('reviewed_hands', '?')} hand verdict(s) in this "
-              "report).</div>")
+              "report)."
+              + (f"<div style='margin-top:6px;font-weight:600'>"
+                 f"{_rc.get('coverage_line','')}</div>"
+                 if _rc.get('coverage_line') else "")
+              + "</div>")
         doc.w("")
     # Game-summary absence: cash/ROI/finish fields degrade silently
     _usd_st = (rd.get('usd_overlay') or {}).get('status', '')
@@ -1952,6 +1965,14 @@ def _emit_tldr(doc, s, rd):
         #             only verdict-aggregated ones.
         doc.w("<<ANCHOR:sec-top-leaks>>")
         doc.w("**📌 Top leaks — notice for next session:**")
+        # v8.13.1 P0: when CRITICAL coverage is incomplete the leak list is
+        # built from an incomplete review — it must not imply final analyst
+        # confidence. Downgrade with an explicit provisional caveat.
+        _rc_tl = rd.get('report_completeness') or {}
+        if not _rc_tl.get('critical_coverage_ok', True):
+            doc.w(f"> ⚠️ **Provisional — coaching confidence reduced.** "
+                  f"{_rc_tl.get('critical_unreviewed', 0)} critical hand(s) "
+                  f"unreviewed; these leaks are not the final analyst read.")
         doc.w("")
 
         # Pull III.2 confirmed metric leaks from __synthesis__

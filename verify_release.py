@@ -10,73 +10,49 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.13.0"   # Slice F: villain exploitation teaching layer (final)
+VERSION = "v8.13.1-preview"   # Analyst coverage + verdict-contradiction trust fixes
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    # --- Unchanged from v8.8.8 (not in v8.8.9 or v8.9.0 packages) ---
-    "gem_villain_intel.py":                 ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
-    "gem_report_draft/sections_iv_xii.py":  ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
-    "gem_report_draft/_helpers.py":         ("47a3008eadb90ca3f0ce8931bbd901086e122f3c764a0b1a16ad43e71978d0c1", 53961, "v8.12.8 QA-GPT: pot ledger increment fix"),
-    "gem_report_draft/_hand_grid.py":      ("3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77", 70985, "v8.12.12 Obj-H: verdict-label code-strip helper"),
-    "gem_report_draft/sections_xiii.py":    ("61973dc553d74c79fc2fc99d9e9cd9ea2cb6006020cb91b5073384d08d551d08", 66798, "v8.12.12 Obj-H: reviewed-mistakes Roman code removal"),
-    "gem_report_draft/sections_mistakes.py": ("776b4cb0c239a816fc238a9fe53d4a9310445385ee56ef5adb75f9731b83274e", 123887, "v8.12.12 rev-3 Obj-H: headers/empty-states/Picks de-Romanized"),
-    "gem_report_draft/_state.py":           ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
-    "gem_report_draft/sections_issue_explorer.py": ("aea126a0aa3682d366b58170e3370a02951f026157b5925f42cf11b2a7ed0be8", 49493, "v8.9.4: IE mobile cards/bottom-sheet + BUG-3 raw string"),
-    "gem_parser.py":                        ("81a255eddf4b5065c9b38d92c3e255571e455bf220d0171a1cb79485362a7735", 103111, "v8.12.0a B150: table_size = dealt players (+table_capacity)"),
-    "gem_analyst_villain.py":               ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
-
-    # --- New in v8.11.0b ---
-    "gem_report_data.py":                   ("f6056ef61f391dc778cbfb1659eb0bdbd15a003d24a5202af6dad50746e08bea", 219778, "v8.12.10: completeness owner + recon wording"),
-    "gem_pot_odds.py":                      ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
-
-    # --- Updated in v8.8.9 + v8.9.0 ---
-    "gem_analyzer.py":                      ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11: analyst_worklist emit hook"),
-    "gem_report_draft/draft.py":            ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "_test_scratch.py":                     ("9f92d13303a2d9f0ec41c82b7a8173e6cb5a9e7f78bbf51d91197842ab636447", 348568, "v8.12.12 rev-3: 965 tests (+T-1236 F/G/H source smoke)"),
-    "GEM_Changelog.txt":                    ("df610b91ac729a28a304c82c1d91865a757488fc296e153181c48b3dbd5259bb", 50153, "changelog through v8.12.12 (final)"),
-    "GEM_Quick_Reference.txt":              ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
-    "gem_report_draft/_html.py":            ("61ae18e924a74a4f70c8cb73a8650d1cbb553ce555f12c08298e9b1ff398d9d0", 359675, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
-    "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
-    "gem_report_draft/sections_xiv.py":     ("29511816e8cefba1b227a2f5bf3424b74e7eb81b42dc04a4a5c6f18990037b7a", 177799, "v8.12.12 rev-3 Obj-F/G/H: cover table + PKO $-aware math + Roman sweep"),
-
-    # --- New in v8.9.0 ---
-    "Poker_Ranges_Text.txt":                ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "gem_gtow.py":                          ("f2c6eaf86c9707044378a5eb06d291238bf8cf9f6c7be1061df5a65d3f266cb1", 31683, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
-
-    # --- New/updated in v8.9.6 ---
-    "gem_eai_equity.py":                    ("4313ade454b4dd4f163b9576832d42ca28fdadffc406e7438558c32131b9abfb", 8687, "v8.9.9: except Exception + smoke value compare + MC comment fix"),
-
-    # --- New in v8.10.0 ---
-    "gem_coaching_cards.py":                ("b6c29c91a513b42c719a018a607c71ec3367156f1e65bf7f208b57d8048e9b6e", 45839, "v8.12.1: pko_pressure insight + PKO eligibility"),
-    "gem_report_lint.py":                   ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
-
-    "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
-    # --- New in v8.12.0a ---
-    "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
-    "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),
+    "GEM_Changelog.txt": ("f9fd6c4682864a0fddd5a93aae6668ce0daeb29a36ba6e4c6cb54cb1cb3c8466", 53395, "changelog through v8.13.1-preview"),
+    "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
+    "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("7945d7e22ad11024cc9d083195dc4a2a8f894a1609705b2ed844558362ba2646", 4169, "STEP0 39/39 files, 313 canaries, 10 anti"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-
-    # --- New in v8.12.0 ---
-    "SESSION_START_STEP0_package_rebuild.txt": ("46cdc904284e5f009ca891551d9d1d4d9eec4179038a59e0d0e776ef8ab29523", 4169, "v8.12.12 rev-3: 38/38 verify, 292 canaries / 10 anti"),
-    "gem_pko_research.py":           ("432107e7475ed2e1897c50822e26f4df4c88a4e5bc7289edbb9de95ae74eca66", 40497, "v8.12.9: partial-coverage seat naming"),
-
-    # --- New in v8.12.0 ---
-    "gem_coverage_audit.py":         ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
-
-    # --- New in v8.9.9 ---
-    "gem_coverage_builder.py":              ("2580723a3f818fe571db6ba0b2f08ebacab574b6e521011b7d0da4dd5bc9146f", 121455, "v8.12.9: result-equity luck label"),
-    # --- New in v8.12.4 ---
-    "gem_report_draft/tldr.py": ("9fe1da906664c36f8d1dd93cdc62db97c8c06060f2159bc57fa0b8f03f150969", 135445, "v8.12.12 rev-3 Obj-H: legend + read-dep prose de-Romanized"),
+    "_test_scratch.py": ("13ab0bb6f1a6bf56b981779fb36f1d610070dae32628c7fc4486ec1505f57af3", 354311, "v8.13.1: 996 tests (+T-CT-01..08 coverage-trust)"),
+    "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
+    "gem_analyst_villain.py": ("cc11aba4408bb0614f22896f3ee6d12d1a07f68d34f9b672ac897c7b94fee039", 22566, "v8.9.0-prep: LLM analyst handoff candidate builder + worksheet I/O + by_hand_villain index"),
+    "gem_analyst_worklist.py": ("d20383393e9c27c96f484546d7c8cf030264180ba72a39b376bca183392900b5", 48185, "v8.13.1 P1: loss-screen buckets + effective-stack safety"),
+    "gem_analyzer.py": ("e9c8fd40a2e2bafd3d4bde2961e4e7fe6888759652d28149b371638c5e65a7f2", 553310, "v8.12.11: analyst_worklist emit hook"),
+    "gem_chart_labels.py": ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
+    "gem_coaching_cards.py": ("b6c29c91a513b42c719a018a607c71ec3367156f1e65bf7f208b57d8048e9b6e", 45839, "v8.12.1: pko_pressure insight + PKO eligibility"),
+    "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
+    "gem_coverage_builder.py": ("a7806268ce687d4cd6696d0a3a19ed734bce2b79b88519728527d2ad1e43a444", 126278, "v8.13.1 P1: biggest-loss + postflop-loss coverage screens"),
+    "gem_eai_equity.py": ("4313ade454b4dd4f163b9576832d42ca28fdadffc406e7438558c32131b9abfb", 8687, "v8.9.9: except Exception + smoke value compare + MC comment fix"),
+    "gem_gtow.py": ("f2c6eaf86c9707044378a5eb06d291238bf8cf9f6c7be1061df5a65d3f266cb1", 31683, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
+    "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
+    "gem_parser.py": ("81a255eddf4b5065c9b38d92c3e255571e455bf220d0171a1cb79485362a7735", 103111, "v8.12.0a B150: table_size = dealt players (+table_capacity)"),
+    "gem_pko_research.py": ("432107e7475ed2e1897c50822e26f4df4c88a4e5bc7289edbb9de95ae74eca66", 40497, "v8.12.9: partial-coverage seat naming"),
+    "gem_pot_odds.py": ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
-
-    # --- New in v8.12.11 (Slice E: analyst_worklist_v1) ---
-    "gem_analyst_worklist.py": ("2399abe8e9e9171bdaed193657cb9ed491a004cf0d583f5f0a93553cb586a51b", 43940, "v8.12.11: analyst worklist triage engine (proposals)"),
-    "gem_chart_labels.py":     ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
-
-    # --- New in v8.13.0 (Slice F: villain exploitation teaching layer) ---
+    "gem_report_data.py": ("294961be030073b67f0291a888bdcd97f4153f0e45d977284e047a8711b62c6b", 222675, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
+    "gem_report_draft/_hand_grid.py": ("0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090", 75682, "v8.13.1 P1: push-widget reconciled vs analyst verdict + nearest-chart line"),
+    "gem_report_draft/_helpers.py": ("902d86cab4faa4b4660c0e4122de9b19245a45eaae317380674b4f3c06950ecc", 56373, "v8.13.1 P2: monotone over-commit sequence lesson"),
+    "gem_report_draft/_html.py": ("61ae18e924a74a4f70c8cb73a8650d1cbb553ce555f12c08298e9b1ff398d9d0", 359675, "v8.12.9/10: popup pill+roman+sticky, banner reads"),
+    "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
+    "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
+    "gem_report_draft/sections_financial.py": ("a94781d6aef572b7b5f7d4cc4fabe1bac915e75cdb96492ce382d58b6c64d001", 128229, "v8.12.12 Obj-H: Tournament Exits + cooler tooltip"),
+    "gem_report_draft/sections_issue_explorer.py": ("aea126a0aa3682d366b58170e3370a02951f026157b5925f42cf11b2a7ed0be8", 49493, "v8.9.4: IE mobile cards/bottom-sheet + BUG-3 raw string"),
+    "gem_report_draft/sections_iv_xii.py": ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
+    "gem_report_draft/sections_mistakes.py": ("776b4cb0c239a816fc238a9fe53d4a9310445385ee56ef5adb75f9731b83274e", 123887, "v8.12.12 rev-3 Obj-H: headers/empty-states/Picks de-Romanized"),
+    "gem_report_draft/sections_xiii.py": ("61973dc553d74c79fc2fc99d9e9cd9ea2cb6006020cb91b5073384d08d551d08", 66798, "v8.12.12 Obj-H: reviewed-mistakes Roman code removal"),
+    "gem_report_draft/sections_xiv.py": ("35661cf68398f5249b893200b097cabba517015896de390a5c970b1945c6262a", 180140, "v8.13.1 P2: W-POT accepts _pot_odds per-street pots"),
+    "gem_report_draft/tldr.py": ("ea2a4814a3b7d58fd63df5aa0bf319a23e807697906f65f5196e600786518a98", 136749, "v8.13.1 P0: coverage line + confidence caveat in banner/top-leaks"),
+    "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
+    "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
+    "gem_villain_intel.py": ("13aabbb1b2cfdb53f7cbb7833ab0f1a0e48c13cf243db0bd6f9d427c010c1e31", 110299, "v8.12.9: _chart_label canonical"),
     "gem_villain_teaching.py": ("1d4d8a18d1d4878d69fc1263c99e40fc80ed432b759cf6142257c16eb982b4b2", 17926, "v8.13.0: villain teaching projection (no invention)"),
 }
 
@@ -948,6 +924,29 @@ CANARIES = [
      "v8.13.0 rev-2: generic/context-safe low-confidence guardrail (not PKO-specific by default)"),
     ("gem_villain_teaching.py", "same_hand_actionable",
      "v8.13.0 rev-2: atom no-hindsight requires same_hand_actionable"),
+    # ── v8.13.1: analyst-coverage + verdict-contradiction trust ──
+    ("gem_report_data.py", "_CRITICAL_NEED_BUCKETS",
+     "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage"),
+    ("gem_report_data.py", "critical_unreviewed",
+     "v8.13.1 P0: critical-coverage gate stamps unreviewed count"),
+    ("gem_report_data.py", "coverage_line",
+     "v8.13.1 P0: quantified analyst coverage line"),
+    ("gem_coverage_builder.py", "def build_loss_screens(",
+     "v8.13.1 P1: biggest-loss + postflop-loss coverage screens"),
+    ("gem_coverage_builder.py", "POSTFLOP_LOSS_SCREEN_BB",
+     "v8.13.1 P1: configurable postflop-loss screen threshold (-15BB)"),
+    ("gem_analyst_worklist.py", "postflop_loss_screen",
+     "v8.13.1 P1: loss screens wired into the worklist source buckets"),
+    ("gem_analyst_worklist.py", "def effective_stack_safety(",
+     "v8.13.1 P1: effective-vs-total stack safety for shove/overjam verdicts"),
+    ("gem_report_draft/_hand_grid.py", "def reconcile_push_widget(",
+     "v8.13.1 P1: auto push widget reconciled against final analyst verdict"),
+    ("gem_report_draft/_hand_grid.py", "auto pre-review",
+     "v8.13.1 P1: unreviewed auto push check labelled 'auto pre-review'"),
+    ("gem_report_draft/sections_xiv.py", "def _wpot_claim_ok(",
+     "v8.13.1 P2: W-POT accepts _pot_odds per-street 'call X into Y' pots"),
+    ("gem_report_draft/_helpers.py", "def monotone_overcommit_lesson(",
+     "v8.13.1 P2: monotone over-commit sequence lesson (not 'missed flop aggression')"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

@@ -1040,6 +1040,19 @@ def _parse_leak_string(leak_str):
 _COMPLETENESS_NEED_BUCKETS = ('bust_audit', 'coolers', 'mistakes', 'punts',
                               'iii4_screening', 'read_dependent_screening')
 
+# v8.13.1 P0 (analyst-coverage trust): ANALYST_COMPLETE must require that the
+# hands that actually decide session results are reviewed — not just an empty
+# candidate queue. On 2026-06-13 a report self-declared ANALYST_COMPLETE after
+# reviewing 5 hands while every meaningful postflop loss (incl. the -40BB
+# biggest loss) went unreviewed. These buckets are the loss / confirmed-error
+# groups; ANY unreviewed (and not auto-resolved) member blocks COMPLETE.
+_CRITICAL_NEED_BUCKETS = ('mistakes', 'punts', 'coolers', 'bust_audit',
+                          'biggest_loss_screen', 'postflop_loss_screen')
+# The loss subset surfaced in the visible coverage line
+# ("N/M significant-loss hands reviewed").
+_SIGNIFICANT_LOSS_BUCKETS = ('biggest_loss_screen', 'postflop_loss_screen',
+                             'coolers', 'bust_audit')
+
 
 def compute_report_completeness(rd, candidates=None):
     """v8.12.10 (pipeline trust contract): classify the report as
@@ -1056,6 +1069,16 @@ def compute_report_completeness(rd, candidates=None):
 
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
+
+        def _ids_for(_buckets):
+            _s = set()
+            for _bk in _buckets:
+                for _c in candidates.get(_bk, []) or []:
+                    _cid = _c.get('id') if isinstance(_c, dict) else None
+                    if _cid and _cid not in _auto:
+                        _s.add(_cid)
+            return _s
+
         need = set()
         need_bucket = {}                       # id -> bucket, persisted for --quick
         for _bk in _COMPLETENESS_NEED_BUCKETS:
@@ -1066,9 +1089,16 @@ def compute_report_completeness(rd, candidates=None):
                     need_bucket.setdefault(_cid, _bk)
         rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
         rd['_candidate_need_bucket'] = need_bucket
+        # v8.13.1 P0: critical-coverage + significant-loss sets (persist for --quick)
+        critical_need = _ids_for(_CRITICAL_NEED_BUCKETS)
+        significant_loss = _ids_for(_SIGNIFICANT_LOSS_BUCKETS)
+        rd['_critical_need_ids'] = sorted(critical_need)
+        rd['_significant_loss_ids'] = sorted(significant_loss)
     else:
         need = set(rd.get('_candidate_need_ids', []) or [])
         need_bucket = rd.get('_candidate_need_bucket', {}) or {}
+        critical_need = set(rd.get('_critical_need_ids', []) or [])
+        significant_loss = set(rd.get('_significant_loss_ids', []) or [])
 
     awaiting = sorted(need - reviewed_ids)
     # v8.12.12 Obj-D: per-bucket breakdown of what is still awaiting review, so
@@ -1078,12 +1108,29 @@ def compute_report_completeness(rd, candidates=None):
         _bk = need_bucket.get(_aid)
         if _bk:
             awaiting_by_bucket[_bk] = awaiting_by_bucket.get(_bk, 0) + 1
+
+    # v8.13.1 P0: critical-coverage gate. A report cannot be ANALYST_COMPLETE
+    # while any critical-loss / confirmed-error hand is unreviewed (and not
+    # auto-resolved). Auto-resolved hands are already excluded from the sets.
+    critical_unreviewed = sorted(critical_need - reviewed_ids)
+    sig_total = len(significant_loss)
+    sig_reviewed = len(significant_loss & reviewed_ids)
+
     if not reviewed_ids:
         state = 'AUTO_ONLY'
-    elif awaiting:
+    elif awaiting or critical_unreviewed:
         state = 'ANALYST_PARTIAL'
     else:
         state = 'ANALYST_COMPLETE'
+
+    # Visible, quantified coverage line (single source — MD + HTML agree).
+    if critical_unreviewed:
+        coverage_line = (f'Analyst coverage incomplete: {len(critical_unreviewed)} '
+                         f'critical hands unreviewed — not final.')
+    else:
+        coverage_line = (f'Analyst coverage: {len(reviewed_ids)} reviewed · '
+                         f'{sig_reviewed}/{sig_total} significant-loss hands '
+                         f'reviewed · 0 critical unreviewed')
 
     rc = {
         'state': state,
@@ -1093,6 +1140,13 @@ def compute_report_completeness(rd, candidates=None):
         'awaiting_markers': len(awaiting),
         'awaiting_ids': awaiting[:50],
         'awaiting_by_bucket': awaiting_by_bucket,
+        # v8.13.1 P0 critical-coverage gate
+        'critical_unreviewed': len(critical_unreviewed),
+        'critical_unreviewed_ids': critical_unreviewed[:50],
+        'significant_loss_total': sig_total,
+        'significant_loss_reviewed': sig_reviewed,
+        'critical_coverage_ok': not critical_unreviewed,
+        'coverage_line': coverage_line,
     }
     rd['report_completeness'] = rc
     return rc

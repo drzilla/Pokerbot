@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '3fe94047bcb3f4b712afbf9db59ee4f69b72449252e9fa8df13949e3d6bead77',
+      _hg_hash == '0b66856c73c0e6200a8ee6b31541e52f9b633955fb5308e65c18d3422c47b090',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -6936,6 +6936,93 @@ _htmlsrc_vt = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles',
       'teach_lines.forEach' in _htmlsrc_vt and 'v25-teach-head' in _htmlsrc_vt
       and 'v25-teach-line' in _htmlsrc_vt, '')
+
+# ============================================================
+# v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)
+# ============================================================
+import gem_report_data as _ctrd
+import gem_coverage_builder as _ctcb
+import gem_analyst_worklist as _ctwl
+from gem_report_draft._hand_grid import (reconcile_push_widget as _ct_rpw,
+                                          tldr_contradicts_verdict as _ct_tcv)
+from gem_report_draft.sections_xiv import _wpot_claim_ok as _ct_wpot
+from gem_report_draft._helpers import (monotone_overcommit_lesson as _ct_mol,
+                                       _agg_commentary as _ct_agg)
+
+# P0 #1: completion gate — 5 reviewed, 0/14 significant losses -> NOT COMPLETE
+_ct_cands = {'postflop_loss_screen': [{'id': f'L{i}'} for i in range(14)],
+             'mistakes': [], 'punts': [], 'coolers': [], 'bust_audit': [],
+             'biggest_loss_screen': []}
+_ct_rc1 = _ctrd.compute_report_completeness(
+    {'analyst_commentary': {f'R{i}': {} for i in range(5)}}, candidates=_ct_cands)
+check('T-CT-01: 5 reviewed / 0-of-14 significant losses is NOT ANALYST_COMPLETE',
+      _ct_rc1['state'] == 'ANALYST_PARTIAL' and _ct_rc1['critical_unreviewed'] == 14,
+      str(_ct_rc1.get('state')))
+
+# P0 #2: coverage line — incomplete warns "not final"; complete shows N/M
+check('T-CT-02a: incomplete coverage line says "not final"',
+      'not final' in _ct_rc1['coverage_line']
+      and _ct_rc1['critical_coverage_ok'] is False, _ct_rc1['coverage_line'])
+_ct_rc2 = _ctrd.compute_report_completeness(
+    {'analyst_commentary': {f'L{i}': {} for i in range(14)}}, candidates=_ct_cands)
+check('T-CT-02b: complete coverage renders "14/14 significant-loss" + 0 critical + COMPLETE',
+      _ct_rc2['state'] == 'ANALYST_COMPLETE'
+      and '14/14 significant-loss' in _ct_rc2['coverage_line']
+      and _ct_rc2['critical_unreviewed'] == 0, _ct_rc2['coverage_line'])
+
+# P1 #3/#4: biggest-loss + postflop-loss screens
+_ct_hands = [
+  {'id':'TM_BL','net_bb':-12.0,'pf_allin':False,'board':['Ah','Kd','2c'],'went_to_sd':True,'cards':['9h','9d'],'position':'BTN'},
+  {'id':'TM_PF','net_bb':-40.0,'pf_allin':False,'board':['Qc','8c','3c'],'went_to_sd':True,'cards':['Ah','Qd'],'position':'CO'},
+  {'id':'TM_WIN','net_bb':30.0,'pf_allin':False,'board':['2h','3d','4c'],'went_to_sd':True,'cards':['Ac','Ad'],'position':'BB'}]
+_ct_stats = {'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_BL'}}}
+_ct_scr = _ctcb.build_loss_screens(_ct_stats, _ct_hands)
+check('T-CT-03: every stack_trajectories biggest_loss_id is screened',
+      'TM_BL' in _ct_scr['biggest_loss_screen'], str(_ct_scr))
+check('T-CT-04: postflop loss <= -15BB screened; winners/small losses not',
+      'TM_PF' in _ct_scr['postflop_loss_screen']
+      and 'TM_WIN' not in _ct_scr['postflop_loss_screen']
+      and 'TM_BL' not in _ct_scr['postflop_loss_screen'], str(_ct_scr))
+_ct_wcands = {
+  'biggest_loss_screen':[{'id':'TM_BL','screen_reason':'Per-tournament biggest loss; must clear or classify.','position':'BTN','cards':'9h9d','net_bb':-12.0,'went_to_sd':True}],
+  'postflop_loss_screen':[{'id':'TM_PF','screen_reason':'Postflop loss -40BB (<= -15BB); must clear or classify.','position':'CO','cards':'AhQd','net_bb':-40.0,'went_to_sd':True}]}
+_ct_wl = _ctwl.build_analyst_worklist(_ct_wcands, _ct_stats, {}, _ct_hands, '20260613')
+check('T-CT-04b: screened hands reach the worklist with their screen source bucket',
+      'TM_BL' in _ct_wl['items']
+      and 'biggest_loss_screen' in (_ct_wl['items']['TM_BL'].get('candidate_sources') or [])
+      and 'TM_PF' in _ct_wl['items']
+      and 'postflop_loss_screen' in (_ct_wl['items']['TM_PF'].get('candidate_sources') or []), '')
+
+# P1 #5: verdict contradiction
+check('T-CT-05a: final Justified does NOT render bare "Wrong push" (overridden)',
+      _ct_rpw(False, 'III.5 Justified')[0] == 'overridden', str(_ct_rpw(False, 'III.5 Justified')))
+check('T-CT-05b: no analyst verdict -> auto pre-review',
+      _ct_rpw(False, '')[0] == 'pre_review', '')
+check('T-CT-05c: final Mistake + "standard" TL;DR is a flagged contradiction',
+      _ct_tcv('inside the push range — standard, result is variance.', 'III.2 Mistake') is True
+      and _ct_tcv('inside the push range — standard', 'III.5 Justified') is False, '')
+
+# P1 #6: effective stack
+_ct_es = _ctwl.effective_stack_safety(33.6, 18.0, overjam_bb=15.6)
+check('T-CT-06: SB shove total 33.6 / eff 18 evaluated at 18BB (not 33), with warn',
+      _ct_es['eval_depth_bb'] == 18.0 and _ct_es['warn'] is True
+      and '18BB shove' in _ct_es['safety_line'] and 'not 34BB' in _ct_es['safety_line'], str(_ct_es))
+
+# P2 #7: W-POT
+check('T-CT-07: "call 7 into 19.9" passes when _pot_odds per-street pot is 19.9',
+      _ct_wpot(19.9, {'per_street_calls': [{'pot_before_call_bb': 19.9, 'total_pot_bb': 26.9}]}, [('turn', 12.9, 14.0)]) is True
+      and _ct_wpot(50.0, {'per_street_calls': [{'pot_before_call_bb': 19.9}]}, [('turn', 12.9, 14.0)]) is False, '')
+
+# P2 #8: AQ monotone lesson
+_ct_les = _ct_mol('Qc 8c 3c Kc', {'flop': 'xc', 'turn': 'jam'}, net_bb=-40)
+check('T-CT-08a: monotone over-commit lesson names protection+turn, not only "missed flop aggression"',
+      bool(_ct_les) and 'not just missed flop aggression' in _ct_les
+      and 'cheap flop protection' in _ct_les and 'turn' in _ct_les, (_ct_les or '')[:80])
+_ct_aggout = _ct_agg({'verdict': 'MISSED_AGGRESSION', 'street_of_interest': 'flop',
+                      'hsa': {'flop': 'xc', 'turn': 'jam'}, 'board': 'Qc 8c 3c Kc',
+                      'net_bb': -40, 'gates': {}})
+check('T-CT-08b: _agg_commentary reframes monotone over-commit (not sole "missed flop aggression")',
+      'cheap flop protection' in _ct_aggout, _ct_aggout[:80])
 
 # ============================================================
 # SUMMARY

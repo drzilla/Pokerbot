@@ -28,6 +28,48 @@ except Exception:
         return None
 
 
+# ── v8.13.1 P2: W-POT lint convention fix ──────────────────────────────────
+# The analyst convention "call X into Y" quotes Y = the pot AT THE DECISION
+# (pot AFTER the villain's bet, BEFORE Hero's call). The old W-POT lint compared
+# only against street-START pots and false-flagged correct pot odds (e.g.
+# "call 7BB into 19.9BB" warned because the street-start pot was 12.9BB). A
+# claim now also passes if it matches a real _pot_odds per-street pot.
+def _wpot_pot_figures(pot_odds_block):
+    """Every legitimate pot figure an analyst may quote as the 'Y' in
+    'call X into Y' — pot-before-call and total-pot, top-level and per-street —
+    from the hand's _pot_odds block."""
+    figs = set()
+    if not isinstance(pot_odds_block, dict):
+        return figs
+    for k in ('pot_before_call_bb', 'pot_bb', 'total_pot_bb'):
+        v = pot_odds_block.get(k)
+        if isinstance(v, (int, float)) and v > 0:
+            figs.add(round(float(v), 1))
+    for ps in (pot_odds_block.get('per_street_calls') or []):
+        if isinstance(ps, dict):
+            for k in ('pot_before_call_bb', 'total_pot_bb'):
+                v = ps.get(k)
+                if isinstance(v, (int, float)) and v > 0:
+                    figs.add(round(float(v), 1))
+    return figs
+
+
+def _wpot_claim_ok(claimed, pot_odds_block, windows, tol=0.12):
+    """A 'call X into Y' pot claim passes if Y matches EITHER a real _pot_odds
+    per-street pot (pot-before-call / total) OR a street-start window. This
+    stops correct pot-odds phrasing from being flagged just because the figure
+    is the at-decision pot rather than the street-start pot."""
+    if claimed <= 0:
+        return True
+    for fig in _wpot_pot_figures(pot_odds_block):
+        if fig and abs(claimed - fig) <= max(0.5, fig * tol):
+            return True
+    for _ws, _wlo, _whi in (windows or []):
+        if _wlo * 0.7 <= claimed <= _whi * 1.3:
+            return True
+    return False
+
+
 def _street_attr(v):
     """Return a validated street name for data-street attribute, or empty string."""
     s = str(v or '').lower().replace('-', '').replace('_', '').replace(' ', '')
@@ -2267,15 +2309,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _whi = max(_wstart, _wend, (h.get('total_pot_bb') or 0)
                                    if _ws == _so_pot[-1] else _wend or _wstart)
                         _windows_pot.append((_ws, _wstart, _whi))
+                    # v8.13.1 P2: also accept the hand's _pot_odds per-street
+                    # pots ("call X into Y" quotes the pot AT THE DECISION).
+                    _po_block_wp = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                                    or (rd.get('pot_odds_by_hand') or {}).get(
+                                        (hid[-8:] if hid else hid)))
                     for _claim_str in _pot_claims:
                         _claimed = float(_claim_str)
                         if _claimed <= 0:
                             continue
-                        _fits_any = any(
-                            _wlo * 0.7 <= _claimed <= _whi2 * 1.3
-                            for _ws2, _wlo, _whi2 in _windows_pot)
+                        if _wpot_claim_ok(_claimed, _po_block_wp, _windows_pot):
+                            continue
                         _drift = abs(_claimed - _actual_pot) / _actual_pot
-                        if _drift > 0.30 and not _fits_any:
+                        if _drift > 0.30:
                             import sys as _sys_pot
                             _wins_str = ', '.join(
                                 f"{_ws2} {_wlo:.1f}-{_whi2:.1f}"
@@ -2283,8 +2329,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             print(
                                 f"  ⚠️  W-POT: Hand {hid} analyst "
                                 f"argument claims pot ~{_claimed:.1f} BB "
-                                f"but it matches no street window "
-                                f"({_wins_str})",
+                                f"but it matches no street window or pot-odds "
+                                f"pot ({_wins_str})",
                                 file=_sys_pot.stderr)
 
         # Build hero-actions-by-street mapping

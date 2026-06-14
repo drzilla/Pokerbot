@@ -357,15 +357,22 @@ def _audit_row_html(rtype, rid, title):
     Renders as a collapsed <details>; rtype is 'sub' (3 verdicts) or 'hand'
     (5 verdicts, adds the two GTOW options)."""
     t = _html_escape(title)
+    # v8.14.1 rev-2 (#3): a SECTION review (rtype 'sub', e.g. sec-tldr) must not
+    # look like a hand review. Label it "Section review" and add an audit-section
+    # class so section-level reviews stay clearly separated from hand reviews
+    # (the data-atype="sub" hook already distinguishes them structurally).
+    _is_section = (rtype == 'sub')
+    _tag = 'Section review' if _is_section else 'Review'
     opts = ('<option value="">— select verdict —</option>'
             '<option>Agree</option><option>Debate</option>'
             '<option>Report bug</option>')
     if rtype == 'hand':
         opts += '<option>GTOW drills</option><option>GTOW hands file</option>'
     return (
-        f'<details class="audit-row" data-aid="{_html_escape(rid)}" '
+        f'<details class="audit-row{" audit-section" if _is_section else ""}" '
+        f'data-aid="{_html_escape(rid)}" '
         f'data-atype="{rtype}" data-atitle="{t}">'
-        f'<summary class="audit-summary">🔍 <span class="audit-tag">Review</span>'
+        f'<summary class="audit-summary">🔍 <span class="audit-tag">{_tag}</span>'
         f'<span class="audit-context"> · {t}</span>'
         f'<span class="audit-preview"> — not yet reviewed</span></summary>'
         f'<div class="audit-body">'
@@ -1862,7 +1869,7 @@ _MODAL_HTML = r"""
       rows.forEach(function(row){
         var hid=row.getAttribute('data-hand-id');var st=_status(hid);
         var stEl=row.querySelector('.rq-status');
-        if(st){reviewed.push({hid:hid,st:st});cats[st]=(cats[st]||0)+1;row.classList.add('is-reviewed');
+        if(st){var _rvc=(row.querySelector('.handcards')||{}).innerHTML||'';reviewed.push({hid:hid,st:st,cards:_rvc});cats[st]=(cats[st]||0)+1;row.classList.add('is-reviewed');
           if(stEl){stEl.className='rq-status status-pill '+_RQ_META[st][2];stEl.textContent=_RQ_META[st][0]+' '+_RQ_META[st][1];}
         }else{open.push(row);row.classList.remove('is-reviewed');
           if(stEl){stEl.className='rq-status';stEl.textContent='';}}
@@ -1887,7 +1894,7 @@ _MODAL_HTML = r"""
             if(cats[k])ch.push('<span class="rq-revchip '+_RQ_META[k][2]+'">'+_RQ_META[k][0]+' '+_RQ_META[k][1]+' '+cats[k]+'</span>');});
             chips.innerHTML=ch.join('');}
           var rl=document.getElementById('rq-reviewed-list');
-          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span><span class="rq-main"></span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
+          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span>'+(x.cards?'<span class="handcards">'+x.cards+'</span>':'')+'<span class="rq-main"></span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
         }else{rev.hidden=true;}
       }
       var win=document.getElementById('rq-empty-win');var list=document.getElementById('rq-list');
@@ -1913,7 +1920,8 @@ _MODAL_HTML = r"""
       var rh=document.getElementById('rq-reviewed-head');
       if(rh)rh.addEventListener('click',function(e){e.stopPropagation();
         var l=document.getElementById('rq-reviewed-list');if(!l)return;
-        var willOpen=l.hidden;l.hidden=!willOpen;rh.setAttribute('aria-expanded',willOpen?'true':'false');});
+        var willOpen=l.hidden;l.hidden=!willOpen;rh.setAttribute('aria-expanded',willOpen?'true':'false');
+        var cr=document.getElementById('rq-rev-caret');if(cr)cr.textContent=willOpen?'▾':'▸';});
       refresh();
     }
     return {init:init,refresh:refresh,openRow:openRow};

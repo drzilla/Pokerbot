@@ -1,3 +1,61 @@
+v8.14.1-preview (2026-06-14) -- real-report QA hotfix
+=========================================================================
+REV-2 add-on (review-list cosmetics + section-review separation; version stays
+v8.14.1-preview): (1) the queue's reviewed/completed list stays collapsed by
+default (rq-reviewed-list hidden, head aria-expanded=false) and now shows a caret
+affordance; open/needs-review hands remain visible in the queue above, so
+unresolved bugs/debates are never hidden. (2) reviewed-list rows now show the Hero
+hand (.handcards pills) next to the hand id, captured from the source queue row;
+graceful fallback to id-only when cards are unavailable. (3) section reviews
+(REVIEWROW rtype 'sub', e.g. sec-tldr) are labelled "Section review" with an
+audit-section class so they never look like a hand; the section id stays in
+data-aid (never rendered as a poker hand id); verdict + notes inputs preserved.
++7 tests (T-H141-12..18) -> 1060; +3 canaries -> 352. Rest of the entry below is
+rev-1.
+
+Fixes found in the first REAL v8.14.0 report (GEM_Knockman_20260613). Bounded:
+no report redesign, no strategy-logic change, no new detectors, overjam NOT
+re-derived in the renderer.
+
+#5 metadata consistency — NEW gem_version.RUNTIME_VERSION is the single source of
+truth for the runtime/release version. The run manifest now emits it (plus a
+separate report_format_version for the pinned draft.VERSION); the analyst worklist
+and villain worksheet defaults reference it too. (Was: manifest v8.12.0, worklist
+v8.12.11, villain v8.9.0 — three drifting strings.)
+#7 run log — gem_analyzer writes a human-readable _run_log_<player>_<date>.txt
+next to the manifest so the outputs package carries it.
+#3 multiway PKO over-claim — pko_trust_render downgrades a confident PKO class
+(Good/Missed/Too wide) to Review whenever the strip says "bounty impact uncertain"
+(suppress_overclaim), not only on a hard contradiction.
+#2 PKO threshold visibility — when a PKO context has no chip-vs-PKO threshold
+(no discount at this depth) the strip says so explicitly ("chip-vs-PKO threshold
+not modelled at this depth") instead of silently omitting it; the threshold still
+renders when a discount IS present.
+#1 dense cEV copy — the "Surface: cEV …" paragraph is replaced by a concise lead
+line; the BB-vs-cEV caveat moves into a collapsible <details> (not a new gloss).
+#4 review queue — auto-clear rows are no longer titled "Auto-flagged mistake."
+(the real queue titled +7.5BB and -0.1BB hands as mistakes); they read
+"Auto-cleared — quick scan, no analyst action needed."
+#71725727 chart labels — raw chart ids (REJAM_SBvsCO, PUSH_10BB_CO, CALLJAM_…) in
+the coverage builder + the Range-check now route through
+gem_chart_labels.chart_display_label ("SB re-jam vs CO open", etc.); the raw id is
+dropped from the rejam citation.
+#73281169 pot-odds copy — Required-equity now teaches "the share you need to win
+versus the betting/jamming range (including draws and worse hands) … not how often
+you are ahead right now."
+#6 financial date — the aggregate financial table Date is labelled as the
+cash-settlement (session-end) date, which can roll past midnight and differ from
+the play date / report date.
+
+Tests: +11 (T-H141-01..11) -> 1053. +1 module (gem_version.py) -> 40 manifest
+files; +9 canaries -> 349. Local preview hotfix off main 0fd1361; not merged /
+pushed / tagged. DEFERRED (documented, not fixed this pass): per-hand range-
+HIGHLIGHT for 73280335 / 73560115 and bounty-math presence for 73559949 /
+73281442 are render-vs-analysis gaps that need a fresh analysis run on the raw HH
+(not in the provided package); reviewed-list collapse + Hero-cards + section-id
+(sec-tldr) separation is a render cosmetic carried forward.
+
+
 v8.14.0 (2026-06-14) -- FINAL combined release (Slices A-E)
 =========================================================================
 Consolidates the v8.14.0 train. Every slice below passed an independent GPT

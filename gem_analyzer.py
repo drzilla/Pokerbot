@@ -10036,7 +10036,7 @@ if __name__ == '__main__':
         _wl = build_analyst_worklist(candidates, stats, report_data, hands,
                                      _wl_dc,
                                      runtime=report_data.get('renderer_version')
-                                     or 'v8.12.11')
+                                     or __import__('gem_version', fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION)
         _wl_dir = '/mnt/user-data/outputs' if os.path.isdir(
             '/mnt/user-data/outputs') else '/home/claude'
         _wl_path = f"{_wl_dir}/analyst_worklist_{_wl_dc}.json"
@@ -10209,7 +10209,13 @@ if __name__ == '__main__':
     try:
         import hashlib as _hl_m
         _manifest = {
+            # v8.14.1 hotfix (#5 metadata consistency): manifest reports the
+            # RUNTIME/release version (single source of truth, gem_version), not
+            # the pinned report-FORMAT version. Format version kept as its own
+            # field so both are visible and unambiguous.
             'version': report_data.get('renderer_version') or
+                       __import__('gem_version', fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION,
+            'report_format_version':
                        __import__('gem_report_draft.draft', fromlist=['VERSION']).VERSION,
             'timestamp': str(stats.get('volume', {}).get('date', '')),
             'session_dir': SESSION_DIR,
@@ -10259,6 +10265,28 @@ if __name__ == '__main__':
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:
             json.dump(_manifest, _mf, indent=2, ensure_ascii=False)
         print(f"\n  Run manifest: {_manifest_path}")
+        # v8.14.1 hotfix (#7): write a human-readable run log alongside the
+        # outputs so the outputs package carries it (first real hotfix run).
+        _runlog_path = f'/home/claude/_run_log_{_pname_file}_{date_compact}.txt'
+        try:
+            _ml = _manifest
+            with open(_runlog_path, 'w', encoding='utf-8') as _lf:
+                _lf.write(f"GEM run log — {_ml.get('player', '')} "
+                          f"{_ml.get('timestamp', '')}\n")
+                _lf.write(f"runtime version : {_ml.get('version', '')}\n")
+                _lf.write(f"report format   : {_ml.get('report_format_version', '')}\n")
+                _lf.write(f"hands / tourneys: {_ml.get('n_hands', '?')} / "
+                          f"{_ml.get('n_tournaments', '?')}\n")
+                _lf.write(f"analyst status  : {_ml.get('analyst_status', '')}\n")
+                _lf.write(f"game summaries  : {_ml.get('game_summaries_found', '')}\n")
+                _lf.write(f"timing (s)      : {_ml.get('timing', {})}\n")
+                _lf.write(f"outputs         : {_ml.get('outputs', {})}\n")
+                _lf.write(f"input files     : {_ml.get('input_files', [])}\n")
+                _lf.write("\nNote: console stderr carries any phevaluator/EAI "
+                          "degradation or report-lint warnings for this run.\n")
+            print(f"  Run log: {_runlog_path}")
+        except Exception as _le:
+            print(f"  Run log skipped: {_le}")
     except Exception as _me:
         print(f"  Run manifest skipped: {_me}")
 

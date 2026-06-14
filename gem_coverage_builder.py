@@ -13,6 +13,8 @@ import os
 import time as _time
 
 from gem_parser import normalize_hand, RANK_NUM
+# v8.14.1 hotfix (#71725727): human-readable chart labels, never raw chart ids.
+from gem_chart_labels import chart_display_label
 
 _PUSH_RANGES = {
     ('SB', True):  'PP, Ax, Kx, Qx, suited, connected',
@@ -1265,8 +1267,8 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
                     _top5 = ', '.join(_sorted_push[:5])
                     _bot3 = ', '.join(_sorted_push[-3:])
                     _push_range_note = (
-                        f'\n\n### PUSH RANGE ({_pos} {_stack:.0f}BB → using {_push_key})\n'
-                        f'- Chart: {_push_key} ({_n_combos} hand classes)\n'
+                        f'\n\n### PUSH RANGE ({_pos} {_stack:.0f}BB → {chart_display_label(_push_key)})\n'
+                        f'- Chart: {chart_display_label(_push_key)} ({_n_combos} hand classes)\n'
                         f'- Top: {_top5}...\n'
                         f'- Boundary: ...{_bot3}\n'
                         f'- **{_cards}: {"IN range ✓" if _in_push else "OUTSIDE range ✗"}**'
@@ -1314,7 +1316,7 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
                         _vtop5 = ', '.join(sorted(list(_vpush_rng))[:5])
                         _villain_push_note = (
                             f'\n- Villain ({_jammer_pos}) push range: '
-                            f'{_vpush_key} ({_vn_combos} hand classes)'
+                            f'{chart_display_label(_vpush_key)} ({_vn_combos} hand classes)'
                             f'\n- Top: {_vtop5}...')
 
         # REJAM range citation: when Hero rejammed (3-bet jam), cite the REJAM chart
@@ -1341,7 +1343,7 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
                                                    else '2', 0)))
                     _rejam_note = (
                         f'\n- Hero rejam range — {_pos} 3-bet jam over a '
-                        f'{_opener} open ({_rj_key}, {_rj_n} hand classes)'
+                        f'{_opener} open ({_rj_n} hand classes)'
                         f'\n- Top: {", ".join(_rj_sorted[:5])}...'
                         f'\n- Boundary: ...{", ".join(_rj_sorted[-3:])}'
                         f'\n- **{_cards}: {_rj_status}**')

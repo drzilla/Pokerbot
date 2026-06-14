@@ -314,9 +314,13 @@ def build_review_queue(s, rd, analyst, hands_by_id):
         for hid in (iss.get('all_hand_ids') or iss.get('hand_ids') or []):
             if str(hid).startswith('TM'):
                 _add(hid, 'known_leak', _nm)
-    # 4. auto-clear mistakes (detector-flagged)
+    # 4. auto-clear hands (detector-flagged, auto-resolved). v8.14.1 hotfix
+    # (#4): NEVER title these "mistake" — a detector flag that auto-cleared is
+    # not a confirmed mistake (the real queue had +7.5BB / +1.8BB / -0.1BB hands
+    # all titled "Auto-flagged mistake."). Use a neutral, non-accusatory title;
+    # the detector detail is still available inside the hand modal.
     for m in (s.get('mistakes', []) or []):
-        _add(m.get('id', ''), 'auto_clear', m.get('desc', '') or 'Auto-flagged mistake.')
+        _add(m.get('id', ''), 'auto_clear', 'Auto-cleared — quick scan, no analyst action needed.')
     # 5. marginal candidates (needs-review + read-dependent screens)
     for m in ((rd.get('reviewed_mistakes') or {}).get('needs_review') or []):
         _add(m.get('id', ''), 'marginal', m.get('reason', '') or 'Marginal candidate.')
@@ -1191,9 +1195,15 @@ def _emit_opening_dashboard(doc, s, rd):
                       f'<span class="rq-status" data-hand-id="{he(short_id)}"></span>'
                       '</div>')
             doc.w('</div>')  # rq-list
+            # v8.14.1 rev-2 (#1): the reviewed/completed list is collapsed by
+            # default (rq-reviewed-list `hidden`, head aria-expanded=false); the
+            # caret makes the expand affordance discoverable. Open/needs-review
+            # hands stay visible in the rq-list above; only the COMPLETED list
+            # collapses, so unresolved bugs/debates are never hidden.
             doc.w('<div class="rq-reviewed" id="rq-reviewed" hidden>'
                   '<button type="button" class="rq-reviewed-head" id="rq-reviewed-head" '
                   'aria-expanded="false">'
+                  '<span class="rq-rev-caret" id="rq-rev-caret" aria-hidden="true">▸</span> '
                   '<span class="rq-rev-label">Reviewed (0) / follow-ups (0)</span> '
                   '<span class="rq-revchips" id="rq-revchips"></span></button>'
                   '<div class="rq-reviewed-list" id="rq-reviewed-list" hidden></div>'
@@ -2431,16 +2441,24 @@ def _emit_results_attribution(doc, s, rd):
             return '—'
         return f"{bb100 / (cev * 10):.1f}"
 
-    doc.w(f"*Surface: cEV {_cevcell(_surf_cev)} of starting "
-          f"stack /100 over {ra['n_hands']} hands "
+    # v8.14.1 hotfix (#1 dense-copy): lead with the concise numbers; the
+    # BB-vs-cEV technical caveat moves into a collapsible <details> so it no
+    # longer dominates the page (replaced the old dense surface paragraph;
+    # this is NOT an additional gloss).
+    doc.w(f"*cEV {_cevcell(_surf_cev)} of starting stack /100 over "
+          f"{ra['n_hands']} hands "
           f"({cev_sess.get('n_resolved', 0)} of "
           f"{(cev_sess.get('n_resolved', 0) + cev_sess.get('n_unresolved', 0))} "
-          f"tournaments resolved).{_cap_cev} "
-          f"BB/100 lens: {ra['surface_bb_per_100']:+.2f} — note BB does "
-          f"not aggregate across tournaments at different blind levels "
-          f"(a stack built at low blinds then lost at high blinds reads "
-          f"BB-positive on a chip loss), so the cEV column is the "
-          f"reconciling spine.*")
+          f"tournaments resolved); BB/100 {ra['surface_bb_per_100']:+.2f}.{_cap_cev}*")
+    doc.w("")
+    doc.w("<details><summary>Why cEV, not BB/100?</summary>")
+    doc.w("")
+    doc.w("BB/100 does not aggregate across tournaments at different blind "
+          "levels — a stack built at low blinds then lost at high blinds reads "
+          "BB-positive on a chip loss — so cEV (chip-EV as % of starting stack) "
+          "is the reconciling spine metric.")
+    doc.w("")
+    doc.w("</details>")
     doc.w("")
 
     # B-V10: technical columns (spine, BB/cEV) only for Ron — other players

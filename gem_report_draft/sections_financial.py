@@ -187,6 +187,15 @@ def _emit_daily_summary_table(doc, rd):
                                     _fs_header, _fs_sep, _fs_rows)
     doc.write_block(_fs_blk)
     doc.w("")
+    # v8.14.1 hotfix (#6 date mismatch): the financials export keys aggregates by
+    # CASH-SETTLEMENT date (session-end), which can roll to the next calendar day
+    # when a session runs past midnight — so this Date may differ from the
+    # per-tournament play dates and the report date. Label it rather than leave a
+    # silent mismatch.
+    doc.w("*Date column = cash-settlement (session-end) date from the financials "
+          "export; it can be the next calendar day when play runs past midnight, "
+          "so it may differ from the per-tournament play dates and the report date.*")
+    doc.w("")
 
     # Skill picture in a second small table
     skill_lines = []

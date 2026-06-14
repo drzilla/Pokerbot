@@ -5086,6 +5086,104 @@ _rnd_oj = _pkoE.pko_trust_render(
 check('T-PKOE-18: overjam chips Hero cannot win surface in the rendered strip',
       'Hero cannot win' in _rnd_oj['strip_md'] and '12.0BB' in _rnd_oj['strip_md'], _rnd_oj['strip_md'])
 
+# ============================================================
+# v8.14.1-preview — real-report QA hotfix (T-H141-*)
+# ============================================================
+import gem_version as _gv141
+import gem_chart_labels as _cl141
+import inspect as _insp141
+from gem_analyst_worklist import build_analyst_worklist as _bwl141
+from gem_analyst_villain import write_worksheet as _wws141
+from gem_report_draft.tldr import build_review_queue as _brq141
+# #5 metadata: single runtime-version source of truth, wired into worklist + villain.
+check('T-H141-01: RUNTIME_VERSION SoT is v8.14.1-preview and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.14.1-preview'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.1-preview'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.1-preview', '')
+_ana141 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
+      "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
+      and "'report_format_version'" in _ana141, '')
+# #3 multiway over-claim: confident PKO class downgrades to Review.
+_h141_mw = _pkoE.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 3, 'classification': 'Good',
+     'coverage_label': 'covers UTG only — that bounty collectible; UTG+1 covers Hero',
+     'bounty_value_bb_est': 3.2})
+check('T-H141-03: multiway "impact uncertain" downgrades a confident PKO class to Review',
+      _h141_mw['classification_display'] == 'Review' and _h141_mw['downgraded'] is True
+      and _h141_mw['contradiction'] is False
+      and 'uncertain' in _h141_mw['strip_md'].lower(), _h141_mw['classification_display'])
+# #2 threshold unavailable: HU covers, no discount -> explicit, not silent.
+_h141_nothr = _pkoE.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'classification': 'Review',
+     'coverage_label': 'covers opener — bounty collectible', 'bounty_value_bb_est': 3.2})
+check('T-H141-04: PKO context with no chip-vs-PKO threshold says so explicitly (not silent)',
+      'threshold not modelled' in _h141_nothr['strip_md']
+      and 'Chip-only' not in _h141_nothr['strip_md'], _h141_nothr['strip_md'])
+# #2/#3 still render thresholds when a discount IS present (no regression).
+_h141_thr = _pkoE.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'classification': 'Review', 'bounty_value_bb_est': 3.2},
+    discount_pp=6.0, chip_threshold_pct=35.0, pko_threshold_pct=29.0)
+check('T-H141-05: chip-vs-PKO threshold still renders when a discount is present',
+      'Chip-only call needs 35%' in _h141_thr['strip_md']
+      and 'PKO-adjusted needs ~29%' in _h141_thr['strip_md'], _h141_thr['strip_md'])
+# #4 queue auto-clear: neutral title, never "mistake" (real report had +7.5BB titled mistake).
+_h141_q = _brq141({'mistakes': [{'id': 'TM6073281442', 'desc': 'loose call'}]}, {}, {},
+                  {'TM6073281442': {'net_bb': 7.5, 'cards': ['Kh', '5d']}})
+_h141_ac = [x for x in _h141_q if x['bucket'] == 'auto_clear']
+check('T-H141-06: auto-clear queue rows are NOT titled "mistake" (neutral copy)',
+      bool(_h141_ac) and 'mistake' not in _h141_ac[0]['title'].lower()
+      and 'Auto-cleared' in _h141_ac[0]['title'], _h141_ac[0]['title'] if _h141_ac else 'none')
+# #71725727 chart-id humanization (registry + both render paths use it).
+check('T-H141-07: raw chart ids humanize (REJAM/PUSH/CALLJAM) and are not exposed raw',
+      _cl141.chart_display_label('REJAM_SBvsCO') == 'SB re-jam vs CO open'
+      and _cl141.chart_display_label('PUSH_10BB_CO') == 'CO open-shove, 10BB', '')
+_cov141 = open('gem_coverage_builder.py', encoding='utf-8').read()
+_xiv141 = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-H141-08: render paths route chart ids through chart_display_label, drop the raw rejam id',
+      'from gem_chart_labels import chart_display_label' in _cov141
+      and '({_rj_key}, {_rj_n} hand classes)' not in _cov141
+      and 'chart_display_label as _cdl' in _xiv141 and '_cdl(rj_key)' in _xiv141, '')
+# #73281169 required-equity teaching copy.
+check('T-H141-09: pot-odds teaches required-equity-vs-range, not "ahead right now"',
+      'not how often you are ahead right now' in _xiv141, '')
+# #1 dense cEV copy collapsed to <details> (old "Surface: cEV" paragraph gone).
+_tldr141 = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+check('T-H141-10: dense cEV paragraph replaced by concise line + <details> (no "Surface: cEV")',
+      'Surface: cEV' not in _tldr141 and '<details><summary>Why cEV, not BB/100?' in _tldr141, '')
+# #6 financial settlement-date label + #7 run-log writer.
+_fin141 = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-H141-11: financial date labelled cash-settlement + run-log writer present',
+      'cash-settlement (session-end) date' in _fin141 and '_run_log_' in _ana141, '')
+
+# --- v8.14.1 rev-2: review-list cosmetics + section-review separation ---
+from gem_report_draft._html import _audit_row_html as _arh141
+_h141b_html = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_h141b_tldr = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+_sub141 = _arh141('sub', 'sec-tldr', 'Summary')
+_hand141 = _arh141('hand', '73719213', 'Hand 73719213 — AsKd')
+check('T-H141-12: reviewed/completed list is collapsed by default (hidden + aria-expanded=false + caret)',
+      'rq-reviewed-list" id="rq-reviewed-list" hidden' in _h141b_tldr
+      and 'id="rq-reviewed-head"' in _h141b_tldr and 'aria-expanded="false"' in _h141b_tldr
+      and 'rq-rev-caret' in _h141b_tldr, '')
+check('T-H141-13: only the COMPLETED list collapses (open/unresolved queue rows stay visible)',
+      'l.hidden=!willOpen' in _h141b_html and 'rq-reviewed-list' in _h141b_html, '')
+check('T-H141-14: reviewed-list rows show Hero hand (.handcards) next to the hand id',
+      "querySelector('.handcards')" in _h141b_html and 'handcards">\'+x.cards' in _h141b_html, '')
+check('T-H141-15: missing Hero hand falls back to id only (cards span is conditional)',
+      "x.cards?'<span" in _h141b_html and "</span>':''" in _h141b_html, '')
+check('T-H141-16: section review (sub) labelled "Section review" + audit-section, never a hand',
+      'Section review' in _sub141 and 'audit-section' in _sub141
+      and 'data-atype="sub"' in _sub141 and 'Section review' not in _hand141
+      and 'audit-section' not in _hand141, '')
+check('T-H141-17: section id (sec-tldr) lives in data-aid only, never rendered as a poker hand id',
+      'data-aid="sec-tldr"' in _sub141 and '>sec-tldr<' not in _sub141, '')
+check('T-H141-18: section review preserves verdict + notes inputs (data not lost)',
+      'audit-status' in _sub141 and 'audit-notes' in _sub141, '')
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',

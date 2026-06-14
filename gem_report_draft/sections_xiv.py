@@ -1094,6 +1094,9 @@ def _allin_range_note(h):
     pos = h.get('position', '?')
     stk = h.get('eff_stack_bb_at_decision') or h.get('stack_bb', 99)
     ranges = _lr()
+    # v8.14.1 hotfix (#71725727): the Range-check shows the human chart label,
+    # never the raw internal id (PUSH_10BB_CO / REJAM_SBvsCO mean nothing to Ron).
+    from gem_chart_labels import chart_display_label as _cdl
     parts = []
 
     hero_jammed = False
@@ -1115,7 +1118,7 @@ def _allin_range_note(h):
             boundary = _rb(', '.join(rng.keys())) if hasattr(_rb, '__call__') else ''
             bnd = f' (boundary: {boundary})' if boundary else ''
             parts.append(f'{icon} **{hc}** {"in" if inside else "outside"} '
-                         f'{key} ({len(rng)} hand classes){bnd}')
+                         f'the {_cdl(key)} range ({len(rng)} hand classes){bnd}')
 
     if not hero_jammed and stk <= 30:
         jammer = h.get('jammer_position', '')
@@ -1140,7 +1143,7 @@ def _allin_range_note(h):
             inside = hc in rj_rng
             icon = '✅' if inside else '❌'
             parts.append(f'{icon} **{hc}** {"in" if inside else "outside"} '
-                         f'{rj_key} ({len(rj_rng)} hand classes)')
+                         f'the {_cdl(rj_key)} range ({len(rj_rng)} hand classes)')
 
     if not parts:
         return ''
@@ -2532,6 +2535,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # v8.12.8 QA3: side-pot-aware price carries its basis
             if _po.get('required_eq_note'):
                 _po_lines.append(f"*({_po['required_eq_note']})*")
+            # v8.14.1 hotfix (#73281169): teach what required equity MEANS \u2014
+            # equity vs the betting/jamming range (incl. draws + worse hands),
+            # NOT "how often you are ahead right now" (the user's exact question).
+            if _po.get('required_eq_pct') not in (None, '\u2014'):
+                _po_lines.append(
+                    "*This is the share you need to win versus the betting/"
+                    "jamming range (including draws and worse hands) to break "
+                    "even \u2014 not how often you are ahead right now.*")
             # v8.12.8: non-all-in calldown block \u2014 per-street lines with
             # the OVERBET flag (handover Issue 1)
             if _po.get('mode') == 'street_calls':

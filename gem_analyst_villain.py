@@ -444,7 +444,9 @@ def build_opponent_adjustment_candidates(
 
 def write_worksheet(candidates: list[dict], session_date: str,
                     hero_name: str, out_dir: str,
-                    pipeline_version: str = 'v8.9.0') -> str:
+                    pipeline_version: str = __import__(
+                        'gem_version', fromlist=['RUNTIME_VERSION']
+                    ).RUNTIME_VERSION) -> str:
     """Write analyst worksheet JSON to output directory.
 
     Requirement: worksheet must NOT be placed inside HH input directory.

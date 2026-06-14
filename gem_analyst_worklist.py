@@ -845,7 +845,10 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
 # main builder
 # ---------------------------------------------------------------------------
 def build_analyst_worklist(candidates, stats, report_data, hands,
-                           date_compact, runtime='v8.12.11'):
+                           date_compact,
+                           runtime=__import__(
+                               'gem_version', fromlist=['RUNTIME_VERSION']
+                           ).RUNTIME_VERSION):
     candidates = candidates or {}
     stats = stats or {}
     report_data = report_data or {}

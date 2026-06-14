@@ -379,6 +379,12 @@ def reconcile_pko_trust(*, coverage_bucket=None, can_collect_bounty=None,
             extra.append('exact bounty unavailable — using estimate')
         if threshold_line:
             extra.append(threshold_line)
+        elif (bounty_value_bb and float(bounty_value_bb) > 0 and not suppress
+              and cover_state in ('hero_covers', 'equal')):
+            # v8.14.1 hotfix (#2): a PKO context is present but no chip-vs-PKO
+            # threshold was modelled (no discount at this depth) -> say so
+            # explicitly; never imply a silent confident PKO adjustment.
+            extra.append('chip-vs-PKO threshold not modelled at this depth')
 
     trust_line = ' '.join(_pko_sentence(p) for p in ([primary] + extra) if p)
 
@@ -423,7 +429,11 @@ def pko_trust_render(pko_ctx, *, bounty_usd=None, discount_pp=0.0,
         chip_threshold_pct=chip_threshold_pct, pko_threshold_pct=pko_threshold_pct,
         overjam_bb=overjam_bb)
     cls = ctx.get('classification', 'Review')
-    if tr['contradiction'] and cls in _PKO_CONFIDENT_CLS:
+    # v8.14.1 hotfix (#3): a confident PKO classification must not survive EITHER
+    # a trust contradiction OR a multiway/ambiguous over-claim suppression. When
+    # the strip says "bounty impact uncertain", the pill cannot say "PKO Good" /
+    # "PKO Too wide" — downgrade to Review.
+    if cls in _PKO_CONFIDENT_CLS and (tr['contradiction'] or tr['suppress_overclaim']):
         cls_display, downgraded = 'Review', True
     else:
         cls_display, downgraded = cls, False

@@ -1,3 +1,42 @@
+v8.15.0 (2026-06-16) -- Tournament Tables: event-level model + additive section
+================================================================================
+First v8.15 feature: a typed, event-level Tournament Tables data layer and an
+ADDITIVE render section. Built behind the GO-READY spec gate; no poker-strategy /
+analyst logic change; no financial-math change.
+
+- NEW gem_tournament_model.py — build_tournament_model(rd): one typed row per
+  tournament EVENT (not per bullet, not per name) joined by tournament_id from the
+  canonical usd_overlay. Repeated names stay separate events; multi-bullet stays one
+  event with a bullets count. Cost = committed cost; Return = cash + ticket value
+  (config cash-only switch); Net/ROI from the same basis.
+- Canonical usd_overlay.totals reconciliation — session totals come from the
+  overlay (never a divergent recompute); per-event rows reconcile to them and the
+  status is surfaced. field_provenance per field (unknown -> blank); event_day from
+  the canonical report timezone else Asia/Bangkok (never the report label date).
+- NEW gem_report_draft/sections_tournaments.py — additive "Tournament Tables
+  (event-level)" section (anchor sec-tournaments) wired into draft.py AFTER S1.
+  Trust line (financial source / return basis / reconcile status / stale
+  session_financials* diagnostic-not-block / event-day TZ), canonical summary strip,
+  per-event table (Date/Tournament/Type/Buy-in/Bullets/Cost/Cash/Ticket/Return/Net/
+  ROI/Finish/Adv-Seat/cEV). Inferred prize type marked `*`; unknown fields render an
+  em dash; bounty dollar amounts never inferred.
+- Per-event cEV intentionally BLANK — no canonical, join-safe tid->cEV/100 source
+  exists (gem_cev exposes per-tournament cev_per_STACK only: a different metric,
+  hand-derived, not persisted), so per-event cEV is never approximated; an audit
+  note explains this. Session/aggregate cEV is unchanged.
+- The OLD Results tables (Per-Tournament P&L / Deep Runs / Stack trajectories under
+  S1) are RETAINED — the new section is additive (additive-then-swap); nothing is
+  removed this release.
+
+Parked for a later slice (not in v8.15.0): per-event cEV metric, speed /
+entry-timing name-token inference + tabs/filters, literal seats-won column.
+
+RUNTIME_VERSION / bundle / verifier v8.14.4 -> v8.15.0 (draft.py report-format
+VERSION stays v8.12.0, canary-pinned). +2 manifest files (gem_tournament_model.py,
+gem_report_draft/sections_tournaments.py) -> 42; +4 canaries. +14 model tests
+(T-TT-01..14) +12 renderer tests (T-TT-R-01..12) -> 1174; [A-FIN] green; verify
+42/376/10; clean-extract PASS.
+
 v8.14.4 (2026-06-15) -- process-hardening hotfix (raw chart-ID guard +
                         cash+ticket disclosure on the active financial surface)
 ================================================================================

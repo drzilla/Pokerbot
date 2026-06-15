@@ -16,13 +16,14 @@ import base64, io, os, sys, zipfile, hashlib, datetime
 REPO = os.path.dirname(os.path.abspath(__file__))
 PROJ_FALLBACK = r'C:\Users\ron\Downloads\_proj_inventory\project'
 
-BUNDLE_VERSION = 'v8.14.4'
+BUNDLE_VERSION = 'v8.15.0'
 
 # gem_report_draft package members (zipped under gem_report_draft/)
 PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
        '_blocks.py', '_anchor_map.py', '_adapters.py', 'draft.py', 'tldr.py',
        'sections_financial.py', 'sections_mistakes.py', 'sections_iv_xii.py',
-       'sections_xiii.py', 'sections_xiv.py', 'sections_issue_explorer.py']
+       'sections_xiii.py', 'sections_xiv.py', 'sections_issue_explorer.py',
+       'sections_tournaments.py']   # v8.15: additive Tournament Tables section
 
 # Stage-A kill list — never bundled
 KILL = {
@@ -94,6 +95,11 @@ def build(project_dir):
                  if os.path.isfile(os.path.join(project_dir, f))}
     names |= _repo_runtime_modules()   # repo-driven: pick up new modules
     names |= BUNDLE_ALSO
+    # v8.15: PKG members are bundled from the repo regardless of whether the
+    # (possibly stale) inventory-snapshot project_dir lists them — so a NEW
+    # gem_report_draft/ member (e.g. sections_tournaments.py) is never silently
+    # dropped. Mirrors the _repo_runtime_modules() union for root modules.
+    names |= set(PKG)
     bundle_names = sorted(n for n in names
                           if n not in KILL and n not in FLAT_DATA
                           and (n not in PROSE or n in BUNDLE_ALSO))

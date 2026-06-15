@@ -223,25 +223,34 @@ def _read_axis(archetype):
     return None
 
 
-def derive_profile(cue_axis, cue_node, archetype, explicit=None):
-    """Return (profile_label, profile_caveat). 'split' when this hand's cue axis
-    crosses the villain's read axis (cross-node evidence) — NOT a contradiction;
-    a pivot cue is a line-specific value warning. 'consistent' otherwise. An
-    explicit upstream profile_label wins. profile_caveat is None when coherent."""
+def derive_profile(cue_axis, cue_node, archetype, explicit=None, read_conf='low'):
+    """Return (profile_label, profile_caveat) for the Read line.
+
+    A cross-axis cue (this hand's cue on a different behavioural axis than the
+    villain's AGGREGATE read) is a NODE-SPECIFIC observation, not a contradiction
+    of the read. The caveat is therefore COMPACT and confidence-calibrated, so it
+    teaches without over-warning on the ~55% of hands where a single cue differs
+    from the multi-hand read:
+      * confident aggregate read (medium/high) -> the read STANDS; this hand's cue
+        is just local: "Node-specific … cue — the read is from other spots".
+      * forming read (low) -> softer: "Node-specific … cue — read still forming".
+      * passive->aggression -> a line-specific pivot value warning.
+    It never says "contradiction"/"Mixed profile" for a confident read (which was
+    misleading — the profile is not mixed, the cue is node-local). A future
+    upstream profile_label, if provided, wins and uses the explicit label. The
+    caveat is None when coherent (same axis)."""
     if explicit in ('mixed', 'split'):
         return explicit, '%s profile' % explicit.capitalize()
     if explicit == 'consistent':
         return 'consistent', None
     if cue_axis == 'pivot':
-        node = cue_node or 'later-street'
-        return 'split', ('Line-specific pivot — passive line then %s aggression; '
-                         'a value warning for this line, not a global tag' % node)
+        return 'split', 'Line-specific pivot — value warning for this line, not a global read'
     rax = _read_axis(archetype)
     if cue_axis in ('passive', 'aggro', 'tight') and rax and cue_axis != rax:
         node = (cue_node + ' ') if cue_node else ''
-        return 'split', ('Mixed profile — %s%s cue, but the read is %s; '
-                         'node-specific evidence, not a global tag'
-                         % (node, _AXIS_DESC.get(cue_axis, cue_axis), _AXIS_DESC.get(rax, rax)))
+        tail = ('the read is from other spots' if read_conf in ('medium', 'high')
+                else 'read still forming')
+        return 'split', ('Node-specific %scue — %s' % (node, tail))
     return 'consistent', None
 
 
@@ -570,9 +579,10 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
     icm = _ICM_CAUTION if _is_risky_exploit(detector, exp.get('so_what')) else None
     if icm:
         warnings.append('icm_pressure_unknown')
-    # Cross-axis cue/read split -> node-specific "Mixed profile" caveat.
+    # Cross-axis cue/read split -> compact node-specific caveat (confidence-tiered).
     prof_label, prof_caveat = derive_profile(
-        _AXIS_BY_DETECTOR.get(detector), None, archetype, rs.get('profile_label'))
+        _AXIS_BY_DETECTOR.get(detector), None, archetype, rs.get('profile_label'),
+        read_conf=conf)
 
     street = (exp.get('hero_decision_street') or '').strip() or 'preflop'
     _pko = _pko_subobject(pko_by_hand, hand_id)
@@ -652,7 +662,7 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
     # aggregate read) -> node-specific "Mixed profile" caveat before the read.
     _prof_label, _prof_caveat = derive_profile(
         _AXIS_BY_SIGNAL.get(signal), _CUE_NODE_BY_SIGNAL.get(signal),
-        _archetype, rs.get('profile_label'))
+        _archetype, rs.get('profile_label'), read_conf=rs.get('confidence', 'low'))
     obj = {
         'villain_id': vk,
         'villain_alias': rs.get('villain_alias') or atom.get('villain_alias', ''),

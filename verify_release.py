@@ -15,12 +15,12 @@ VERSION = "v8.16.0"   # v8.16.0 (Villain Teaching Coach Layer v1: timestamp-safe
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("a490331d45ef5c225b7974f59ab61df73b5582e873980ca28f04bf8863f78bc4", 103379, "v8.16.0 Villain Teaching Coach Layer v1 entry"),
+    "GEM_Changelog.txt": ("ac6e86581c80805dd33a9077979e3a00b4ec012ebca1340b502978f6011a6585", 103779, "v8.16.0 Villain Teaching Coach Layer v1 entry (calibrated)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("519a7aaf9debc65c40b75d6cbc7f04d514281dbfbdb9f78c719079d39a38190d", 4167, "v8.16.0: 42 files, 382 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("0f1d33903f9bbb4246ab1308d4ec8d3f2013fe06d2e251542b5cdeeb3fbaae92", 466843, "v8.16.0 villain: +T-VTS chronology +T-VC coach layer (1221 pass)"),
+    "_test_scratch.py": ("f1c011171f44604941e68530544ca452ced5b794c4e77ee62e968f6da38158f7", 470248, "v8.16.0 villain: +T-VTS chronology +T-VC coach layer + calibration (1225 pass)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
@@ -55,7 +55,7 @@ MANIFEST = {
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
-    "gem_villain_teaching.py": ("28bcdd6c8f92a5f280a469442e7241cabcc3d81005389bf7bfaa7613803aa6a8", 38009, "v8.16.0 villain: status-safe cards + trusted-baseline gate + mixed/split + ICM caution"),
+    "gem_villain_teaching.py": ("4c2f93996d8cf9bcc2a55aafcf11d9cb66e60b6822782f98c109aca76b3f0eda", 38644, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
     "gem_version.py": ("85df4b1e75a36fe24a5e43a0b5ea568208d16623888970f7d41c7a99589a9dc2", 880, "v8.16.0: RUNTIME_VERSION single source of truth"),
 }
 

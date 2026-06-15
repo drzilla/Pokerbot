@@ -27,10 +27,15 @@ the timestamp trust fix below.
 
 - MIXED / SPLIT PROFILE CAVEAT: when this hand's cue axis (loose-passive /
   aggro / tight / pivot) crosses the villain's aggregate read axis, the card
-  renders an explicit node-specific "Mixed profile" caveat BEFORE the archetype
-  (e.g. "loose-passive preflop entry cue, but the read is pressure-heavy;
-  node-specific evidence, not a global tag"), instead of a clean global tag.
-  Passive-to-aggression is a line-specific pivot warning, not a contradiction.
+  renders a COMPACT, confidence-calibrated node-specific note BEFORE the archetype
+  instead of a clean global tag — a confident aggregate read STANDS ("Node-specific
+  … cue — the read is from other spots"), a forming read is softer ("… read still
+  forming"), and passive-to-aggression is a line-specific pivot warning. The
+  verbose/alarming "Mixed profile … not a global tag" wording was retired (it
+  mislabelled a confident read as mixed, and the read_conf tier was not threaded
+  from the builders — fixed). Final calibration over the real 1267-hand session:
+  104 confident + 19 forming node-specific notes + 73 line-specific pivots, 0
+  verbose caveats, 0 unexplained cue/read mismatches.
 
 - loose_passive SCORER FIX: the prior-atoms read scorer now scores a composite
   loose_passive query as loose+passive, so station/sticky reads fire from

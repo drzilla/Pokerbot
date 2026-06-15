@@ -8096,11 +8096,13 @@ _vc_split_atom = {'villain_key': _vt_vk, 'hand_id': 'H1', 'signal': 'open_limp',
 _vc_split = _vt.teaching_from_atom(_vc_split_atom, _vc_split_rs,
                                    {_vt_vk: [{'dimension': 'loose_passive'}] * 3}, signal_coaching={})
 _vc_split_read = next(l for l in _vc_split['teach_lines'] if l.startswith('Read:'))
-# T-VC-13: loose-passive entry cue + aggressive aggregate read -> split + caveat before archetype
-check('T-VC-13: loose-passive cue + aggressive read -> split, caveat before archetype, not a clean global tag',
-      _vc_split['profile_label'] == 'split' and 'Mixed profile' in _vc_split_read
-      and _vc_split_read.index('Mixed profile') < _vc_split_read.index('Aggressive')
-      and 'node-specific' in _vc_split_read and 'not a global tag' in _vc_split_read, _vc_split_read)
+# T-VC-13: loose-passive entry cue + aggressive aggregate read -> split + COMPACT
+# node-specific note before the archetype (calibration: no verbose "Mixed profile")
+check('T-VC-13: loose-passive cue + aggressive read -> split, compact node-specific note before archetype',
+      _vc_split['profile_label'] == 'split'
+      and 'node-specific' in _vc_split_read.lower()
+      and _vc_split_read.lower().index('node-specific') < _vc_split_read.index('Aggressive')
+      and 'Mixed profile' not in _vc_split_read, _vc_split_read)
 
 # T-VC-14: same-axis cue/read (loose-passive + sticky) stays consistent (no FALSE split)
 _vc_same = _vt.teaching_from_atom(
@@ -8112,16 +8114,17 @@ check('T-VC-14: same-axis cue/read (loose-passive + sticky) stays consistent (no
       _vc_same['profile_label'] == 'consistent' and not _vc_same.get('profile_caveat')
       and not any('Mixed profile' in l for l in _vc_same['teach_lines']), '')
 
-# T-VC-15: cross-node split is labelled 'split' + node-specific, NEVER 'contradiction'
+# T-VC-15: cross-node split is 'split' + node-specific, NEVER 'contradiction'/'Mixed profile'
 _pl15, _cav15 = _vt.derive_profile('tight', 'blind defense', 'Aggressive')
-check('T-VC-15: cross-node tight-cue vs aggressive-read -> split, never contradiction',
+check('T-VC-15: cross-node tight-cue vs aggressive-read -> split, node-specific, never contradiction/Mixed-profile',
       _pl15 == 'split' and 'contradiction' not in (_cav15 or '').lower()
-      and 'node-specific' in (_cav15 or ''), str((_pl15, _cav15)))
+      and 'node-specific' in (_cav15 or '').lower() and 'Mixed profile' not in (_cav15 or ''),
+      str((_pl15, _cav15)))
 
 # T-VC-16: passive-to-aggression pivot -> line-specific value warning (not a contradiction)
 _pl16, _cav16 = _vt.derive_profile('pivot', 'turn/river', 'Sticky Passive')
-check('T-VC-16: passive_aggro pivot -> line-specific pivot warning, not a global tag / contradiction',
-      _pl16 == 'split' and 'Line-specific pivot' in (_cav16 or '') and 'not a global tag' in (_cav16 or '')
+check('T-VC-16: passive_aggro pivot -> line-specific value warning, not a global tag / contradiction',
+      _pl16 == 'split' and 'Line-specific pivot' in (_cav16 or '') and 'not a global' in (_cav16 or '')
       and 'contradiction' not in (_cav16 or '').lower(), str(_cav16))
 
 # T-VC-17: station/passive cue vs aggressive read -> split; explicit upstream label wins
@@ -8137,6 +8140,49 @@ _vc_split_exp = _vt.teaching_from_exploit(
 check('T-VC-18: split/mixed read stays non-graded without a trusted baseline',
       _vc_split_exp['teaching_status'] not in _vt._GRADED_STATUSES,
       str(_vc_split_exp.get('teaching_status')))
+
+# --- Final product calibration: compact, confidence-tiered node-specific caveat (T-VC-19..21) ---
+# T-VC-19: confidence tiering — a confident aggregate read STANDS (the cue is local);
+#          a forming read is softer. Neither uses the alarming "Mixed profile".
+_pl_hi, _cav_hi = _vt.derive_profile('passive', 'preflop entry', 'Aggressive', read_conf='high')
+_pl_lo, _cav_lo = _vt.derive_profile('passive', 'preflop entry', 'Aggressive', read_conf='low')
+check('T-VC-19: confident read -> "read is from other spots"; forming read -> "still forming"; never Mixed profile',
+      'from other spots' in (_cav_hi or '') and 'still forming' in (_cav_lo or '')
+      and 'Mixed profile' not in (_cav_hi or '') and 'Mixed profile' not in (_cav_lo or '')
+      and 'node-specific' in (_cav_hi or '').lower() and 'node-specific' in (_cav_lo or '').lower(),
+      str((_cav_hi, _cav_lo)))
+
+# T-VC-20: caveat is COMPACT (verbose ~20-word "Mixed profile — … not a global tag" is gone)
+check('T-VC-20: derived split caveat is compact (<=12 words) and never "contradiction"/"Mixed profile"',
+      all(len((_c or '').split()) <= 12 and 'contradiction' not in (_c or '').lower()
+          and 'Mixed profile' not in (_c or '')
+          for _c in (_cav_hi, _cav_lo, _cav15, _cav16)), str([_cav_hi, _cav_lo, _cav16]))
+
+# T-VC-21: a sparse single-cue card shows ONLY the weak-read fallback line (no over-warning)
+_vc_sparse = _vt.teaching_from_atom(
+    {'villain_key': 'T1|sp', 'hand_id': 'Hs', 'signal': 'open_limp', 'street': 'preflop',
+     'same_hand_actionable': True, 'available_before_action_index': 1, 'hero_involved': True,
+     'evidence_text': 'Open-limped MP.', 'suggests': 'Loose-passive tendency.', 'so_what': 'Iso wider.'},
+    {'T1|sp': {'primary_read': 'Aggressive', 'confidence': 'low', 'n_evidence': 1,
+               'evidence_hand_ids': ['Hs']}},
+    {'T1|sp': [{'dimension': 'loose_passive'}]}, signal_coaching={})
+check('T-VC-21: sparse single-cue card shows only the weak-read fallback (no verbose profile caveat)',
+      _vc_sparse['fallback'] and _vt.FALLBACK_LINE in _vc_sparse['teach_lines']
+      and not any(('Node-specific' in l) or ('Mixed profile' in l) for l in _vc_sparse['teach_lines']), '')
+
+# T-VC-22: read_conf threads from the BUILDER (not just derive_profile direct) — a
+#          high-confidence aggregate read + off-axis cue says the read STANDS.
+_vc_hi = _vt.teaching_from_atom(
+    {'villain_key': 'T1|hi', 'hand_id': 'Hh', 'signal': 'open_limp', 'street': 'preflop',
+     'same_hand_actionable': True, 'available_before_action_index': 1, 'hero_involved': True,
+     'evidence_text': 'Open-limped MP.', 'suggests': 'Loose-passive tendency.', 'so_what': 'Iso wider.'},
+    {'T1|hi': {'primary_read': 'Aggressive', 'confidence': 'high', 'n_evidence': 9,
+               'evidence_hand_ids': ['H9', 'H7', 'H5']}},
+    {'T1|hi': [{'dimension': 'loose_passive'}] * 9}, signal_coaching={})
+_vc_hi_read = next(l for l in _vc_hi['teach_lines'] if l.startswith('Read:'))
+check('T-VC-22: high-confidence aggregate read + off-axis cue -> "read is from other spots" (read_conf threads from builder)',
+      _vc_hi['profile_label'] == 'split' and 'from other spots' in _vc_hi_read
+      and 'still forming' not in _vc_hi_read, _vc_hi_read)
 
 # ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)

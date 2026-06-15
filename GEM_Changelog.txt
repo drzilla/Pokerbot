@@ -1,5 +1,13 @@
-v8.14.1 (2026-06-15) -- real-report QA + range-evidence trust release
+v8.14.2 (2026-06-15) -- post-v8.14.1 range-trust QA hotfixes (REV3-REV6)
 =========================================================================
+Decoded-lazy QA of the first real v8.14.1 report (Knockman 2026-06-13) surfaced a
+series of range-trust contradictions between analyst/auto prose and the canonical
+"Range evidence" block. All fixed at the source and guarded by lints; no strategy-
+logic or threshold change. RUNTIME_VERSION / bundle / verifier -> v8.14.2 (draft.py
+report-format VERSION stays v8.12.0, canary-pinned). Tests 1117; verify 40/359/10;
+clean-extract PASS. The five hotfixes below were GPT-PASSED individually (REV6 =
+GEM_QA_Knockman_20260613_REV6.zip).
+
 HOTFIX (post-tag, GPT REV6 — stale open-jam prose contradicted re-jam canonical):
 hand 73559949 (ATs) read "Short-stack open-jam ... at ~13bb, inside the push
 range ... Standard shove ... the jam is mandatory ... clear push ... inside the
@@ -123,6 +131,9 @@ get-in JUSTIFICATION ("standard get-in" / "correct push" / "correct get-in" /
 session_analysis_20260613.json were corrected to III.4 with the same wording.
 +1 test (T-RE-19) + T-1230-RJ-1 updated -> 1106. No version change.
 
+
+v8.14.1 (2026-06-15) -- real-report QA + range-evidence trust release
+=========================================================================
 FINAL: dropped the -preview suffix (RUNTIME_VERSION / verify_release / bundle
 -> v8.14.1; draft.py report-format VERSION stays v8.12.0, canary-pinned). Ships
 the real-report QA hotfix (rev-1..4 + xway + consistency-fix) AND the range-

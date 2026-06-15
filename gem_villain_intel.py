@@ -1281,6 +1281,111 @@ _PASSIVE_ARCHETYPES = {'CALLING_STATION', 'FISH', 'NIT', 'WHALE'}
 _NIT_ARCHETYPES = {'NIT'}
 
 
+# ============================================================
+# Cross-hand temporal ordering — TIMESTAMP chronology (trust fix)
+# ============================================================
+# GG hand IDs are NOT a reliable chronological key. In the real 2026 sample
+# (66 tournaments / 5,066 hands) a later hand carried a LOWER TM id in ~47% of
+# adjacent-by-time pairs, and 29/44 tournaments were non-monotonic (table
+# changes give each table its own id block). Ordering cross-hand villain
+# evidence by hand id therefore let FUTURE-hand evidence grade an earlier Hero
+# decision (look-ahead leakage). The only per-hand-correct chronological source
+# is the parsed timestamp (hand_ts_date, hand_time) — the same key the canonical
+# session-arc sort in gem_analyzer uses. Cross-hand grading is gated on a
+# PROVABLE strict-earlier-by-timestamp relation; a missing or same-second-tied
+# timestamp SAFE-DISABLES the comparison rather than falling back to unsafe
+# hand-id order.
+
+def _ts_key_of(hand):
+    """Sortable (date, time) chronology key for a hand, or None when the true
+    per-hand timestamp is absent.
+
+    Requires BOTH hand_ts_date and hand_time (the per-hand HH-header stamp).
+    Deliberately does NOT fall back to hand['date'] (the constant filename
+    session-date) or to the hand id: an absent per-hand timestamp must DISABLE
+    cross-hand grading for that hand, not be approximated. None => unorderable.
+    """
+    if not isinstance(hand, dict):
+        return None
+    date = hand.get('hand_ts_date') or ''
+    tm = hand.get('hand_time') or ''
+    return (date, tm) if (date and tm) else None
+
+
+def _ts_strictly_before(a_key, b_key):
+    """True iff hand A is PROVABLY strictly earlier than hand B by timestamp.
+
+    Both keys must be present (non-None) AND a_key < b_key. A missing key (None)
+    or an equal key (same-second tie, with no intra-table sequence available to
+    break it) returns False: cross-hand grading is safe-disabled for that pair
+    rather than guessed. This is the guard that stops future-hand evidence from
+    grading an earlier Hero decision.
+    """
+    if a_key is None or b_key is None:
+        return False
+    return a_key < b_key
+
+
+def build_hand_chronology(hands):
+    """Build the timestamp chronology map used to gate cross-hand villain reads.
+
+    Returns (ts_key_by_hid, diag):
+      ts_key_by_hid: {hand_id: (date, time) | None}   # None => unorderable
+      diag: {n_hands, n_valid, n_missing_ts, n_same_second_tied,
+             tournaments_with_missing_ts, tournaments_with_same_second_ties,
+             warnings: [QA/source warning strings]}
+
+    The gate (_villain_has_read) admits a prior atom only when
+    _ts_strictly_before(atom_hand_key, current_hand_key) is True, so this map is
+    never "sorted": strict `<` on the (date, time) tuples both orders valid
+    hands and refuses to order missing/tied ones. Same-second ties are detected
+    PER TOURNAMENT (the villain scope) and surfaced as warnings so the report
+    can state that some cross-hand grading was safe-disabled for an ambiguous
+    cluster. GG hand ids are intentionally ignored here.
+    """
+    ts_key_by_hid = {}
+    seen = {}                 # (tid, date, time) -> count, for tie detection
+    missing_tids = set()
+    n_valid = 0
+    for h in hands:
+        hid = h.get('id') or ''
+        if not hid:
+            continue
+        tid = h.get('tournament_id') or ''
+        key = _ts_key_of(h)
+        ts_key_by_hid[hid] = key
+        if key is None:
+            missing_tids.add(tid)
+        else:
+            n_valid += 1
+            sk = (tid, key[0], key[1])
+            seen[sk] = seen.get(sk, 0) + 1
+    tied = {k for k, n in seen.items() if n > 1}
+    tied_tids = sorted({k[0] for k in tied})
+    n_tied = sum(n for k, n in seen.items() if n > 1)
+    warnings = []
+    if missing_tids:
+        _names = ', '.join(sorted(t for t in missing_tids if t)) or '(unknown tid)'
+        warnings.append(
+            'cross-hand villain grading disabled for %d tournament(s) with '
+            'missing per-hand timestamps: %s' % (len(missing_tids), _names))
+    if tied:
+        warnings.append(
+            'cross-hand villain grading safe-disabled for %d same-second tie '
+            'cluster(s) in tournament(s) %s (no intra-table sequence to order '
+            'them)' % (len(tied), ', '.join(tied_tids) or '(unknown tid)'))
+    diag = {
+        'n_hands': len(ts_key_by_hid),
+        'n_valid': n_valid,
+        'n_missing_ts': len(ts_key_by_hid) - n_valid,
+        'n_same_second_tied': n_tied,
+        'tournaments_with_missing_ts': sorted(t for t in missing_tids if t),
+        'tournaments_with_same_second_ties': tied_tids,
+        'warnings': warnings,
+    }
+    return ts_key_by_hid, diag
+
+
 def _villain_has_read(hand, villain_key, dimension, atoms_by_villain,
                       min_atoms=2, archetype_set=None, read_states=None,
                       hand_order=None):
@@ -1299,14 +1404,26 @@ def _villain_has_read(hand, villain_key, dimension, atoms_by_villain,
 
     Returns (has_read: bool, read_source: str, confidence: str)
     """
-    # Source 1: PR3 atoms with temporal gate + mapped dimension scoring
+    # Source 1: PR3 atoms with temporal gate + mapped dimension scoring.
+    # TEMPORAL GATE (timestamp trust fix): `hand_order` is now a TIMESTAMP
+    # chronology map {hand_id: (date, time) | None} from build_hand_chronology
+    # — NOT hand-id index order (GG hand ids are not chronological). Admit a
+    # prior atom only when it is PROVABLY strictly earlier than this hand by
+    # timestamp; a missing or same-second-tied timestamp safe-disables the
+    # comparison (no id fallback), so future-hand evidence can never grade this
+    # earlier Hero decision. A current hand with no timestamp (cur_key None)
+    # admits nothing -> cross-hand grading disabled for it.
     current_hid = hand.get('id', '')
     v_atoms = atoms_by_villain.get(villain_key, [])
-    if hand_order and current_hid:
-        current_idx = hand_order.get(current_hid, 999999)
-        # Only count atoms from hands that occurred BEFORE this one
+    # `hand_order is None` = caller opted out of the cross-hand gate (legacy /
+    # same-hand-only callers). A PROVIDED chronology map (even empty) keeps the
+    # gate ACTIVE: an unknown current-hand key (cur_key None) then admits nothing
+    # -> safe-disable, never an unfiltered fallback.
+    if hand_order is not None and current_hid:
+        cur_key = hand_order.get(current_hid)
         v_atoms = [a for a in v_atoms
-                   if hand_order.get(a.get('hand_id', ''), 999999) < current_idx]
+                   if _ts_strictly_before(
+                       hand_order.get(a.get('hand_id', '')), cur_key)]
 
     if v_atoms:
         # Score prior atoms through _DIMENSION_MAP to get mapped dimensions
@@ -2213,17 +2330,23 @@ def detect_exploit_opportunities(hands, hero_name, aliases, atoms_by_villain,
     FIX (v8.7.0 calibration): builds hand_order for temporal gating and
     passes read_states for mapped-dimension scoring.
     """
-    # Build chronological hand ordering.
-    # GG hand IDs DECREMENT as time advances, so reverse-sort gives
-    # chronological order. hand_order[hid] = index (0 = earliest).
-    _all_hids = [h.get('id', '') for h in hands if h.get('id')]
-    _sorted_hids = sorted(_all_hids, reverse=True)  # highest ID = earliest
-    _hand_order = {hid: idx for idx, hid in enumerate(_sorted_hids)}
+    # Build TIMESTAMP-based chronology for cross-hand temporal gating.
+    # (timestamp trust fix) GG hand IDs are NOT chronological — in the real 2026
+    # sample a later hand carried a lower TM id in ~47% of adjacent-by-time
+    # pairs and 29/44 tournaments were non-monotonic (per-table id blocks).
+    # Order strictly by parsed timestamp (hand_ts_date, hand_time); missing or
+    # same-second-tied timestamps safe-disable cross-hand grading rather than
+    # falling back to unsafe hand-id order. See build_hand_chronology /
+    # _ts_strictly_before. (Passed through the detectors as the `hand_order`
+    # kwarg position — the name is kept to avoid touching 10 signatures.)
+    _hand_chrono, _chrono_diag = build_hand_chronology(hands)
+    for _w in _chrono_diag.get('warnings', []):
+        print('  [villain-chrono] %s' % _w)
 
     all_exploits = []
     for h in hands:
         _hn = _resolve_hero(h, hero_name)
-        _ctx = (atoms_by_villain, read_states, _hand_order)
+        _ctx = (atoms_by_villain, read_states, _hand_chrono)
         all_exploits.extend(detect_bluffed_sticky(h, _hn, aliases, *_ctx))
         all_exploits.extend(detect_paid_off_passive_aggression(h, _hn, aliases, *_ctx))
         all_exploits.extend(detect_missed_steal_vs_nit_blinds(h, _hn, aliases, *_ctx))

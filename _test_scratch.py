@@ -128,6 +128,7 @@ def _make_atoms(villain_key, dimension, count, hand_ids=None):
 # Test 8: detect_bluffed_sticky stamps correctly
 _hand8 = {
     'id': 'H100', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '02:00:00',
     'hero_street_actions': {'river': 'bet'},
     'net_bb': -15.0, 'went_to_sd': False,
     'primary_villain_key': 'T1|V1',
@@ -135,10 +136,16 @@ _hand8 = {
     'villains': {'V1': {'position': 'BB'}},
     'action_ledger': [],
 }
-# 4 sticky atoms with earlier hand IDs (higher numbers = earlier in GG)
+# 4 sticky atoms from PRIOR hands (earlier TIMESTAMPS). Their TM-style ids
+# (H9999..) are HIGHER than the current hand id (H100) yet they are earlier in
+# time -- chronology is driven by timestamp, not hand id (timestamp trust fix).
 _atoms8 = {'T1|V1': _make_atoms('T1|V1', 'sticky', 4, ['H9999', 'H9998', 'H9997', 'H9996'])}
 _aliases8 = {'T1|V1': {'alias': 'TestV', 'v_number': 'V01', 'display': 'TestV'}}
-_ho8 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H100': 4}
+# hand_order is now a TIMESTAMP chronology map {hid: (date, time)}; prior
+# evidence hands carry earlier times than the current hand H100.
+_ho8 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+        'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+        'H100': ('2026-06-14', '02:00:00')}
 _result8 = detect_bluffed_sticky(_hand8, 'Hero', _aliases8, _atoms8,
                                   read_states=None, hand_order=_ho8)
 check('T8: bluffed_sticky fires',
@@ -158,6 +165,7 @@ if _result8:
 # Test 9: detect_overfolded_vs_aggro stamps correctly
 _hand9 = {
     'id': 'H200', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '02:10:00',
     'hero_street_actions': {'flop': 'fold'},
     'net_bb': -5.0,
     'primary_villain_key': 'T1|V2',
@@ -167,7 +175,9 @@ _hand9 = {
 }
 _atoms9 = {'T1|V2': _make_atoms('T1|V2', 'aggressive', 4, ['H9999', 'H9998', 'H9997', 'H9996'])}
 _aliases9 = {'T1|V2': {'alias': 'AggroV', 'v_number': 'V02', 'display': 'AggroV'}}
-_ho9 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H200': 4}
+_ho9 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+        'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+        'H200': ('2026-06-14', '02:10:00')}
 _result9 = detect_overfolded_vs_aggro(_hand9, 'Hero', _aliases9, _atoms9,
                                        read_states=None, hand_order=_ho9)
 check('T9: overfolded_vs_aggro fires',
@@ -184,6 +194,7 @@ if _result9:
 # Test 10: detect_pivot_overplayed uses same_hand_pivot
 _hand10 = {
     'id': 'H300', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '02:20:00',
     'hero_street_actions': {'turn': 'call', 'river': 'call'},
     'net_bb': -25.0,
     'primary_villain_key': 'T1|V3',
@@ -213,6 +224,7 @@ if _result10:
 # Test 11: detect_missed_steal_vs_nit_blinds stamps correctly
 _hand11 = {
     'id': 'H400', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '02:30:00',
     'position': 'BTN',
     'vpip': False, 'pfr': False,
     'cards': ['Kh', '9h'],  # stealable suited king
@@ -224,7 +236,9 @@ _hand11 = {
 }
 _atoms11 = {'T1|NitV': _make_atoms('T1|NitV', 'tight', 4, ['H9999', 'H9998', 'H9997', 'H9996'])}
 _aliases11 = {'T1|NitV': {'alias': 'NitGuy', 'v_number': 'V04', 'display': 'NitGuy'}}
-_ho11 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H400': 4}
+_ho11 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+         'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+         'H400': ('2026-06-14', '02:30:00')}
 _result11 = detect_missed_steal_vs_nit_blinds(_hand11, 'Hero', _aliases11, _atoms11,
                                                read_states=None, hand_order=_ho11)
 check('T11: missed_steal_vs_nit fires',
@@ -236,9 +250,13 @@ if _result11:
           f'got {_result11[0].get("exploit_read_label")}')
 
 # Test 12: _villain_has_read source propagation
-_hand12 = {'id': 'H500', 'tournament_id': 'T1', 'villain_archetype': '', 'villain_archetype_confidence': ''}
+_hand12 = {'id': 'H500', 'tournament_id': 'T1',
+           'hand_ts_date': '2026-06-14', 'hand_time': '02:40:00',
+           'villain_archetype': '', 'villain_archetype_confidence': ''}
 _atoms12 = {'T1|V5': _make_atoms('T1|V5', 'aggressive', 5, ['H9999', 'H9998', 'H9997', 'H9996', 'H9995'])}
-_ho12 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H9995': 4, 'H500': 5}
+_ho12 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+         'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+         'H9995': ('2026-06-14', '01:04:00'), 'H500': ('2026-06-14', '02:40:00')}
 _has, _src, _conf, _na = _villain_has_read(_hand12, 'T1|V5', 'aggressive', _atoms12,
                                        min_atoms=2, hand_order=_ho12)
 check('T12: prior atoms -> prior_atoms_mapped',
@@ -296,15 +314,19 @@ print('\n=== LAYER 3: Orchestrator & integration tests ===')
 
 # Test 15: detect_exploit_opportunities calls all 8 detectors, no crash
 # Build a multi-hand list with atoms that fire at least 2 detectors.
-# Include dummy "prior" hands so atom hand IDs appear in hand_order
-# (orchestrator builds hand_order from h.get('id') of the hands list;
-#  atoms referencing unknown hand IDs are filtered out by temporal gate).
+# Include dummy "prior" hands carrying EARLIER timestamps so their evidence
+# atoms are admitted by the timestamp temporal gate (orchestrator builds the
+# chronology from each hand's (hand_ts_date, hand_time); atoms whose hand is
+# not PROVABLY earlier by timestamp are safe-disabled). The prior hands have
+# HIGHER TM-style ids (H9999..) but EARLIER times than the current hands
+# (H100..H400) -- proving the gate uses timestamp, not hand id.
 _prior_hand_ids = ['H9999', 'H9998', 'H9997', 'H9996', 'H9995']
 _dummy_prior_hands = [
     {'id': hid, 'tournament_id': 'T1', 'hero': 'Hero',
+     'hand_ts_date': '2026-06-14', 'hand_time': '01:0%d:00' % _i,
      'hero_street_actions': {}, 'net_bb': 0, 'villains': {},
      'action_ledger': [], 'primary_villain_key': ''}
-    for hid in _prior_hand_ids
+    for _i, hid in enumerate(_prior_hand_ids)
 ]
 _hands15 = _dummy_prior_hands + [_hand8, _hand9, _hand10, _hand11]
 _atoms15 = {}
@@ -356,6 +378,200 @@ _t18_bad = [e for e in _result15
 check('T18: no fresh exploit uses legacy_text_inference',
       len(_t18_bad) == 0,
       f'{len(_t18_bad)} exploits used text fallback')
+
+
+# ============================================================
+# T-VTS: cross-hand TIMESTAMP chronology trust fix (Step 1)
+# Proves cross-hand villain evidence is ordered by parsed timestamp, NOT GG
+# hand id; missing/ambiguous timestamps SAFE-DISABLE cross-hand grading rather
+# than falling back to id order; future-hand evidence can never grade an
+# earlier Hero decision.
+# ============================================================
+print('\n=== T-VTS: cross-hand timestamp chronology trust fix ===')
+from gem_villain_intel import (
+    build_hand_chronology as _bhc, _ts_strictly_before as _tsb,
+    _ts_key_of as _tsk)
+
+def _vts_hand(hid, date, tm, tid='TVTS'):
+    return {'id': hid, 'tournament_id': tid,
+            'hand_ts_date': date, 'hand_time': tm,
+            'villain_archetype': '', 'villain_archetype_confidence': ''}
+
+def _vts_missing(hid, tid='TVTS'):
+    return {'id': hid, 'tournament_id': tid, 'hand_ts_date': '', 'hand_time': '',
+            'villain_archetype': '', 'villain_archetype_confidence': ''}
+
+_VTS_VK = 'TVTS|VA'
+
+# --- T-VTS-09: _ts_strictly_before truth table (foundation) ---
+check('T-VTS-09a: strictly-before True when a<b and both present',
+      _tsb(('2026-06-14', '01:00:00'), ('2026-06-14', '02:00:00')) is True, '')
+check('T-VTS-09b: same-second tie is NOT strictly-before (safe-disable)',
+      _tsb(('2026-06-14', '01:00:00'), ('2026-06-14', '01:00:00')) is False, '')
+check('T-VTS-09c: missing current key -> not before (disable)',
+      _tsb(('2026-06-14', '01:00:00'), None) is False, '')
+check('T-VTS-09d: missing atom key -> not before (disable)',
+      _tsb(None, ('2026-06-14', '02:00:00')) is False, '')
+check('T-VTS-09e: later atom (future) is NOT before current (no leak)',
+      _tsb(('2026-06-14', '03:00:00'), ('2026-06-14', '02:00:00')) is False, '')
+
+# --- T-VTS-10: _ts_key_of requires the per-hand stamp; no date/id fallback ---
+check('T-VTS-10a: present timestamp -> (date,time) key',
+      _tsk({'hand_ts_date': '2026-06-14', 'hand_time': '02:00:00'}) == ('2026-06-14', '02:00:00'), '')
+check('T-VTS-10b: missing hand_time -> None (no fallback)',
+      _tsk({'hand_ts_date': '2026-06-14', 'hand_time': ''}) is None, '')
+check('T-VTS-10c: missing hand_ts_date does NOT fall back to filename date',
+      _tsk({'hand_ts_date': '', 'hand_time': '02:00:00', 'date': '2026-06-14'}) is None, '')
+
+# --- T-VTS-01: higher GG TM id can be LATER; timestamp controls; no future leak ---
+# Current hand H10 @ 02:00. Evidence hands H9000.. (HIGHER ids) @ 03:00 = FUTURE.
+# Old id-order (reverse sort) treated the higher id as "earlier" and would have
+# admitted the future evidence (leak). Timestamp order correctly excludes it.
+_vts_cur = _vts_hand('H10', '2026-06-14', '02:00:00')
+_vts_atoms = {_VTS_VK: _make_atoms(_VTS_VK, 'aggressive', 5,
+              ['H9000', 'H9001', 'H9002', 'H9003', 'H9004'])}
+_vts_chrono_future, _ = _bhc([_vts_cur,
+    _vts_hand('H9000', '2026-06-14', '03:00:00'), _vts_hand('H9001', '2026-06-14', '03:01:00'),
+    _vts_hand('H9002', '2026-06-14', '03:02:00'), _vts_hand('H9003', '2026-06-14', '03:03:00'),
+    _vts_hand('H9004', '2026-06-14', '03:04:00')])
+_has_f, _src_f, _, _ = _villain_has_read(_vts_cur, _VTS_VK, 'aggressive',
+                       _vts_atoms, min_atoms=2, hand_order=_vts_chrono_future)
+check('T-VTS-01: future-hand evidence (higher TM id, LATER time) NOT admitted (no look-ahead leak)',
+      (not _has_f) and _src_f != 'prior_atoms_mapped', f'has={_has_f}, src={_src_f}')
+_vts_chrono_prior, _ = _bhc([_vts_cur,
+    _vts_hand('H9000', '2026-06-14', '01:00:00'), _vts_hand('H9001', '2026-06-14', '01:01:00'),
+    _vts_hand('H9002', '2026-06-14', '01:02:00'), _vts_hand('H9003', '2026-06-14', '01:03:00'),
+    _vts_hand('H9004', '2026-06-14', '01:04:00')])
+_has_p, _src_p, _, _ = _villain_has_read(_vts_cur, _VTS_VK, 'aggressive',
+                       _vts_atoms, min_atoms=2, hand_order=_vts_chrono_prior)
+check('T-VTS-01b: prior-hand evidence (higher TM id, EARLIER time) IS admitted (timestamp controls)',
+      _has_p and _src_p == 'prior_atoms_mapped', f'has={_has_p}, src={_src_p}')
+
+# --- T-VTS-02: real non-monotonic table-change case sorts by timestamp ---
+# Real 2026 inversion: current TM6073001823 @ 03:29:32; evidence TM6073231149
+# @ 03:27:14 (HIGHER id, EARLIER time). Timestamp treats the higher-id hand prior.
+_vts_cur2 = _vts_hand('TM6073001823', '2026-06-14', '03:29:32')
+_vts_atoms2 = {_VTS_VK: _make_atoms(_VTS_VK, 'aggressive', 5,
+               ['TM6073231149', 'TM6073231150', 'TM6073231151', 'TM6073231152', 'TM6073231153'])}
+_vts_chrono2, _ = _bhc([_vts_cur2,
+    _vts_hand('TM6073231149', '2026-06-14', '03:27:14'),
+    _vts_hand('TM6073231150', '2026-06-14', '03:27:20'),
+    _vts_hand('TM6073231151', '2026-06-14', '03:27:40'),
+    _vts_hand('TM6073231152', '2026-06-14', '03:28:00'),
+    _vts_hand('TM6073231153', '2026-06-14', '03:28:30')])
+_has2, _src2, _, _ = _villain_has_read(_vts_cur2, _VTS_VK, 'aggressive',
+                     _vts_atoms2, min_atoms=2, hand_order=_vts_chrono2)
+check('T-VTS-02: non-monotonic table-change (higher id, earlier time) admitted as prior by timestamp',
+      _has2 and _src2 == 'prior_atoms_mapped', f'has={_has2}, src={_src2}')
+check('T-VTS-02b: higher id string yet ordered earlier by timestamp',
+      ('TM6073231149' > 'TM6073001823')
+      and _tsb(_vts_chrono2['TM6073231149'], _vts_chrono2['TM6073001823']) is True, '')
+
+# --- T-VTS-03: missing timestamp does NOT fall back to hand-id order ---
+_vts_cur3 = _vts_hand('H10', '2026-06-14', '02:00:00')
+_vts_atoms3 = {_VTS_VK: _make_atoms(_VTS_VK, 'aggressive', 5,
+               ['H9000', 'H9001', 'H9002', 'H9003', 'H9004'])}
+_vts_chrono3, _diag3 = _bhc([_vts_cur3] + [_vts_missing(h) for h in
+                            ['H9000', 'H9001', 'H9002', 'H9003', 'H9004']])
+_has3, _src3, _, _ = _villain_has_read(_vts_cur3, _VTS_VK, 'aggressive',
+                     _vts_atoms3, min_atoms=2, hand_order=_vts_chrono3)
+check('T-VTS-03: missing-timestamp evidence is NOT admitted (no hand-id fallback)',
+      (not _has3) and _src3 != 'prior_atoms_mapped', f'has={_has3}, src={_src3}')
+check('T-VTS-03b: chronology flags the missing-timestamp tournament + warning',
+      _diag3['n_missing_ts'] == 5 and 'TVTS' in _diag3['tournaments_with_missing_ts']
+      and any('missing per-hand timestamp' in w for w in _diag3['warnings']), '')
+_vts_chrono3b, _ = _bhc([_vts_missing('H10')] + [
+    _vts_hand('H9000', '2026-06-14', '01:00:00'), _vts_hand('H9001', '2026-06-14', '01:01:00'),
+    _vts_hand('H9002', '2026-06-14', '01:02:00'), _vts_hand('H9003', '2026-06-14', '01:03:00'),
+    _vts_hand('H9004', '2026-06-14', '01:04:00')])
+_has3b, _, _, _ = _villain_has_read(_vts_missing('H10'), _VTS_VK, 'aggressive',
+                  _vts_atoms3, min_atoms=2, hand_order=_vts_chrono3b)
+check('T-VTS-03c: current hand with missing timestamp disables cross-hand grading',
+      not _has3b, f'has={_has3b}')
+
+# --- T-VTS-04: same-second tie is ambiguous -> disabled for that cluster;
+#               an unambiguous earlier hand still grades (strict <) ---
+_vts_cur4 = _vts_hand('HCUR', '2026-06-14', '05:00:00')
+_vts_chrono4, _diag4 = _bhc([_vts_cur4,
+    _vts_hand('HTIE1', '2026-06-14', '05:00:00'),   # tie with current
+    _vts_hand('HTIE2', '2026-06-14', '05:00:00'),   # tie with current/HTIE1
+    _vts_hand('HTIE3', '2026-06-14', '04:30:00'),
+    _vts_hand('HEARLY', '2026-06-14', '01:00:00')])
+check('T-VTS-04a: same-second-as-current evidence is NOT strictly before (excluded)',
+      _tsb(_vts_chrono4['HTIE1'], _vts_chrono4['HCUR']) is False
+      and _tsb(_vts_chrono4['HTIE2'], _vts_chrono4['HCUR']) is False, '')
+check('T-VTS-04b: a clearly-earlier hand IS still admitted (strict < works)',
+      _tsb(_vts_chrono4['HEARLY'], _vts_chrono4['HCUR']) is True, '')
+check('T-VTS-04c: chronology reports the same-second tie cluster + warning',
+      _diag4['n_same_second_tied'] >= 2
+      and 'TVTS' in _diag4['tournaments_with_same_second_ties']
+      and any('same-second' in w for w in _diag4['warnings']), '')
+
+# --- T-VTS-05: concatenated / scrambled-order HH does not create look-ahead ---
+# Hands supplied newest-first (like a raw GG file) + concatenation; ordering must
+# come from timestamps, and a later hand must not grade an earlier one.
+_vts_cur5 = _vts_hand('HA_EARLY', '2026-06-14', '02:00:00')
+_vts_atoms5 = {_VTS_VK: _make_atoms(_VTS_VK, 'aggressive', 5,
+               ['HB1', 'HB2', 'HB3', 'HB4', 'HB5'])}
+_vts_scrambled = [
+    _vts_hand('HB5', '2026-06-14', '04:05:00'), _vts_hand('HB4', '2026-06-14', '04:04:00'),
+    _vts_hand('HB3', '2026-06-14', '04:03:00'), _vts_hand('HB2', '2026-06-14', '04:02:00'),
+    _vts_hand('HB1', '2026-06-14', '04:01:00'), _vts_cur5]
+_vts_chrono5, _ = _bhc(_vts_scrambled)
+_has5, _src5, _, _ = _villain_has_read(_vts_cur5, _VTS_VK, 'aggressive',
+                     _vts_atoms5, min_atoms=2, hand_order=_vts_chrono5)
+check('T-VTS-05: later evidence in a scrambled/concatenated fixture does NOT grade an earlier hand',
+      (not _has5) and _src5 != 'prior_atoms_mapped', f'has={_has5}, src={_src5}')
+
+# --- T-VTS-06: within-hand no-hindsight guard is unaffected by the fix ---
+from gem_villain_teaching import _no_hindsight as _nh_vts
+check('T-VTS-06a: showdown-leaked same-hand cue still blocked (no_hindsight False)',
+      _nh_vts('same_hand_pivot', None, 5) is False, '')
+check('T-VTS-06b: prior/population read still actionable (no_hindsight True)',
+      _nh_vts('prior_atoms_mapped', None, None) is True, '')
+check('T-VTS-06c: same-hand cue gated on available-before-decision index',
+      _nh_vts('same_hand_pivot', 3, 5) is True and _nh_vts('same_hand_pivot', 6, 5) is False, '')
+
+# --- T-VTS-07: cross-hand grading enabled ONLY when chronology is proven safe ---
+_vts_cur7 = _vts_hand('HNOW', '2026-06-14', '06:00:00')
+_vts_atoms7 = {_VTS_VK: _make_atoms(_VTS_VK, 'aggressive', 5,
+               ['HE1', 'HE2', 'HE3', 'HE4', 'HE5'])}
+def _vts_read(evhands):
+    _ch, _ = _bhc([_vts_cur7] + evhands)
+    _h, _s, _, _ = _villain_has_read(_vts_cur7, _VTS_VK, 'aggressive',
+                                     _vts_atoms7, min_atoms=2, hand_order=_ch)
+    return _h and _s == 'prior_atoms_mapped'
+_vts_safe = [_vts_hand(h, '2026-06-14', '0%d:00:00' % (i + 1))
+             for i, h in enumerate(['HE1', 'HE2', 'HE3', 'HE4', 'HE5'])]   # 01:00..05:00 prior
+_vts_miss = [_vts_missing(h) for h in ['HE1', 'HE2', 'HE3', 'HE4', 'HE5']]
+_vts_tied = [_vts_hand(h, '2026-06-14', '06:00:00')
+             for h in ['HE1', 'HE2', 'HE3', 'HE4', 'HE5']]   # tie current second
+check('T-VTS-07a: proven-safe chronology -> cross-hand read ENABLED',
+      _vts_read(_vts_safe) is True, '')
+check('T-VTS-07b: missing chronology -> cross-hand read DISABLED',
+      _vts_read(_vts_miss) is False, '')
+check('T-VTS-07c: same-second-tied chronology -> cross-hand read DISABLED',
+      _vts_read(_vts_tied) is False, '')
+
+# --- T-VTS-08: build_hand_chronology diag on a mixed valid/missing/tied fixture ---
+_, _diag8 = _bhc([
+    _vts_hand('M1', '2026-06-14', '01:00:00'),
+    _vts_hand('M2', '2026-06-14', '01:01:00'),
+    _vts_hand('M3', '2026-06-14', '01:01:00'),   # tie with M2
+    _vts_missing('M4')])                          # missing
+check('T-VTS-08: diag counts valid/missing/tied correctly',
+      _diag8['n_hands'] == 4 and _diag8['n_valid'] == 3
+      and _diag8['n_missing_ts'] == 1 and _diag8['n_same_second_tied'] == 2
+      and len(_diag8['warnings']) == 2, str(_diag8))
+
+# --- T-VTS-11: the unsafe hand-id chronology is GONE from source ---
+_vts_src = open(os.path.join(os.path.dirname(__file__),
+                'gem_villain_intel.py'), encoding='utf-8').read()
+check('T-VTS-11: old id-order sort removed; timestamp chronology + strict gate present',
+      'sorted(_all_hids, reverse=True)' not in _vts_src
+      and 'build_hand_chronology' in _vts_src
+      and '_ts_strictly_before(' in _vts_src
+      and 'highest ID = earliest' not in _vts_src, '')
 
 # Test 19: Unknown excluded from Matrix — simulate grouping logic
 from collections import defaultdict as _ddict
@@ -598,6 +814,7 @@ from gem_villain_intel import (
 # Test 30: good_fold_vs_passive_aggro fires on valid fold
 _hand30 = {
     'id': 'H800', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '03:00:00',
     'hero_street_actions': {'flop': 'call', 'turn': 'fold'},
     'net_bb': -8.0,
     'primary_villain_key': 'T1|V30',
@@ -615,7 +832,9 @@ _hand30 = {
 _atoms30 = {'T1|V30': _make_atoms('T1|V30', 'loose_passive', 4,
                                    ['H9999', 'H9998', 'H9997', 'H9996'])}
 _aliases30 = {'T1|V30': {'alias': 'PassiveV', 'v_number': 'V30', 'display': 'PassiveV'}}
-_ho30 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H800': 4}
+_ho30 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+         'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+         'H800': ('2026-06-14', '03:00:00')}
 _result30 = detect_good_fold_vs_passive_aggro(_hand30, 'Hero', _aliases30, _atoms30,
                                                read_states=None, hand_order=_ho30)
 check('T30: good_fold_vs_passive_aggro fires',
@@ -636,7 +855,7 @@ if _result30:
 _hand31 = dict(_hand30)
 _hand31['id'] = 'H801'
 _hand31['cards'] = ['3h', '2d']  # total trash — not calling range
-_ho31 = dict(_ho30); _ho31['H801'] = 4
+_ho31 = dict(_ho30); _ho31['H801'] = ('2026-06-14', '03:01:00')
 _result31 = detect_good_fold_vs_passive_aggro(_hand31, 'Hero', _aliases30, _atoms30,
                                                read_states=None, hand_order=_ho31)
 check('T31: air fold excluded (no good exploit)',
@@ -646,6 +865,7 @@ check('T31: air fold excluded (no good exploit)',
 # Test 32: good_steal_vs_nit fires on valid steal
 _hand32 = {
     'id': 'H900', 'tournament_id': 'T1',
+    'hand_ts_date': '2026-06-14', 'hand_time': '03:10:00',
     'position': 'BTN',
     'vpip': True, 'pfr': True,
     'cards': ['Th', '8h'],  # marginal steal hand (T8s) — not premium
@@ -658,7 +878,9 @@ _hand32 = {
 _atoms32 = {'T1|NitV2': _make_atoms('T1|NitV2', 'tight', 5,
                                      ['H9999', 'H9998', 'H9997', 'H9996', 'H9995'])}
 _aliases32 = {'T1|NitV2': {'alias': 'NitGuy2', 'v_number': 'V32', 'display': 'NitGuy2'}}
-_ho32 = {'H9999': 0, 'H9998': 1, 'H9997': 2, 'H9996': 3, 'H9995': 4, 'H900': 5}
+_ho32 = {'H9999': ('2026-06-14', '01:00:00'), 'H9998': ('2026-06-14', '01:01:00'),
+         'H9997': ('2026-06-14', '01:02:00'), 'H9996': ('2026-06-14', '01:03:00'),
+         'H9995': ('2026-06-14', '01:04:00'), 'H900': ('2026-06-14', '03:10:00')}
 _result32 = detect_good_steal_vs_nit(_hand32, 'Hero', _aliases32, _atoms32,
                                       read_states=None, hand_order=_ho32)
 check('T32: good_steal_vs_nit fires',
@@ -676,7 +898,7 @@ if _result32:
 _hand33 = dict(_hand32)
 _hand33['id'] = 'H901'
 _hand33['cards'] = ['Ah', 'Kd']  # AKo is premium — standard open, not exploit
-_ho33 = dict(_ho32); _ho33['H901'] = 5
+_ho33 = dict(_ho32); _ho33['H901'] = ('2026-06-14', '03:11:00')
 _result33 = detect_good_steal_vs_nit(_hand33, 'Hero', _aliases32, _atoms32,
                                       read_states=None, hand_order=_ho33)
 check('T33: premium hand excluded from good_steal (AKo)',

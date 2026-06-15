@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.14.1-preview"   # v8.14.1 real-report QA hotfix (preview)
+VERSION = "v8.14.1"   # v8.14.1 final (real-report QA + range-evidence trust fix)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("916deb2faa2012dc468d1f7c0b2690e9847b958304a05ca3754f8d18d9293384", 79941, "v8.14.1-preview hotfix entry (+rev-2/3/4 +xway-fix)"),
+    "GEM_Changelog.txt": ("1f02fa59913404a4d990a7a50dac9fc8bcc6843f0592dd6be1b13754cb64f0c4", 80417, "v8.14.1-preview hotfix entry (+rev-2/3/4 +xway-fix)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("edba1f04fadf67dd08ff45195bcc890450da3938d5933b56b9b74323a6fe8985", 4169, "v8.14.1: 40 files, 352 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("b71a407b9a27f8f7fb91c4c13090dcf13b57faa2b9ce36cd0be99947cd915c86", 406542, "v8.14.1 xway-fix: +T-XWAY-01..06 (1083 tests)"),
+    "_test_scratch.py": ("53e6360cb5cd0a8b27e9a524cb9270ba7f1c56aeae2d7ae8f3e432523636b0cb", 406510, "v8.14.1 xway-fix: +T-XWAY-01..06 (1083 tests)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
@@ -54,7 +54,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("e31c440a02ffa7d18d2833265a03da4496a654315899188bf4e5042d06cde23f", 111373, "v8.14.1 xway-fix: multiway-donk uses live-at-bet count (_live_players_at)"),
     "gem_villain_teaching.py": ("9d3acc7704ce1b66eb20c4d21f6e8220400eb17104dd0189e9aaa75f405a9486", 25886, "v8.14.0 Slice D: teaching contract + Natural8 candidate tags + evidence aggregation"),
-    "gem_version.py": ("1840c5c1632dba78932476cb9c023e590269a4839b69db73aa76b4f37bcb59a4", 888, "v8.14.1 hotfix: runtime/release version single source of truth"),
+    "gem_version.py": ("b597b5b5e50253f9a5ec140e8fcb656a21d82a4a0a34596da6ccf1654a6ac7b0", 880, "v8.14.1 hotfix: runtime/release version single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -960,7 +960,7 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.14.1-preview'",
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.14.1'",
      "v8.14.1 #5: runtime/release version single source of truth"),
     ("gem_analyzer.py", "'report_format_version'",
      "v8.14.1 #5: manifest emits runtime version + report-format version"),

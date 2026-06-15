@@ -1,5 +1,12 @@
-v8.14.1-preview (2026-06-14) -- real-report QA hotfix
+v8.14.1 (2026-06-15) -- real-report QA + range-evidence trust release
 =========================================================================
+FINAL: dropped the -preview suffix (RUNTIME_VERSION / verify_release / bundle
+-> v8.14.1; draft.py report-format VERSION stays v8.12.0, canary-pinned). Ships
+the real-report QA hotfix (rev-1..4 + xway + consistency-fix) AND the range-
+evidence / review-state / analyst-data trust fix (GPT-passed REV2). No
+strategy-logic / threshold change. 1105 tests; verify 40/352/10; clean-extract
+PASS. Sections below are the development history under the -preview line.
+
 RANGE-EVIDENCE / REVIEW-STATE add-on (analyst-report trust blocker; version
 stays v8.14.1-preview; no strategy-logic / threshold change). Fixes the
 deeper-QA blockers found by decoding the lazy hand cards.

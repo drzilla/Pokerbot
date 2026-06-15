@@ -5096,10 +5096,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.14.1-preview and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.14.1-preview'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.1-preview'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.1-preview', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.14.1 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.14.1'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.1'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.1', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141

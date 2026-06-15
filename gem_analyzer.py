@@ -1756,11 +1756,43 @@ def _versioned_path(directory, prefix, date, ext, pname_file, tag=''):
         v += 1
 
 
-def _quick_validate_render(html_str):
+def _decode_lazy_cards(html_str):
+    """v8.14.3 Issue 4: decode PB_PAYLOADS['lazyHands'] -> {hand_key: card_html}
+    INLINE so the render validator can inspect the real user-visible hand detail
+    in ANY runtime (the QA-only _qa_decode_lazy helper is not in the shipped
+    bundle). Mirrors that decoder's format handling. Returns {} if absent or
+    undecodable."""
+    import re as _re_lz, json as _json_lz, base64 as _b64_lz, zlib as _zlib_lz
+    m = _re_lz.search(
+        r'PB_PAYLOADS\[(?:"|\')lazyHands(?:"|\')\]\s*=\s*(\{[^}]*\})', html_str)
+    if not m:
+        return {}
+    try:
+        obj = _json_lz.loads(m.group(1))
+        raw = _b64_lz.b64decode(obj.get('data', ''))
+        enc = obj.get('encoding', '')
+        if enc == 'deflate-raw+base64':
+            raw = _zlib_lz.decompress(raw, -15)
+        elif enc in ('deflate+base64', 'zlib+base64'):
+            raw = _zlib_lz.decompress(raw)
+        out = _json_lz.loads(raw.decode('utf-8'))
+        return out if isinstance(out, dict) else {}
+    except Exception:
+        return {}
+
+
+def _quick_validate_render(html_str, rd=None):
     """v8.12.10: lightweight post-render check for --quick (full validation
     lives in the main path). Catches the broken-anchor + missing-global
     classes that slipped through quick renders (e.g. #sec-7-4). Returns a
-    list of issue strings (empty = clean)."""
+    list of issue strings (empty = clean).
+
+    v8.14.3 Issue 4 (Ron 2026-06-15): when ``rd`` is supplied this is the real
+    pipeline trust gate — it DECODES the lazy hand payload (not just the static
+    shell) and asserts the v8.14.2 post-report defects cannot recur: financial
+    agreement across header / overlay / top-level, no visible "awaiting analyst"
+    in an ANALYST_COMPLETE report, and no analyst-critical hand left as a
+    budget_trimmed stub."""
     import re as _re_qv
     issues = []
     # internal #anchors that have no matching id=
@@ -1777,6 +1809,81 @@ def _quick_validate_render(html_str):
     # raw f-string leaks in visible text
     if _re_qv.search(r'>\s*\{[a-z_]+\}\s*<', html_str):
         issues.append('unresolved {placeholder} in visible text')
+
+    # ---- v8.14.3 Issue 4: pipeline trust checks (decode payload, not shell) ----
+    if isinstance(rd, dict):
+        _rc = rd.get('report_completeness') or {}
+        # (1) no visible "awaiting analyst" when the report claims COMPLETE
+        if _rc.get('state') == 'ANALYST_COMPLETE':
+            _n_await = html_str.lower().count('awaiting analyst')
+            if _n_await:
+                issues.append(f'{_n_await} visible "awaiting analyst" label(s) in an '
+                              f'ANALYST_COMPLETE report (Issue 2)')
+        # (2) financial agreement: top-level total_invested / avg_buyin must equal
+        #     the parsed overlay totals (single source of truth)
+        _ov = rd.get('usd_overlay') or {}
+        _ovt = _ov.get('totals') or {}
+        if _ov.get('status') == 'parsed' and _ovt.get('total_cost') and _ovt.get('n_bullets'):
+            _exp_inv = round(float(_ovt['total_cost']), 2)
+            _exp_abi = round(float(_ovt['total_cost']) / float(_ovt['n_bullets']), 2)
+            if abs(round(float(rd.get('total_invested') or 0), 2) - _exp_inv) > 0.01:
+                issues.append(f'financial mismatch: top-level total_invested '
+                              f'{rd.get("total_invested")} != overlay total_cost {_exp_inv} (Issue 1)')
+            if abs(round(float(rd.get('avg_buyin') or 0), 2) - _exp_abi) > 0.01:
+                issues.append(f'financial mismatch: top-level avg_buyin '
+                              f'{rd.get("avg_buyin")} != overlay cost/bullets {_exp_abi} (Issue 1)')
+        # (3) analyst-critical hands must NOT be budget_trimmed, and the DECODED
+        #     lazy payload must carry their full detail (not just a shell stub).
+        #     Critical = analyst verdict III.1/III.2 OR significant/critical loss.
+        _ac = rd.get('analyst_commentary') or {}
+        _crit_suf = set()                       # 8-digit suffixes of critical hands
+        for _hid, _cmt in _ac.items():
+            if str(_hid).startswith('__') or not isinstance(_cmt, dict):
+                continue
+            _vd = str(_cmt.get('verdict', '') or '')
+            if _vd.startswith('III.1') or _vd.startswith('III.2'):
+                _crit_suf.add(str(_hid)[-8:])
+        for _src in ('_significant_loss_ids', '_critical_need_ids'):
+            for _x in (rd.get(_src) or []):
+                _crit_suf.add(str(_x)[-8:])
+        _crit_suf = {s for s in _crit_suf if s and s.isdigit()}
+        if _crit_suf:
+            # (3a) static shell: any budget_trimmed card whose id is a critical hand
+            _trim_ids = {m[-8:] for m in _re_qv.findall(
+                r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
+                html_str)}
+            _bad_trim = sorted(_crit_suf & _trim_ids)
+            if _bad_trim:
+                issues.append(f'{len(_bad_trim)} analyst-critical hand(s) rendered '
+                              f'budget_trimmed: {_bad_trim[:8]} (Issue 3)')
+            # (3b) DECODE the lazy payload — critical hands present there must not
+            #      be a trimmed stub (defence-in-depth beyond the shell markers).
+            _cards = _decode_lazy_cards(html_str)
+            if _cards:
+                _stub = 'trimmed for report size'
+                _by_suf = {}
+                for _k, _v in _cards.items():
+                    if isinstance(_v, str):
+                        _by_suf.setdefault(str(_k)[-8:], _v)
+                _bad_stub = sorted(s for s in _crit_suf
+                                   if s in _by_suf and _stub in _by_suf[s])
+                if _bad_stub:
+                    issues.append(f'{len(_bad_stub)} analyst-critical hand(s) are stub-only '
+                                  f'in the decoded lazy payload: {_bad_stub[:8]} (Issue 3)')
+        # (4) no full+trimmed DUPLICATE: a hand must not appear both as a
+        #     budget_trimmed shell stub AND a full lazy card (Issue 3 dedup).
+        _trim_all = {m[-8:] for m in _re_qv.findall(
+            r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
+            html_str)}
+        if _trim_all:
+            _cards2 = _decode_lazy_cards(html_str)
+            _stub2 = 'trimmed for report size'
+            _full_suf = {str(_k)[-8:] for _k, _v in _cards2.items()
+                         if isinstance(_v, str) and _stub2 not in _v}
+            _dup = sorted(_trim_all & _full_suf)
+            if _dup:
+                issues.append(f'{len(_dup)} hand(s) rendered BOTH a budget_trimmed '
+                              f'stub and a full lazy card: {_dup[:8]} (Issue 3)')
     return issues
 
 
@@ -8539,14 +8646,14 @@ if __name__ == '__main__':
         # through. Run a lightweight render check by default unless the
         # operator opts out with --no-validate-render.
         if not globals().get('_NO_VALIDATE_RENDER'):
-            _qv = _quick_validate_render(html_str)
+            _qv = _quick_validate_render(html_str, report_data)
             if _qv:
                 print(f"\n  ⚠️  Quick render validation: {len(_qv)} issue(s)")
                 for _qi in _qv[:12]:
                     print(f"     - {_qi}")
             else:
                 print("\n  ✅ Quick render validation passed "
-                      "(anchors + required globals).")
+                      "(anchors + globals + financial/analyst trust).")
         # v8.14.1 consistency-fix (Blocker 1): a quick analyst re-render must
         # refresh the run manifest + run log so they AGREE with the report it just
         # produced. Previously they were left as the prior full AUTO_ONLY pass, so
@@ -8889,7 +8996,7 @@ if __name__ == '__main__':
         print(f"  MD:   {md_path}")
         _print_completeness(_rc_rsm, where='resume')
         if not globals().get('_NO_VALIDATE_RENDER'):
-            _qv_r = _quick_validate_render(html_str)
+            _qv_r = _quick_validate_render(html_str, report_data)
             if _qv_r:
                 print(f"\n  ⚠️  Render validation: {len(_qv_r)} issue(s)")
                 for _qi in _qv_r[:12]:
@@ -10416,10 +10523,18 @@ if __name__ == '__main__':
             _val_issues.append(f"❌ {_n_escaped} escaped hand-list-trigger tags (should be 0)")
         else:
             print(f"  ✅ Hand-list triggers: {_n_live} live, 0 escaped")
-        # Check 2: AWAITING ANALYST leak
+        # Check 2: AWAITING ANALYST leak (v8.14.3 Issue 2 — state-aware). A
+        # visible "awaiting analyst" label is a HARD error only when the report
+        # claims ANALYST_COMPLETE; in AUTO_ONLY/ANALYST_PARTIAL it is expected
+        # and informational (flagging it there was a false positive).
         _n_await = _html_content.lower().count('awaiting analyst')
-        if _n_await > 0:
-            _val_issues.append(f"❌ {_n_await} 'AWAITING ANALYST' occurrences in report")
+        _state_full = (_rc_full or {}).get('state')
+        if _n_await > 0 and _state_full == 'ANALYST_COMPLETE':
+            _val_issues.append(f"❌ {_n_await} 'AWAITING ANALYST' occurrences in an "
+                               f"ANALYST_COMPLETE report (Issue 2)")
+        elif _n_await > 0:
+            print(f"  ℹ️  {_n_await} 'awaiting analyst' label(s) "
+                  f"(expected for {_state_full or 'non-complete'})")
         else:
             print(f"  ✅ No 'AWAITING ANALYST' leaks")
         # Check 3: player name leak (non-Ron)
@@ -10501,6 +10616,73 @@ if __name__ == '__main__':
         else:
             print(f"  ✅ All {len(_hand_ref_targets)} hand-ref links resolve "
                   f"to appendix entries ({len(_app_anchors)} total)")
+        # Check 9 (v8.14.3 Issue 1): financial one-source-of-truth — the
+        # top-level cost/ABI must equal the parsed USD overlay totals.
+        _ov_v = report_data.get('usd_overlay') or {}
+        _ovt_v = _ov_v.get('totals') or {}
+        if _ov_v.get('status') == 'parsed' and _ovt_v.get('total_cost') and _ovt_v.get('n_bullets'):
+            _exp_inv_v = round(float(_ovt_v['total_cost']), 2)
+            _exp_abi_v = round(float(_ovt_v['total_cost']) / float(_ovt_v['n_bullets']), 2)
+            if abs(round(float(report_data.get('total_invested') or 0), 2) - _exp_inv_v) > 0.01:
+                _val_issues.append(f"❌ financial: top-level total_invested "
+                                   f"{report_data.get('total_invested')} != overlay "
+                                   f"total_cost {_exp_inv_v} (Issue 1)")
+            elif abs(round(float(report_data.get('avg_buyin') or 0), 2) - _exp_abi_v) > 0.01:
+                _val_issues.append(f"❌ financial: top-level avg_buyin "
+                                   f"{report_data.get('avg_buyin')} != overlay "
+                                   f"cost/bullets {_exp_abi_v} (Issue 1)")
+            else:
+                print(f"  ✅ Financial one-source-of-truth: cost=${_exp_inv_v} "
+                      f"ABI=${_exp_abi_v} (overlay = top-level)")
+        # Check 10 (v8.14.3 Issue 3): analyst-critical hands (III.1/III.2 or
+        # significant/critical loss) must not be budget_trimmed, and the
+        # decoded lazy payload must carry their full detail.
+        _ac_v = report_data.get('analyst_commentary') or {}
+        _crit_v = set()
+        for _hid_v, _cmt_v in _ac_v.items():
+            if str(_hid_v).startswith('__') or not isinstance(_cmt_v, dict):
+                continue
+            _vd_v = str(_cmt_v.get('verdict', '') or '')
+            if _vd_v.startswith('III.1') or _vd_v.startswith('III.2'):
+                _crit_v.add(str(_hid_v)[-8:])
+        for _src_v in ('_significant_loss_ids', '_critical_need_ids'):
+            for _x_v in (report_data.get(_src_v) or []):
+                _crit_v.add(str(_x_v)[-8:])
+        _crit_v = {s for s in _crit_v if s and s.isdigit()}
+        if _crit_v:
+            _trim_v = {m[-8:] for m in _re_val.findall(
+                r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
+                _html_content)}
+            _bad_trim_v = sorted(_crit_v & _trim_v)
+            if _bad_trim_v:
+                _val_issues.append(f"❌ {len(_bad_trim_v)} analyst-critical hand(s) "
+                                   f"rendered budget_trimmed: {_bad_trim_v[:8]} (Issue 3)")
+            # decoded payload: critical hand must not be a stub
+            _stub_v = 'trimmed for report size'
+            _stub_hits = set()
+            for _cm_v in _re_val.finditer(
+                    r"data-hand-id=['\"]([\w-]+)['\"][^>]*>(?:(?!</article>).)*?"
+                    + _re_val.escape(_stub_v), _lazy_html_v, _re_val.DOTALL):
+                _stub_hits.add(_cm_v.group(1)[-8:])
+            _bad_stub_v = sorted(_crit_v & _stub_hits)
+            if _bad_stub_v:
+                _val_issues.append(f"❌ {len(_bad_stub_v)} analyst-critical hand(s) "
+                                   f"stub-only in decoded payload: {_bad_stub_v[:8]} (Issue 3)")
+            if not _bad_trim_v and not _bad_stub_v:
+                print(f"  ✅ {len(_crit_v)} analyst-critical hand(s) carry full "
+                      f"detail (none budget_trimmed)")
+        # Check 11 (v8.14.3 Issue 3): no full+trimmed DUPLICATE — a hand must
+        # not appear both as a budget_trimmed shell stub and a full lazy card.
+        _trim_all_v = {m[-8:] for m in _re_val.findall(
+            r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
+            _html_content)}
+        if _trim_all_v and _lazy_html_v:
+            _full_suf_v = {m[-8:] for m in _re_val.findall(
+                r"data-hand-id=['\"]([\w-]+)['\"]", _lazy_html_v)}
+            _dup_v = sorted(_trim_all_v & _full_suf_v)
+            if _dup_v:
+                _val_issues.append(f"❌ {len(_dup_v)} hand(s) rendered BOTH a "
+                                   f"budget_trimmed stub and a full card: {_dup_v[:8]} (Issue 3)")
     except Exception as _val_e:
         print(f"  ⚠️  Validation skipped: {_val_e}")
 

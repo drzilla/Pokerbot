@@ -260,6 +260,32 @@ class Doc:
             body_lines.append(line)
         body_md = "\n".join(body_lines)
         body_html = _md_to_html(body_md)
+        # v8.14.3 Issue 5 (Ron 2026-06-15): neutralize dangling internal anchors.
+        # Some xrefs (e.g. the S12 leak table's '#sec-7-4') point at sections that
+        # render only in full mode; in --quick they had no target and the post-
+        # render validator reported a broken anchor. Collect every emitted id= and
+        # downgrade any internal href="#X" whose target was not emitted to inert
+        # text (keeps the visible label, drops the dead link). Lazy hand anchors
+        # (sec-app-hand-*) are injected on demand via the payload, so they are
+        # NEVER neutralized. The regex matches only internal href="#..." (external
+        # links untouched); the JS wrapper is added afterwards so its string
+        # templates are out of scope.
+        try:
+            import re as _re_anchor
+            _emitted_ids = set(_re_anchor.findall(r'id="([^"]+)"', body_html))
+
+            def _strip_dead_anchor(_m):
+                _tgt = _m.group('tgt')
+                if _tgt in _emitted_ids or _tgt.startswith('sec-app-hand-'):
+                    return _m.group(0)
+                return (f'<span class="dead-xref" '
+                        f'data-dead-anchor="#{_tgt}">{_m.group("lbl")}</span>')
+
+            body_html = _re_anchor.sub(
+                r'<a\b[^>]*\bhref="#(?P<tgt>[^"]+)"[^>]*>(?P<lbl>.*?)</a>',
+                _strip_dead_anchor, body_html)
+        except Exception:
+            pass
         _final_html = _html_wrap(body_html,
                           topbar_kpis=self._topbar_kpis,
                           nav_sections=self._nav_sections,
@@ -4863,9 +4889,16 @@ def _topbar_html(kpis, nav_sections=None):
     # 1. Hands (neutral)
     _card('Hands', f"{kpis.get('n_hands', 0):,}", 'sec-18',
           tip='Total hands in sample')
-    # 2. Tourneys (neutral)
-    _card('Tourneys', kpis.get('n_tourneys', 0), 'sec-1-1',
-          tip='Tournaments played')
+    # 2. Tourneys (neutral) — v8.14.3 Issue 1: canonical (settled) count, with an
+    # explicit "+N in progress" annotation for unresolved HH-only events (e.g. a
+    # 2-day event with no game summary yet), so header and by-day agree on the
+    # settled count and the 44-vs-43 gap is never shown unexplained.
+    _nt_val = kpis.get('n_tourneys', 0)
+    _nt_note = kpis.get('n_tourneys_note') or ''
+    _nt_disp = f"{_nt_val} +{_nt_note}" if _nt_note else f"{_nt_val}"
+    _card('Tourneys', _nt_disp, 'sec-1-1',
+          tip=(f'{_nt_val} settled + {_nt_note} (HH-only, no summary yet)'
+               if _nt_note else 'Tournaments played'))
     # 3. Bullets (neutral)
     _card('Bullets', kpis.get('bullets', 0), 'sec-1-1',
           tip='Total entries including re-entries')

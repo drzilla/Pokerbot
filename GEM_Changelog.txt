@@ -1,3 +1,55 @@
+v8.14.3 (2026-06-15) -- post-report QA hotfix (financial SoT, analyst-critical
+                        trim guard, awaiting/COMPLETE truth, validator hardening)
+================================================================================
+A post-report QA audit of the first real v8.14.2 report (GPT-accepted
+V8142_POST_REPORT_QA_CODE_ISSUES_AUDIT) found five code/validation defects. All
+fixed at the source; surgical, no strategy-logic or threshold change, no analyst
+verdict rewritten in code. RUNTIME_VERSION / bundle / verifier -> v8.14.3 (draft.py
+report-format VERSION stays v8.12.0, canary-pinned). Tests 1131; verify 40/367/10;
+clean-extract PASS.
+
+Issue 1 -- Financial one source of truth. When the USD game-summary overlay parses
+(usd_overlay.status == 'parsed'), its totals are now canonical for every financial
+surface. gem_report_data stamps top-level total_invested / avg_buyin from the
+overlay (total_cost / n_bullets) and records rd['_financial_source'] = 'usd_overlay'
+(else 'filename', byte-identical fallback for sessions with no overlay). The header
+KPI strip (draft.py) reads the same canonical cost / bullets / net / ROI / tourney
+count; the by-day table already recomputed from the overlay and now also labels the
+cash basis ("$Cash = settled cash + satellite ticket value ... cash + ticket basis,
+not cash-only", driven by a new totals.total_ticket_value). The Tourneys KPI card
+annotates settled vs in-progress events ("N settled + M in progress (HH-only, no
+summary yet)") so the 44-vs-43 count is explicit, not a silent mismatch.
+
+Issue 2 -- ANALYST_COMPLETE must not show "awaiting analyst". The large-loss audit
+verdict (_neutral_unreviewed_large_loss_verdict) now takes complete=; when the
+report is ANALYST_COMPLETE an ungraded large loss reads "not individually graded --
+outside required review set" (non-blocking, transparent) instead of the
+contradictory "awaiting analyst". This is truth-preserving: the critical-coverage
+gate already forces ANALYST_PARTIAL while any CRITICAL loss is unreviewed, so when
+complete=True these are non-critical losses shown for transparency, never hidden.
+
+Issue 3 -- Analyst-confirmed / critical hands are never budget_trimmed. The HA3
+byte-budget planner (draft.py) now registers every analyst-commentary hand as P0
+(III.1/III.2 mistakes + significant/critical losses) or P1 (other graded hands)
+BEFORE the P2-default trim loop, and rescues any analyst-full hand that the trimmer
+still picked (_rescued = _trimmed_ids & _analyst_full_ids), so a graded hand can
+never collapse to a "Full hand detail trimmed" stub and there is no full+trimmed
+duplicate.
+
+Issue 4 -- Real pipeline validation (decodes the lazy payload). _quick_validate_render
+now takes rd and the post-render validator + the main full-render check both assert,
+beyond the static shell: (a) no visible "awaiting analyst" when ANALYST_COMPLETE,
+(b) header / overlay / top-level financials agree, (c) no analyst-critical hand is
+budget_trimmed AND its full detail is present in the DECODED lazyHands payload (via
+_qa_decode_lazy.decode_lazy_hands, not just shell markers), (d) no hand renders both
+a trimmed stub and a full card, (e) no broken internal anchors.
+
+Issue 5 -- Dangling internal cross-references. After markdown->HTML, _html.py
+collects the set of emitted id="" anchors and rewrites any internal href="#..." that
+resolves to neither an emitted id nor a runtime sec-app-hand- anchor into an inert
+<span class="dead-xref"> (e.g. the conditional #sec-7-4 in quick renders). External
+links and JS-built anchors are untouched.
+
 v8.14.2 (2026-06-15) -- post-v8.14.1 range-trust QA hotfixes (REV3-REV6)
 =========================================================================
 Decoded-lazy QA of the first real v8.14.1 report (Knockman 2026-06-13) surfaced a

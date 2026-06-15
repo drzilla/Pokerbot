@@ -196,6 +196,16 @@ def _emit_daily_summary_table(doc, rd):
           "export; it can be the next calendar day when play runs past midnight, "
           "so it may differ from the per-tournament play dates and the report date.*")
     doc.w("")
+    # v8.14.3 Issue 1 (Ron 2026-06-15): cash basis disclosure. $Cash = settled
+    # cash + satellite ticket value (cash + ticket); Net/ROI use that basis. State
+    # it visibly so the cash+ticket total is never read as a cash-only figure.
+    _ov_tot_fin = (rd.get('usd_overlay') or {}).get('totals') or {}
+    _tick_fin = _ov_tot_fin.get('total_ticket_value') or 0
+    if _tick_fin and _tick_fin > 0:
+        doc.w(f"*$Cash = settled cash **+ satellite ticket value** (cash + ticket; "
+              f"includes {_fmt_usd(_tick_fin)} in tickets). Net/ROI use this "
+              f"cash+ticket basis, not cash-only.*")
+        doc.w("")
 
     # Skill picture in a second small table
     skill_lines = []
@@ -2158,26 +2168,38 @@ def _emit_deep_runs(doc, s, hands):
         doc.w("")
 
 
-def _neutral_unreviewed_large_loss_verdict(voc, auto_cooler=False, auto_label=None):
+def _neutral_unreviewed_large_loss_verdict(voc, auto_cooler=False, auto_label=None,
+                                           complete=False):
     """v8.12.12 Obj-B: a large-loss hand with NO analyst verdict must not read
     as an exculpatory decision verdict (cooler / vs top-of-range / variance).
     Lead with the review STATUS and attach the auto-detector signal or the
     showdown result context SEPARATELY, so an unreviewed punt is never shown as
     justified / cooler / variance. (Reverses BUG-7's variance-as-default for
-    unreviewed rows; analyst-confirmed verdicts are handled before this.)"""
+    unreviewed rows; analyst-confirmed verdicts are handled before this.)
+
+    v8.14.3 Issue 2 (Ron 2026-06-15): when the report is ANALYST_COMPLETE a
+    large loss that is OUTSIDE the required analyst need-set must NOT read as
+    '⏳ awaiting analyst' — that contradicts the COMPLETE state. Lead instead
+    with an explicit, NON-BLOCKING 'not individually graded' status. This is safe
+    because the critical-coverage gate already forces ANALYST_PARTIAL while any
+    CRITICAL loss is unreviewed, so when complete=True these are non-critical
+    losses shown for transparency, not hidden. Still never imply justified /
+    cooler / variance for an ungraded hand."""
     _ctx = {
         'top_of_range': 'ran into top of range',
         'suckout': 'lost as favourite (suckout)',
         'lost_flip': 'lost a flip',
         'semi_bluff_cooler': 'all-in variance',
     }
+    _lead = ('➖ not individually graded — outside required review set'
+             if complete else '⏳ awaiting analyst')
     if voc and voc in _ctx:
-        return '⏳ awaiting analyst — showdown: ' + _ctx[voc]
+        return _lead + ' — showdown: ' + _ctx[voc]
     if auto_cooler:
-        return '⏳ awaiting analyst — auto signal: cooler-shape'
+        return _lead + ' — auto signal: cooler-shape'
     if auto_label:
-        return '⏳ awaiting analyst — auto signal: ' + str(auto_label)
-    return '⏳ awaiting analyst review'
+        return _lead + ' — auto signal: ' + str(auto_label)
+    return _lead + ('' if complete else ' review')
 
 
 def _emit_sub_large_loss_audit(doc, s, rd, hands):
@@ -2313,9 +2335,14 @@ def _emit_sub_large_loss_audit(doc, s, rd, hands):
                 _auto_cooler = hid in cooler_ids          # auto-only (i7 handled above)
                 _auto_label = ((rd.get('auto_resolved_labels') or {}).get(hid)
                                if hid in (rd.get('auto_resolved_ids') or []) else None)
+                _rc_complete = ((rd.get('report_completeness', {}) or {}).get('state')
+                                == 'ANALYST_COMPLETE')
                 verdict = _neutral_unreviewed_large_loss_verdict(
-                    _voc, _auto_cooler, _auto_label)
-                any_awaiting = True
+                    _voc, _auto_cooler, _auto_label, complete=_rc_complete)
+                # v8.14.3 Issue 2: only flag the ⏳ footnote when an actual
+                # "awaiting" label was emitted (i.e. report is NOT complete).
+                if not _rc_complete:
+                    any_awaiting = True
 
             cards = _cards_str_to_pills(''.join(h.get('cards', [])))
             netbb = h.get('net_bb', 0)

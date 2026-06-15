@@ -834,6 +834,9 @@ def _parse_game_summaries_usd(hh_dir, hands):
     n_b = sum(t['bullets'] for t in tournaments_parsed)
     tot_cost = sum(t['cost'] for t in tournaments_parsed)
     tot_cash = sum(t['cash_total'] for t in tournaments_parsed)
+    # v8.14.3 Issue 1: expose the ticket portion of total_cash so the report can
+    # visibly label the cash basis as cash + satellite ticket value.
+    tot_ticket = sum(t.get('ticket_value', 0) for t in tournaments_parsed)
     tot_net = tot_cash - tot_cost
     roi = (tot_net / tot_cost * 100) if tot_cost > 0 else 0
     big_loss = min((t['net'] for t in tournaments_parsed), default=0)
@@ -844,6 +847,7 @@ def _parse_game_summaries_usd(hh_dir, hands):
     totals = {
         'n_tournaments': n_t, 'n_bullets': n_b,
         'total_cost': round(tot_cost, 2), 'total_cash': round(tot_cash, 2),
+        'total_ticket_value': round(tot_ticket, 2),   # v8.14.3 Issue 1: ticket portion of cash
         'total_net': round(tot_net, 2), 'roi_pct': round(roi, 1),
         'biggest_loss_usd': big_loss, 'biggest_win_usd': big_win,
         'biggest_loss_tournament': (big_loss_t['name'] if big_loss_t else ''),
@@ -1576,6 +1580,21 @@ def generate_report_data(stats, hands, hh_dir, session_history_path=None,
     # weighted, buyin-weighted) — same session can look near-neutral by BB/100
     # but be brutally negative by USD if high-buyin bustouts dominated cost.
     rd['usd_overlay'] = _parse_game_summaries_usd(hh_dir, hands)
+
+    # v8.14.3 Issue 1 (Ron 2026-06-15): single financial source of truth. When a
+    # USD overlay parsed successfully, its game-summary totals are CANONICAL — so
+    # the top-level total_invested / avg_buyin must NOT keep contradicting them
+    # (shipped: top-level 3930.97/59.56 vs overlay 3946.97/60.72). Re-point the
+    # top-level fields to the overlay (cost, cost/bullets). The filename system
+    # above stays the fallback and is left byte-identical when no overlay parses.
+    _ov = rd.get('usd_overlay') or {}
+    _ovt = _ov.get('totals') or {}
+    if _ov.get('status') == 'parsed' and _ovt.get('total_cost') and _ovt.get('n_bullets'):
+        rd['total_invested'] = _ovt['total_cost']
+        rd['avg_buyin'] = round(_ovt['total_cost'] / _ovt['n_bullets'], 2)
+        rd['_financial_source'] = 'usd_overlay'   # provenance for QA / lint
+    else:
+        rd['_financial_source'] = 'filename'
 
     # ----------------------------------------------------------
     # 2. DATES

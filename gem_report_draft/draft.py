@@ -300,6 +300,31 @@ def _build(stats, report_data, hands, sections=None):
             # v8.8.6 Phase HA3: priority-based budget planner
             # Assign P2 default to any late-harvest IDs without explicit priority
             _prios = _state._APPENDIX_HAND_PRIORITIES
+            # v8.14.3 Issue 3 (Ron 2026-06-15): analyst-judged hands MUST survive
+            # the byte budget. Previously only exploit/issue-explorer hands were P0,
+            # so a hand the analyst graded a MISTAKE could render 'budget_trimmed'
+            # (e.g. TM6078122219, III.2). Promote every hand carrying an analyst
+            # verdict: P0 for actual mistakes (III.1/III.2) and any significant-loss
+            # / critical-need hand; P1 for other graded verdicts (III.3/III.4/III.5/
+            # I.7). Significant-loss + critical-need hands are P0 even without a
+            # verdict. Normalize to the 8-digit IDs the budget uses. _ANALYST_FULL_IDS
+            # also drives the trimmed-duplicate suppression below.
+            _ac_fix = (rd.get('analyst_commentary') or {})
+            _p0_loss_fix = (set(rd.get('_significant_loss_ids', []) or [])
+                            | set(rd.get('_critical_need_ids', []) or []))
+            _analyst_full_ids = set()
+            for _ac_hid, _ac_cmt in _ac_fix.items():
+                if str(_ac_hid).startswith('__') or not isinstance(_ac_cmt, dict):
+                    continue
+                _vd = str(_ac_cmt.get('verdict', '') or '')
+                _is_mistake = _vd.startswith('III.1') or _vd.startswith('III.2')
+                _pri_target = 0 if (_is_mistake or _ac_hid in _p0_loss_fix) else 1
+                for _cand in {_ac_hid, _ac_hid[-8:]}:
+                    _state._register_hand_priority(_cand, _pri_target)
+                    _analyst_full_ids.add(_cand)
+            for _sl_hid in _p0_loss_fix:
+                for _cand in {_sl_hid, _sl_hid[-8:]}:
+                    _state._register_hand_priority(_cand, 0)
             for _hid in rd.get('appendix_hand_ids_all', []):
                 if _hid not in _prios:
                     _prios[_hid] = 2  # P2 default for unclassified
@@ -322,6 +347,13 @@ def _build(stats, report_data, hands, sections=None):
                     _budget_ids.append(_hid)
                 else:
                     _trimmed_ids.add(_hid)
+            # v8.14.3 Issue 3: a hand with a full XIV.A analyst entry must never
+            # ALSO render a trimmed stub. Rescue any analyst-full id that slipped
+            # into the trim set so the body never shows a full entry + a dup stub.
+            _rescued = _trimmed_ids & _analyst_full_ids
+            if _rescued:
+                _budget_ids.extend(sorted(_rescued))
+                _trimmed_ids -= _rescued
             if _trimmed_ids:
                 rd['appendix_hand_ids_all'] = _budget_ids
                 _state._APPENDIX_HAND_IDS -= _trimmed_ids
@@ -442,27 +474,48 @@ def _build(stats, report_data, hands, sections=None):
     _usd_ov = rd.get('usd_overlay', {}) or {}
     _hh_int = _usd_ov.get('hh_intersect_totals') or _usd_ov.get('totals') or {}
     _punts = s.get('punts', {})
-    # BUG CP18-FIN-1: when overlay total_cost exceeds filename total, use
-    # overlay for Invested/Net/ROI so the strip uses one consistent denominator.
+    # v8.14.3 Issue 1 (Ron 2026-06-15): SINGLE financial contract. When the USD
+    # overlay is parsed, usd_overlay.totals is CANONICAL for cost/cash/net/ROI/
+    # bullets/tournament-count, and ABI is derived from the SAME cost/bullets the
+    # by-day TOTAL row uses (no per-field source mixing, no max() denominator).
+    # The filename system is the fallback ONLY when no parsed overlay exists, kept
+    # byte-identical so no-overlay sessions do not drift.
+    _ov_tot = _usd_ov.get('totals') or {}
+    _ov_parsed = (_usd_ov.get('status') == 'parsed') and bool(_ov_tot)
     _filename_inv = rd.get('total_invested') or 0
-    _overlay_inv = (_usd_ov.get('totals') or {}).get('total_cost') or 0
-    _canon_inv = max(_filename_inv, _overlay_inv)
-    _canon_net = _hh_int.get('total_net')
-    _canon_roi = (_canon_net / _canon_inv * 100) if _canon_inv and _canon_net is not None else _hh_int.get('roi_pct')
+    if _ov_parsed:
+        _canon_inv = _ov_tot.get('total_cost') or _filename_inv
+        _canon_bullets = _ov_tot.get('n_bullets') or vol.get('bullets', 0)
+        _canon_net = _ov_tot.get('total_net')
+        _canon_roi = _ov_tot.get('roi_pct')
+        _canon_tourneys = _ov_tot.get('n_tournaments') or 0
+        _canon_abi = (_canon_inv / _canon_bullets) if _canon_bullets else rd.get('avg_buyin')
+    else:
+        _canon_inv = _filename_inv
+        _canon_bullets = (_ov_tot.get('n_bullets') or vol.get('bullets', 0))
+        _canon_net = _hh_int.get('total_net')
+        _canon_roi = (_canon_net / _canon_inv * 100) if _canon_inv and _canon_net is not None else _hh_int.get('roi_pct')
+        _canon_tourneys = (vol.get('tournaments', 0)
+                           or len(s.get('tournament_list', []))
+                           or (_usd_ov.get('totals') or {}).get('n_tournaments', 0)
+                           or len(s.get('_per_tourney_pnl', {})))
+        _canon_abi = rd.get('avg_buyin')   # filename system unchanged when no overlay
+    # 44-vs-43: the HH-count includes an unresolved 2-day event with no game
+    # summary; the canonical (settled) count is the overlay's n_tournaments.
+    # Annotate the gap so the same count shows everywhere with an explanation.
+    _unresolved_hh = _usd_ov.get('unresolved_hh_tournaments') or []
+    _nt_note = (f"{len(_unresolved_hh)} in progress"
+                if (_ov_parsed and _unresolved_hh) else '')
     doc._topbar_kpis = {
         'player': rd.get('player_name', 'Knockman'),
         'date': vol.get('date', ''),
         'n_hands': vol.get('hands', 0),
-        # Defensive fallback chain: vol → tournament_list → usd_overlay → per_tourney_pnl
-        'n_tourneys': (vol.get('tournaments', 0)
-                       or len(s.get('tournament_list', []))
-                       or (_usd_ov.get('totals') or {}).get('n_tournaments', 0)
-                       or len(s.get('_per_tourney_pnl', {}))),
-        # CP18-FIN-3: overlay n_bullets is authoritative (knows re-entries
-        # AND splits). Fall back to vol.bullets (file-based) when no overlay.
-        'bullets': ((_usd_ov.get('totals') or {}).get('n_bullets')
-                    or vol.get('bullets', 0)),
-        'avg_buyin': rd.get('avg_buyin'),
+        # v8.14.3 Issue 1: canonical (overlay when parsed) tournament count +
+        # in-progress annotation; ABI/Invested/Net/ROI all from the same source.
+        'n_tourneys': _canon_tourneys,
+        'n_tourneys_note': _nt_note,
+        'bullets': _canon_bullets,
+        'avg_buyin': _canon_abi,
         'total_invested': _canon_inv,
         'net': _canon_net,
         'roi': _canon_roi,

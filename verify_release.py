@@ -10,21 +10,21 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.14.2"   # v8.14.2 (post-v8.14.1 range-trust QA hotfixes, REV3-REV6)
+VERSION = "v8.14.3"   # v8.14.3 (post-report QA hotfix: financial SoT, analyst-critical trim guard, validator hardening)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("da924acbca9fe7724f455d48f2f93e9f624c2ef77f5f729a60b14ea68178bf44", 89886, "v8.14.2 release section (post-v8.14.1 range-trust hotfixes REV3-REV6)"),
+    "GEM_Changelog.txt": ("6350aadfad984e6546bd5b14bb3cbc3e3bef4a452d996f848867fa44d00def14", 93457, "v8.14.3 release section (post-report QA hotfix: financial SoT, trim guard, validator)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("edba1f04fadf67dd08ff45195bcc890450da3938d5933b56b9b74323a6fe8985", 4169, "v8.14.1: 40 files, 352 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("1b9d2d4fade612830be4b4779bf8731e246002234dc149d00698ff7cf778edbb", 4167, "v8.14.3: 40 files, 367 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("47c4e536719391618eda12deba49e646e9c3c60da6e924fcf00c6f01e50ebcd9", 413742, "v8.14.2: +T-RE-25 + T-H141-01 v8.14.2 (1117 tests)"),
+    "_test_scratch.py": ("29e56f23d828ed7ce516bf03094ae8222fb424a2624dcdf9b3a8152cd60e4e43", 419960, "v8.14.3: +T-H143-01..14 (validator/financial/trim) + T-H141-01 v8.14.3 (1131 tests)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
-    "gem_analyzer.py": ("7aa77c666e6264e9eb17e7612da53c1f4b796b11d2dda823500483369856e63f", 562565, "v8.14.1 rev-3: canonical bounty_collectible (jammer-only; no eff-stack fabrication)"),
+    "gem_analyzer.py": ("6f3f5c2a0ca561610fd7cbad80cd5e3fc7ff533f2bd92318679903c5f9f78a54", 573531, "v8.14.3 Issue 4: render validator decodes lazy payload + financial/awaiting/critical-trim trust checks"),
     "gem_chart_labels.py": ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
     "gem_coaching_cards.py": ("9327a09b5edb2e1d7e384f592c2f4d4d61ed5c10f67c239aa4be09365901efa3", 47332, "v8.14.1 rev-3: not-collectible card reads canonical collectibility"),
     "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
@@ -37,13 +37,13 @@ MANIFEST = {
     "gem_pko_research.py": ("1777a9d253b5ff7c67c8fdc955173bd0ce7ac89ac7888fb7a32268b11358bab4", 51126, "v8.14.1 rev-4: bounty-trust always states threshold status"),
     "gem_pot_odds.py": ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
-    "gem_report_data.py": ("80c5cb23d87944420759f757a0a30f6397202d2251585855109938d1ff314c99", 223024, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
+    "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("61310541afa92d8d3b1348d8a20e423852021514f2163dbb632d90a1b95bbb4e", 62149, "v8.14.1 REV4: _emit_correct_ranges labels short-table proxy + hand classes"),
-    "gem_report_draft/_html.py": ("b7ce805a5d37d4fbc35e4f942c7e61f7d861db558fc77dbe93fe1ba2619aa48e", 380358, "v8.14.1 rev-3: all-auto-clear queue count label + modal title follows header"),
+    "gem_report_draft/_html.py": ("4fb90f3818e1297b487b149670b6808ce307a194fa85e8e2d466a9818bc638e6", 382309, "v8.14.3 Issue 1+5: Tourneys settled/in-progress annotation + dead cross-ref neutralizer"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
-    "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
-    "gem_report_draft/sections_financial.py": ("d952ccf5cae68102cef0d0e0fdefc821b1b5d31e6a92528b346d612276444997", 129253, "v8.14.1 hotfix: cash-settlement (session-end) date label"),
+    "gem_report_draft/draft.py": ("c6a48c65171b8403e97ed05cdd2549f55613eb407d3f373dd34ac0ecd5555f0b", 34368, "v8.14.3 Issue 1+3: canonical KPI financials + analyst/critical hands P0/P1-protected from HA3 trim"),
+    "gem_report_draft/sections_financial.py": ("742454bb03cd349eef3c639ecf3076be68bdf8292ad7b97828dd87cf7f6801b7", 131012, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
     "gem_report_draft/sections_iv_xii.py": ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
@@ -54,7 +54,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("e31c440a02ffa7d18d2833265a03da4496a654315899188bf4e5042d06cde23f", 111373, "v8.14.1 xway-fix: multiway-donk uses live-at-bet count (_live_players_at)"),
     "gem_villain_teaching.py": ("9d3acc7704ce1b66eb20c4d21f6e8220400eb17104dd0189e9aaa75f405a9486", 25886, "v8.14.0 Slice D: teaching contract + Natural8 candidate tags + evidence aggregation"),
-    "gem_version.py": ("e63d08f6c00013f96ad001358bdbf26b27c713a4352b9040f3a08170758b1064", 880, "v8.14.2: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("dd972c6d10f872de0f623adf69be4eebb67705fab65edf9529fdf9688289052e", 880, "v8.14.3: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -960,8 +960,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.14.2'",
-     "v8.14.2: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.14.3'",
+     "v8.14.3: runtime/release version single source of truth"),
     ("gem_analyzer.py", "'report_format_version'",
      "v8.14.1 #5: manifest emits runtime version + report-format version"),
     ("gem_analyzer.py", "_run_log_",
@@ -1054,6 +1054,25 @@ CANARIES = [
     # ── v8.14.1 REV6: chart-support prose vs canonical no-charted-range (73559949) ──
     ("gem_report_draft/sections_xiv.py", "W-RANGE-NO-CHART",
      "v8.14.1 REV6: lint — chart-support prose may not appear when canonical has NO charted range"),
+    # ── v8.14.3: post-report QA hotfix (financial SoT, analyst-critical trim
+    #    guard, awaiting-vs-COMPLETE, validator decodes the lazy payload, dead
+    #    cross-ref neutralizer) ──
+    ("gem_report_data.py", "_financial_source",
+     "v8.14.3 Issue 1: top-level financials canonicalised from the parsed USD overlay"),
+    ("gem_report_data.py", "total_ticket_value",
+     "v8.14.3 Issue 1: overlay totals carry the satellite-ticket value (cash+ticket basis)"),
+    ("gem_report_draft/sections_financial.py", "cash + ticket",
+     "v8.14.3 Issue 1: by-day table labels the cash+ticket basis (not cash-only)"),
+    ("gem_report_draft/sections_financial.py", "outside required review set",
+     "v8.14.3 Issue 2: large-loss verdict relabels (not 'awaiting') when ANALYST_COMPLETE"),
+    ("gem_report_draft/draft.py", "_analyst_full_ids",
+     "v8.14.3 Issue 3: analyst/critical hands are P0/P1-protected from the HA3 byte trim + rescued"),
+    ("gem_report_draft/_html.py", "dead-xref",
+     "v8.14.3 Issue 5: dangling internal cross-refs neutralised to a span (no dead #anchor)"),
+    ("gem_analyzer.py", "def _decode_lazy_cards(",
+     "v8.14.3 Issue 4: render validator DECODES the lazy payload inline (works in the shipped bundle, not just shell markers)"),
+    ("gem_analyzer.py", "ANALYST_COMPLETE report (Issue 2)",
+     "v8.14.3 Issue 4: validator gates 'awaiting analyst' on ANALYST_COMPLETE state"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

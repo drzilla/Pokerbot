@@ -5096,10 +5096,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.14.2 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.14.2'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.2'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.2', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.14.3 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.14.3'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.3'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.3', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -7908,6 +7908,101 @@ check('T-RQ-08: mobile rq-row uses stacking grid-areas (no horizontal table)',
       'grid-template-areas: "rank hid main bb"' in _rqh, '')
 check('T-RQ-09: status change refreshes the queue partition/counts',
       'window.PBReviewQueue.refresh()' in _rqh, '')
+
+# ============================================================
+# v8.14.3 post-report QA hotfix (T-H143-01..12)
+#   Issue 1 financial one-source-of-truth, Issue 2 awaiting-vs-COMPLETE,
+#   Issue 3 analyst-critical never budget_trimmed, Issue 4 validator hardening
+#   (decodes the lazy payload), Issue 5 dead-anchor neutralizer.
+# ============================================================
+print('\n=== v8.14.3 post-report QA hotfix (Issues 1-5) ===')
+from gem_analyzer import _quick_validate_render as _qvr_143
+_G143 = 'window.PB_PAYLOADS={}; window.handIndex={}; window.handAvailability={};'
+
+# --- Issue 4 / Issue 2: validator is state-aware about "awaiting analyst" ---
+_sh_await = _G143 + '<p>awaiting analyst</p>'
+check('T-H143-01: validator flags visible "awaiting analyst" when ANALYST_COMPLETE (Issue 2)',
+      any('awaiting' in i.lower() for i in _qvr_143(
+          _sh_await, {'report_completeness': {'state': 'ANALYST_COMPLETE'}})), '')
+check('T-H143-02: validator does NOT flag "awaiting analyst" when ANALYST_PARTIAL (truth-preserving)',
+      not any('awaiting' in i.lower() for i in _qvr_143(
+          _sh_await, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
+
+# --- Issue 4 / Issue 1: financial agreement (top-level == parsed overlay) ---
+_rd_fin = {'report_completeness': {'state': 'ANALYST_PARTIAL'},
+           'usd_overlay': {'status': 'parsed',
+                           'totals': {'total_cost': 3946.97, 'n_bullets': 65}},
+           'total_invested': 3930.97, 'avg_buyin': 59.56}
+check('T-H143-03: validator flags financial mismatch (top-level != overlay totals) (Issue 1)',
+      any('financial' in i for i in _qvr_143(_G143, _rd_fin)), '')
+_rd_fin_ok = dict(_rd_fin, total_invested=3946.97, avg_buyin=round(3946.97 / 65, 2))
+check('T-H143-04: validator passes when top-level cost/ABI == overlay totals',
+      not any('financial' in i for i in _qvr_143(_G143, _rd_fin_ok)), '')
+
+# --- Issue 4 / Issue 3: analyst-critical hand must never be budget_trimmed ---
+_sh_trim = _G143 + ("<article data-hand-id=\"78122219\" "
+                    "data-availability=\"budget_trimmed\">x</article>")
+_rd_crit = {'report_completeness': {'state': 'ANALYST_PARTIAL'},
+            'analyst_commentary': {'TM6078122219': {'verdict': 'III.2 spew'}}}
+check('T-H143-05: validator flags an analyst-critical (III.2) hand rendered budget_trimmed (Issue 3)',
+      any('Issue 3' in i for i in _qvr_143(_sh_trim, _rd_crit)), '')
+check('T-H143-06: validator clean when the III.2 hand is not budget_trimmed',
+      not any('Issue 3' in i for i in _qvr_143(_G143, _rd_crit)), '')
+
+# --- Issue 4: the validator DECODES the lazy payload (not just shell markers) ---
+_ga_src = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-H143-07: validator DECODES the lazy payload inline (no QA-only dep; works in the shipped bundle)',
+      'def _decode_lazy_cards(' in _ga_src
+      and 'from _qa_decode_lazy import' not in _ga_src
+      and "_quick_validate_render(html_str, rd=None)" in _ga_src
+      and 'trimmed for report size' in _ga_src, '')
+
+# --- Issue 3: draft.py protects analyst/critical hands from the HA3 byte trim ---
+_draft_src = open('gem_report_draft/draft.py', encoding='utf-8').read()
+check('T-H143-08: draft.py registers analyst III.1/III.2 + significant/critical-loss as P0/P1 and rescues trimmed ones',
+      '_analyst_full_ids' in _draft_src
+      and '_register_hand_priority(_cand, _pri_target)' in _draft_src
+      and '_rescued = _trimmed_ids & _analyst_full_ids' in _draft_src, '')
+
+# --- Issue 1: gem_report_data.py canonicalizes top-level financials from overlay ---
+_grd_src = open('gem_report_data.py', encoding='utf-8').read()
+check('T-H143-09: gem_report_data sets top-level total_invested/avg_buyin from parsed overlay + emits total_ticket_value',
+      "rd['_financial_source']" in _grd_src
+      and "'total_ticket_value'" in _grd_src
+      and 'tot_ticket' in _grd_src, '')
+
+# --- Issue 1: cash basis is visibly labeled (cash + ticket) in the by-day table ---
+_fin_src = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-H143-10: by-day table emits the cash+ticket basis footnote when ticket value > 0 (Issue 1)',
+      'total_ticket_value' in _fin_src
+      and 'cash + ticket' in _fin_src, '')
+
+# --- Issue 2: the large-loss verdict relabels (no "awaiting") when COMPLETE ---
+from gem_report_draft.sections_financial import _neutral_unreviewed_large_loss_verdict as _nlv
+_voc_ctx = {'_v': 'lost AA vs KK all-in'}
+check('T-H143-11: large-loss verdict says "outside required review set" (not "awaiting") when complete=True',
+      'awaiting' not in _nlv('_v', complete=True).lower()
+      and 'required review set' in _nlv('_v', complete=True), _nlv('_v', complete=True))
+check('T-H143-12: large-loss verdict still says "awaiting analyst" when complete=False (PARTIAL truth)',
+      'awaiting analyst' in _nlv('_v', complete=False).lower(), _nlv('_v', complete=False))
+
+# --- Issue 3 / Issue 4: no full+trimmed DUPLICATE (decode-aware) ---
+import base64 as _b64_143, zlib as _zl_143, json as _js_143
+def _mk_lazy_143(cards):
+    _co = _zl_143.compressobj(9, _zl_143.DEFLATED, -15)
+    _b = _co.compress(_js_143.dumps(cards).encode()) + _co.flush()
+    _enc = _b64_143.b64encode(_b).decode()
+    return ('window.PB_PAYLOADS["lazyHands"]={"encoding":"deflate-raw+base64",'
+            '"data":"' + _enc + '"};')
+_full_card = ('<article data-hand-id="78122219"><p>real full hand detail with '
+              'lots of content here</p></article>')
+_sh_dup = (_G143 + _mk_lazy_143({'78122219': _full_card})
+           + '<article data-hand-id="78122219" data-availability="budget_trimmed">stub</article>')
+check('T-H143-13: validator flags a hand that is BOTH a budget_trimmed stub and a full lazy card (Issue 3)',
+      any('BOTH' in i for i in _qvr_143(_sh_dup, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
+_sh_nodup = _G143 + '<article data-hand-id="78122219" data-availability="budget_trimmed">stub</article>'
+check('T-H143-14: validator does NOT flag dup when the hand is only trimmed (no full card)',
+      not any('BOTH' in i for i in _qvr_143(_sh_nodup, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
 
 # ============================================================
 # SUMMARY

@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.15.0"   # v8.15.0 (Tournament Tables: typed event-level model + additive section)
+VERSION = "v8.16.0"   # v8.16.0 (Villain Teaching Coach Layer v1: timestamp-safe chronology, status-safe cards, trusted-baseline grade gate, mixed/split caveat)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("05e0b680ae0b00c8b8c4863876206a90882d70bd1dabf2e3d86976440cc30b62", 100076, "v8.15.0 release section (Tournament Tables event-level model + additive section)"),
+    "GEM_Changelog.txt": ("a490331d45ef5c225b7974f59ab61df73b5582e873980ca28f04bf8863f78bc4", 103379, "v8.16.0 Villain Teaching Coach Layer v1 entry"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("0cbf702062ce74450dd7fc2f6af32e7a0c457aeb473b9e2c6def56b25287a260", 4167, "v8.15.0: 42 files, 376 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("519a7aaf9debc65c40b75d6cbc7f04d514281dbfbdb9f78c719079d39a38190d", 4167, "v8.16.0: 42 files, 382 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("894db0cc9cce8d46d17b0a49c659aa355e59f2dbd9b2d105913964c18f520072", 440721, "v8.15.0: +T-TT-01..14 (model) +T-TT-R-01..12 (renderer) Tournament Tables (1174 tests)"),
+    "_test_scratch.py": ("0f1d33903f9bbb4246ab1308d4ec8d3f2013fe06d2e251542b5cdeeb3fbaae92", 466843, "v8.16.0 villain: +T-VTS chronology +T-VC coach layer (1221 pass)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
@@ -41,12 +41,12 @@ MANIFEST = {
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("61310541afa92d8d3b1348d8a20e423852021514f2163dbb632d90a1b95bbb4e", 62149, "v8.14.1 REV4: _emit_correct_ranges labels short-table proxy + hand classes"),
-    "gem_report_draft/_html.py": ("4fb90f3818e1297b487b149670b6808ce307a194fa85e8e2d466a9818bc638e6", 382309, "v8.14.3 Issue 1+5: Tourneys settled/in-progress annotation + dead cross-ref neutralizer"),
+    "gem_report_draft/_html.py": ("cc500f59d37b10e768b470444a83a87b7249afe1e2704453e27deef37722665c", 383000, "v8.16.0 villain: evidence-popup teaching-first ordering"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/draft.py": ("0c4437c14397489750b321fe63f6e10d1f5ef58173a0b632aaadfa41b65be0b4", 34984, "v8.15.0: Tournament Tables section wired additively after S1 (handIndex opener position)"),
     "gem_report_draft/sections_financial.py": ("742454bb03cd349eef3c639ecf3076be68bdf8292ad7b97828dd87cf7f6801b7", 131012, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
-    "gem_report_draft/sections_iv_xii.py": ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
+    "gem_report_draft/sections_iv_xii.py": ("80520701383157257ee6d46e83fa35bb6f5033f3ea0c45dc8d037372ee5432ae", 225848, "v8.16.0 villain: matrix Teaching Signals wording"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
     "gem_report_draft/sections_tournaments.py": ("21a0e3e40ae55eefb893f2ba43d89fa0f22f0470d11074a325843ae820d25f54", 7043, "v8.15.0: additive event-level Tournament Tables render section (SP-2)"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
@@ -54,9 +54,9 @@ MANIFEST = {
     "gem_report_draft/tldr.py": ("b80fa92df8dc675cbe10e5cbfe24aaa6a4c802d687f9dd186c74e4be879a7b24", 146721, "v8.14.4: cash+ticket return-basis disclosure on the active S1.1a by-day financial table"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
-    "gem_villain_intel.py": ("e31c440a02ffa7d18d2833265a03da4496a654315899188bf4e5042d06cde23f", 111373, "v8.14.1 xway-fix: multiway-donk uses live-at-bet count (_live_players_at)"),
-    "gem_villain_teaching.py": ("9d3acc7704ce1b66eb20c4d21f6e8220400eb17104dd0189e9aaa75f405a9486", 25886, "v8.14.0 Slice D: teaching contract + Natural8 candidate tags + evidence aggregation"),
-    "gem_version.py": ("c4120668ddb1eadeb08dbd6b4af5ec8a7898a18d1a2230919922cb53d87d21d0", 880, "v8.15.0: RUNTIME_VERSION single source of truth"),
+    "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
+    "gem_villain_teaching.py": ("28bcdd6c8f92a5f280a469442e7241cabcc3d81005389bf7bfaa7613803aa6a8", 38009, "v8.16.0 villain: status-safe cards + trusted-baseline gate + mixed/split + ICM caution"),
+    "gem_version.py": ("85df4b1e75a36fe24a5e43a0b5ea568208d16623888970f7d41c7a99589a9dc2", 880, "v8.16.0: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -962,8 +962,20 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.15.0'",
-     "v8.15.0: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.16.0'",
+     "v8.16.0: runtime/release version single source of truth"),
+    ("gem_villain_intel.py", "def build_hand_chronology(",
+     "v8.16.0 villain: cross-hand chronology by parsed timestamp (Step 1)"),
+    ("gem_villain_intel.py", "score = _prior_dims.get('loose', 0) + _prior_dims.get('passive', 0)",
+     "v8.16.0 villain: loose_passive composite-dimension scorer fix"),
+    ("gem_villain_teaching.py", "def _grade_bucket(",
+     "v8.16.0 villain: trusted-baseline grade gate (no broad missed/good)"),
+    ("gem_villain_teaching.py", "_TRUSTED_BASELINE_DETECTORS",
+     "v8.16.0 villain: trusted-baseline detector allowlist"),
+    ("gem_villain_teaching.py", "def derive_profile(",
+     "v8.16.0 villain: mixed/split profile caveat (cue-axis vs read-axis)"),
+    ("gem_report_draft/sections_iv_xii.py", "Teaching Signals",
+     "v8.16.0 villain: matrix 'Teaching Signals' wording (no false opps=missed+good)"),
     ("gem_analyzer.py", "'report_format_version'",
      "v8.14.1 #5: manifest emits runtime version + report-format version"),
     ("gem_analyzer.py", "_run_log_",

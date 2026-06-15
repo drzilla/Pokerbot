@@ -174,6 +174,77 @@ def _grade_bucket(kind, fallback, baseline_source, confidence, no_hindsight,
     return 'candidate_read_supported'
 
 
+# ── Mixed/split profile coherence (Step-2 stabilization) ────────────────────
+# A teaching card is incoherent when THIS hand's cue and the villain's read sit
+# on different broad behavioural AXES — e.g. a loose-passive open-limp cue next
+# to an aggregate "Aggressive" read. We classify the cue's axis (from its signal
+# / detector) and the read's axis (from the archetype), and when they cross we
+# render an explicit node-specific "Mixed profile" caveat BEFORE the archetype
+# rather than a clean global tag. Same-axis pairs (loose-passive + sticky) stay
+# coherent. Passive-to-aggression is a LINE-SPECIFIC pivot, not a contradiction.
+# Derived here from already-available fields; an upstream profile_label, if a
+# future source provides one, wins.
+_AXIS_BY_SIGNAL = {
+    'open_limp': 'passive', 'limp_call': 'passive', 'multiway_donk': 'passive',
+    'weird_minbet': 'passive', 'cold_call_3bet_oop': 'passive',
+    'weak_showdown_call': 'passive', 'calldown_weak_pair': 'passive',
+    'repeated_blind_overfold': 'tight',
+    'passive_aggro_pivot': 'pivot', 'river_bluff_shown': 'aggro',
+}
+_AXIS_BY_DETECTOR = {
+    'bluffed_sticky': 'passive', 'missed_thin_value_vs_sticky': 'passive',
+    'paid_off_passive_aggression': 'passive', 'good_fold_vs_passive_aggro': 'passive',
+    'missed_steal_vs_nit_blinds': 'tight', 'missed_steal_vs_nit': 'tight',
+    'good_steal_vs_nit': 'tight',
+    'opened_too_loose_vs_aggro': 'aggro', 'overfolded_vs_aggro': 'aggro',
+    'ego_fought_maniac': 'aggro', 'pivot_overplayed': 'pivot',
+}
+_CUE_NODE_BY_SIGNAL = {
+    'open_limp': 'preflop entry', 'limp_call': 'preflop entry',
+    'cold_call_3bet_oop': 'preflop flat', 'repeated_blind_overfold': 'blind defense',
+    'multiway_donk': 'postflop lead', 'weird_minbet': 'postflop sizing',
+    'weak_showdown_call': 'showdown call', 'calldown_weak_pair': 'multi-street call',
+    'passive_aggro_pivot': 'turn/river', 'river_bluff_shown': 'river',
+}
+_AXIS_DESC = {'passive': 'loose-passive / calling', 'aggro': 'pressure-heavy',
+              'tight': 'tight / folding'}
+
+
+def _read_axis(archetype):
+    """Broad behavioural axis of a read label: passive / aggro / tight (or None
+    for solid/unknown, where no split is asserted)."""
+    fam = _archetype_family(archetype)
+    if fam in ('aggro', 'danger'):
+        return 'aggro'
+    if fam in ('station', 'fish', 'whale', 'funrec'):
+        return 'passive'
+    if fam == 'nit':
+        return 'tight'
+    return None
+
+
+def derive_profile(cue_axis, cue_node, archetype, explicit=None):
+    """Return (profile_label, profile_caveat). 'split' when this hand's cue axis
+    crosses the villain's read axis (cross-node evidence) — NOT a contradiction;
+    a pivot cue is a line-specific value warning. 'consistent' otherwise. An
+    explicit upstream profile_label wins. profile_caveat is None when coherent."""
+    if explicit in ('mixed', 'split'):
+        return explicit, '%s profile' % explicit.capitalize()
+    if explicit == 'consistent':
+        return 'consistent', None
+    if cue_axis == 'pivot':
+        node = cue_node or 'later-street'
+        return 'split', ('Line-specific pivot — passive line then %s aggression; '
+                         'a value warning for this line, not a global tag' % node)
+    rax = _read_axis(archetype)
+    if cue_axis in ('passive', 'aggro', 'tight') and rax and cue_axis != rax:
+        node = (cue_node + ' ') if cue_node else ''
+        return 'split', ('Mixed profile — %s%s cue, but the read is %s; '
+                         'node-specific evidence, not a global tag'
+                         % (node, _AXIS_DESC.get(cue_axis, cue_axis), _AXIS_DESC.get(rax, rax)))
+    return 'consistent', None
+
+
 # ── Natural8 client tag taxonomy (Slice D) ──────────────────────────────────
 # Ron's Natural8 colour-tag scheme. We map a DERIVED read family -> a candidate
 # client tag. This is a projection, not a new classifier: the read itself comes
@@ -374,10 +445,14 @@ def _teach_lines(obj):
     if obj.get('cue'):
         lines.append('Cue: ' + obj['cue'])
     # A mixed/split profile caveat renders BEFORE the broad archetype label so
-    # the read is never presented as a single clean type when it is not.
+    # the read is never presented as a single clean type when it is not. The
+    # node-specific caveat (when derived) explains the cross-axis split.
     _read = _candidate_archetype(obj.get('archetype'), obj.get('confidence'))
+    _cav = obj.get('profile_caveat')
     _prof = (obj.get('profile_label') or '').lower()
-    if _prof in ('mixed', 'split'):
+    if _cav:
+        _read = _cav + ' — ' + _read
+    elif _prof in ('mixed', 'split'):
         _read = _prof.capitalize() + ' profile — ' + _read
     lines.append('Read: ' + _read)
     if obj.get('confidence'):
@@ -495,6 +570,9 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
     icm = _ICM_CAUTION if _is_risky_exploit(detector, exp.get('so_what')) else None
     if icm:
         warnings.append('icm_pressure_unknown')
+    # Cross-axis cue/read split -> node-specific "Mixed profile" caveat.
+    prof_label, prof_caveat = derive_profile(
+        _AXIS_BY_DETECTOR.get(detector), None, archetype, rs.get('profile_label'))
 
     street = (exp.get('hero_decision_street') or '').strip() or 'preflop'
     _pko = _pko_subobject(pko_by_hand, hand_id)
@@ -513,7 +591,8 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
         'future_exploit': _clean(exp.get('recommended_exploit')) if no_hind else None,
         'do_not_overadjust': derive_do_not_overadjust(conf, read_label, bool(_pko)),
         'baseline_source': baseline_source,
-        'profile_label': (rs.get('profile_label') or 'consistent'),
+        'profile_label': prof_label,
+        'profile_caveat': prof_caveat,
         'icm_guardrail': icm,
         'source_warnings': warnings,
         '_detector_outcome': exp.get('exploit_outcome') or exp.get('auto_verdict') or '',
@@ -569,6 +648,11 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
     _icm = _ICM_CAUTION if _is_risky_exploit('', _so_what) else None
     if _icm:
         _warnings.append('icm_pressure_unknown')
+    # Cross-axis cue/read split (e.g. loose-passive entry cue vs an Aggressive
+    # aggregate read) -> node-specific "Mixed profile" caveat before the read.
+    _prof_label, _prof_caveat = derive_profile(
+        _AXIS_BY_SIGNAL.get(signal), _CUE_NODE_BY_SIGNAL.get(signal),
+        _archetype, rs.get('profile_label'))
     obj = {
         'villain_id': vk,
         'villain_alias': rs.get('villain_alias') or atom.get('villain_alias', ''),
@@ -584,7 +668,8 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
         'do_not_overadjust': derive_do_not_overadjust(
             rs.get('confidence', 'low'), rs.get('primary_read', ''), bool(_pko)),
         'baseline_source': 'none',       # evidence atoms are never grade-backed
-        'profile_label': (rs.get('profile_label') or 'consistent'),
+        'profile_label': _prof_label,
+        'profile_caveat': _prof_caveat,
         'icm_guardrail': _icm,
         'source_warnings': _warnings,
         '_detector_outcome': '',

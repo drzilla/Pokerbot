@@ -5318,10 +5318,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.15.0 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.15.0'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.15.0'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.15.0', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.16.0 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.16.0'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.0'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.0', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8085,6 +8085,58 @@ check('T-VC-11: Step-1 timestamp gate intact (prior admitted, future + tie exclu
 check('T-VC-12: within-hand no-hindsight intact (showdown blocked, prior actionable)',
       _vt._no_hindsight('same_hand_pivot', None, 5) is False
       and _vt._no_hindsight('prior_atoms_mapped', None, None) is True, '')
+
+# --- Step-2 stabilization: derived mixed/split profile coherence (T-VC-13..18) ---
+_vc_split_rs = {_vt_vk: {'villain_alias': 'Hunter', 'primary_read': 'Aggressive', 'confidence': 'low',
+                         'n_evidence': 3, 'evidence_hand_ids': ['H9', 'H7']}}
+_vc_split_atom = {'villain_key': _vt_vk, 'hand_id': 'H1', 'signal': 'open_limp', 'street': 'preflop',
+                  'same_hand_actionable': True, 'available_before_action_index': 1, 'hero_involved': True,
+                  'evidence_text': 'Hunter open-limped from MP.', 'suggests': 'Loose-passive tendency.',
+                  'so_what': 'Isolate wider for value.'}
+_vc_split = _vt.teaching_from_atom(_vc_split_atom, _vc_split_rs,
+                                   {_vt_vk: [{'dimension': 'loose_passive'}] * 3}, signal_coaching={})
+_vc_split_read = next(l for l in _vc_split['teach_lines'] if l.startswith('Read:'))
+# T-VC-13: loose-passive entry cue + aggressive aggregate read -> split + caveat before archetype
+check('T-VC-13: loose-passive cue + aggressive read -> split, caveat before archetype, not a clean global tag',
+      _vc_split['profile_label'] == 'split' and 'Mixed profile' in _vc_split_read
+      and _vc_split_read.index('Mixed profile') < _vc_split_read.index('Aggressive')
+      and 'node-specific' in _vc_split_read and 'not a global tag' in _vc_split_read, _vc_split_read)
+
+# T-VC-14: same-axis cue/read (loose-passive + sticky) stays consistent (no FALSE split)
+_vc_same = _vt.teaching_from_atom(
+    dict(_vc_split_atom, villain_key='T1|y'),
+    {'T1|y': {'primary_read': 'Sticky Passive', 'confidence': 'low', 'n_evidence': 3,
+              'evidence_hand_ids': ['H9', 'H7']}},
+    {'T1|y': [{'dimension': 'loose_passive'}] * 3}, signal_coaching={})
+check('T-VC-14: same-axis cue/read (loose-passive + sticky) stays consistent (no false split)',
+      _vc_same['profile_label'] == 'consistent' and not _vc_same.get('profile_caveat')
+      and not any('Mixed profile' in l for l in _vc_same['teach_lines']), '')
+
+# T-VC-15: cross-node split is labelled 'split' + node-specific, NEVER 'contradiction'
+_pl15, _cav15 = _vt.derive_profile('tight', 'blind defense', 'Aggressive')
+check('T-VC-15: cross-node tight-cue vs aggressive-read -> split, never contradiction',
+      _pl15 == 'split' and 'contradiction' not in (_cav15 or '').lower()
+      and 'node-specific' in (_cav15 or ''), str((_pl15, _cav15)))
+
+# T-VC-16: passive-to-aggression pivot -> line-specific value warning (not a contradiction)
+_pl16, _cav16 = _vt.derive_profile('pivot', 'turn/river', 'Sticky Passive')
+check('T-VC-16: passive_aggro pivot -> line-specific pivot warning, not a global tag / contradiction',
+      _pl16 == 'split' and 'Line-specific pivot' in (_cav16 or '') and 'not a global tag' in (_cav16 or '')
+      and 'contradiction' not in (_cav16 or '').lower(), str(_cav16))
+
+# T-VC-17: station/passive cue vs aggressive read -> split; explicit upstream label wins
+check('T-VC-17: station cue vs aggressive read -> split; explicit profile_label honored',
+      _vt.derive_profile('passive', 'showdown call', 'Aggressive')[0] == 'split'
+      and _vt.derive_profile('passive', 'x', 'Aggressive', explicit='consistent') == ('consistent', None), '')
+
+# T-VC-18: a split/mixed read is still NON-GRADED without a trusted baseline
+_vc_split_exp = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='bluffed_sticky', exploit_outcome='missed',
+            exploit_read_label='Aggressive', exploit_read_display='Aggressive'),
+    _vc_split_rs, {_vt_vk: [{'dimension': 'sticky'}] * 3})
+check('T-VC-18: split/mixed read stays non-graded without a trusted baseline',
+      _vc_split_exp['teaching_status'] not in _vt._GRADED_STATUSES,
+      str(_vc_split_exp.get('teaching_status')))
 
 # ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)

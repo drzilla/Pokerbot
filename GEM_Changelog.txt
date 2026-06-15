@@ -1,3 +1,55 @@
+v8.16.0 (2026-06-16) -- Delivery: Villain Teaching Coach Layer v1
+================================================================================
+Teaches villain cues SAFELY and COHERENTLY: villain did X -> why it is a cue ->
+practical node-specific read -> confidence / source limitation -> future or
+safe exploit-now -> do not over-adjust. No broad postflop/multiway grading; no
+solver; no real-ICM / risk-premium; no cross-session villain identity. Builds on
+the timestamp trust fix below.
+
+- TIMESTAMP-SAFE CROSS-HAND CHRONOLOGY (Step 1): cross-hand villain evidence is
+  ordered by the parsed per-hand timestamp (hand_ts_date, hand_time), not the GG
+  hand id. GG hand ids are NOT chronological (real 2026 sample: a later hand
+  carried a lower TM id in ~47% of adjacent-by-time pairs; 29/44 tournaments
+  non-monotonic from per-table id blocks). The old id sort let FUTURE-hand
+  evidence grade an earlier Hero decision; the new gate admits a prior atom only
+  when it is PROVABLY strictly earlier by timestamp. Missing / same-second-tied
+  timestamps SAFE-DISABLE the comparison (no id fallback). build_hand_chronology
+  + _ts_strictly_before; within-hand no-hindsight unchanged.
+
+- STATUS-SAFE TEACHING CARDS + TRUSTED-BASELINE GRADE GATE: every card carries a
+  teaching_status. A graded missed/good EXPLOIT survives ONLY with a trusted
+  baseline (preflop-chart steal/nit) + medium/high confidence + read known
+  before the decision; every other detector (postflop value, multiway donk,
+  weird sizing, station call-down, generic LAG/maniac) teaches as candidate /
+  standard / evidence / watch. Broad postflop/multiway grading stays DISABLED.
+  Single-hand reads cannot reach medium/high confidence; cue copy that only
+  restates the read label is dropped.
+
+- MIXED / SPLIT PROFILE CAVEAT: when this hand's cue axis (loose-passive /
+  aggro / tight / pivot) crosses the villain's aggregate read axis, the card
+  renders an explicit node-specific "Mixed profile" caveat BEFORE the archetype
+  (e.g. "loose-passive preflop entry cue, but the read is pressure-heavy;
+  node-specific evidence, not a global tag"), instead of a clean global tag.
+  Passive-to-aggression is a line-specific pivot warning, not a contradiction.
+
+- loose_passive SCORER FIX: the prior-atoms read scorer now scores a composite
+  loose_passive query as loose+passive, so station/sticky reads fire from
+  accumulated evidence rather than only the archetype fallback.
+
+- "TEACHING SIGNALS" MATRIX WORDING: the Opponent Adjustment Matrix renames
+  "Exploit Opps" -> "Teaching Signals" and drops the never-enforced
+  opps-equals-missed-plus-good precision; honest legend (Missed/Good = the
+  trusted-baseline subset only; the rest are teaching notes). Counting unchanged.
+
+- ICM COARSE CAUTION: variance-increasing advice (steal/iso wider, call down
+  lighter, stack off, ego-raise) gets a neutral pay-jump caution on its own line
+  + an icm_pressure_unknown source warning. No ICM-EV / payout ladder computed.
+
+- Evidence popup orders the most instructive cues first; raw evidence preserved.
+- Tests: +33 villain checks (T-VTS-* chronology, T-VC-* coach layer). Real-report
+  QA (1267-hand session): 356 teaching objects, only 2 graded (both trusted-
+  baseline good_exploit), 196 mixed/split caveats, 181 ICM-cautioned.
+
 v8.15.0 (2026-06-16) -- Tournament Tables: event-level model + additive section
 ================================================================================
 First v8.15 feature: a typed, event-level Tournament Tables data layer and an

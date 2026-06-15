@@ -502,12 +502,42 @@ def _embolden_hand_in_range(compact, hs):
                    _sub, compact)
 
 
-def _deviation_range_text(hid, s):
+def _canon_supersede(h):
+    """v8.14.1 REV3 (Blocker 2, hand 72807590): when the chart-backed canonical
+    "Range evidence" block renders for hand ``h``, IT is the single source of
+    truth for preflop chart membership (correct seat + IN/OUTSIDE, proxy/closest
+    disclosed). The legacy per-deviation "Correct range — {chart}" prose derives
+    its chart from the detector's STORED position, which applies a short-table
+    adjustment (e.g. 7-max MP opens off the HJ chart, _open_chart_pos) that the
+    canonical block does not — so the two can disagree (97s read "inside HJ" by
+    the legacy line vs "OUTSIDE the MP open" by the canonical block). Callers
+    defer to the canonical block to avoid a second, position-divergent claim.
+    Returns (present, membership, hero_hand, chart_label)."""
+    if not isinstance(h, dict):
+        return (False, None, None, None)
+    try:
+        from gem_report_draft._helpers import hand_range_evidence as _hre_cs
+        ev = _hre_cs(h)
+        if ev and ev.get('chart_key'):
+            return (True, ev.get('membership'), ev.get('hero_hand'),
+                    _cdl(ev.get('chart_key')))
+    except Exception:
+        pass
+    return (False, None, None, None)
+
+
+def _deviation_range_text(hid, s, h=None):
     """Look up the correct range for a hand's preflop deviation from
     s['preflop_deviations']. For punts/mistakes promoted from deviations,
     this surfaces the acceptable chart or iso-range so the hand detail card
     shows WHAT the correct range is (B-RANGE, Ron 2026-05-30).
-    Returns text to append to explanation, or ''."""
+    Returns text to append to explanation, or ''.
+
+    v8.14.1 REV3: when the canonical Range-evidence block renders for ``h`` the
+    legacy chart line is suppressed (it is authoritative); if that block says
+    OUTSIDE while the detector flagged a "Missed" deviation (short-table chart
+    divergence), a reconciliation note defers to the strict positional chart
+    instead of asserting "inside this chart — passing on it is the deviation"."""
     for d in (s.get('preflop_deviations', []) or []):
         if not isinstance(d, dict) or d.get('id') != hid:
             continue
@@ -515,6 +545,14 @@ def _deviation_range_text(hid, s):
         _chart = d.get('chart')
         _dev_charts = s.get('_dev_charts') or {}
         if _chart and _dev_charts.get(_chart):
+            _cs_present, _cs_mem, _cs_hand, _cs_lbl = _canon_supersede(h)
+            if _cs_present:
+                _tl = (d.get('type') or '').lower()
+                if _cs_mem == 'outside' and 'missed' in _tl:
+                    return (f" Against the charted {_cs_lbl} range, "
+                            f"{d.get('cards', 'this hand')} is outside — a "
+                            f"table-size-dependent marginal, not a clear leak.")
+                return ''
             _combos = _dev_charts[_chart]
             _tl = (d.get('type') or '').lower()
             if 'wide' in _tl:
@@ -546,7 +584,7 @@ def _deviation_range_text(hid, s):
     return ''
 
 
-def _xivb_flag_note(hid, s, rd):
+def _xivb_flag_note(hid, s, rd, h=None):
     """B128 (Ron 2026-05-20): structured 'why-flagged' info for a XIV.B hand.
     Every hand that earns an appendix example was flagged by something — and
     Ron wants that comment to follow the SAME structure as XIV.A: a verdict-
@@ -601,7 +639,7 @@ def _xivb_flag_note(hid, s, rd):
             # B-RANGE (Ron 2026-05-30): append correct range from the
             # underlying deviation so the punt card shows what Hero
             # should have done (like Wide/Missed Open already does).
-            expl = note + '.' + _deviation_range_text(hid, s)
+            expl = note + '.' + _deviation_range_text(hid, s, h)
             return {'emoji': '\U0001F534', 'label': p.get('type', 'Punt'),
                     'street': (p.get('street') or '').lower() or _street_from_text(p.get('type')),
                     'explanation': expl}
@@ -675,7 +713,7 @@ def _xivb_flag_note(hid, s, rd):
             # Hero deviated from. Skip when open_range_core already renders
             # range info (Missed Steal path, lines above).
             if not m.get('open_range_core'):
-                expl += _deviation_range_text(hid, s)
+                expl += _deviation_range_text(hid, s, h)
             return {'emoji': '\U0001F7E1', 'label': t,
                     'street': _street_from_text(t),
                     'explanation': expl}
@@ -696,21 +734,31 @@ def _xivb_flag_note(hid, s, rd):
             _chart = d.get('chart')
             _dev_charts = s.get('_dev_charts') or {}
             if _chart and _dev_charts.get(_chart):
-                _combos = _dev_charts.get(_chart) or []
-                _tl = t.lower()
-                if 'wide' in _tl:
-                    _vd = (f"{d.get('cards','this hand')} is wider than this "
-                           "chart — the open itself is the deviation")
-                elif 'missed' in _tl:
-                    _vd = (f"{d.get('cards','this hand')} is inside this "
-                           "chart — passing on it is the deviation")
+                # v8.14.1 REV3 (Blocker 2): defer to the canonical Range-evidence
+                # block when present — do not emit a second, position-divergent
+                # "Correct range" line (97s "inside HJ" vs "OUTSIDE MP", 72807590).
+                _cs_present, _cs_mem, _cs_hand, _cs_lbl = _canon_supersede(h)
+                if _cs_present:
+                    if _cs_mem == 'outside' and 'missed' in t.lower():
+                        expl += (f" Against the charted {_cs_lbl} range, "
+                                 f"{d.get('cards','this hand')} is outside — a "
+                                 f"table-size-dependent marginal, not a clear leak.")
                 else:
-                    _vd = f"compare {d.get('cards','this hand')} to this chart"
-                # v8.12.8 QA3: bold the token Hero's hand falls under
-                _rng_txt_b = _embolden_hand_in_range(
-                    _compact_range(_combos), d.get('cards', ''))
-                expl += (f" Correct range — {_cdl(_chart)} ({len(_combos)} hand "
-                         f"classes): {_rng_txt_b}. {_vd}.")
+                    _combos = _dev_charts.get(_chart) or []
+                    _tl = t.lower()
+                    if 'wide' in _tl:
+                        _vd = (f"{d.get('cards','this hand')} is wider than this "
+                               "chart — the open itself is the deviation")
+                    elif 'missed' in _tl:
+                        _vd = (f"{d.get('cards','this hand')} is inside this "
+                               "chart — passing on it is the deviation")
+                    else:
+                        _vd = f"compare {d.get('cards','this hand')} to this chart"
+                    # v8.12.8 QA3: bold the token Hero's hand falls under
+                    _rng_txt_b = _embolden_hand_in_range(
+                        _compact_range(_combos), d.get('cards', ''))
+                    expl += (f" Correct range — {_cdl(_chart)} ({len(_combos)} hand "
+                             f"classes): {_rng_txt_b}. {_vd}.")
             return {'emoji': '\U0001F7E1',
                     'label': t + (f' ({conf})' if conf else ''),
                     'street': 'preflop', 'explanation': expl}
@@ -2019,7 +2067,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if not verdict:
             # B166 / B-A fix: no analyst verdict — show a neutral label above
             # the grid, and store the explanation for the yellow block below.
-            _wf = _xivb_flag_note(hid, s, rd)
+            _wf = _xivb_flag_note(hid, s, rd, h)
             if _wf:
                 _ex = (_wf.get('explanation') or '').strip()
                 _lb = _wf['label']
@@ -2614,7 +2662,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
         # Item 12a: if MDA flag exists, surface the recommendation in the body
         # so the reader sees WHAT the MDA recommendation was (not just the pill).
-        _mda_flag = _xivb_flag_note(hid, s, rd)
+        _mda_flag = _xivb_flag_note(hid, s, rd, h)
         if _mda_flag and 'MDA' in _mda_flag.get('label', ''):
             _mda_expl = _mda_flag.get('explanation', '')
             # v8.8.6 S1-fix: satellite caveat — inline into MDA coaching text
@@ -2672,17 +2720,78 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _argl = (f"{cmt.get('argument','')} "
                              f"{cmt.get('key_decision','')} "
                              f"{cmt.get('spot','')}").lower()
-                    _assertive = ('is inside', 'is **inside**', '**inside** the',
-                                  'sits inside', 'is in range', 'in the core range',
-                                  'is a standard open', 'inside the standard',
-                                  'inside the push range', 'inside the jam')
-                    if (any(w in _argl for w in _assertive)
-                            and 'whether' not in _argl.split('inside')[0][-40:]):
+                    _assertive_inside = ('is inside', 'is **inside**', '**inside** the',
+                                         'sits inside', 'is in range', 'in the core range',
+                                         'is a standard open', 'inside the standard',
+                                         'inside the push range', 'inside the jam',
+                                         # v8.14.1 REV3 (72807313/72807590 class): a chart
+                                         # MEMBERSHIP claim beside an OUTSIDE chart.
+                                         'inside this chart')
+                    # v8.14.1 (GPT rev): also flag a "get-in" JUSTIFICATION asserted
+                    # beside an OUTSIDE chart — an outside-chart jam must not read as a
+                    # "standard get-in" / "correct push" without decision-time logic
+                    # (73279700, 73720606). These are unambiguous claims; "outside
+                    # standard jam range" prose does NOT contain them.
+                    # v8.14.1 REV3: also flag chart-STATUS claims (range-standard /
+                    # standard line / clean-by-chart / chart-approved) beside an OUTSIDE
+                    # chart (72807313). Honest "outside chart but cleared on EV/fold-
+                    # equity/exploit grounds" prose does NOT contain these tokens.
+                    _assertive_getin = ('standard get-in', 'correct get-in',
+                                        'justified get-in', 'correct push',
+                                        'range-standard', 'standard line',
+                                        'jam is clean', 'clean by chart',
+                                        'chart-approved', 'chart approved')
+                    _inside_hit = (any(w in _argl for w in _assertive_inside)
+                                   and 'whether' not in _argl.split('inside')[0][-40:])
+                    _getin_hit = any(w in _argl for w in _assertive_getin)
+                    if _inside_hit or _getin_hit:
                         import sys as _sys_rc
-                        print(f"  W-RANGE-CONTRADICT: {hid_short} analyst prose "
-                              f"asserts inside/standard but chart shows "
+                        print(f"  W-RANGE-CONTRADICT: {hid_short} analyst prose asserts "
+                              f"inside/standard-get-in but chart shows "
                               f"{_rev['hero_hand']} OUTSIDE {_rev['chart_key']}",
                               file=_sys_rc.stderr)
+                # v8.14.1 REV5 (72692569): a chart-EXISTENCE denial ("no rejam
+                # chart" / "no chart for this matchup") must never sit beside a
+                # canonical Range-evidence block that HAS a Reference + IN/OUTSIDE
+                # membership. (The block's own "no exact chart at NBB" closest-
+                # depth disclosure is NOT a denial and is not matched here.)
+                if (_rev.get('chart_key')
+                        and _rev.get('membership') in ('inside', 'outside')
+                        and isinstance(cmt, dict)):
+                    _argl_ce = (f"{cmt.get('argument','')} "
+                                f"{cmt.get('key_decision','')} "
+                                f"{cmt.get('spot','')}").lower()
+                    if ('no rejam chart' in _argl_ce
+                            or 'no chart for this matchup' in _argl_ce):
+                        import sys as _sys_ce
+                        print(f"  W-RANGE-CHART-EXISTS: {hid_short} prose claims 'no "
+                              f"chart' but canonical Range evidence has Reference "
+                              f"{_rev['chart_key']} ({_rev['membership']})",
+                              file=_sys_ce.stderr)
+                # v8.14.1 REV6 (73559949): the inverse — when canonical evidence has
+                # NO charted range (chart_key absent, coverage 'none'), the prose may
+                # NOT claim chart support ("inside the push range" / "inside the EP jam
+                # range" / "clear push" / "standard shove" / "mandatory" / "range-
+                # standard"). A proxy/closest block HAS a chart_key (its "no exact
+                # chart at NBB; using nearest chart" disclosure is legitimate and is
+                # NOT matched here, because chart_key is present).
+                if (not _rev.get('chart_key')
+                        and (_rev.get('coverage') in (None, 'none'))
+                        and isinstance(cmt, dict)):
+                    _argl_nc = (f"{cmt.get('argument','')} "
+                                f"{cmt.get('key_decision','')} "
+                                f"{cmt.get('spot','')}").lower()
+                    _no_chart_support = ('inside the push range', 'inside the ep jam range',
+                                         'inside the ep push range', 'inside the jam range',
+                                         'inside the jamming range', 'clear push',
+                                         'standard shove', 'mandatory', 'range-standard')
+                    _nc_hit = [w for w in _no_chart_support if w in _argl_nc]
+                    if _nc_hit:
+                        import sys as _sys_nc
+                        print(f"  W-RANGE-NO-CHART: {hid_short} prose claims chart "
+                              f"support {_nc_hit} but canonical Range evidence has NO "
+                              f"charted range ({_rev.get('spot_label','?')})",
+                              file=_sys_nc.stderr)
         except Exception:
             pass
 
@@ -3120,7 +3229,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # numbered yellow analyst-notes block with a (N) pill on the
                 # Hero action it refers to. Reuses _split_argument_into_notes
                 # + _render_hand_grid_table exactly as XIV.A does.
-                _flag = _xivb_flag_note(hid, s, rd)
+                _flag = _xivb_flag_note(hid, s, rd, h)
                 # v8.8.6 S1-fix: satellite caveat — inline into XIV.B coaching text
                 _xivb_fmt = (h.get('format') or '').upper()
                 _xivb_icm = h.get('icm_pressure', 0) or 0

@@ -1,5 +1,128 @@
 v8.14.1 (2026-06-15) -- real-report QA + range-evidence trust release
 =========================================================================
+HOTFIX (post-tag, GPT REV6 — stale open-jam prose contradicted re-jam canonical):
+hand 73559949 (ATs) read "Short-stack open-jam ... at ~13bb, inside the push
+range ... Standard shove ... the jam is mandatory ... clear push ... inside the
+EP jam range" while the actual action is a RE-JAM (UTG open 2.2bb -> HJ jam ~13bb
+-> Hero re-jam over the top -> MP cold-call) and the canonical block says
+"re-jam (UTG vs UTG), ATs: no charted range at this depth/position." Chart-support
+prose for a first-in open-jam beside a re-jam / no-charted-range block.
+  Root: the analyst text was the OLD open-shove template, baked into
+  session_analysis_20260613.json BEFORE the role classifier was fixed to route a
+  4-bet+/re-jam off the open-shove chart. The canonical block + PKO-unavailable
+  note were already correct; only the baked analyst prose was stale.
+  Fix:
+   - session_analysis_20260613.json (73559949): reworded to describe the real
+     decision — a re-jam/over-jam at ~13bb effective vs HJ's short jam, MP
+     cold-call — justified by PRICE/EQUITY (strong suited ace + blockers), NOT a
+     chart; states there is no charted re-jam range and that bounty/PKO cover is
+     unresolved from the HH export (chip-chart logic only, manual review). III.5
+     Justified retained on the non-chart basis. No "open-jam", "inside the push
+     range", "inside the EP jam range", "clear push", "standard shove", or
+     "mandatory" remain.
+   - sections_xiv.py: NEW W-RANGE-NO-CHART render lint — when canonical evidence
+     has NO charted range (chart_key absent, coverage 'none'), prose may not claim
+     chart support ("inside the push range" / "inside the EP jam range" / "clear
+     push" / "standard shove" / "mandatory" / "range-standard"). A proxy/closest
+     block HAS a chart_key, so its "no exact chart at NBB; using nearest chart"
+     disclosure is legitimate and is NOT matched.
+  +1 test (T-RE-25) -> 1117. No version / strategy-logic / threshold change. Proof
+  (decoded lazy): 73559949 describes a re-jam, no open-jam / chart-support prose;
+  no card pairs "no charted range" with chart-support language; REV3/4/5 checks
+  still clean; state ANALYST_COMPLETE/83/0.
+
+HOTFIX (post-tag, GPT REV5 — "no rejam chart" claim contradicted canonical chart):
+hand 72692569 (AA, MP 3-bet jam vs UTG+1, 62BB) read "3-bet jam as a near-flip
+(88% equity), no rejam chart for this matchup — standard get-in" while the
+canonical Range-evidence block said "Reference: MP re-jam vs UTG+1 open. AA:
+INSIDE." A chart-existence denial beside a resolved Reference.
+  Root: two re-jam chart lookups diverged. gem_ranges.build_range_evidence keys
+  REJAM_{pos}vs{opener} with the '+' STRIPPED (REJAM_MPvsUTG1) at any depth;
+  gem_coverage_builder R3 keyed the RAW "REJAM_MPvsUTG+1" (never resolves) AND
+  only computed membership when `_stack <= 30`, so a 62BB jam fell through to
+  `_in_rj is None` -> "no rejam chart for this matchup". The text was baked into
+  session_analysis_20260613.json and surfaced verbatim.
+  Fix:
+   - gem_coverage_builder.py: strip '+' in the REJAM key (match the canonical
+     selector) and drop the `_stack <= 30` gate so re-jam membership resolves at
+     any depth — the existence-denial branch now only fires when the chart truly
+     does not exist (and the canonical block then also has no Reference, so they
+     cannot disagree).
+   - session_analysis_20260613.json (72692569): reworded to defer to canonical —
+     "3-bet jam with AA (88% equity all-in) — inside the MP re-jam vs UTG+1 range,
+     a standard get-in." III.5 Justified retained.
+   - sections_xiv.py: NEW W-RANGE-CHART-EXISTS render lint — a "no rejam chart" /
+     "no chart for this matchup" claim may never appear beside a canonical
+     Range-evidence block that has a Reference + INSIDE/OUTSIDE membership. (The
+     block's own "no exact chart at NBB" closest-depth disclosure is NOT a denial
+     and is not matched.)
+  +3 tests (T-RE-24/24a/24b) -> 1116. No version / strategy-logic / threshold
+  change. Proof (decoded lazy): 72692569 has no "no rejam chart" and says "inside
+  the MP re-jam vs UTG+1 range"; no card pairs a no-chart claim with a Reference;
+  REV3/REV4 checks still clean; state ANALYST_COMPLETE/83/0.
+
+HOTFIX (post-tag, GPT REV4 — report-BODY surface still contradicted the card):
+REV3 fixed the decoded hand cards, but the report BODY (S17 missed-open section)
+still rendered hand 72807590 under its stored SHORT-TABLE-proxy position — row
+"72807590 … HJ 23BB", Chart "HJ open, 20-40BB", Chart Includes "…97s+…", plus a
+"Correct range — HJ open" line — while the card says MP / 97s OUTSIDE / not a
+clear leak. Root: the detector stores the proxy seat (_open_chart_pos maps 7-max
+MP → the HJ chart) and the body printed it as if Hero sat at HJ.
+  Fix (sections_xiii.py + _helpers.py, renderer-only, counts preserved): new
+  `_proxy_info(d)` reads the REAL seat from s['_hands_by_id']; `_row_data` /
+  `_row_html` now render Hero's true seat in the hand reference ("MP 23BB", not
+  "HJ 23BB") and append "(short-table proxy)" to the chart label;
+  `_emit_correct_ranges` takes hands_by_id and labels a proxy chart
+  "(short-table proxy)" (and now counts "hand classes", not "combos"). The
+  detector's short-table logic and all leak COUNTS are unchanged — only the
+  display is made honest, so the body matches the card. +3 tests
+  (T-RE-23/23b/23c) -> 1113. No version / strategy-logic / threshold change.
+  Proof (full HTML + MD + decoded lazy): 72807590 never appears as "HJ 23BB"
+  without a proxy label; the S17 row shows "MP 23BB … HJ open, 20-40BB
+  (short-table proxy)"; REV3 lazy checks still clean; state ANALYST_COMPLETE/83/0.
+
+HOTFIX (post-tag, GPT REV3 — range-membership contradictions in decoded cards):
+two range-trust contradictions survived in the lazy hand cards.
+  (1) Hand 72807590 (97s, 7-max MP fold): the per-deviation "Correct range — HJ
+  open, 20-40BB ... 97s is inside this chart — passing on it is the deviation"
+  line was built from the detector's SHORT-TABLE-adjusted chart (_open_chart_pos
+  maps 7-max MP -> the HJ open chart) while the canonical Range-evidence block
+  uses the raw MP chart (97s OUTSIDE). sections_xiv now defers BOTH legacy
+  emitters (_deviation_range_text + the inline preflop-deviation branch) to the
+  canonical block via _canon_supersede(h): when a chart-backed block renders it
+  is the single source of truth, so the legacy chart line is suppressed; when the
+  block says OUTSIDE beside a "Missed" flag a reconciliation note ("Against the
+  charted MP open ... is outside — a table-size-dependent marginal, not a clear
+  leak") replaces the contradicting claim. _xivb_flag_note threads the hand.
+  (2) Hand 72807313 (Q8s SB open-jam ~18bb): analyst prose called the jam "the
+  standard line / standard / clean / range-standard at ~18bb" while the canonical
+  block says Q8s OUTSIDE the 20BB SB push chart; the session_analysis entry was
+  reworded to drop every chart-standard claim and clear it on explicit NON-chart
+  grounds (blind-vs-blind fold equity + suited-Q blockers + nearest-chart /
+  effective-depth limitation), III.3 Cleared retained.
+  The W-RANGE-CONTRADICT lint now also flags chart-STATUS / membership claims
+  (range-standard / standard line / inside this chart / clean-by-chart / chart-
+  approved) asserted beside an OUTSIDE chart — honest "outside chart but cleared
+  on EV/fold-equity grounds" prose contains none of these. +4 tests
+  (T-RE-20/21/21b/22) -> 1110. No version / strategy-logic / threshold change.
+
+HOTFIX (post-tag, GPT rev — re-jam "standard get-in" contradiction): the
+coverage-builder R3 near-flip 3-bet-jam rule appended "— standard get-in." to
+its verdict UNCONDITIONALLY, so an OUTSIDE-chart re-jam read "outside the
+standard jamming range — equity-driven get-in — standard get-in" (III.5
+Justified) beside a range-evidence block saying OUTSIDE, justified only by
+all-in RESULT equity the same card disclaims as "not the decision basis"
+(73279700 AJs BBvsMP, 73720606 77 COvsHJ). Systemic, not analyst-authored:
+gem_coverage_builder.py R3 now gates on `_in_rj` — inside the chart -> III.5
+"standard get-in" (chart is the justification); outside / no-chart -> III.4
+Read-dependent "equity-driven get-in; justify by fold-equity / price / opponent
+range, not a chart jam. Needs read or population confirmation." (`_rj_phrase`
+removed). The W-RANGE-CONTRADICT render lint now also flags an outside-chart
+get-in JUSTIFICATION ("standard get-in" / "correct push" / "correct get-in" /
+"justified get-in"), not just inside-claims. The two affected analyst entries in
+session_analysis_20260613.json were corrected to III.4 with the same wording.
++1 test (T-RE-19) + T-1230-RJ-1 updated -> 1106. No version change.
+
 FINAL: dropped the -preview suffix (RUNTIME_VERSION / verify_release / bundle
 -> v8.14.1; draft.py report-format VERSION stays v8.12.0, canary-pinned). Ships
 the real-report QA hotfix (rev-1..4 + xway + consistency-fix) AND the range-

@@ -1322,10 +1322,19 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         # REJAM range citation: when Hero rejammed (3-bet jam), cite the REJAM chart
         _rejam_note = ''
         _in_rj = None  # v8.8.9 BUG-6: track rejam range membership for R4 verdict gating
-        if pf_allin and _hero_role(h) == 'threebet_jam' and _stack <= 30:
+        # v8.14.1 REV5 (72692569): resolve re-jam membership at ANY depth. The
+        # old `_stack <= 30` gate let a 62BB 3-bet jam fall through to `_in_rj is
+        # None` -> "no rejam chart for this matchup", contradicting the canonical
+        # Range-evidence block (which resolved REJAM_MPvsUTG1, AA INSIDE). The
+        # _hero_role == 'threebet_jam' check already restricts this to re-jams.
+        if pf_allin and _hero_role(h) == 'threebet_jam':
             _opener = h.get('opener_position', '')
             if _opener and _pos:
-                _rj_key = f'REJAM_{_pos}vs{_opener}'
+                # v8.14.1 REV5: strip '+' to match gem_ranges.build_range_evidence
+                # (REJAM_MPvsUTG1, not REJAM_MPvsUTG+1) — the single canonical key,
+                # so coverage-builder membership can never disagree on chart
+                # EXISTENCE with the rendered Range-evidence block.
+                _rj_key = f'REJAM_{_pos.replace("+", "")}vs{_opener.replace("+", "")}'
                 _rj_rng = (ranges or {}).get(_rj_key, set())
                 if _rj_rng:
                     _rj_n = len(_rj_rng)
@@ -1554,18 +1563,31 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
                     # membership line below said OUTSIDE (66313409,
                     # 66697168). One boolean (_in_rj) drives both.
                     if _in_rj is True:
-                        _rj_phrase = 'inside the jamming range'
-                    elif _in_rj is False:
-                        _rj_phrase = ('outside the standard jamming range '
-                                      '— equity-driven get-in')
-                    else:
-                        _rj_phrase = 'no rejam chart for this matchup'
-                    return {'verdict': 'III.5 Justified', 'outcome': 'lost_flip',
-                            'confidence': 'HIGH', 'auto_rule': 'R3_3betjam_flip',
+                        # inside the rejam chart -> the chart IS the decision-time
+                        # justification, so a near-flip get-in is standard.
+                        return {'verdict': 'III.5 Justified', 'outcome': 'lost_flip',
+                                'confidence': 'HIGH', 'auto_rule': 'R3_3betjam_flip',
+                                'argument': _build_math_argument(
+                                    f'3-bet jam as a near-flip ({_eq_av*100:.0f}% equity), '
+                                    f'inside the jamming range — standard get-in.',
+                                    'III.5')}
+                    # v8.14.1 (GPT rev): an OUTSIDE-chart (or no-chart) rejam is NOT a
+                    # "standard get-in" — near-flip ALL-IN (result) equity alone is not
+                    # a decision-time justification, and labelling it "standard get-in"
+                    # contradicts the OUTSIDE range-evidence block (73279700, 73720606).
+                    # Downgrade to read-dependent and name the missing justification so
+                    # the verdict never asserts a chart jam it cannot back.
+                    _rj_oos = ('outside the standard jamming range' if _in_rj is False
+                               else 'no rejam chart for this matchup')
+                    return {'verdict': 'III.4 Read-dependent', 'outcome': 'lost_flip',
+                            'confidence': 'MEDIUM',
+                            'auto_rule': 'R3_3betjam_flip_unconfirmed',
                             'argument': _build_math_argument(
                                 f'3-bet jam as a near-flip ({_eq_av*100:.0f}% equity), '
-                                f'{_rj_phrase} — standard get-in.',
-                                'III.5')}
+                                f'{_rj_oos} — equity-driven get-in; justify by '
+                                f'fold-equity / price / opponent range, not a chart jam. '
+                                f'Needs read or population confirmation.',
+                                'III.4')}
                 else:
                     # v8.5.8: only I.7 Cooler for genuine structural matchups
                     # (pair-over-pair). Non-pair jams that ran into the top of

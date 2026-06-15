@@ -117,12 +117,28 @@ def _emit_section_xiii(doc, s, rd, hands):
                 ordered.append((p, out[p]))
         return ordered
 
+    def _proxy_info(d):
+        """v8.14.1 REV4 (hand 72807590): a deviation's stored `pos` can be a
+        short-table chart PROXY — gem_analyzer._open_chart_pos maps e.g. 7-max
+        MP onto the HJ open chart (fewer players behind ⇒ looser range). The
+        canonical "Range evidence" block in the hand card uses Hero's REAL seat,
+        so the body must show the real seat and label the chart a proxy — never
+        present "HJ 23BB" as if Hero sat at HJ. Returns (true_seat, is_proxy)
+        from the real hand record."""
+        _h = (s.get('_hands_by_id') or {}).get(d.get('id')) or {}
+        _seat = _h.get('position') or ''
+        _stored = d.get('pos', '') or ''
+        return (_seat or _stored), bool(_seat and _stored and _seat != _stored)
+
     def _row_html(d, *, with_opener=False):
-        href = _href(d, s['_hands_by_id'])
+        _seat_h, _is_proxy_h = _proxy_info(d)
+        href = _href({**d, 'position': _seat_h}, s['_hands_by_id'])
         chart = d.get('chart', '—')
         sz = d.get('chart_size', '?')
         bound = d.get('chart_summary', '—') or '—'
         chart_label = f"{_cdl(chart)} (n={sz})" if chart != '—' else '—'
+        if _is_proxy_h and chart != '—':
+            chart_label += ' (short-table proxy)'
         # v7.39 — B32: chart-augmented marker. If the analyzer's sanity check
         # patched this chart's missing premium content, mark it inline so Ron
         # can spot deviations that fired against fixed-up charts vs raw OCR.
@@ -180,11 +196,17 @@ def _emit_section_xiii(doc, s, rd, hands):
 
     def _row_data(d, *, with_opener=False):
         """Same fields as _row_html but returns list of cells (for B92)."""
-        href = _href(d, s['_hands_by_id'])
+        # v8.14.1 REV4 (72807590): show Hero's REAL seat and label a short-table
+        # proxy chart, so the body never reads "HJ 23BB" as Hero's seat while the
+        # hand card says MP / OUTSIDE / not a clear leak.
+        _seat_d, _is_proxy_d = _proxy_info(d)
+        href = _href({**d, 'position': _seat_d}, s['_hands_by_id'])
         chart = d.get('chart', '—')
         sz = d.get('chart_size', '?')
         bound = d.get('chart_summary', '—') or '—'
         chart_label = f"{_cdl(chart)} (n={sz})" if chart != '—' else '—'
+        if _is_proxy_d and chart != '—':
+            chart_label += ' (short-table proxy)'
         if d.get('chart_augmented'):
             chart_label = f"⚠️ {chart_label} (chart-augmented +{d.get('chart_augmented_count', '?')})"
         sev = d.get('severity', d.get('confidence', '—'))
@@ -231,7 +253,7 @@ def _emit_section_xiii(doc, s, rd, hands):
                 [_row_data(d) for d in group],
                 block_id=f"xiii1-wide-opens-{pos.lower().replace('+','plus')}")
             doc.w("")
-            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}))
+            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}), s.get('_hands_by_id'))
             doc.w(f'<<REVIEWROW|sub|{anchor}|Wide Opens at {pos}>>')
 
     # XIII.2 All Wide BB Defends — grouped by OPENER position (the relevant axis here,
@@ -300,7 +322,7 @@ def _emit_section_xiii(doc, s, rd, hands):
                 _bb_hdr, _bb_sep, _bb_rows)
             doc.write_block(_bb_blk)
             doc.w("")
-            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}))
+            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}), s.get('_hands_by_id'))
             _bb_anchor = f"sec-17-2-vs-{opener.lower().replace('+','plus')}"
             doc.w(f'<<REVIEWROW|sub|{_bb_anchor}|Wide BB Defends vs {opener}>>')
 
@@ -325,7 +347,7 @@ def _emit_section_xiii(doc, s, rd, hands):
                 [_row_data(d) for d in group],
                 block_id=f"xiii3-missed-opens-{pos.lower().replace('+','plus')}")
             doc.w("")
-            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}))
+            _emit_correct_ranges(doc, group, s.get('_dev_charts', {}), s.get('_hands_by_id'))
             doc.w(f'<<REVIEWROW|sub|{anchor}|Missed Opens at {pos}>>')
 
     # XIII.4 All Mistakes — split by confidence (CLEAR vs MARGINAL) AND review status

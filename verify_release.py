@@ -15,12 +15,12 @@ VERSION = "v8.14.1"   # v8.14.1 final (real-report QA + range-evidence trust fix
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("1f02fa59913404a4d990a7a50dac9fc8bcc6843f0592dd6be1b13754cb64f0c4", 80417, "v8.14.1-preview hotfix entry (+rev-2/3/4 +xway-fix)"),
+    "GEM_Changelog.txt": ("62a1560b9a199f6fdf4c9aed46535637be8739b28b9702278050c130561b8ab0", 89206, "v8.14.1 hotfix entry (+rev-2/3/4 +xway +REV3/4/5/6 range trust)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("edba1f04fadf67dd08ff45195bcc890450da3938d5933b56b9b74323a6fe8985", 4169, "v8.14.1: 40 files, 352 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("53e6360cb5cd0a8b27e9a524cb9270ba7f1c56aeae2d7ae8f3e432523636b0cb", 406510, "v8.14.1 xway-fix: +T-XWAY-01..06 (1083 tests)"),
+    "_test_scratch.py": ("b2ec45b1ec96ae9878bee69161234f51c3069e36852afe778e313096d6008f7c", 413742, "v8.14.1 REV6: +T-RE-25 (1117 tests)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
@@ -28,7 +28,7 @@ MANIFEST = {
     "gem_chart_labels.py": ("9b87b230130a7b5a3dde91304f1b6234b011777b7de3e0eae9129a45b0cf7fa3", 3330, "v8.12.11: chart-id -> human label registry (no raw IDs)"),
     "gem_coaching_cards.py": ("9327a09b5edb2e1d7e384f592c2f4d4d61ed5c10f67c239aa4be09365901efa3", 47332, "v8.14.1 rev-3: not-collectible card reads canonical collectibility"),
     "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
-    "gem_coverage_builder.py": ("94dffb8f0aca400ff7d7cebc3d35f0fdf49a8be1b3b7be162e9abac36f15be5c", 126453, "v8.14.1 hotfix: human chart labels (no raw REJAM/PUSH ids)"),
+    "gem_coverage_builder.py": ("a7ac54b791b2fe103b6eac5e09cf09d7e48dbcba106231488496a7571f227780", 128365, "v8.14.1 REV5: re-jam key strips '+' + resolves at any depth (REJAM_MPvsUTG1, 72692569)"),
     "gem_eai_equity.py": ("4313ade454b4dd4f163b9576832d42ca28fdadffc406e7438558c32131b9abfb", 8687, "v8.9.9: except Exception + smoke value compare + MC comment fix"),
     "gem_gtow.py": ("680aa0c462e2cf2799c4946d7bdc898a6cb24dc11459ab10e4048cfe066d77a7", 32085, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
     "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),
@@ -39,7 +39,7 @@ MANIFEST = {
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
     "gem_report_data.py": ("80c5cb23d87944420759f757a0a30f6397202d2251585855109938d1ff314c99", 223024, "v8.13.1 P0: ANALYST_COMPLETE gated on critical-loss coverage + coverage line"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
-    "gem_report_draft/_helpers.py": ("eeb08c89418bfec7b73f14795f00b720726626bb6ff63516b425b42cd98016fe", 61381, "v8.14.1 rev-4: Correct-range chart label"),
+    "gem_report_draft/_helpers.py": ("61310541afa92d8d3b1348d8a20e423852021514f2163dbb632d90a1b95bbb4e", 62149, "v8.14.1 REV4: _emit_correct_ranges labels short-table proxy + hand classes"),
     "gem_report_draft/_html.py": ("b7ce805a5d37d4fbc35e4f942c7e61f7d861db558fc77dbe93fe1ba2619aa48e", 380358, "v8.14.1 rev-3: all-auto-clear queue count label + modal title follows header"),
     "gem_report_draft/_state.py": ("93ac271ab875d00053f1f81158ad4390041ba8259fbc4724fbde14e0584a8b6f", 4033, "v8.8.7: _BUDGET_TRIMMED_IDS + HA3 priority tracking"),
     "gem_report_draft/draft.py": ("56d9cf5ed088568ade7826dd2b3358d8e49dcbe7c4d9ecd7744da1afa4c3d318", 31000, "v8.12.8 QA3: handIndex opener position"),
@@ -47,8 +47,8 @@ MANIFEST = {
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
     "gem_report_draft/sections_iv_xii.py": ("cde2c30fd686248d76433bcbc14ce3af1a55704b0df4c11f9ac7cdb0bf779f03", 224876, "v8.12.12 rev-3 Obj-H: strategic-leaks prose de-Romanized"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
-    "gem_report_draft/sections_xiii.py": ("a2cc0cda22624a0176ceadd53bcedee56b97638e3a4f5ecc958eb34b616386f6", 66945, "v8.14.1 rev-4: deviation-table chart labels (chart_display_label)"),
-    "gem_report_draft/sections_xiv.py": ("1a5c6aca9101c8ea7e131e4716abf3fac9eb00cd103a4fe443b66ab8d74be5c0", 197716, "v8.14.1 rev-4: module chart-label import + XIV.B PKO downgrade + Correct-range labels + PKO-unavailable note"),
+    "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
+    "gem_report_draft/sections_xiv.py": ("0992e08d9b9fb578bfa4ebdbe330ebd10a2459e553e35de56df2ea00047da569", 205129, "v8.14.1 REV6: + W-RANGE-NO-CHART lint (chart-support prose vs canonical no-charted-range, 73559949); REV3/5 lints retained"),
     "gem_report_draft/tldr.py": ("1aaba542876b93af9a5505f88b2e889e08de6e9a3eb2eb00dd12eaca2f6742d2", 145596, "v8.14.1 rev-3: settlement-date in results-attribution + all-auto-clear queue reframe"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
@@ -1032,6 +1032,28 @@ CANARIES = [
      "v8.14.0 Slice C: Drill + Rulebook review statuses in the modal"),
     ("gem_report_draft/_html.py", "grid-template-areas: \"rank hid main bb\"",
      "v8.14.0 Slice C: compact queue rows stack on mobile (no horizontal overflow)"),
+    # ── v8.14.1 REV3: legacy "Correct range" prose defers to the canonical
+    #    Range-evidence block (no HJ-vs-MP membership contradiction, 72807590) ──
+    ("gem_report_draft/sections_xiv.py", "def _canon_supersede(h):",
+     "v8.14.1 REV3: canonical Range-evidence block supersedes legacy Correct-range prose"),
+    ("gem_report_draft/sections_xiv.py", "'inside this chart')",
+     "v8.14.1 REV3: W-RANGE-CONTRADICT lint flags chart-membership claims (range-standard/inside this chart) beside an OUTSIDE chart"),
+    # ── v8.14.1 REV4: report-body leak rows show Hero's real seat + label a
+    #    short-table proxy chart (no "HJ 23BB" for a 7-max MP hand, 72807590) ──
+    ("gem_report_draft/sections_xiii.py", "def _proxy_info(d):",
+     "v8.14.1 REV4: body rows use the real seat + label a short-table proxy chart"),
+    ("gem_report_draft/_helpers.py", "label += ' (short-table proxy)'",
+     "v8.14.1 REV4: _emit_correct_ranges labels short-table proxy charts"),
+    # ── v8.14.1 REV5: re-jam chart-existence trust (72692569) — coverage-builder
+    #    key matches the canonical selector; a no-chart claim can't sit beside a
+    #    canonical Reference ──
+    ("gem_coverage_builder.py", 'REJAM_{_pos.replace("+", "")}vs{_opener.replace("+", "")}',
+     "v8.14.1 REV5: re-jam key strips '+' to match gem_ranges (no false 'no rejam chart')"),
+    ("gem_report_draft/sections_xiv.py", "W-RANGE-CHART-EXISTS",
+     "v8.14.1 REV5: lint — 'no chart' claim may not appear beside a canonical Reference"),
+    # ── v8.14.1 REV6: chart-support prose vs canonical no-charted-range (73559949) ──
+    ("gem_report_draft/sections_xiv.py", "W-RANGE-NO-CHART",
+     "v8.14.1 REV6: lint — chart-support prose may not appear when canonical has NO charted range"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

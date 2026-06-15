@@ -346,11 +346,17 @@ def _compact_range(hands):
     return ' · '.join(parts) if parts else '—'
 
 
-def _emit_correct_ranges(doc, group, dev_charts):
+def _emit_correct_ranges(doc, group, dev_charts, hands_by_id=None):
     """B150: for a position-group of deviations, emit the correct range for
     each distinct chart the group references (sourced from s['_dev_charts']).
     All hands in a group at the same depth share a chart, so this is usually
-    one or two lines, not one per hand."""
+    one or two lines, not one per hand.
+
+    v8.14.1 REV4 (72807590): when a chart is used as a short-table PROXY for a
+    hand whose real seat differs (gem_analyzer._open_chart_pos maps e.g. 7-max
+    MP onto the HJ chart), label it "(short-table proxy)" so the "Correct range"
+    line never reads as Hero's actual-seat range — matching the hand card's
+    canonical Range-evidence block."""
     if not dev_charts:
         return
     seen = []
@@ -365,7 +371,17 @@ def _emit_correct_ranges(doc, group, dev_charts):
         hands = dev_charts.get(cn) or []
         if not hands:
             continue
-        doc.w(f"**Correct range — {_cdl_h(cn)}** ({len(hands)} combos): "
+        label = _cdl_h(cn)
+        if hands_by_id:
+            for d in group:
+                if d.get('chart') != cn:
+                    continue
+                _h = hands_by_id.get(d.get('id')) or {}
+                _seat = _h.get('position')
+                if _seat and d.get('pos') and _seat != d.get('pos'):
+                    label += ' (short-table proxy)'
+                    break
+        doc.w(f"**Correct range — {label}** ({len(hands)} hand classes): "
               f"{_compact_range(hands)}")
         doc.w("")
 

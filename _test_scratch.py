@@ -6571,9 +6571,126 @@ check('T-1230-EFF-1: all-in CALL amount is the exact contested cap',
 check('T-1230-BNTY-1: no bounty-adjusted threshold when engine applied none',
       '_po_b9' in _cb_1230
       and "required_eq_bounty_pct') is None" in _cb_1230, '')
-check('T-1230-RJ-1: rejam TL;DR phrase driven by the SAME _in_rj boolean',
-      'equity-driven get-in' in _cb_1230
-      and '_rj_phrase' in _cb_1230, '')
+check('T-1230-RJ-1: rejam near-flip gated on _in_rj — inside=standard get-in; outside/no-chart=III.4 (no "standard get-in" claim); _rj_phrase removed',
+      'inside the jamming range — standard get-in.' in _cb_1230
+      and "'R3_3betjam_flip_unconfirmed'" in _cb_1230
+      and 'not a chart jam.' in _cb_1230
+      and 'Needs read or population confirmation.' in _cb_1230
+      and 'equity-driven get-in' in _cb_1230
+      and '_rj_phrase' not in _cb_1230, '')
+# T-RE-19 (GPT rev): the contradiction lint also flags an outside-chart get-in
+# JUSTIFICATION ("standard get-in" / "correct push") — not just inside-claims.
+check('T-RE-19: W-RANGE-CONTRADICT lint catches outside-chart "standard get-in"/"correct push"',
+      "_assertive_getin = ('standard get-in', 'correct get-in'," in _xiv_re
+      and "'correct push'" in _xiv_re
+      and '_getin_hit = any(w in _argl for w in _assertive_getin)' in _xiv_re, '')
+
+# T-RE-20 (REV3, Blocker 2 / 72807590): legacy "Correct range" prose defers to the
+# canonical Range-evidence block. _deviation_range_text + the inline preflop-
+# deviation branch suppress their chart line when _canon_supersede(h) reports a
+# chart-backed block, and _xivb_flag_note threads the hand through to it.
+check('T-RE-20: legacy Correct-range prose gated on canonical block (_canon_supersede + h threaded)',
+      'def _canon_supersede(h):' in _xiv_re
+      and 'def _deviation_range_text(hid, s, h=None):' in _xiv_re
+      and 'def _xivb_flag_note(hid, s, rd, h=None):' in _xiv_re
+      and _xiv_re.count('_canon_supersede(h)') >= 2
+      and _xiv_re.count('_xivb_flag_note(hid, s, rd, h)') >= 3, '')
+
+# T-RE-21b (REV3): without the hand the legacy line is preserved (back-compat,
+# no ranges needed — _canon_supersede(None) short-circuits).
+from gem_report_draft.sections_xiv import _deviation_range_text as _drt_re
+_s_590 = {'preflop_deviations': [{'id': 'TM6072807590', 'cards': '97s',
+          'pos': 'HJ', 'type': 'Missed Open', 'chart': 'OPEN_20-40BB_HJ'}],
+          '_dev_charts': {'OPEN_20-40BB_HJ': ['55+', 'A2s+', 'K8s+', '97s']}}
+check('T-RE-21b: without h, legacy Correct-range line preserved (back-compat)',
+      'Correct range' in _drt_re('TM6072807590', _s_590), '')
+
+# T-RE-21 (REV3): a Missed-Open deviation stored on the short-table-adjusted HJ
+# chart, beside a canonical MP block that says OUTSIDE (97s @ 7-max MP, hand
+# 72807590), renders the reconciliation note — NOT "Correct range — HJ" / "inside
+# this chart — passing on it is the deviation".
+_h_590 = {'id': 'TM6072807590', 'position': 'MP', 'cards': ['9c', '7c'],
+          'stack_bb': 23, 'eff_stack_bb_at_decision': 23, 'pf_action': 'fold',
+          'first_in': True, 'n_players': 7}
+if _RE_OK:
+    _drt_out = _drt_re('TM6072807590', _s_590, _h_590)
+    check('T-RE-21: 72807590 missed-open defers to canonical MP (no "Correct range"/"inside this chart")',
+          'Correct range' not in _drt_out
+          and 'inside this chart' not in _drt_out
+          and 'is outside' in _drt_out, _drt_out[:90])
+else:
+    check('T-RE-21: 72807590 deferral (skipped, no chart file)', True, 'skip')
+
+# T-RE-22 (REV3): the contradiction lint also flags chart-STATUS / membership
+# claims (range-standard / standard line / inside this chart / clean-by-chart)
+# asserted beside an OUTSIDE canonical chart (72807313 class). Honest "outside
+# chart but cleared on EV/fold-equity grounds" prose contains none of these.
+check('T-RE-22: W-RANGE-CONTRADICT lint extended for range-standard/standard line/inside this chart',
+      "'inside this chart'" in _xiv_re
+      and "'range-standard', 'standard line'" in _xiv_re
+      and "'jam is clean', 'clean by chart'" in _xiv_re, '')
+
+# T-RE-23 (REV4, 72807590 report-BODY): the XIII leak surfaces label a short-table
+# proxy chart and show Hero's REAL seat — the body no longer reads "HJ 23BB" as if
+# Hero sat at HJ while the hand card says MP / OUTSIDE / not a clear leak.
+from gem_report_draft._helpers import _emit_correct_ranges as _ecr_re
+class _DocM_RE:
+    def __init__(self): self.lines = []
+    def w(self, x=''): self.lines.append(str(x))
+    def write_block(self, b): self.lines.append(str(b))
+_dm = _DocM_RE()
+_ecr_re(_dm,
+        [{'id': 'TM6072807590', 'pos': 'HJ', 'chart': 'OPEN_20-40BB_HJ', 'type': 'Missed Open'}],
+        {'OPEN_20-40BB_HJ': ['55', '66', 'A2s', '97s']},
+        {'TM6072807590': {'id': 'TM6072807590', 'position': 'MP'}})
+_ecr_out = '\n'.join(_dm.lines)
+check('T-RE-23: proxy chart labeled "(short-table proxy)" + "hand classes" (not combos)',
+      'short-table proxy' in _ecr_out and 'hand classes)' in _ecr_out and 'combos)' not in _ecr_out,
+      _ecr_out[:90])
+_dm2 = _DocM_RE()
+_ecr_re(_dm2, [{'id': 'X', 'pos': 'CO', 'chart': 'OPEN_20-40BB_CO'}],
+        {'OPEN_20-40BB_CO': ['55', 'A2s']}, {'X': {'position': 'CO'}})
+check('T-RE-23b: non-proxy chart (seat==pos) has no proxy label',
+      'short-table proxy' not in '\n'.join(_dm2.lines), '')
+_xiii_re = open('gem_report_draft/sections_xiii.py', encoding='utf-8').read()
+check('T-RE-23c: sections_xiii shows true seat + proxy chart label, threads hands_by_id',
+      'def _proxy_info(d):' in _xiii_re
+      and "_href({**d, 'position': _seat_d}" in _xiii_re
+      and "chart_label += ' (short-table proxy)'" in _xiii_re
+      and _xiii_re.count("s.get('_dev_charts', {}), s.get('_hands_by_id'))") >= 3, '')
+
+# T-RE-24 (REV5, 72692569): coverage-builder resolves re-jam membership at ANY
+# depth + strips '+' to match gem_ranges (REJAM_MPvsUTG1), so it can never emit a
+# "no rejam chart" existence-denial for a matchup the canonical block resolves.
+check('T-RE-24: coverage-builder re-jam key strips "+" and is not stack-gated',
+      'REJAM_{_pos.replace("+", "")}vs{_opener.replace("+", "")}' in _cb_1230
+      and "_hero_role(h) == 'threebet_jam':" in _cb_1230
+      and "_hero_role(h) == 'threebet_jam' and _stack <= 30" not in _cb_1230, '')
+# the REJAM key the fix builds resolves in the real chart file, AA inside
+if _RE_OK:
+    check('T-RE-24a: REJAM_MPvsUTG1 resolves (AA inside) — matches canonical selector',
+          'AA' in _RANGES_RE.get('REJAM_MPvsUTG1', set()), '')
+else:
+    check('T-RE-24a: REJAM_MPvsUTG1 resolves (skipped, no chart file)', True, 'skip')
+# T-RE-24b: new render lint flags a "no chart" claim beside a canonical Reference
+check('T-RE-24b: W-RANGE-CHART-EXISTS lint guards no-chart claim vs canonical Reference',
+      'W-RANGE-CHART-EXISTS' in _xiv_re
+      and "'no rejam chart' in _argl_ce" in _xiv_re
+      and "'no chart for this matchup' in _argl_ce" in _xiv_re
+      and "_rev.get('membership') in ('inside', 'outside')" in _xiv_re, '')
+
+# T-RE-25 (REV6, 73559949): inverse lint — when canonical evidence has NO charted
+# range (chart_key absent, coverage 'none'), prose may NOT claim chart support
+# (inside push/EP jam range, clear push, standard shove, mandatory, range-standard).
+# A proxy/closest block HAS a chart_key, so its "no exact chart at NBB; using
+# nearest chart" disclosure is legitimate and NOT matched.
+check('T-RE-25: W-RANGE-NO-CHART lint guards chart-support prose vs canonical no-charted-range',
+      'W-RANGE-NO-CHART' in _xiv_re
+      and "not _rev.get('chart_key')" in _xiv_re
+      and "_rev.get('coverage') in (None, 'none')" in _xiv_re
+      and "'inside the push range'" in _xiv_re
+      and "'clear push'" in _xiv_re
+      and "'standard shove'" in _xiv_re, '')
 check('T-1230-VSN-1: cross-hand pattern reads labeled Future read',
       'Future read' in _sx_1230, '')
 check('T-1230-SIZE-1: oversized villain opens get the sizing-read note',

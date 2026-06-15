@@ -20,6 +20,9 @@ from gem_report_draft.tldr import (_emit_tldr, _emit_leak_watchlist, _emit_legen
 from gem_report_draft.sections_financial import (_emit_daily_summary_table,
     _emit_skill_index_movement, _emit_section_i, _emit_section_ii,
     _emit_ii_verdict_kpis, _emit_ii_mental_bluff)
+# v8.15 Tournament Tables (SP-2): additive event-level section (does NOT replace
+# the existing Results tables; renders from the SP-1 typed model).
+from gem_report_draft.sections_tournaments import _emit_tournament_tables
 from gem_report_draft.sections_mistakes import (_emit_mental_game, _emit_section_iii,
     _emit_iii_punts_mistakes, _emit_iii_strategic_leaks,
     _emit_iii_cleared_justified, _emit_iii_clinical_picks)
@@ -194,7 +197,7 @@ def _build(stats, report_data, hands, sections=None):
     # or legacy Roman (I, II, …XIV). Roman labels expand to their S-segments
     # so `--section III` renders S2+S3+S4+S13 (the four III sub-segments).
     _ROMAN_TO_S = {
-        'I': ['S1'], 'II': ['S6', 'S7'], 'III': ['S2', 'SIE', 'S3', 'S4', 'S13'],
+        'I': ['S1', 'STT'], 'II': ['S6', 'S7'], 'III': ['S2', 'SIE', 'S3', 'S4', 'S13'],
         'IE': ['SIE'],
         'IV': ['S5'], 'V': ['S8'], 'VI': ['S9'], 'VII': ['S10'],
         'VIII': ['S11'], 'IX': ['S12'], 'X': ['S14'], 'XI': ['S15'],
@@ -231,6 +234,9 @@ def _build(stats, report_data, hands, sections=None):
         # ('S7',  _emit_ii_mental_bluff),      # Coach — in dashboard
         ('SIE', _emit_issue_explorer),         # Issue Explorer — triage table (v8.2.0)
         ('S1',  _emit_section_i),              # Result — P&L, All-Ins, card quality, coolers, arc
+        # v8.15 SP-2: NEW additive event-level Tournament Tables (alongside S1's
+        # existing Results tables; nothing removed yet — additive-then-swap).
+        ('STT', _emit_tournament_tables),      # Tournament Tables — event-level financial-first
         ('S5',  _emit_section_viii),           # Action Items — promoted leaks, drills, GTO shortlist
         ('S6',  _emit_ii_verdict_kpis),        # KPIs — watchlist, cheat sheet, KPIs, mental game, exploits, bluff
         ('S2',  _emit_iii_punts_mistakes),     # Top hands — punts, mistakes, large-loss, picks
@@ -542,7 +548,7 @@ def _build(stats, report_data, hands, sections=None):
     # Phase 4.8: nav labels + subtitles aligned with user's desired tab names.
     # Order determined by section_emitters above; labels here are keyed by S-number.
     _NAV_SUBTITLES = {
-        'S7': 'discipline & process', 'S1': 'variance vs skill',
+        'STT': 'event-level P&L', 'S7': 'discipline & process', 'S1': 'variance vs skill',
         'S6': 'verdict & KPIs', 'S2': 'punts & mistakes',
         'SIE': 'tiered issues & coverage',
         'S3': 'legacy leak details', 'S4': 'bounty / PKO',
@@ -574,6 +580,8 @@ def _build(stats, report_data, hands, sections=None):
         # B-V13: SIE uses a custom anchor, not the generic sec-N pattern
         if label == 'SIE':
             anchor = 'sec-issue-explorer'
+        elif label == 'STT':
+            anchor = 'sec-tournaments'   # v8.15 SP-2 Tournament Tables
         else:
             sec_num = label[1:]  # "S5" -> "5"
             anchor = f"sec-{sec_num}"

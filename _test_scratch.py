@@ -8237,6 +8237,83 @@ check('T-TT-14 no stack-trajectory surface; only detector-backed drivers survive
       and _tt_m['events'][1]['drivers'] == [], '')
 
 # ============================================================
+# Tournament Tables v8.15 — Phase 2 / SP-2: additive renderer (T-TT-R-01..12).
+# Renders the NEW section from build_tournament_model via the REAL Doc/render path.
+# ============================================================
+print('\n=== Tournament Tables v8.15 Phase 2 / SP-2: additive renderer ===')
+import copy as _copy_ttr
+from gem_report_draft._html import Doc as _Doc_ttr
+from gem_report_draft.sections_tournaments import _emit_tournament_tables as _ett
+def _render_tt(rd):
+    d = _Doc_ttr()
+    _emit_tournament_tables(d, {}, rd, []) if False else _ett(d, {}, rd, [])
+    return d.render_md()
+_ttr_md = _render_tt(_tt_rd)   # reuse the SP-1 canonical fixture
+
+check('T-TT-R-01: new section renders from build_tournament_model (header + event table)',
+      'Tournament Tables (event-level)' in _ttr_md
+      and '| Date | Tournament | Type |' in _ttr_md
+      and 'Mini Knockout Heater' in _ttr_md, '')
+# old/current Results tables still render (S1 unchanged + STT ADDED after it)
+_draft_src_ttr = open('gem_report_draft/draft.py', encoding='utf-8').read()
+check('T-TT-R-02: old Results section still wired (S1 kept) and STT added additively AFTER it',
+      "('S1',  _emit_section_i)" in _draft_src_ttr
+      and "('STT', _emit_tournament_tables)" in _draft_src_ttr
+      and _draft_src_ttr.index("('S1',  _emit_section_i)") < _draft_src_ttr.index("('STT', _emit_tournament_tables)")
+      and 'def _emit_section_i(' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(), '')
+# repeated names => separate rows
+_rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
+  'per_tournament': [
+    {'tid': 'R1', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
+     'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False},
+    {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
+     'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
+check('T-TT-R-03: repeated tournament names render as separate event rows',
+      _render_tt(_rep_rd).count('| GGMasters Bounty') == 2, '')
+# multi-bullet => one row with bullet count
+_mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
+  'per_tournament': [
+    {'tid': 'M1', 'name': 'Big Re-entry', 'start_date': '2026-06-14', 'buyin': 50, 'bullets': 3,
+     'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
+_mb_md = _render_tt(_mb_rd)
+check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
+      _mb_md.count('| Big Re-entry ') == 1 and '| Big Re-entry | Standard* | $50 | 3 |' in _mb_md, '')
+# summary totals match canonical usd_overlay.totals
+check('T-TT-R-05: summary strip totals match canonical usd_overlay.totals',
+      '| 2 | 3 | $3946.97 | $1370.43 | $470 |' in _ttr_md and '-65.3%' in _ttr_md, '')
+# return basis text appears
+check('T-TT-R-06: return basis text "cash + ticket" appears in trust line + summary',
+      'return basis: **cash + ticket**' in _ttr_md and '| cash + ticket |' in _ttr_md, '')
+# cash + ticket displayed consistently (satellite row: Cash $0 + Ticket $470 = Return $470)
+check('T-TT-R-07: per-row cash + ticket = return (satellite: $0 + $470 = $470)',
+      '| $0 | $470 | $470 |' in _ttr_md, '')
+# unknown provenance => em dash
+_unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
+  'per_tournament': [
+    {'tid': 'U1', 'name': '', 'start_date': '2026-06-14', 'buyin': 5, 'bullets': 1,
+     'cost': 5, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -5, 'is_sat': False}]}}
+_unk_md = _render_tt(_unk_rd)
+check('T-TT-R-08: unknown prize provenance renders an em dash (not a fabricated label)',
+      '| — | $5 |' in _unk_md, _unk_md[_unk_md.find('| 2026'):][:120])
+# inferred prize type marked
+check('T-TT-R-09: inferred prize type marked with * + footnote present',
+      'Bounty*' in _ttr_md and 'Prize type inferred from the tournament name' in _ttr_md, '')
+# bounty dollars not inferred
+check('T-TT-R-10: bounty dollars not inferred (audit footnote present; no $ on the bounty Type cell)',
+      'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
+      and '| Bounty* | $30 |' in _ttr_md, '')
+# per-event cEV blank (no canonical source) — last column is em dash for both rows
+check('T-TT-R-11: per-event cEV/100 stays blank (—) for every row — no canonical tid->cEV source',
+      '12/500 | — | — |' in _ttr_md          # Mini Knockout: Adv —, cEV — (trailing)
+      and '3/40 | seat | — |' in _ttr_md      # Daily Sat: Adv seat, cEV — (trailing)
+      and 'no canonical per-tournament cEV/100 source exists' in _ttr_md, '')
+# read-only: emitter does not mutate rd (no unrelated state changes)
+_pre = _copy_ttr.deepcopy(_tt_rd)
+_render_tt(_tt_rd)
+check('T-TT-R-12: renderer is read-only on rd (no unrelated state mutation)',
+      _tt_rd == _pre, '')
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')

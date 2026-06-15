@@ -8127,6 +8127,116 @@ check('T-H144B-08: centralized find_raw_chart_ids_in_user_text + humanize_raw_ch
       and 'def _strip_html_to_text(' in _gcl_src144, '')
 
 # ============================================================
+# Tournament Tables v8.15 — Phase 1 / SP-1: event-level model (T-TT-01..14).
+# Data layer only (no render). Synthetic fixtures; no dependence on a real report.
+# ============================================================
+print('\n=== Tournament Tables v8.15 Phase 1 / SP-1: event-level model ===')
+from gem_tournament_model import build_tournament_model as _btm, _buyin_band as _bb_tt
+
+# [A-FIN] canonical fixture: 2 events summing to the sealed session totals.
+_tt_rd = {'platform': 'GG', 'report_label_date': '2026-06-13',
+  'usd_overlay': {'status': 'parsed',
+    'per_tournament': [
+      {'tid': '290160919', 'name': 'Mini Knockout Heater', 'start_date': '2026-06-14',
+       'buyin': 30.0, 'bullets': 2, 'cost': 3000.00, 'cash_received': 900.43,
+       'ticket_value': 0.0, 'cash_total': 900.43, 'net': -2099.57, 'is_sat': False,
+       'itm': True, 'place': 12, 'total_players': 500, 'advanced': False},
+      {'tid': '290160920', 'name': 'Daily Sat to Main', 'start_date': '2026-06-14',
+       'buyin': 946.97, 'bullets': 1, 'cost': 946.97, 'cash_received': 0.0,
+       'ticket_value': 470.00, 'cash_total': 470.00, 'net': -476.97, 'is_sat': True,
+       'itm': True, 'place': 3, 'total_players': 40, 'advanced': False}],
+    'totals': {'n_tournaments': 2, 'n_bullets': 3, 'total_cost': 3946.97,
+               'total_cash': 1370.43, 'total_ticket_value': 470.00,
+               'total_net': -2576.54, 'roi_pct': -65.3}}}
+_tt_m = _btm(_tt_rd, cev_by_tid={'290160919': 0.54})
+_tt_tot = _tt_m['totals']
+
+# --- [A-FIN] financial reconciliation ---
+check('T-TT-01 [A-FIN]: model totals reconcile to canonical (cost 3946.97 / return 1370.43 / net -2576.54 / ROI -65.3)',
+      _tt_tot['committed_cost'] == 3946.97 and _tt_tot['return'] == 1370.43
+      and _tt_tot['net'] == -2576.54 and _tt_tot['roi_pct'] == -65.3, str(_tt_tot))
+check('T-TT-02 [A-FIN]: return basis is explicit "cash + ticket" with ticket value carried',
+      _tt_tot['return_basis'] == 'cash + ticket' and _tt_tot['ticket_value'] == 470.00
+      and _tt_tot['cost_basis'] == 'committed_cost', '')
+check('T-TT-03 [A-FIN]: per-event rows reconcile to canonical totals (summed == overlay, diagnostic true)',
+      _tt_m['diagnostics']['reconciles_canonical'] is True
+      and _tt_m['diagnostics']['summed_cost'] == 3946.97
+      and _tt_m['diagnostics']['summed_return'] == 1370.43
+      and _tt_m['financial_source'] == 'usd_overlay', '')
+check('T-TT-04 [A-FIN]: join by tournament_id (event_id derived from tid, not name)',
+      [e['event_id'] for e in _tt_m['events']] == ['GG|290160919|2026-06-14', 'GG|290160920|2026-06-14']
+      and all(e['tournament_id'] == t for e, t in zip(_tt_m['events'], ['290160919', '290160920'])), '')
+# stale session_financials* is a diagnostic, NEVER a blocker
+_tt_stale = _btm(_tt_rd, session_financials_covers_session=False)
+check('T-TT-05 [A-FIN]: stale session_financials => diagnostic, not a blocker (model still builds from overlay)',
+      len(_tt_stale['events']) == 2 and _tt_stale['financial_source'] == 'usd_overlay'
+      and _tt_stale['diagnostics']['canonical_financials_cover_session'] is False
+      and _tt_stale['diagnostics']['stale_session_financials_is_blocker'] is False, '')
+
+# --- event identity ---
+_id_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
+  'per_tournament': [
+    {'tid': 'A1', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
+     'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22},
+    {'tid': 'A2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
+     'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22},
+    {'tid': 'A3', 'name': 'Big Re-entry', 'start_date': '2026-06-14', 'buyin': 50, 'bullets': 3,
+     'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150}]}}
+_id_m = _btm(_id_rd)
+check('T-TT-06 identity: repeated tournament NAME stays separate events (2 distinct rows, not merged)',
+      sum(1 for e in _id_m['events'] if e['name'] == 'GGMasters Bounty') == 2
+      and len({e['event_id'] for e in _id_m['events']}) == 3, '')
+_mb = next(e for e in _id_m['events'] if e['tournament_id'] == 'A3')
+check('T-TT-07 identity: multi-bullet stays ONE event (bullets=3, one row, entry_pattern multi_bullet)',
+      _mb['bullets'] == 3 and _mb['entry_pattern'] == 'multi_bullet'
+      and sum(1 for e in _id_m['events'] if e['tournament_id'] == 'A3') == 1, '')
+check('T-TT-08 identity: event_id stable + deterministic across rebuilds',
+      [e['event_id'] for e in _btm(_id_rd)['events']] == [e['event_id'] for e in _id_m['events']], '')
+
+# --- provenance ---
+_prov_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
+  'per_tournament': [
+    {'tid': 'B1', 'name': 'Bounty Hunters Special', 'start_date': '2026-06-14', 'buyin': 10, 'bullets': 1,
+     'cost': 10, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -10, 'is_sat': False},
+    {'tid': 'B2', 'name': '', 'start_date': '2026-06-14', 'buyin': 10, 'bullets': 1,
+     'cost': 10, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -10, 'is_sat': False}]}}
+_prov_m = _btm(_prov_rd)
+_e_bounty = next(e for e in _prov_m['events'] if e['tournament_id'] == 'B1')
+_e_unknown = next(e for e in _prov_m['events'] if e['tournament_id'] == 'B2')
+check('T-TT-09 provenance: name-token bounty => prize_type bounty marked inferred; bounty $ stays blank',
+      _e_bounty['prize_type'] == 'bounty' and _e_bounty['field_provenance']['prize_type'] == 'inferred'
+      and _e_bounty['bounty_amount'] is None and _e_bounty['field_provenance']['bounty_amount'] == 'unknown', '')
+check('T-TT-10 provenance: unrecognized field => blank + unknown provenance (no fabricated value)',
+      _e_unknown['prize_type'] == 'unknown'
+      and _e_unknown['field_provenance']['prize_type'] == 'unknown', '')
+
+# --- cEV (raw chip-EV/100, no %) ---
+check('T-TT-11 cEV: cev_per_100 stored RAW (0.54, not a %), unit raw_chip_ev; blank when unavailable',
+      _tt_m['events'][0]['performance']['cev100'] == 0.54
+      and _tt_m['events'][0]['performance']['cev100_unit'] == 'raw_chip_ev'
+      and _tt_m['events'][1]['performance']['cev100'] is None
+      and _tt_m['events'][1]['field_provenance']['cev100'] == 'unknown', '')
+
+# --- timezone (canonical report TZ else Asia/Bangkok; label date NOT used) ---
+check('T-TT-12 TZ: no canonical TZ => Asia/Bangkok; event_day = start_date, NOT the report label date',
+      _tt_m['event_day_tz_source'] == 'asia_bangkok'
+      and _tt_m['events'][0]['event_day'] == '2026-06-14'   # start_date, not label 2026-06-13
+      and _tt_m['events'][0]['field_provenance']['event_day_tz_source'] == 'asia_bangkok', '')
+_tz_m = _btm(_tt_rd, config={'report_timezone': 'America/New_York'})
+check('T-TT-13 TZ: canonical report timezone is used when available',
+      _tz_m['event_day_tz_source'] == 'canonical_report_tz'
+      and _tz_m['diagnostics']['event_day_source'] == 'start_date', '')
+
+# --- no stack-trajectory standalone surface (drivers-only) ---
+_drv_m = _btm(_tt_rd, drivers_by_tid={'290160919': [{'tag': 'comeback', 'evidence_ids': ['hand:1']}]})
+check('T-TT-14 no stack-trajectory surface; only detector-backed drivers survive',
+      'stack_trajectories' not in _tt_m and 'stack_arc' not in _tt_m
+      and _tt_m['diagnostics']['has_stack_trajectory_surface'] is False
+      and all('stack_trajectories' not in e for e in _tt_m['events'])
+      and _drv_m['events'][0]['drivers'] == [{'tag': 'comeback', 'evidence_ids': ['hand:1']}]
+      and _tt_m['events'][1]['drivers'] == [], '')
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')

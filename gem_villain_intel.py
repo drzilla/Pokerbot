@@ -1439,7 +1439,15 @@ def _villain_has_read(hand, villain_key, dimension, atoms_by_villain,
         _dim_threshold = {'sticky': 8, 'tight': 6, 'aggressive': 6,
                           'loose_passive': 4, 'loose': 4, 'passive': 4}
         threshold = _dim_threshold.get(dimension, 6)
-        score = _prior_dims.get(dimension, 0)
+        # COMPOSITE-DIMENSION FIX: _DIMENSION_MAP decomposes 'loose_passive' into
+        # its component dims {'loose', 'passive'}, so prior atoms never accumulate
+        # under the raw 'loose_passive' key. Score a composite query as the sum of
+        # its components so a loose-passive read can fire from accumulated evidence
+        # (Source-1), not only from the archetype fallback (Source-3).
+        if dimension == 'loose_passive':
+            score = _prior_dims.get('loose', 0) + _prior_dims.get('passive', 0)
+        else:
+            score = _prior_dims.get(dimension, 0)
         if score >= threshold:
             n = len(v_atoms)
             conf = 'high' if n >= 8 else 'medium' if n >= 4 else 'low'

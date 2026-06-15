@@ -3386,7 +3386,19 @@ _MODAL_HTML = r"""
       +'<th>Signal</th><th>Evidence</th><th>Read Impact</th><th>Detail</th></tr>';
     var shown=0;
     var totalAtoms=atoms.length;
-    atoms.forEach(function(a){
+    /* Teaching-first ordering (Step 2 / Option B): surface the most instructive
+       cues first (miss > good > pivot > note), STABLE within a badge. Reversible
+       + contained — a local sorted copy only; the original `atoms` array (and the
+       raw-evidence fallback passed to openHandFromEvidence) is untouched. */
+    var _veOrd={miss:0,good:1,pivot:2,note:3};
+    var _veAtoms=atoms.map(function(a,i){return [a,i];});
+    _veAtoms.sort(function(x,y){
+      var dx=(_veOrd[x[0].badge]==null?4:_veOrd[x[0].badge]);
+      var dy=(_veOrd[y[0].badge]==null?4:_veOrd[y[0].badge]);
+      return dx!==dy?dx-dy:x[1]-y[1];
+    });
+    _veAtoms=_veAtoms.map(function(p){return p[0];});
+    _veAtoms.forEach(function(a){
       if(filter!=='all'){
         if(filter==='notes' && a.badge!=='note')return;
         if(filter==='pivots' && a.badge!=='pivot')return;

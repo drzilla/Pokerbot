@@ -7965,6 +7965,128 @@ check('T-VX-10: renderer classifies new contract lines (tag swatch + confidence 
       and 'Avoid over-adjusting:' not in _htmlsrc_vt, '')
 
 # ============================================================
+# Villain Teaching Coach Layer v1 (Step 2 / Option B) — T-VC-*
+#   status safety + trusted-baseline grade gate, cue != cue_label, mixed/split
+#   before archetype, ICM coarse caution, single-hand ceiling, matrix "Signals"
+#   wording, and the loose_passive prior-atoms scorer fix.
+# ============================================================
+import gem_villain_intel as _gvi_vc
+
+# T-VC-01: no trusted baseline => never graded missed/good (postflop sticky exploit)
+_vc_nob = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='bluffed_sticky', exploit_outcome='missed'), _vt_rs(), _vt_sticky)
+check('T-VC-01: no trusted baseline -> teaching_status never a graded missed/good',
+      _vc_nob['baseline_source'] == 'none'
+      and _vc_nob['teaching_status'] not in _vt._GRADED_STATUSES
+      and _vc_nob['teaching_status'] == 'candidate_read_supported',
+      str(_vc_nob.get('teaching_status')))
+
+# positive control: trusted-baseline detector + confident no-hindsight read CAN grade
+_vc_nit_rs = {_vt_vk: {'villain_alias': 'Rock', 'primary_read': 'Nit / Rock', 'confidence': 'high',
+                       'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7', 'H5', 'H_now']}}
+_vc_nit_atoms = {_vt_vk: [{'dimension': 'tight'} for _ in range(9)]}
+_vc_good = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='good_steal_vs_nit', exploit_outcome='good',
+            exploit_read_label='Nit / Rock', exploit_read_display='Nit / Rock'),
+    _vc_nit_rs, _vc_nit_atoms)
+check('T-VC-01b: trusted baseline + confident no-hindsight read -> graded good_exploit allowed',
+      _vc_good['baseline_source'] == 'chart_preflop' and _vc_good['teaching_status'] == 'good_exploit',
+      str(_vc_good.get('teaching_status')))
+
+# T-VC-02: postflop / multiway / weird-sizing / station / aggro cues default non-graded
+_vc_families = ['bluffed_sticky', 'paid_off_passive_aggression', 'missed_thin_value_vs_sticky',
+                'overfolded_vs_aggro', 'ego_fought_maniac', 'pivot_overplayed']
+check('T-VC-02: postflop/multiway/station/weird-sizing cues never graded missed/good',
+      all(_vt.teaching_from_exploit(_vt_exp(exploit_detector=_d, exploit_outcome='missed'),
+                                    _vt_rs(), _vt_sticky)['teaching_status'] not in _vt._GRADED_STATUSES
+          for _d in _vc_families), '')
+
+# T-VC-03: single-hand ceiling -> low confidence + never graded
+_vc_1hand_rs = {_vt_vk: {'villain_alias': 'Solo', 'primary_read': 'Sticky Passive', 'confidence': 'high',
+                         'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H_now']}}  # 1 prior hand
+_vc_1 = _vt.teaching_from_exploit(_vt_exp(exploit_detector='good_steal_vs_nit', exploit_outcome='good'),
+                                  _vc_1hand_rs, _vt_sticky)
+check('T-VC-03: single-hand read capped to low confidence and never graded',
+      _vc_1['confidence'] == 'low' and _vc_1['teaching_status'] not in _vt._GRADED_STATUSES, '')
+
+# T-VC-04: cue_reason must EXPLAIN, never just restate the read label
+check('T-VC-04a: explanatory cue kept; label-only cue rejected',
+      _vt._cue_is_explanatory('Loose-passive tendency; wide calling range.', 'Sticky Passive') is True
+      and _vt._cue_is_explanatory('Sticky Passive', 'Sticky Passive') is False, '')
+_vc_dupe = _vt.teaching_from_exploit(_vt_exp(suggests='Sticky Passive', exploit_read_label='Sticky Passive',
+                                             exploit_read_display='Sticky Passive'), _vt_rs(), _vt_sticky)
+check('T-VC-04b: builder drops a non-explanatory cue + flags it (no Cue line)',
+      _vc_dupe['cue'] is None and 'cue_not_explanatory' in _vc_dupe['source_warnings']
+      and not any(l.startswith('Cue:') for l in _vc_dupe['teach_lines']), '')
+
+# T-VC-05: mixed/split profile caveat renders BEFORE the broad archetype label
+_vc_mixed_rs = {_vt_vk: {'villain_alias': 'Flux', 'primary_read': 'Sticky Passive', 'confidence': 'high',
+                         'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7', 'H_now'],
+                         'profile_label': 'mixed'}}
+_vc_mixed = _vt.teaching_from_exploit(_vt_exp(), _vc_mixed_rs, _vt_sticky)
+_vc_read_line = next((l for l in _vc_mixed['teach_lines'] if l.startswith('Read:')), '')
+check('T-VC-05: mixed-profile caveat renders before the archetype on the Read line',
+      'Mixed profile' in _vc_read_line
+      and _vc_read_line.index('Mixed profile') < _vc_read_line.index('Sticky'), _vc_read_line)
+
+# T-VC-06: raw evidence provenance retained + the raw evidence modal is reachable
+check('T-VC-06: teaching object retains raw provenance; raw evidence modal present',
+      isinstance(_vc_nob['source_truth']['evidence_atoms'], list)
+      and 'id="villain-evidence-modal"' in _htmlsrc_vt
+      and 'buildVillainEvidenceTable' in _htmlsrc_vt, '')
+
+# T-VC-07: matrix wording no longer implies Exploit Opps = Missed + Good
+_vc_matrix_src = open('gem_report_draft/sections_iv_xii.py', encoding='utf-8').read()
+check('T-VC-07: matrix uses "Teaching Signals"; "Exploit Opps = Missed + Good" gone',
+      'Teaching Signals' in _vc_matrix_src and 'Exploit Opps = Missed + Good' not in _vc_matrix_src, '')
+
+# T-VC-08: ICM coarse caution on risky-widening advice; none on low-variance value advice
+_vc_risky = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='ego_fought_maniac', so_what='Stack off lighter; ego-raise back.',
+            exploit_read_label='Aggressive', exploit_read_display='Aggressive'),
+    {_vt_vk: {'villain_alias': 'Rage', 'primary_read': 'Aggressive', 'confidence': 'high',
+              'n_evidence': 9, 'evidence_hand_ids': ['H9', 'H7', 'H5']}},
+    {_vt_vk: [{'dimension': 'aggressive'} for _ in range(9)]})
+check('T-VC-08a: risky-widening exploit carries an ICM caution line + source warning',
+      bool(_vc_risky['icm_guardrail'])
+      and any(l.startswith('ICM caution:') for l in _vc_risky['teach_lines'])
+      and 'icm_pressure_unknown' in _vc_risky['source_warnings'], '')
+check('T-VC-08b: low-variance value advice (default _o) gets NO ICM caution',
+      not _o.get('icm_guardrail')
+      and not any(l.startswith('ICM caution:') for l in _o['teach_lines']), '')
+
+# T-VC-09: unsafe action-row anchoring suppresses the badge (kind-guard) -> note/popup
+_vc_hg_src = open('gem_report_draft/_hand_grid.py', encoding='utf-8').read()
+_vc_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-VC-09: villain badge suppressed on action-kind / index-space mismatch (never guesses)',
+      ('ledger-space' in _vc_hg_src or 'ledger-space' in _vc_xiv_src or '_vb_exp' in _vc_hg_src), '')
+
+# T-VC-10: loose_passive prior-atoms scorer fires WITHOUT archetype fallback (the bundled fix)
+_vc_lp_atoms = {'T|VLP': [{'hand_id': 'P%d' % _i, 'villain_key': 'T|VLP', 'dimension': 'loose_passive',
+                           'strength': 1, 'signal': 'limp_call', 'street': 'preflop',
+                           'same_hand_actionable': False, 'hero_involved': True} for _i in range(6)]}
+_vc_lp_ch = {'CUR': ('2026-06-14', '05:00:00')}
+for _i in range(6):
+    _vc_lp_ch['P%d' % _i] = ('2026-06-14', '0%d:00:00' % (_i + 1))
+_vc_lp_cur = {'id': 'CUR', 'tournament_id': 'T', 'hand_ts_date': '2026-06-14', 'hand_time': '05:00:00',
+              'villain_archetype': '', 'villain_archetype_confidence': ''}
+_vc_lp_has, _vc_lp_src, _vc_lp_c, _vc_lp_n = _gvi_vc._villain_has_read(
+    _vc_lp_cur, 'T|VLP', 'loose_passive', _vc_lp_atoms, min_atoms=2, hand_order=_vc_lp_ch)
+check('T-VC-10: loose_passive read fires from prior atoms (no archetype fallback)',
+      _vc_lp_has and _vc_lp_src == 'prior_atoms_mapped', str((_vc_lp_has, _vc_lp_src)))
+
+# T-VC-11: Step-1 timestamp chronology protections still hold (regression guard)
+check('T-VC-11: Step-1 timestamp gate intact (prior admitted, future + tie excluded)',
+      _gvi_vc._ts_strictly_before(('2026-06-14', '01:00:00'), ('2026-06-14', '02:00:00')) is True
+      and _gvi_vc._ts_strictly_before(('2026-06-14', '03:00:00'), ('2026-06-14', '02:00:00')) is False
+      and _gvi_vc._ts_strictly_before(('2026-06-14', '02:00:00'), ('2026-06-14', '02:00:00')) is False, '')
+
+# T-VC-12: within-hand no-hindsight protections still hold (regression guard)
+check('T-VC-12: within-hand no-hindsight intact (showdown blocked, prior actionable)',
+      _vt._no_hindsight('same_hand_pivot', None, 5) is False
+      and _vt._no_hindsight('prior_atoms_mapped', None, None) is True, '')
+
+# ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)
 # ============================================================
 import gem_report_data as _ctrd

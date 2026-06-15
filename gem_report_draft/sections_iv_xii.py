@@ -4048,11 +4048,13 @@ def _emit_sub_opponent_archetype(doc, s, rd, hands):
         # Table — emit as raw HTML so hand-list-trigger links work
         doc.w("<div class='table-shell' data-mobile-mode='scroll' style='--mobile-table-min-width:900px'><div class='table-scroll'><table class='data-table'>")
         doc.w("<tr><th>Read</th><th>Tagging</th>"
-              "<th><span data-tip='Total detected exploit adjustment spots where "
-              "villain read should have influenced Hero&#39;s action. "
-              "Exploit Opps = Missed + Good.'>Exploit Opps</span></th>"
-              "<th><span data-tip='Spots where Hero failed to adjust to this read.'>Missed</span></th>"
-              "<th><span data-tip='Spots where Hero correctly adjusted to this read.'>Good</span></th>"
+              "<th><span data-tip='Teaching Signals = villain cues the system noticed for this read. "
+              "Only the Missed/Good subset is a graded Hero spot (a trusted baseline existed and the "
+              "read was known before the decision); the rest are teaching notes, not graded mistakes.'>"
+              "Teaching Signals</span></th>"
+              "<th><span data-tip='Graded only where a trusted baseline (preflop chart / price) applied "
+              "and the read was known before Hero acted; otherwise the cue stays a teaching note.'>Missed</span></th>"
+              "<th><span data-tip='Hero correctly applied the read in a spot a trusted baseline could grade.'>Good</span></th>"
               "<th>Evidence</th><th>Lesson</th></tr>")
         for _pr, _rd in sorted(_by_read.items(), key=lambda kv: -kv[1]['tagging']):
             _nv = len(_rd['villains'])
@@ -4076,7 +4078,7 @@ def _emit_sub_opponent_archetype(doc, s, rd, hands):
                         f'{_nv} villains / {_ne} hands</a>')
             doc.w(f"<tr><td data-label='Read'>{_pr_display}</td>"
                   f"<td data-label='Tagging'>{_rd['tagging']}</td>"
-                  f"<td data-label='Exploit Opps'>"
+                  f"<td data-label='Signals'>"
                   f"{'<a href=\"#\" onclick=\"openExploitDrilldown(&#39;' + _html_escape(_pr_label_clean) + '&#39;,&#39;all&#39;);return false;\" style=\"cursor:pointer\">' + str(_rd['exploit_opps']) + '</a>' if _rd['exploit_opps'] > 0 else '0'}"
                   f"</td>"
                   f"<td data-label='Missed'>"
@@ -4088,6 +4090,15 @@ def _emit_sub_opponent_archetype(doc, s, rd, hands):
                   f"<td data-label='Evidence'>{_ev_link}</td>"
                   f"<td data-label='Lesson'>{_lesson}</td></tr>")
         doc.w("</table></div></div>")
+        # Honest legend (Step 2 / Option B): Signals are cues; only the
+        # trusted-baseline subset is a graded Hero mistake. Avoids the old
+        # opps-always-equal-missed-plus-good precision that was never enforced.
+        doc.w("<p style='font-size:0.85em;opacity:0.82;margin-top:6px'>"
+              "<strong>Teaching Signals</strong> = villain cues noticed for this read. "
+              "<strong>Missed / Good</strong> count only the subset where a trusted baseline "
+              "(preflop chart / price) applied and the read was known before Hero acted; "
+              "everything else is a teaching note (future / candidate / evidence), not a graded "
+              "mistake.</p>")
         # v8.8.3: surface excluded Unknown count
         if _n_unknown_excluded > 0:
             doc.w(f"\n*{_n_unknown_excluded} exploit candidate(s) excluded from "

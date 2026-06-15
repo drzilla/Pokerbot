@@ -79,6 +79,101 @@ def derive_do_not_overadjust(confidence, read_label='', has_pko=False):
     return _DO_NOT_OVERADJUST_GENERIC.get(confidence, _DO_NOT_OVERADJUST_GENERIC['low'])
 
 
+# ── Status safety: trusted baseline + grade buckets (Step 2 / Option B) ─────
+# A villain teaching object may only present a graded missed/good EXPLOIT when a
+# TRUSTED BASELINE backs it. For this slice the trusted families are the
+# preflop-chart-backed steal/nit detectors (which already gate on Hero's open
+# chart + read confidence). Every other detector — postflop value, multiway
+# donks, weird sizing, station call-downs, generic LAG/maniac pressure — has NO
+# trusted baseline, so its read teaches as candidate/future/evidence, never a
+# graded missed/good. Broad postflop/multiway grading stays disabled here.
+_TRUSTED_BASELINE_DETECTORS = {
+    'missed_steal_vs_nit', 'missed_steal_vs_nit_blinds', 'good_steal_vs_nit',
+}
+# Variance-increasing exploit families. ICM is a COARSE CAUTION only — the
+# pipeline carries no payout ladder / risk-premium / per-hand ICM pressure at
+# teaching-build time (see audit), so we never quantify ICM; for risky-widening
+# advice we attach a neutral pay-jump caution and an icm_pressure_unknown
+# source-warning rather than a graded suppression.
+_RISKY_EXPLOIT_DETECTORS = {
+    'ego_fought_maniac', 'overfolded_vs_aggro', 'opened_too_loose_vs_aggro',
+    'missed_steal_vs_nit', 'missed_steal_vs_nit_blinds', 'good_steal_vs_nit',
+    'missed_thin_value_vs_sticky',
+}
+# Only WIDENING / variance-INCREASING phrases (a generic 'bluff' would wrongly
+# flag "do not bluff"; "value-bet thinner" is low-variance value). These mean
+# Hero is being told to do MORE: steal/iso wider, call down lighter, stack off
+# lighter, bluff more, ego-raise, thin value INTO jam risk.
+_RISKY_SO_WHAT_KEYS = ('wider', 'widen', 'call down', 'call-down', 'stack off',
+                       'ego-raise', 'ego ', 'bluff more', 'thin value into')
+_ICM_CAUTION = ("Under pay-jump / ICM pressure prefer the lower-variance line "
+                "unless an exact chart or price confirms the aggressive adjustment.")
+
+# Safe teaching-status buckets. missed/good are GRADED outcomes (trusted-baseline
+# only); the rest are teaching notes (never a graded Hero mistake).
+_GRADED_STATUSES = {'missed_exploit', 'good_exploit'}
+
+
+def _baseline_source(detector):
+    """'chart_preflop' for a trusted-baseline detector, else 'none'."""
+    return 'chart_preflop' if (detector or '') in _TRUSTED_BASELINE_DETECTORS else 'none'
+
+
+def _is_risky_exploit(detector, so_what):
+    """True if the exploit advice is variance-increasing (widen / call-down /
+    bluff / ego / thin-value) and therefore wants an ICM caution."""
+    if (detector or '') in _RISKY_EXPLOIT_DETECTORS:
+        return True
+    sw = (so_what or '').lower()
+    return any(k in sw for k in _RISKY_SO_WHAT_KEYS)
+
+
+def _norm_label(s):
+    """Lowercase, strip emoji/punct/'candidate'/population-suffix for comparison."""
+    s = re.sub(r'\([^)]*\)\s*$', '', str(s or ''))          # trailing (suffix)
+    s = re.sub(r'[^a-z ]', ' ', s.lower())
+    s = s.replace('candidate', ' ')
+    return ' '.join(s.split())
+
+
+def _cue_is_explanatory(cue, archetype):
+    """True iff the cue EXPLAINS the behaviour (range/frequency/tendency) rather
+    than merely restating the read label. A cue that normalises to the archetype
+    label (or is too short to add information) is non-explanatory and is dropped
+    so the card never shows 'Cue: Sticky Passive' next to 'Read: Sticky Passive'."""
+    if not cue:
+        return False
+    nc, na = _norm_label(cue), _norm_label(archetype)
+    if not nc:
+        return False
+    if nc == na:                       # cue is just the label
+        return False
+    if na and na in nc and len(nc.split()) <= len(na.split()) + 1:
+        return False                   # label plus at most one word — not an explanation
+    return True
+
+
+def _grade_bucket(kind, fallback, baseline_source, confidence, no_hindsight,
+                  detector_outcome):
+    """Safe teaching-status bucket. A graded missed/good survives ONLY when a
+    trusted baseline backs it AND confidence is medium/high AND the read was
+    known before the decision; otherwise the read teaches as
+    candidate/standard/evidence/watch — never a graded Hero mistake."""
+    if fallback:
+        return 'watch_only'
+    if kind == 'evidence':
+        return 'evidence_only'
+    graded = detector_outcome in ('missed', 'missed_exploit', 'good', 'good_exploit')
+    is_good = detector_outcome in ('good', 'good_exploit')
+    if (baseline_source != 'none' and graded and no_hindsight
+            and confidence in ('medium', 'high')):
+        return 'good_exploit' if is_good else 'missed_exploit'
+    # read supports the line but no trusted baseline / not confident enough:
+    if detector_outcome in ('standard', 'read_supported_standard'):
+        return 'standard_read_supported'
+    return 'candidate_read_supported'
+
+
 # ── Natural8 client tag taxonomy (Slice D) ──────────────────────────────────
 # Ron's Natural8 colour-tag scheme. We map a DERIVED read family -> a candidate
 # client tag. This is a projection, not a new classifier: the read itself comes
@@ -278,8 +373,13 @@ def _teach_lines(obj):
         lines.append('What villain did: ' + obj['villain_did'])
     if obj.get('cue'):
         lines.append('Cue: ' + obj['cue'])
-    lines.append('Read: ' + _candidate_archetype(obj.get('archetype'),
-                                                  obj.get('confidence')))
+    # A mixed/split profile caveat renders BEFORE the broad archetype label so
+    # the read is never presented as a single clean type when it is not.
+    _read = _candidate_archetype(obj.get('archetype'), obj.get('confidence'))
+    _prof = (obj.get('profile_label') or '').lower()
+    if _prof in ('mixed', 'split'):
+        _read = _prof.capitalize() + ' profile — ' + _read
+    lines.append('Read: ' + _read)
     if obj.get('confidence'):
         conf = str(obj['confidence'])
         ec = obj.get('evidence_count')
@@ -292,6 +392,11 @@ def _teach_lines(obj):
         lines.append('Exploit future: ' + obj['future_exploit'])
     if obj.get('do_not_overadjust'):
         lines.append('Do not over-adjust: ' + obj['do_not_overadjust'])
+    # ICM is a coarse caution (no risk-premium math): risky-widening advice is
+    # cautioned, never quantified. Kept as its OWN line so the confidence-keyed
+    # do_not_overadjust copy stays exactly the derived guardrail string.
+    if obj.get('icm_guardrail'):
+        lines.append('ICM caution: ' + obj['icm_guardrail'])
     pko = obj.get('pko')
     if pko and pko.get('cover_label'):
         lines.append('Bounty: ' + pko['cover_label'])
@@ -322,6 +427,14 @@ def _finalize(obj):
         obj['tag_suggestion'] = suggest_natural8_tag(
             obj.get('archetype'), obj.get('confidence'),
             obj.get('evidence_count'), nh)
+    # Safe grade bucket — computed AFTER fallback is finalized. A graded
+    # missed/good survives only with a trusted baseline + medium/high confidence
+    # + no-hindsight; everything else is candidate/standard/evidence/watch.
+    nh2 = bool((obj.get('source_truth') or {}).get('no_hindsight'))
+    obj['teaching_status'] = _grade_bucket(
+        obj.get('kind', ''), bool(obj.get('fallback')),
+        obj.get('baseline_source', 'none'), obj.get('confidence', 'low'),
+        nh2, obj.pop('_detector_outcome', ''))
     obj['teach_lines'] = _teach_lines(obj)
     return obj
 
@@ -361,6 +474,28 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
     else:
         ev_atoms = prior_hids
 
+    # Single-hand ceiling: a read built from <=1 distinct hand can never reach
+    # medium/high confidence (one cue is a watch/future note, not a stable tag).
+    _unique_hands = 1 if read_source == 'same_hand_pivot' else len(set(prior_hids))
+    if _unique_hands <= 1 and conf in ('medium', 'high'):
+        conf = 'low'
+
+    detector = exp.get('exploit_detector', '')
+    baseline_source = _baseline_source(detector)
+    warnings = []
+    # cue EXPLAINS the behaviour; if it only restates the read label it is dropped.
+    archetype = (exp.get('exploit_read_display')
+                 or read_label or _clean(rs.get('primary_read')) or 'Unknown')
+    cue_raw = _clean(exp.get('suggests'))
+    cue = (cue_raw + _population_suffix(population)) if cue_raw else None
+    if cue and not _cue_is_explanatory(cue, archetype):
+        cue = None
+        warnings.append('cue_not_explanatory')
+    # ICM is a coarse caution for variance-increasing advice (no risk premium).
+    icm = _ICM_CAUTION if _is_risky_exploit(detector, exp.get('so_what')) else None
+    if icm:
+        warnings.append('icm_pressure_unknown')
+
     street = (exp.get('hero_decision_street') or '').strip() or 'preflop'
     _pko = _pko_subobject(pko_by_hand, hand_id)
     obj = {
@@ -369,16 +504,19 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
         'street': street,
         'action_ref': exp.get('hero_action', '') or exp.get('exploit_detector', ''),
         'villain_did': _clean(exp.get('evidence_text')),
-        'cue': (_clean(exp.get('suggests')) + _population_suffix(population))
-                if _clean(exp.get('suggests')) else None,
-        'archetype': (exp.get('exploit_read_display')
-                      or read_label or _clean(rs.get('primary_read')) or 'Unknown'),
+        'cue': cue,
+        'archetype': archetype,
         'confidence': conf,
         'evidence_count': evidence_count,
         # actionable copy only when the read was known before the decision
         'exploit_now': _clean(exp.get('so_what')) if no_hind else None,
         'future_exploit': _clean(exp.get('recommended_exploit')) if no_hind else None,
         'do_not_overadjust': derive_do_not_overadjust(conf, read_label, bool(_pko)),
+        'baseline_source': baseline_source,
+        'profile_label': (rs.get('profile_label') or 'consistent'),
+        'icm_guardrail': icm,
+        'source_warnings': warnings,
+        '_detector_outcome': exp.get('exploit_outcome') or exp.get('auto_verdict') or '',
         'source_truth': {
             'evidence_atoms': ev_atoms,
             'decision_id': '%s|%s|%s' % (hand_id, street,
@@ -420,21 +558,36 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
 
     evidence_count = int(rs.get('n_evidence') or len(atoms_by_villain.get(vk) or []))
     _pko = _pko_subobject(pko_by_hand, hand_id)
+    _archetype = _clean(rs.get('primary_read')) or 'Unknown'
+    _cue_raw = _clean(atom.get('suggests') or coach.get('suggests'))
+    _cue = (_cue_raw + _population_suffix(population)) if _cue_raw else None
+    _warnings = []
+    if _cue and not _cue_is_explanatory(_cue, _archetype):
+        _cue = None
+        _warnings.append('cue_not_explanatory')
+    _so_what = atom.get('so_what') or coach.get('so_what')
+    _icm = _ICM_CAUTION if _is_risky_exploit('', _so_what) else None
+    if _icm:
+        _warnings.append('icm_pressure_unknown')
     obj = {
         'villain_id': vk,
         'villain_alias': rs.get('villain_alias') or atom.get('villain_alias', ''),
         'street': (atom.get('street') or '').strip() or 'preflop',
         'action_ref': atom.get('villain_action', '') or signal,
         'villain_did': _clean(atom.get('evidence_text')),
-        'cue': (_clean(atom.get('suggests') or coach.get('suggests')) + _population_suffix(population))
-                if _clean(atom.get('suggests') or coach.get('suggests')) else None,
-        'archetype': _clean(rs.get('primary_read')) or 'Unknown',
+        'cue': _cue,
+        'archetype': _archetype,
         'confidence': rs.get('confidence', 'low'),
         'evidence_count': evidence_count,
         'exploit_now': _clean(atom.get('so_what') or coach.get('so_what')) if no_hind else None,
         'future_exploit': None,  # pure evidence note carries no concrete next-time line
         'do_not_overadjust': derive_do_not_overadjust(
             rs.get('confidence', 'low'), rs.get('primary_read', ''), bool(_pko)),
+        'baseline_source': 'none',       # evidence atoms are never grade-backed
+        'profile_label': (rs.get('profile_label') or 'consistent'),
+        'icm_guardrail': _icm,
+        'source_warnings': _warnings,
+        '_detector_outcome': '',
         'source_truth': {
             'evidence_atoms': [hand_id],
             'decision_id': '%s|%s|%s' % (hand_id, atom.get('street', ''),

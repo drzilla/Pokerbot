@@ -5096,10 +5096,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.14.3 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.14.3'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.3'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.3', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.14.4 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.14.4'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.14.4'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.14.4', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8003,6 +8003,128 @@ check('T-H143-13: validator flags a hand that is BOTH a budget_trimmed stub and 
 _sh_nodup = _G143 + '<article data-hand-id="78122219" data-availability="budget_trimmed">stub</article>'
 check('T-H143-14: validator does NOT flag dup when the hand is only trimmed (no full card)',
       not any('BOTH' in i for i in _qvr_143(_sh_nodup, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
+
+# ============================================================
+# v8.14.4 cash+ticket return-basis disclosure on the ACTIVE financial surface
+# (T-H144-01..05). The v8.14.3 footnote lived in _emit_daily_summary_table, which
+# only renders from the DISABLED S7 Coach section, so it never reached the report.
+# ============================================================
+print('\n=== v8.14.4: cash+ticket disclosure on the active financial surface ===')
+from gem_report_draft.tldr import _emit_results_attribution as _era144
+_rd144 = {
+    'results_attribution': {'surface_bb_per_100': -5.0, 'n_hands': 1267},
+    'usd_overlay': {'status': 'parsed',
+        'totals': {'total_cost': 3946.97, 'total_cash': 1370.43, 'total_net': -2576.54,
+                   'roi_pct': -65.3, 'n_bullets': 65, 'n_tournaments': 43,
+                   'total_ticket_value': 470.00},
+        'per_tournament': [
+            {'start_date': '2026-06-14', 'bullets': 5, 'cost': 879.97, 'cash_total': 372.98,
+             'itm': True, 'place': 3, 'total_players': 500, 'is_sat': False},
+        ]},
+    'variance_cev': {}, 'cev_session': {}, 'player_name': 'Knockman', 'analyst_commentary': {},
+}
+class _Doc144:
+    def __init__(self): self.lines = []
+    def w(self, x=''): self.lines.append(str(x))
+    def subsection(self, *a, **k): self.lines.append('SUBSEC')
+    def write_block(self, b): self.lines.append('[TABLE]')
+def _render144(rd):
+    d = _Doc144()
+    try:
+        _era144(d, {}, rd)   # may stop after the disclosure on this minimal fixture
+    except Exception:
+        pass
+    return d.lines
+_lines144 = _render144(_rd144)
+_out144 = '\n'.join(_lines144)
+check('T-H144-01: ACTIVE S1.1a path renders the cash+ticket return-basis disclosure ($470.00)',
+      'satellite ticket value' in _out144 and '$470.00' in _out144
+      and 'cash + ticket basis' in _out144, _out144[:120])
+check('T-H144-02: disclosure renders AFTER the by-day financial table (not before it)',
+      _out144.find('[TABLE]') >= 0
+      and _out144.find('satellite ticket value') > _out144.find('[TABLE]'), '')
+_rd144_0 = {**_rd144, 'usd_overlay': {**_rd144['usd_overlay'],
+            'totals': {**_rd144['usd_overlay']['totals'], 'total_ticket_value': 0}}}
+check('T-H144-03: ticket value = 0 omits the ticket-specific disclosure',
+      'satellite ticket value' not in '\n'.join(_render144(_rd144_0)), '')
+# the disclosure lives in the ACTIVE function, not only the dead S7 _emit_daily_summary_table
+_tldr_src144 = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+_era_src = _tldr_src144[_tldr_src144.find('def _emit_results_attribution'):
+                        _tldr_src144.find('def _emit_results_attribution') + 4000]
+check('T-H144-04: disclosure is wired into the ACTIVE _emit_results_attribution path',
+      'cash + ticket basis' in _era_src
+      and '_ov_tot_v144' in _era_src and 'total_ticket_value' in _era_src, '')
+# validator gate: ticket>0 must coincide with a rendered disclosure
+_Gv144 = 'window.PB_PAYLOADS={}; window.handIndex={}; window.handAvailability={};'
+_rdv144 = {'report_completeness': {'state': 'ANALYST_COMPLETE'},
+           'usd_overlay': {'status': 'parsed',
+               'totals': {'total_cost': 3946.97, 'n_bullets': 65, 'total_ticket_value': 470.0}},
+           'total_invested': 3946.97, 'avg_buyin': round(3946.97 / 65, 2)}
+check('T-H144-05: validator flags ticket>0 with NO disclosure, passes when present',
+      any('cash + ticket' in i for i in _qvr_143(_Gv144, _rdv144))
+      and not any('cash + ticket' in i for i in _qvr_143(
+          _Gv144 + '<p>cash + ticket value ($470.00 in tickets)</p>', _rdv144)), '')
+
+# ============================================================
+# v8.14.4 process-hardening: centralized raw chart-ID guard (T-H144B-01..08).
+# User-facing prose must never expose raw internal chart IDs (PUSH_/CALLJAM_/
+# REJAM_/OPEN_/JAM_...). Synthetic fixtures only — no dependence on any real report.
+# ============================================================
+print('\n=== v8.14.4: raw chart-ID guard (centralized validator + humanizer) ===')
+from gem_chart_labels import (find_raw_chart_ids_in_user_text as _frci144,
+                              humanize_raw_chart_ids as _hum144)
+import base64 as _b64b, zlib as _zlb, json as _jsb
+def _lazy_b(cards):
+    _co = _zlb.compressobj(9, _zlb.DEFLATED, -15)
+    _b = _co.compress(_jsb.dumps(cards).encode()) + _co.flush()
+    return ('window.PB_PAYLOADS["lazyHands"]={"encoding":"deflate-raw+base64",'
+            '"data":"' + _b64b.b64encode(_b).decode() + '"};')
+_Gb = 'window.PB_PAYLOADS={}; window.handIndex={}; window.handAvailability={};'
+
+# Test 1: REJAM_HJvsUTG1 in user-facing text is detected, and humanizing removes it.
+check('T-H144B-01: REJAM_HJvsUTG1 in user text is detected + humanized away (Test 1)',
+      _frci144('Use the REJAM_HJvsUTG1 chart.') == ['REJAM_HJvsUTG1']
+      and _frci144(_hum144('Use the REJAM_HJvsUTG1 chart.'), is_html=False) == []
+      and 're-jam' in _hum144('REJAM_HJvsUTG1'), '')
+# Test 2: each prefix in visible HTML prose is flagged by the validator.
+for _pfx, _tok in [('PUSH', 'PUSH_12BB_BTN'), ('CALLJAM', 'CALLJAM_BBvsSB'),
+                   ('REJAM', 'REJAM_HJvsUTG1'), ('OPEN', 'OPEN_20-40BB_SB'),
+                   ('JAM', 'JAM_10BB_CO')]:
+    _iss = _qvr_143(_Gb + f'<p>chart {_tok} here</p>', {'report_completeness': {'state': 'ANALYST_PARTIAL'}})
+    check(f'T-H144B-02/{_pfx}: validator flags {_tok} in visible HTML prose (Test 2)',
+          any('raw chart ID' in i for i in _iss), '')
+# Test 3: decoded lazy payload card containing a raw chart ID fails.
+_pl = _lazy_b({'78122219': '<article>line uses CALLJAM_BBvsSB inside</article>'})
+check('T-H144B-03: decoded lazy payload card with raw chart ID is flagged (Test 3)',
+      any('raw chart ID' in i for i in _qvr_143(_Gb + _pl, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
+# Test 4: analyst commentary in gem_report_data containing a raw chart ID fails.
+_rdc = {'report_completeness': {'state': 'ANALYST_PARTIAL'},
+        'analyst_commentary': {'TM6078122219': {'verdict': 'III.2',
+                               'notes': 'should have used PUSH_12BB_BTN'}}}
+check('T-H144B-04: raw chart ID in rd analyst_commentary is flagged (Test 4)',
+      any('raw chart ID' in i for i in _qvr_143(_Gb, _rdc)), '')
+# Not-false-positive: machine-only surfaces + humanized/plain prose are clean.
+_clean = (_Gb + '<article data-chart-id="REJAM_HJvsUTG1">HJ re-jam vs UTG+1 open chart</article>'
+          + '<script>window.M={"PUSH_12BB_BTN":1};</script>'
+          + '<p>BTN open chart; SB push chart; we open and jam normally.</p>')
+check('T-H144B-05: data-chart-id attrs, JS keys, humanized + plain prose are NOT flagged',
+      not any('raw chart ID' in i for i in _qvr_143(_clean, {'report_completeness': {'state': 'ANALYST_PARTIAL'}})), '')
+# Humanizer preserves meaning + is idempotent.
+_h = _hum144('See REJAM_HJvsUTG1 and PUSH_12BB_BTN and OPEN_20-40BB_SB.')
+check('T-H144B-06: humanizer removes every raw id, preserves meaning, is idempotent',
+      _frci144(_h, is_html=False) == [] and 're-jam' in _h and 'open-shove' in _h
+      and _hum144(_h) == _h, _h[:90])
+# The guard is centralized + wired into BOTH validator paths.
+_ga_src144 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-H144B-07: raw-chart-ID guard wired into _quick_validate_render AND the main-path validator',
+      _ga_src144.count('find_raw_chart_ids_in_user_text') >= 2
+      and 'raw chart ID(s) in user-facing' in _ga_src144, '')
+# helper exists centrally in gem_chart_labels with the documented signature.
+_gcl_src144 = open('gem_chart_labels.py', encoding='utf-8').read()
+check('T-H144B-08: centralized find_raw_chart_ids_in_user_text + humanize_raw_chart_ids in gem_chart_labels',
+      'def find_raw_chart_ids_in_user_text(' in _gcl_src144
+      and 'def humanize_raw_chart_ids(' in _gcl_src144
+      and 'def _strip_html_to_text(' in _gcl_src144, '')
 
 # ============================================================
 # SUMMARY

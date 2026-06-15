@@ -86,3 +86,47 @@ def chart_display_label(chart_id):
 
     # Fallback: strip underscores, keep it readable (never raw-looking)
     return cid.replace('_', ' ').strip().lower()
+
+
+# ── v8.14.4 process-hardening: centralized raw-chart-ID guard ──────────────────
+# Trust contract: user-facing report prose must NEVER expose a raw internal chart
+# id (PUSH_/CALLJAM_/REJAM_/OPEN_/JAM_...). These are valid only as internal
+# constants / source data / machine attributes (data-chart-id, JS lookup keys),
+# never as rendered text. A prefix + at least one "_segment" is required, so plain
+# English words ("open", "jam", "push") and bare uppercase tokens never match.
+_RAW_CHART_ID_RE = re.compile(r'\b(?:CALLJAM|REJAM|PUSH|OPEN|JAM)(?:_[A-Za-z0-9+-]+)+')
+
+
+def _strip_html_to_text(s):
+    """Remove <script>/<style> blocks and ALL tags+attributes, leaving only the
+    user-VISIBLE text. This drops machine-only surfaces (data-chart-id="REJAM_…"
+    attributes, JS payload lookup keys) so the guard flags only visible prose."""
+    s = re.sub(r'(?is)<(script|style)\b.*?</\1>', ' ', s)
+    s = re.sub(r'(?s)<[^>]+>', ' ', s)            # tags + their attributes
+    return s
+
+
+def find_raw_chart_ids_in_user_text(text, is_html=True):
+    """Return the sorted unique raw chart IDs that appear in USER-FACING text.
+
+    `is_html=True` (default) first strips tags/attributes/script so attribute
+    values and JS keys (legitimate internal uses) are not flagged — only visible
+    prose is scanned. Pass `is_html=False` for already-plain prose (markdown,
+    analyst commentary strings). Empty list = clean."""
+    if not text or not isinstance(text, str):
+        return []
+    body = _strip_html_to_text(text) if is_html else text
+    return sorted(set(_RAW_CHART_ID_RE.findall(body)))
+
+
+def humanize_raw_chart_ids(text):
+    """Safe sanitization layer: replace any raw chart id in `text` with its
+    human label (+ ' chart'), preserving meaning — e.g. 'REJAM_HJvsUTG1' ->
+    'HJ re-jam vs UTG+1 open chart'. Idempotent; non-chart text is untouched.
+    Render paths may call this defensively; the validator asserts none remain."""
+    if not text or not isinstance(text, str):
+        return text
+    def _sub(m):
+        lab = chart_display_label(m.group(0))
+        return (lab + ' chart') if lab else m.group(0)
+    return _RAW_CHART_ID_RE.sub(_sub, text)

@@ -2447,6 +2447,22 @@ def _emit_results_attribution(doc, s, rd):
               "midnight, so it may differ from the per-tournament play dates and "
               "the report date.*")
         doc.w("")
+        # v8.14.4 (Ron 2026-06-15): cash + ticket return-basis disclosure on the
+        # ACTIVE financial surface. The $Cash column above = settled cash PLUS
+        # satellite ticket face value (cash_total), and $Net / ROI derive from it,
+        # so the basis must be stated. The v8.14.3 footnote was placed in
+        # _emit_daily_summary_table, which only renders from the DISABLED S7 Coach
+        # section (commented out of draft.py's render list), so it never reached
+        # the report — this is the by-day table that actually renders (S1.1a).
+        # Canonical source: usd_overlay.totals.total_ticket_value; shown only when
+        # ticket value > 0 (no math change, no analyst-content change).
+        _ov_tot_v144 = (rd.get('usd_overlay') or {}).get('totals') or {}
+        _tick_v144 = _ov_tot_v144.get('total_ticket_value') or 0
+        if _tick_v144 > 0:
+            doc.w(f"*$Cash / Return = settled cash **plus** satellite ticket value "
+                  f"(${_tick_v144:,.2f} in tickets); $Net and ROI use this "
+                  f"cash + ticket basis, not cash only.*")
+            doc.w("")
 
     # B211 (Ron review 2026-05-25): the human guide to reading this
     # breakdown lives here, next to the data it explains.

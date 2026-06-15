@@ -1,3 +1,64 @@
+v8.14.4 (2026-06-15) -- process-hardening hotfix (raw chart-ID guard +
+                        cash+ticket disclosure on the active financial surface)
+================================================================================
+Two classes of failure found in generated-report QA, both fixed as centralized
+process guards rather than one-off patches. No financial math, no analyst strategy
+logic, no Tournament Tables / v8.15 change.
+
+FIX 1 -- raw chart-ID guard. User-facing report prose must NEVER expose a raw
+internal chart id (PUSH_/CALLJAM_/REJAM_/OPEN_/JAM_..., e.g. "REJAM_HJvsUTG1");
+those are valid only as internal constants / source data / machine attributes
+(data-chart-id, JS payload keys), never as rendered text. NEW centralized helpers
+in gem_chart_labels.py: find_raw_chart_ids_in_user_text(text, is_html=True) strips
+<script>/<style> + all tags & attributes and returns any raw chart-ID tokens left
+in the VISIBLE prose (so machine-only uses are never flagged); humanize_raw_chart_ids
+(text) is a safe sanitization layer that rewrites a raw id to its human label
+(REJAM_HJvsUTG1 -> "HJ re-jam vs UTG+1 open chart"), idempotent. The render
+validator (gem_analyzer._quick_validate_render AND the main full-render check) now
+scans three user-facing surfaces — the rendered shell's visible text, the DECODED
+lazy hand cards, and the analyst-commentary prose in gem_report_data — and flags
+any raw chart ID so it cannot reach a "passes" summary. Internal source constants /
+test names / lookup keys are not scanned.
+
+FIX 2 -- cash + ticket return-basis disclosure (carried from the first v8.14.4
+cut). One blocker from the regenerated v8.14.3 report QA: the cash + ticket
+return-basis
+disclosure did not render even though usd_overlay.totals.total_ticket_value =
+$470.00. Root cause: the v8.14.3 Issue-1 footnote was placed in
+sections_financial._emit_daily_summary_table, which is only called from
+_emit_ii_mental_bluff (S7 Coach) — and S7 is commented out of draft.py's render
+list, so the disclosure lived in dead code. Surgical fix; no financial math, no
+analyst content, no Tournament Tables / v8.15 change.
+
+Fix (tldr.py _emit_results_attribution, the ACTIVE S1.1a path): right after the
+by-day financial table that actually renders (the `| Date | … | $Cost | $Cash |
+$Net | ROI |` table, where $Cash = cash_total = settled cash + satellite ticket
+value), emit — only when usd_overlay.totals.total_ticket_value > 0 — the line:
+"$Cash / Return = settled cash plus satellite ticket value ($470.00 in tickets);
+$Net and ROI use this cash + ticket basis, not cash only." Canonical source is the
+overlay total; ticket value = 0 omits it. The dead S7 footnote is left untouched
+(harmless; not re-enabled).
+
+Validator (gem_analyzer._quick_validate_render): new gate — when the overlay is
+parsed with total_ticket_value > 0, the rendered HTML MUST contain a visible
+cash + ticket return-basis disclosure, else it is flagged (so the disclosure can
+never silently fall back into dead code again).
+
+Validation (Fix 3 — no false confidence): the render validator's "passes" summary
+now covers, in one pass, all of: no raw chart IDs in user-facing output; cash+ticket
+basis disclosed when ticket value > 0; financial agreement (header / overlay /
+top-level); no visible "awaiting analyst" under ANALYST_COMPLETE; no budget_trimmed
+on analyst-critical / III.2 hands; no full+trimmed duplicate; no broken anchors;
+decoded-lazy-payload checks. A clean summary therefore can no longer hide any of
+these classes.
+
+RUNTIME_VERSION / bundle / verifier v8.14.3 -> v8.14.4 (draft.py report-format
+VERSION stays v8.12.0, canary-pinned). Tests +5 cash+ticket (T-H144-01..05) +12
+raw-chart-ID guard (T-H144B-01..08) -> 1148; +5 canaries -> 372; verify 40/372/10;
+clean-extract PASS. Changed: gem_chart_labels.py (helpers), gem_analyzer.py
+(validator), gem_report_draft/tldr.py (disclosure), gem_version/_build_bundle/
+verify_release (bump), _test_scratch.py, GEM_Changelog.txt, STEP0.
+
 v8.14.3 (2026-06-15) -- post-report QA hotfix (financial SoT, analyst-critical
                         trim guard, awaiting/COMPLETE truth, validator hardening)
 ================================================================================

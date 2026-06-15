@@ -1832,6 +1832,18 @@ def _quick_validate_render(html_str, rd=None):
             if abs(round(float(rd.get('avg_buyin') or 0), 2) - _exp_abi) > 0.01:
                 issues.append(f'financial mismatch: top-level avg_buyin '
                               f'{rd.get("avg_buyin")} != overlay cost/bullets {_exp_abi} (Issue 1)')
+        # (2b) v8.14.4: when the overlay carries satellite ticket value, the active
+        #      financial surface MUST visibly disclose the cash+ticket return basis
+        #      (the v8.14.3 footnote lived in the disabled S7 path, so it never
+        #      rendered). Guard the active by-day/financial disclosure.
+        if _ov.get('status') == 'parsed' and float(_ovt.get('total_ticket_value') or 0) > 0:
+            _tl = html_str.lower()
+            _has_basis = ('cash + ticket' in _tl
+                          or ('ticket value' in _tl and 'cash' in _tl))
+            if not _has_basis:
+                issues.append('financial: total_ticket_value > 0 but no visible '
+                              'cash + ticket return-basis disclosure on the rendered '
+                              'financial surface (v8.14.4)')
         # (3) analyst-critical hands must NOT be budget_trimmed, and the DECODED
         #     lazy payload must carry their full detail (not just a shell stub).
         #     Critical = analyst verdict III.1/III.2 OR significant/critical loss.
@@ -1884,6 +1896,37 @@ def _quick_validate_render(html_str, rd=None):
             if _dup:
                 issues.append(f'{len(_dup)} hand(s) rendered BOTH a budget_trimmed '
                               f'stub and a full lazy card: {_dup[:8]} (Issue 3)')
+    # (5) v8.14.4 raw chart-ID guard — user-facing prose must NEVER expose a raw
+    #     internal chart id (PUSH_/CALLJAM_/REJAM_/OPEN_/JAM_...). Scans the
+    #     rendered shell's VISIBLE text, the DECODED lazy hand cards, and (when
+    #     rd is present) the analyst-commentary prose. Machine-only uses
+    #     (data-chart-id attributes, JS payload keys) are stripped by the helper,
+    #     so only visible prose is flagged. Runs even without rd.
+    try:
+        from gem_chart_labels import find_raw_chart_ids_in_user_text as _frci
+    except Exception:
+        _frci = None
+    if _frci is not None:
+        _raw_ids = set(_frci(html_str, is_html=True))
+        for _cv in (_decode_lazy_cards(html_str) or {}).values():
+            if isinstance(_cv, str):
+                _raw_ids.update(_frci(_cv, is_html=True))
+        if isinstance(rd, dict):
+            def _collect_strs(o, acc):
+                if isinstance(o, str):
+                    acc.append(o)
+                elif isinstance(o, dict):
+                    for _v in o.values():
+                        _collect_strs(_v, acc)
+                elif isinstance(o, (list, tuple)):
+                    for _v in o:
+                        _collect_strs(_v, acc)
+            _ac_strs = []
+            _collect_strs(rd.get('analyst_commentary') or {}, _ac_strs)
+            _raw_ids.update(_frci('\n'.join(_ac_strs), is_html=False))
+        if _raw_ids:
+            issues.append(f'{len(_raw_ids)} raw chart ID(s) in user-facing text — '
+                          f'humanize before render: {sorted(_raw_ids)[:8]} (v8.14.4)')
     return issues
 
 
@@ -10683,6 +10726,42 @@ if __name__ == '__main__':
             if _dup_v:
                 _val_issues.append(f"❌ {len(_dup_v)} hand(s) rendered BOTH a "
                                    f"budget_trimmed stub and a full card: {_dup_v[:8]} (Issue 3)")
+        # Check 12 (v8.14.4): no raw chart IDs (PUSH_/CALLJAM_/REJAM_/OPEN_/JAM_)
+        # in user-facing prose — rendered shell visible text, decoded lazy cards,
+        # and analyst-commentary prose. Machine-only uses (data-chart-id, JS keys)
+        # are stripped by the helper, so only visible prose is flagged.
+        try:
+            from gem_chart_labels import find_raw_chart_ids_in_user_text as _frci_v
+            _raw_v = set(_frci_v(_html_content, is_html=True))
+            if _lazy_html_v:
+                _raw_v.update(_frci_v(_lazy_html_v, is_html=True))
+            def _collect_strs_v(o, acc):
+                if isinstance(o, str): acc.append(o)
+                elif isinstance(o, dict):
+                    for _vv in o.values(): _collect_strs_v(_vv, acc)
+                elif isinstance(o, (list, tuple)):
+                    for _vv in o: _collect_strs_v(_vv, acc)
+            _acs_v = []
+            _collect_strs_v(report_data.get('analyst_commentary') or {}, _acs_v)
+            _raw_v.update(_frci_v('\n'.join(_acs_v), is_html=False))
+            if _raw_v:
+                _val_issues.append(f"❌ {len(_raw_v)} raw chart ID(s) in user-facing "
+                                   f"text (humanize before render): {sorted(_raw_v)[:8]} (v8.14.4)")
+            else:
+                print(f"  ✅ No raw chart IDs in user-facing prose")
+        except Exception:
+            pass
+        # Check 13 (v8.14.4): cash+ticket return-basis disclosure present when the
+        # parsed overlay carries ticket value (mirrors _quick_validate_render 2b).
+        _ovv = report_data.get('usd_overlay') or {}
+        _ovtv = _ovv.get('totals') or {}
+        if _ovv.get('status') == 'parsed' and float(_ovtv.get('total_ticket_value') or 0) > 0:
+            _tlc = _html_content.lower()
+            if not ('cash + ticket' in _tlc or ('ticket value' in _tlc and 'cash' in _tlc)):
+                _val_issues.append("❌ total_ticket_value > 0 but no visible cash + "
+                                   "ticket return-basis disclosure (v8.14.4)")
+            else:
+                print(f"  ✅ Cash + ticket return-basis disclosed (ticket value > 0)")
     except Exception as _val_e:
         print(f"  ⚠️  Validation skipped: {_val_e}")
 

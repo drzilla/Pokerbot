@@ -550,6 +550,118 @@ def monotone_overcommit_lesson(board, hsa, net_bb=None, spr=None):
             "by flushes.")
 
 
+def range_evidence_md(ev):
+    """v8.14.1 P0-2: render a chart-backed 'Range evidence' block from the
+    structured object built by gem_ranges.build_range_evidence(). The block's
+    IN/OUTSIDE line is the SINGLE SOURCE OF TRUTH for range membership — prose
+    that contradicts it is corrected/linted elsewhere. Discloses proxy/closest
+    coverage explicitly (never presents an aliased/adjacent chart as exact) and
+    counts in 'hand classes' (chart cells), not combos.
+    """
+    if not ev or not isinstance(ev, dict):
+        return ''
+    from gem_chart_labels import chart_display_label as _cdl
+    hero = ev.get('hero_hand', '?')
+    pos = ev.get('position', '?')
+    depth = ev.get('depth_bb', 0) or 0
+    basis = ev.get('depth_basis', '')
+    spot = ev.get('spot_label', '')
+    cov = ev.get('coverage', 'none')
+    key = ev.get('chart_key')
+    if not key or cov == 'none' or ev.get('membership') == 'unknown':
+        _note = ev.get('note') or ('no exact chart exists for this '
+                                    'position/depth (estimated/closest unavailable)')
+        return (f"> **Range evidence — {spot}, {depth:.0f}BB ({basis}).** "
+                f"{hero}: {_note}.")
+    label = _cdl(key)
+    # Coverage disclosure — proxy/closest are NEVER presented as exact.
+    if cov == 'exact':
+        ref = f"Reference: {label}."
+    elif cov == 'proxy':
+        ref = (f"Reference: **{label}** — closest available; no exact {pos} "
+               f"chart at this depth, using it as a position proxy (an earlier "
+               f"seat plays slightly tighter).")
+    else:  # closest (adjacent depth tier)
+        ref = (f"Reference: **{label}** — closest available depth; no exact "
+               f"chart at {depth:.0f}BB.")
+    inside = ev.get('membership') == 'inside'
+    mtag = ('INSIDE' if inside else 'OUTSIDE')
+    bnd = ' (boundary cell)' if ev.get('boundary') else ''
+    tops = ', '.join(ev.get('top_examples') or [])
+    bex = ev.get('boundary_examples') or ''
+    n_cells_line = ''
+    lines = [
+        f"> **Range evidence — {spot}, {depth:.0f}BB ({basis}).**",
+        f"> {ref}",
+        f"> {hero}: **{mtag} the {label} range{bnd}.**",
+    ]
+    if tops:
+        lines.append(f"> Includes (top hand classes): {tops}.")
+    if bex:
+        lines.append(f"> Boundary hand classes: {bex}.")
+    return '\n'.join(lines)
+
+
+def _hand_preflop_range_role(h):
+    """Classify Hero's preflop decision into a chartable range role, or None.
+    Mirrors gem_coverage_builder._hero_role using hand-record fields so the
+    renderer and the worklist agree on the spot type."""
+    if not isinstance(h, dict):
+        return None
+    pa = (h.get('pf_action') or '').lower()
+    first_in = bool(h.get('first_in'))
+    pf_allin = bool(h.get('pf_allin'))
+    # A 3-bet/4-bet jam is a re-jam/over-jam, NOT a first-in open-shove, even
+    # when the record marks first_in (e.g. 73559949 ATs 4bet+ overjam over a
+    # short jam). Route those to rejam so the open-shove chart is not misapplied.
+    is_reraise = ('3bet' in pa) or ('4bet' in pa) or bool(h.get('hero_3bet'))
+    if pf_allin and first_in and not is_reraise:
+        return 'open_shove'
+    if pf_allin and is_reraise:
+        return 'rejam'
+    if pf_allin and h.get('villain_jammed') and not first_in and pa == 'call':
+        return 'call_jam'
+    if first_in and not pf_allin and pa in ('raise', 'jam', 'fold', '', 'open'):
+        # first-in open OR a first-in fold (missed-steal) — both are RFI claims
+        return 'rfi'
+    return None
+
+
+_RANGES_CACHE = None
+
+
+def get_ranges_cached():
+    """Load the chart range tables once per process (static data)."""
+    global _RANGES_CACHE
+    if _RANGES_CACHE is None:
+        try:
+            from gem_ranges import load_ranges as _lr
+            _RANGES_CACHE = _lr() or {}
+        except Exception:
+            _RANGES_CACHE = {}
+    return _RANGES_CACHE
+
+
+def hand_range_evidence(h, ranges=None):
+    """Build the chart-backed range-evidence object for a hand's preflop
+    decision (or None). RFI uses Hero's own open depth; shove/call/rejam use the
+    decision-effective stack. Pure wrapper over gem_ranges.build_range_evidence."""
+    if ranges is None:
+        ranges = get_ranges_cached()
+    role = _hand_preflop_range_role(h)
+    if not role or not ranges:
+        return None
+    try:
+        from gem_ranges import build_range_evidence as _bre
+    except Exception:
+        return None
+    _eff = h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb') or h.get('stack_bb') or 0
+    return _bre(role, h.get('position', '?'), h.get('cards', []),
+                h.get('stack_bb') or 0, _eff, ranges,
+                jammer_pos=(h.get('jammer_position') or h.get('opener_position') or ''),
+                opener_pos=(h.get('opener_position') or ''))
+
+
 def _agg_commentary(c):
     """One-line actionable read for a VII.11 candidate: which action, what
     should have happened, and why (failed-gate reasons). Shared by VII.11

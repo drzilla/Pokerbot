@@ -668,7 +668,13 @@ def build_gtow_schema(hand, app_details=None, rd=None):
         result['spot_summary'] = f'unsupported table size ({table_size})'
         return result
 
-    stack_bb = hand.get('eff_stack_bb') or hand.get('stack_bb') or 0
+    # v8.14.1 P0-4: for a preflop all-in the GTOW depth must be the
+    # decision-effective stack (eff_stack_bb is the flop-context value and
+    # falls back to Hero's nominal stack when no flop is seen — e.g. a
+    # fold-through SB jam vs an 18BB blind would otherwise snap to ~34BB).
+    stack_bb = ((hand.get('eff_stack_bb_at_decision') if hand.get('pf_allin')
+                 else None)
+                or hand.get('eff_stack_bb') or hand.get('stack_bb') or 0)
     if stack_bb < 1:
         result['spot_summary'] = 'no stack data'
         return result

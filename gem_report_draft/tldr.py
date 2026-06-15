@@ -1164,8 +1164,12 @@ def _emit_opening_dashboard(doc, s, rd):
         _rq_sub = ('Quick-scan sample — nothing here needs analyst action'
                    if _all_auto
                    else 'Review queue · highest priority hands first')
-        _rq_count0 = (f'{len(hand_queue)} auto-cleared · 0 reviewed' if _all_auto
-                      else f'{len(hand_queue)} open · 0 reviewed')
+        # v8.14.1 P0-7: "Your review:" + "marked by you" so the user-local review
+        # state never reads as the analyst's coverage status (the JS counter in
+        # _html.py mirrors this exact wording on load).
+        _rq_count0 = (f'Your review: {len(hand_queue)} auto-cleared · 0 marked by you'
+                      if _all_auto
+                      else f'Your review: {len(hand_queue)} open · 0 marked by you')
         doc.w('<div class="od-card rq-card" id="review-queue" '
               f'data-queue-ids="{he(",".join(h["id"][-8:] for h in hand_queue))}" '
               + ('data-all-auto-clear="1" ' if _all_auto else '')

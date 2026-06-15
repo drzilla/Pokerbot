@@ -1,5 +1,61 @@
 v8.14.1-preview (2026-06-14) -- real-report QA hotfix
 =========================================================================
+RANGE-EVIDENCE / REVIEW-STATE add-on (analyst-report trust blocker; version
+stays v8.14.1-preview; no strategy-logic / threshold change). Fixes the
+deeper-QA blockers found by decoding the lazy hand cards.
+  GPT-REV (legacy-footer reconciliation): two legacy hand-grid paths still
+  contradicted the canonical Range-evidence block. (1) The grid open-shove
+  footer ("✅ Correct push …") gated on bare first_in, so a 3bet/4bet/re-jam/
+  over-jam marked first_in (73559949 ATs) rendered a "Correct push — ATs in LJ
+  open-shove 12BB" footer + data-push-verdict beside an evidence block saying
+  "re-jam … no charted range". The footer + the call-jam footer now gate on the
+  CANONICAL preflop role (`_hand_preflop_range_role` == open_shove / call_jam),
+  and the call-jam footer uses nearest-tier depth — so a re-jam renders NEITHER
+  footer. (2) The legacy "Range check:" block (`_allin_range_note`) used a
+  hardcoded PUSH_10BB chart + ceil depth buckets (72806650: "Range check: A2s
+  outside SB 10BB" vs evidence "INSIDE SB 12BB"); it is DISABLED (returns '') —
+  the canonical block is the single source of truth. +2 tests (T-RE-17/18) ->
+  1105; conflict sweep over the decoded payload = 0 ("Correct/Wrong push" 21 (all
+  open_shove), "Range check:" 0, conflicts 0).
+  P0-2/2b/6 Range evidence: NEW gem_ranges.build_range_evidence + a single
+  shared chart selector (select_open_jam_chart / select_open_chart) used by BOTH
+  the grid push-verdict AND the hand-detail "Range evidence" block, so the two
+  can never cite different charts for the same jam (the 73400934 PUSH_10BB-vs-
+  JAM_15BB split). Membership/boundary come from real Poker_Ranges_Text cells
+  (no fabrication); every block tags coverage exact / proxy (position alias,
+  e.g. UTG+1->HJ) / closest (nearest depth) and discloses proxy/closest -- never
+  presents an aliased/adjacent chart as exact. Depth bucketing rounds to NEAREST
+  tier (fixed a 17BB->20BB ceil bug that falsely failed K9o). Re-jam/over-jam
+  (pf 3bet/4bet) no longer misclassified as a first-in open-shove (73559949).
+  Counts are "hand classes", never "combos". Rendered in sections_xiv XIV.A +
+  XIV.B via gem_report_draft._helpers.range_evidence_md.
+  Criterion #1 (prose must not contradict chart): the block's IN/OUTSIDE is the
+  single source of truth; the vague templated "Range Logic -- turns on whether
+  ... inside the RFI core" boilerplate is stripped when a block renders; analyst
+  prose/verdicts that asserted inside/standard where the chart says OUTSIDE were
+  corrected in the analyst data (Q9o III.2->III.5 missed-open removed, 87o/K3o/
+  T8o/Q7s/72807313 reworded); a W-RANGE-CONTRADICT stderr lint backstops any
+  residual assertive contradiction (0 in the regenerated report).
+  P0-3 PKO math (73281442): analyst prose corrected so the chip-only requirement
+  (~39%, matching Pot odds) is not contradicted and the PKO-adjusted threshold is
+  stated "not modelled" rather than asserted as computed.
+  P0-4 Effective stack: the modal header, action-grid jam size, and GTOW link now
+  use eff_stack_bb_at_decision for preflop jams (72807313 SB shows 33.6BB ->
+  eff 18.0BB; the fold-through SB jam vs an 18BB blind no longer reads ~32BB).
+  P0-5 Street binding (73279283): the auto aggression-gate header/body note is
+  suppressed when its street conflicts with the analyst key_decision street.
+  P0-7 Review-state: "#rq-reviewed[hidden],#rq-reviewed-list[hidden]
+  {display:none!important}" so the reviewed-list collapse works (display:grid no
+  longer beats [hidden]); queue copy relabelled "Your review: N open · M marked
+  by you" to separate user-local review from analyst status.
+  P0-1 Data agreement: the --quick analyst re-render now also rewrites
+  gem_report_data_<player>.json (state / reviewed / awaiting / analyst_commentary
+  + an honest gto_export_analyst_count via a persisted _gto_written_ids set), so
+  report + manifest + run-log + report_data all agree ANALYST_COMPLETE.
+  +18 tests (T-RE-01..16) -> 1103. NEW QA helper _qa_decode_lazy.py decodes
+  PB_PAYLOADS["lazyHands"] so QA inspects the REAL hand-detail content. Rest
+  below is consistency-fix / xway-fix / rev-4..1.
+
 CONSISTENCY-FIX add-on (analyst-report output acceptance; version stays
 v8.14.1-preview; no strategy-logic change). Two trust issues in the packaged
 analyst report were fixed.

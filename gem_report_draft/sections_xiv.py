@@ -1144,8 +1144,17 @@ def _why_here_text(anchor, label):
 
 
 def _allin_range_note(h):
-    """Q5: compute push/call-jam/rejam range commentary for all-in hands."""
-    if not h.get('pf_allin'):
+    """Q5 (DISABLED v8.14.1, GPT rev): legacy "Range check:" block.
+
+    This path used a hardcoded PUSH_10BB chart + ceil depth buckets and produced
+    membership verdicts that CONTRADICTED the canonical "Range evidence" block
+    (gem_ranges.build_range_evidence, rendered in every hand-detail card) — e.g.
+    72806650 showed old "Range check: A2s outside SB open-shove 10BB" right above
+    the evidence "A2s: INSIDE SB open-shove 12BB". The canonical selector is now
+    the single source of truth, so this returns '' (removed) rather than risk a
+    second, divergent membership claim."""
+    return ''
+    if not h.get('pf_allin'):  # pragma: no cover  (legacy body kept for history)
         return ''
     try:
         from gem_ranges import (normalize_hand_class as _nrm,
@@ -1856,7 +1865,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         app_details = rd.get('appendix_hand_details', {}).get(hid, {})
         _vaa_fmt = _html_escape(h.get('format', '') or '')
         _vaa_ph = _html_escape(h.get('tournament_phase', '') or '')
-        _vaa_eff = h.get('eff_stack_bb') or h.get('stack_bb') or 0
+        # B-V10 precedence: eff_stack_bb_at_decision is the decision-effective
+        # depth (jams/CVJ); eff_stack_bb is the flop-context fallback.
+        _vaa_eff = (h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb')
+                    or h.get('stack_bb') or 0)
         _vaa_t = _html_escape(str(h.get('tournament', '') or ''))
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
@@ -1866,6 +1878,23 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
         _agl = _agg_gate_label(h.get('id') or hid_short, rd)
         _agl_str = f" · {_agl[0]} {_agl[1]}" if _agl else ''
+        # v8.14.1 P0-5: when an analyst graded this hand on a SPECIFIC street, the
+        # auto aggression-gate header tag must not assert a DIFFERENT street
+        # (73279283: detector "Missed turn aggression" vs analyst river-call
+        # mistake). On a street conflict suppress the auto suffix — the analyst
+        # verdict pill governs the header. Stamp the conflict so the body
+        # aggression-gate note can demote itself to match.
+        _agg_conflict = False
+        if _agl and isinstance(cmt, dict) and cmt.get('verdict'):
+            _AGL_STREETS = ('preflop', 'flop', 'turn', 'river')
+            _ana_txt = (f"{cmt.get('key_decision','')} "
+                        f"{cmt.get('street','')}").lower()
+            _ana_str = next((s for s in _AGL_STREETS if s in _ana_txt), '')
+            _agg_str = next((s for s in _AGL_STREETS
+                             if s in (_agl[1] or '').lower()), '')
+            if _ana_str and _agg_str and _ana_str != _agg_str:
+                _agl_str = ''
+                _agg_conflict = True
         # v8.8.5: tournament context tag
         _h_fmt = h.get('format', '')
         _fmt_pill = ''
@@ -1881,8 +1910,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _fmt_pill += ' <span class="context-pill icm-caution" title="cEV-only; may be misleading in satellite / extreme ICM context">⚠️ ICM</span>'
         from gem_report_draft._helpers import short_verdict_pill as _svp
         _vp = _svp(h, verdict, app_details)
+        # v8.14.1 P0-4: for a preflop all-in the meaningful depth is the
+        # EFFECTIVE stack vs the live opponent, not Hero's nominal stack. Show
+        # both when they differ (e.g. SB 33.6BB jam into an 18BB BB).
+        _eff_dec = h.get('eff_stack_bb_at_decision') or 0
+        if h.get('pf_allin') and _eff_dec and _eff_dec < (stack_bb - 0.5):
+            _stack_disp = f"{pos} {stack_bb:.1f}BB → eff {_eff_dec:.1f}BB"
+        else:
+            _stack_disp = f"{pos} {stack_bb:.1f}BB"
         doc.w(f"#### Hand `{hid_short}` — {_cards_str_to_pills(cards)} "
-              f"({pos} {stack_bb:.1f}BB) "
+              f"({_stack_disp}) "
               f"· {bb_html}{_agl_str}{_fmt_pill}" + (f" {_vp}" if _vp else ""))
         doc.w("</div>")  # close mh-title
         doc.w("<div class='mh-actions'>")
@@ -2238,6 +2275,23 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # Compose the analyst-notes block once — we'll attach it under the
         # right street. Pre-build the lines.
         argument = review_cmt.get('argument') or cmt.get('argument', '')
+        # v8.14.1 P0-2: compute the chart-backed range evidence once for this
+        # hand (reused for the block below). When a block will render, strip the
+        # vague templated "### Range Logic — turns on whether ... is inside the
+        # RFI core" boilerplate from the analyst argument: it is exactly the
+        # "where is the range?" complaint, and the concrete evidence block now
+        # supersedes it (also removes a hedged 'inside' that reads as a
+        # contradiction when the chart says OUTSIDE).
+        try:
+            from gem_report_draft._helpers import hand_range_evidence as _hre_pre
+            _rev_xiva = _hre_pre(h)
+        except Exception:
+            _rev_xiva = None
+        if _rev_xiva and argument and '### Range Logic' in argument:
+            import re as _re_rl
+            argument = _re_rl.sub(
+                r'\n*#{2,3}\s*Range Logic\b.*?(?=\n#{2,3}\s|\Z)',
+                '\n', argument, flags=_re_rl.S).rstrip()
         # Item 17: warn on suspiciously short analyst argument (likely truncated)
         if argument and len(argument.strip()) < 30 and not argument.strip().startswith('**TL;DR:**'):
             import sys as _sys17
@@ -2588,7 +2642,49 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
         # B173 (Ron 2026-05-24): aggression-gate commentary in the yellow block
         # below the hand, not as a loose line above it.
-        _emit_agg_gate_block(doc, h.get('id') or hid_short, rd, hand=h)
+        # v8.14.1 P0-5: skip the auto aggression-gate note when it grades a
+        # DIFFERENT street than the analyst verdict (it would contradict the
+        # analyst critique — e.g. detector "missed turn value-bet" beneath an
+        # analyst river-call mistake). The analyst notes block already covers
+        # the graded decision.
+        if not locals().get('_agg_conflict'):
+            _emit_agg_gate_block(doc, h.get('id') or hid_short, rd, hand=h)
+
+        # v8.14.1 P0-2: chart-backed Range evidence block. Any preflop range
+        # claim (RFI / open-shove / call-jam / re-jam) gets a visible block whose
+        # IN/OUTSIDE line is the SINGLE SOURCE OF TRUTH (real chart cells; proxy
+        # /closest coverage disclosed). Contradiction guard: when the chart says
+        # OUTSIDE but the analyst prose still claims inside/standard, emit a
+        # W-RANGE-CONTRADICT lint (the prose itself is corrected in the data).
+        try:
+            from gem_report_draft._helpers import range_evidence_md as _rem
+            _rev = locals().get('_rev_xiva')
+            if _rev:
+                doc.w("")
+                doc.w(_rem(_rev))
+                # Backstop lint: fire only on an ASSERTIVE inside/standard
+                # membership claim that survives the data corrections + the
+                # Range-Logic boilerplate strip (hedged "turns on whether ...
+                # inside" is excluded). The block is authoritative regardless.
+                if (_rev.get('chart_key')
+                        and _rev.get('membership') == 'outside'
+                        and isinstance(cmt, dict)):
+                    _argl = (f"{cmt.get('argument','')} "
+                             f"{cmt.get('key_decision','')} "
+                             f"{cmt.get('spot','')}").lower()
+                    _assertive = ('is inside', 'is **inside**', '**inside** the',
+                                  'sits inside', 'is in range', 'in the core range',
+                                  'is a standard open', 'inside the standard',
+                                  'inside the push range', 'inside the jam')
+                    if (any(w in _argl for w in _assertive)
+                            and 'whether' not in _argl.split('inside')[0][-40:]):
+                        import sys as _sys_rc
+                        print(f"  W-RANGE-CONTRADICT: {hid_short} analyst prose "
+                              f"asserts inside/standard but chart shows "
+                              f"{_rev['hero_hand']} OUTSIDE {_rev['chart_key']}",
+                              file=_sys_rc.stderr)
+        except Exception:
+            pass
 
         # BUG-12 (Ron review 2026-05-31): surface pot-odds + bounty-adjusted
         # equity in the hand detail when computed.
@@ -3186,6 +3282,21 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         doc.w("</div>")
                         doc.w("")
                     _has_notes_b = True
+
+                # v8.14.1 P0-2: chart-backed Range evidence block on XIV.B stubs
+                # too (same shared builder as XIV.A) so referenced preflop range
+                # decisions also carry visible evidence.
+                if h:
+                    try:
+                        from gem_report_draft._helpers import (
+                            hand_range_evidence as _hre_b,
+                            range_evidence_md as _rem_b)
+                        _rev_b = _hre_b(h)
+                        if _rev_b:
+                            doc.w("")
+                            doc.w(_rem_b(_rev_b))
+                    except Exception:
+                        pass
 
                 # Pot odds rendering for XIV.B (same as XIV.A BUG-12 fix)
                 _po_b = (rd.get('pot_odds_by_hand') or {}).get(hid) or \

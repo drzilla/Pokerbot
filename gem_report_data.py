@@ -2339,6 +2339,11 @@ def generate_report_data(stats, hands, hh_dir, session_history_path=None,
     rd['gto_export_count'] = exported
     rd['gto_export_cap'] = GTO_EXPORT_CAP
     rd['gto_export_analyst_count'] = len(analyst_hand_ids & written_ids)
+    # v8.14.1 P0-1: persist the GTO-export id-set so a later --quick analyst
+    # re-render can honestly recompute gto_export_analyst_count against the
+    # newly-applied analyst commentary (the GTO export itself is not
+    # regenerated in --quick). No facts are derived from this at render time.
+    rd['_gto_written_ids'] = sorted(written_ids)
 
 
 

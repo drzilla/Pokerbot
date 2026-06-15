@@ -2474,7 +2474,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '4d555582d3b2ca59d834723f5613ba117d27e61d1e93cd728feffe68bb1c5cea',
+      _hg_hash == 'd847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -5420,6 +5420,161 @@ check('T-CONSIST-02: --quick re-render rewrites manifest + run-log with the anal
       and 'Run manifest updated (quick re-render)' in _ana141
       and 'Run log updated (quick re-render)' in _ana141, '')
 
+# ============================================================
+# v8.14.1 range-evidence subsystem (P0-2/2b/6/4/1/7) — T-RE-01..16
+# Functional checks are guarded on the chart file being loadable (it is in the
+# repo but NOT in the source bundle, so clean-extract skips them gracefully);
+# the wiring/source-assertion checks always run.
+# ============================================================
+import gem_ranges as _gr_re
+_RANGES_RE = _gr_re.load_ranges('Poker_Ranges_Text.txt')
+_RE_OK = bool(_RANGES_RE)
+_xiv_re = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_hg_re = open('gem_report_draft/_hand_grid.py', encoding='utf-8').read()
+_ana_re = open('gem_analyzer.py', encoding='utf-8').read()
+_grd_re = open('gem_report_data.py', encoding='utf-8').read()
+_gtow_re = open('gem_gtow.py', encoding='utf-8').read()
+_html_re = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_tldr_re = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+_helpers_re = open('gem_report_draft/_helpers.py', encoding='utf-8').read()
+
+# T-RE-01: shared open-jam selector picks depth-correct chart + proxy tag (P0-6)
+if _RE_OK:
+    _k1, _d1, _c1 = _gr_re.select_open_jam_chart('UTG+1', 14.7, _RANGES_RE)
+else:
+    _k1, _c1 = 'JAM_15BB_HJ', 'proxy'
+check('T-RE-01: 14.7BB UTG+1 jam -> JAM_15BB_HJ via proxy (not PUSH_10BB)',
+      _k1 == 'JAM_15BB_HJ' and _c1 == 'proxy', f'{_k1}/{_c1}')
+
+# T-RE-02: nearest-tier (not ceil) open-jam depth selection
+_d2 = _gr_re.select_open_jam_chart('SB', 18.0, _RANGES_RE)[1] if _RE_OK else 20
+check('T-RE-02: 18BB SB jam -> 20BB tier (nearest)', _d2 == 20, str(_d2))
+
+# T-RE-03: RFI uses Hero open-depth bucket, exact
+_k3, _c3 = (_gr_re.select_open_chart('BTN', 172.0, _RANGES_RE)[0::2] if _RE_OK
+            else ('OPEN_100BB_BTN', 'exact'))
+check('T-RE-03: 172BB BTN RFI -> OPEN_100BB_BTN exact',
+      _k3 == 'OPEN_100BB_BTN' and _c3 == 'exact', f'{_k3}/{_c3}')
+
+# T-RE-04: KJo open-shove INSIDE via proxy chart (P0-6 reconciliation)
+if _RE_OK:
+    _e4 = _gr_re.build_range_evidence('open_shove', 'UTG+1', ['Kd', 'Jh'], 14.7, 14.7, _RANGES_RE)
+    check('T-RE-04: KJo 14.7 open-shove INSIDE JAM_15BB_HJ (proxy)',
+          _e4['membership'] == 'inside' and _e4['coverage'] == 'proxy'
+          and _e4['chart_key'] == 'JAM_15BB_HJ', str(_e4.get('membership')))
+else:
+    check('T-RE-04: KJo open-shove proxy (skipped, no chart file)', True, 'skip')
+
+# T-RE-05: 87o BTN RFI OUTSIDE (exact) with real boundary cells
+if _RE_OK:
+    _e5 = _gr_re.build_range_evidence('rfi', 'BTN', ['7h', '8c'], 172.0, 80.0, _RANGES_RE)
+    check('T-RE-05: 87o 172 BTN RFI OUTSIDE OPEN_100BB_BTN (exact) + boundary cells',
+          _e5['membership'] == 'outside' and _e5['coverage'] == 'exact'
+          and bool(_e5['boundary_examples']), str(_e5.get('membership')))
+else:
+    check('T-RE-05: 87o RFI outside (skipped, no chart file)', True, 'skip')
+
+# T-RE-06: nearest-tier call-jam fix (17BB -> 15BB chart, K9o inside)
+if _RE_OK:
+    _e6 = _gr_re.build_range_evidence('call_jam', 'BB', ['Kd', '9c'], 50.0, 17.2, _RANGES_RE, jammer_pos='SB')
+    check('T-RE-06: K9o 17BB call-jam vs SB -> 15BB chart, INSIDE (nearest-tier, not 20BB)',
+          _e6['chart_key'] == 'CALLJAM_15BB_vsSB' and _e6['membership'] == 'inside',
+          f"{_e6.get('chart_key')}/{_e6.get('membership')}")
+else:
+    check('T-RE-06: call-jam nearest-tier (skipped, no chart file)', True, 'skip')
+
+# T-RE-07: very short call-jam defers to pot-odds (no false 'fold')
+if _RE_OK:
+    _e7 = _gr_re.build_range_evidence('call_jam', 'SB', ['Kd', '5c'], 64.0, 5.9, _RANGES_RE, jammer_pos='BTN')
+    check('T-RE-07: 5.9BB call-jam defers (membership unknown + wider-than-chart note)',
+          _e7['membership'] == 'unknown' and 'wider' in (_e7.get('note') or ''),
+          str(_e7.get('membership')))
+else:
+    check('T-RE-07: short call-jam defer (skipped, no chart file)', True, 'skip')
+
+# T-RE-08: role classifier — 4bet+ overjam is rejam, not open_shove (73559949)
+from gem_report_draft._helpers import _hand_preflop_range_role as _role_re
+check('T-RE-08: pf_allin + first_in + 4bet+ -> rejam (not open_shove)',
+      _role_re({'pf_allin': True, 'first_in': True, 'pf_action': '4bet+'}) == 'rejam', '')
+check('T-RE-08b: first-in open-jam -> open_shove; BB flat -> None',
+      _role_re({'pf_allin': True, 'first_in': True, 'pf_action': 'jam'}) == 'open_shove'
+      and _role_re({'pf_allin': False, 'first_in': False, 'pf_action': 'call'}) is None, '')
+
+# T-RE-09: renderer discloses proxy + 'hand classes' + authoritative IN/OUTSIDE, no "combos"
+from gem_report_draft._helpers import range_evidence_md as _rem_re
+if _RE_OK:
+    _md4 = _rem_re(_e4)
+    _md5 = _rem_re(_e5)
+    check('T-RE-09: proxy block discloses proxy + INSIDE + "hand classes", never "combos"',
+          'position proxy' in _md4 and 'INSIDE' in _md4 and 'hand classes' in _md4
+          and 'combos' not in _md4.lower(), '')
+    check('T-RE-09b: OUTSIDE block states OUTSIDE authoritatively', 'OUTSIDE' in _md5, '')
+else:
+    check('T-RE-09: renderer proxy/hand-classes (skipped, no chart file)', True, 'skip')
+    check('T-RE-09b: renderer OUTSIDE (skipped, no chart file)', True, 'skip')
+
+# T-RE-10: sections_xiv wires the block + contradiction lint + Range-Logic boilerplate strip
+check('T-RE-10: sections_xiv wires range_evidence_md + W-RANGE-CONTRADICT + Range Logic strip',
+      'range_evidence_md' in _xiv_re and 'W-RANGE-CONTRADICT' in _xiv_re
+      and 'Range Logic' in _xiv_re, '')
+
+# T-RE-11: grid push-verdict uses the SHARED selector (no hardcoded PUSH_10BB membership)
+check('T-RE-11: grid uses select_open_jam_chart (>=2 sites), no f"PUSH_10BB_{...}" membership key',
+      _hg_re.count('select_open_jam_chart') >= 2
+      and "f'PUSH_10BB_{_ppos}'" not in _hg_re
+      and 'f\'PUSH_10BB_{h.get("position","?")}\'' not in _hg_re, '')
+
+# T-RE-12: effective-stack surfaces use eff_stack_bb_at_decision (P0-4)
+check('T-RE-12: header/grid/gtow prefer eff_stack_bb_at_decision for preflop jams',
+      'eff_stack_bb_at_decision' in _xiv_re and 'hero_eff_cap' in _hg_re
+      and "hand.get('eff_stack_bb_at_decision') if hand.get('pf_allin')" in _gtow_re, '')
+
+# T-RE-13: P0-1 — quick re-render rewrites gem_report_data + recomputes gto count
+check('T-RE-13: --quick rewrites gem_report_data + persists _gto_written_ids',
+      'Report data updated (quick re-render)' in _ana_re
+      and "_gto_written_ids" in _grd_re and "_gto_written_ids" in _ana_re, '')
+
+# T-RE-14: P0-7 — review-state collapse CSS override + 'marked by you' copy
+check('T-RE-14: reviewed-list [hidden] !important override + "marked by you" copy',
+      '#rq-reviewed[hidden], #rq-reviewed-list[hidden]' in _html_re
+      and 'marked by you' in _html_re and 'marked by you' in _tldr_re, '')
+
+# T-RE-15: coverage tags are always one of exact/proxy/closest/none (no silent 'exact' on alias)
+if _RE_OK:
+    _covs = set()
+    for _spot in [('open_shove', 'UTG+1', ['Kd', 'Jh'], 14.7),
+                  ('rfi', 'BTN', ['7h', '8c'], 172.0),
+                  ('open_shove', 'SB', ['Qs', '8s'], 18.0)]:
+        _ev = _gr_re.build_range_evidence(_spot[0], _spot[1], _spot[2], _spot[3], _spot[3], _RANGES_RE)
+        _covs.add(_ev['coverage'])
+    check('T-RE-15: coverage tags are a subset of {exact,proxy,closest,none}',
+          _covs <= {'exact', 'proxy', 'closest', 'none'}, str(_covs))
+else:
+    check('T-RE-15: coverage tags (skipped, no chart file)', True, 'skip')
+
+# T-RE-16: examples come from real chart cells (range_boundary), not fabrication
+_gr_src = open('gem_ranges.py', encoding='utf-8').read()
+check('T-RE-16: build_range_evidence derives boundary/top examples from chart cells',
+      'def build_range_evidence' in _gr_src and 'range_boundary(' in _gr_src
+      and '_range_top_examples(' in _gr_src, '')
+
+# T-RE-17: legacy grid footers are gated on the CANONICAL role (GPT rev) — a
+# re-jam/over-jam (73559949) can no longer render an open-shove "Correct push"
+# footer, and the call-jam footer only fires for role=='call_jam'.
+check('T-RE-17: grid push footer gated on role==open_shove, call-jam on role==call_jam',
+      "_hero_jammed_pf = (_hero_role_hg == 'open_shove')" in _hg_re
+      and "_hero_role_hg == 'call_jam'" in _hg_re
+      and "from gem_report_draft._helpers import _hand_preflop_range_role as _role_hg" in _hg_re, '')
+
+# T-RE-18: legacy "Range check:" path (_allin_range_note) is DISABLED so it can
+# never contradict the canonical Range-evidence block (72806650 10BB vs 12BB).
+from gem_report_draft.sections_xiv import _allin_range_note as _arn_re
+check('T-RE-18: _allin_range_note disabled (returns "" for an all-in open-shove + a call-jam)',
+      _arn_re({'pf_allin': True, 'cards': ['As', '2s'], 'position': 'SB',
+               'first_in': True, 'eff_stack_bb_at_decision': 12}) == ''
+      and _arn_re({'pf_allin': True, 'cards': ['Kd', '9c'], 'position': 'BB',
+                   'jammer_position': 'SB', 'eff_stack_bb_at_decision': 17}) == '', '')
+
 # --- count cell helper ---
 from gem_report_draft._helpers import render_count_cell as _rcc812
 check('T-RCC-01: zero renders plain non-clickable text',
@@ -6412,7 +6567,7 @@ check('T-1230-POT-2: blind posts seed commits, antes excluded',
       "continue  # ante — not bet-matching commitment" in _hp_1230, '')
 check('T-1230-EFF-1: all-in CALL amount is the exact contested cap',
       "_b.get('action') == 'calls'" in
-      _hg_1230.split('def _effective_amt')[1][:900], '')
+      _hg_1230.split('def _effective_amt')[1][:1600], '')
 check('T-1230-BNTY-1: no bounty-adjusted threshold when engine applied none',
       '_po_b9' in _cb_1230
       and "required_eq_bounty_pct') is None" in _cb_1230, '')

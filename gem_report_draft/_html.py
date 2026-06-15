@@ -1881,7 +1881,7 @@ _MODAL_HTML = r"""
       var follow=reviewed.filter(function(x){return FOLLOWUP[x.st];}).length;
       var cEl=document.getElementById('rq-count');
       if(cEl){var _allAuto=r.getAttribute('data-all-auto-clear')==='1';
-        cEl.textContent=(_allAuto?(open.length+' auto-cleared · '):(open.length+' open · '))+reviewed.length+' reviewed';}
+        cEl.textContent='Your review: '+(_allAuto?(open.length+' auto-cleared · '):(open.length+' open · '))+reviewed.length+' marked by you';}
       var sa=document.getElementById('rq-showall');
       if(sa){if(open.length>topn){sa.hidden=false;sa.textContent=showAll?('Show top '+topn):('Show all '+open.length);}else{sa.hidden=true;}}
       var fn=document.getElementById('rq-foot-note');
@@ -5853,6 +5853,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .rq-revchip.drill {{ background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }}
   .rq-revchip.rulebook {{ background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }}
   .rq-reviewed-list {{ display: grid; }}
+  /* v8.14.1 P0-7: the .rq-reviewed-list display:grid above (author-origin, later,
+     tied id/class specificity) silently beats the UA `[hidden]{{display:none}}`,
+     so the collapsed reviewed-list stayed visible. Force the hidden attribute to
+     win for both the wrapper and the inner list. */
+  #rq-reviewed[hidden], #rq-reviewed-list[hidden] {{ display: none !important; }}
   .rq-rev-row {{ display: grid; grid-template-columns: 26px auto minmax(0,1fr) auto; gap: 8px;
     align-items: center; width: 100%; text-align: left; border: 0; background: #fff;
     border-top: 1px solid #f1f5f9; cursor: pointer; padding: 7px 14px; font: inherit; }}

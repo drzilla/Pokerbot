@@ -53,11 +53,17 @@ def _verdict_display_label(verdict):
     return rest or _VERDICT_HUMAN.get(m.group(1), verdict)
 
 
-def _effective_amt(nominal_amt, remaining_actions):
+def _effective_amt(nominal_amt, remaining_actions, hero_eff_cap=None):
     """Compute effective (callable) amount for an all-in bet/raise.
     The uncalled portion above the deepest live opponent stack is
     never contested — the measured size must use the effective figure.
     Returns (eff_amt, was_capped).
+
+    v8.14.1 P0-4: `hero_eff_cap` (Hero's eff_stack_bb_at_decision) is supplied
+    only for Hero's preflop jam. When every opponent FOLDS to the jam,
+    remaining_actions carries no live stack, so the stack-based cap below never
+    fires and a fold-through SB jam rendered Hero's full nominal stack
+    (e.g. 32.5BB) instead of the effective depth vs the live blind (18.0BB).
     """
     # v8.12.8 QA-GPT P0.1: when a subsequent action IS the all-in call,
     # its amount is the exact contested figure — the stack-based cap below
@@ -80,6 +86,11 @@ def _effective_amt(nominal_amt, remaining_actions):
         _cap = max(_live_behind)
         if _cap > 0 and _cap < nominal_amt:
             return min(nominal_amt, _cap), True
+    # Fold-through Hero jam: no live opponent remains in remaining_actions, so
+    # fall back to Hero's decision-effective depth (the live blind it was up
+    # against) rather than reporting the uncapped nominal stack.
+    if hero_eff_cap and 0 < hero_eff_cap < nominal_amt:
+        return hero_eff_cap, True
     return nominal_amt, False
 
 def _key_decision_action_class(key_dec):
@@ -726,7 +737,12 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             _q4c = h.get('cards', [])
             if len(_q4c) >= 2:
                 _q4_hc = _nrm_q4(_q4c)
-                _q4r = (_lr_q4()).get(f'PUSH_10BB_{h.get("position","?")}', {})
+                # v8.14.1 P0-6: depth-appropriate chart via the shared selector
+                # (not hardcoded PUSH_10BB) so this negative-verdict flag agrees
+                # with the grid widget + range-evidence block.
+                from gem_ranges import select_open_jam_chart as _sojc_q4
+                _q4k, _q4t, _q4cov = _sojc_q4(h.get('position', '?'), _q4_stk, _lr_q4())
+                _q4r = (_lr_q4()).get(_q4k or '', {})
                 if _q4r and _q4_hc not in _q4r:
                     _has_negative_pf_verdict = True
         if not _has_negative_pf_verdict and h.get('pf_allin') and not _q4_jammed and _q4_stk <= 30:
@@ -828,7 +844,10 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             elif act == 'bets':
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(amt, actions[i + 1:])
+                    _eff_amt, _was_capped = _effective_amt(
+                        amt, actions[i + 1:],
+                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
+                                      if (is_h and street == 'preflop') else None))
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
                     if _was_capped:
@@ -856,7 +875,10 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 _raise_to = _current_bet + amt
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(amt, actions[i + 1:])
+                    _eff_amt, _was_capped = _effective_amt(
+                        amt, actions[i + 1:],
+                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
+                                      if (is_h and street == 'preflop') else None))
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
                     if _was_capped:
@@ -1144,38 +1166,48 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     # Push-range verdict for <=15BB open-shoves
     try:
         from gem_ranges import normalize_hand_class as _nrm_hc, load_ranges as _lr_push, range_boundary as _rb_push
-        _hero_jammed_pf = False
-        if h.get('pf_allin') and h.get('first_in'):
-            for _pfa in (h.get('action_ledger') or []):
-                if (_pfa.get('player') == h.get('hero')
-                        and _pfa.get('street') == 'preflop'
-                        and _pfa.get('action') in ('raises', 'bets')
-                        and _pfa.get('is_all_in')):
-                    _hero_jammed_pf = True
-                    break
+        # v8.14.1 (GPT rev): gate the open-shove footer on the CANONICAL preflop
+        # role (the same classifier the Range-evidence block uses), not a bare
+        # first_in flag. A 3-bet/4-bet/re-jam/over-jam (73559949) marked first_in
+        # must NOT render a "Correct/Wrong push" open-shove footer or a
+        # data-push-verdict — the grid footer must agree with the evidence block.
+        from gem_report_draft._helpers import _hand_preflop_range_role as _role_hg
+        _hero_role_hg = _role_hg(h)
+        _hero_jammed_pf = (_hero_role_hg == 'open_shove')
         if (_hero_jammed_pf
                 and (h.get('eff_stack_bb_at_decision') or h.get('stack_bb', 99)) <= 15):
             _ppos = h.get('position', '?')
             _pcards = h.get('cards', [])
             if len(_pcards) >= 2:
                 _phc = _nrm_hc(_pcards)
-                _pk = f'PUSH_10BB_{_ppos}'
                 _pranges = _lr_push()
-                _prange = _pranges.get(_pk, {})
+                _eff_now = (h.get('eff_stack_bb_at_decision')
+                            or h.get('stack_bb') or 0)
+                # v8.14.1 P0-2b/P0-6: pick the depth-appropriate chart via the
+                # SHARED selector (the same one the TL;DR + the range-evidence
+                # block use) so the grid widget can never cite a different chart
+                # for the same jam (the 73400934 PUSH_10BB-vs-JAM_15BB split).
+                from gem_ranges import select_open_jam_chart as _sojc_hg
+                _pk, _ptgt_hg, _pcov_hg = _sojc_hg(_ppos, _eff_now, _pranges)
+                _prange = _pranges.get(_pk or '', {})
                 if _prange:
                     _in = _phc in _prange
                     _in_label = 'in' if _in else 'outside'
                     _in_color = '#22c55e' if _in else '#ef4444'
                     _boundary = _rb_push(', '.join(_prange.keys()))
                     _range_note = f' (boundary: {_boundary})' if _boundary else ''
-                    # v8.13.1 P1: PUSH_10BB is the NEAREST chart, not necessarily
-                    # this hand's depth — state that honestly with the actual
-                    # effective stack so the widget never reads as a definitive
-                    # verdict evaluated at the wrong depth.
-                    _eff_now = (h.get('eff_stack_bb_at_decision')
-                                or h.get('stack_bb') or 0)
-                    _near_line = (f"Nearest chart: {_cdl_hg(_pk)}; actual effective "
-                                  f"stack: {_eff_now:.1f}BB.")
+                    # Disclose proxy/closest — never present an aliased/adjacent
+                    # chart as an exact this-position-this-depth verdict.
+                    if _pcov_hg == 'exact':
+                        _near_line = (f"Chart: {_cdl_hg(_pk)} "
+                                      f"(effective {_eff_now:.1f}BB).")
+                    elif _pcov_hg == 'proxy':
+                        _near_line = (f"Closest available: {_cdl_hg(_pk)} — position "
+                                      f"proxy; no exact {_ppos} chart at "
+                                      f"{_eff_now:.0f}BB.")
+                    else:
+                        _near_line = (f"Closest available: {_cdl_hg(_pk)} — nearest "
+                                      f"depth; no exact chart at {_eff_now:.1f}BB.")
                     # v8.13.1 P1: reconcile against the FINAL analyst verdict so
                     # the auto widget never contradicts it.
                     _av_pv = ''
@@ -1203,8 +1235,11 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     _safe_verdict = _html_mod.escape(_verdict_push, quote=True)
                     _push_verdict_attr = f" data-push-verdict='{_safe_verdict}'"
 
-        # Call-jam verdict: Hero called an all-in at <=30BB
-        if (h.get('pf_allin') and not _hero_jammed_pf
+        # Call-jam verdict: Hero CALLED an all-in. v8.14.1 (GPT rev): gate on the
+        # canonical role (== 'call_jam') so a re-jam/over-jam never falls into the
+        # call-jam footer, and pick the NEAREST depth tier (not a ceil cutoff) so
+        # this footer agrees with the Range-evidence block.
+        if (_hero_role_hg == 'call_jam'
                 and (h.get('eff_stack_bb_at_decision') or h.get('stack_bb', 99)) <= 30):
             _cj_pos = h.get('position', '?')
             _cj_cards = h.get('cards', [])
@@ -1212,8 +1247,8 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             if len(_cj_cards) >= 2 and _cj_jammer:
                 _cj_hc = _nrm_hc(_cj_cards)
                 _cj_stack = h.get('eff_stack_bb_at_decision') or h.get('stack_bb') or 15
-                _cj_depth = ('12BB' if _cj_stack <= 14 else '15BB' if _cj_stack <= 17
-                             else '20BB' if _cj_stack <= 25 else '30BB')
+                _cj_depth = str(min([12, 15, 20, 30],
+                                    key=lambda t: abs(t - (_cj_stack or 0)))) + 'BB'
                 _cj_key = f'CALLJAM_{_cj_depth}_vs{_cj_jammer}'
                 _cj_ranges = _lr_push()
                 _cj_range = _cj_ranges.get(_cj_key, {})

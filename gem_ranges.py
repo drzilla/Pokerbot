@@ -151,6 +151,219 @@ def range_boundary(range_str):
     return ', '.join(bottom)
 
 
+# ============================================================
+# v8.14.1 P0-2: shared canonical chart selection + range evidence
+# ------------------------------------------------------------
+# ONE selector used by BOTH the coverage/worklist builder and the hand-detail
+# renderer so the grid widget and the TL;DR can never cite different charts for
+# the same decision (the 73400934 contradiction). Every result carries a
+# `coverage` tag: 'exact' (this position+depth chart exists), 'proxy' (found via
+# a documented position alias, e.g. UTG+1->HJ), or 'closest' (nearest depth
+# tier). Callers MUST disclose proxy/closest — never present them as exact.
+# ============================================================
+
+# Mirror of gem_coverage_builder._POS_ALIAS (earlier seat -> nearest charted seat).
+RANGE_POS_ALIAS = {'UTG': ['LJ'], 'EP': ['LJ'], 'LJ': ['UTG'],
+                   'MP': ['HJ'], 'UTG+1': ['HJ', 'LJ'], 'UTG+2': ['HJ', 'MP']}
+
+_JAM_DEPTH_TIERS = [8, 10, 12, 15, 20, 25]
+
+
+def _jam_target_depth(stack_bb):
+    s = stack_bb or 0
+    if s <= 9: return 8
+    if s <= 11: return 10
+    if s <= 13.5: return 12
+    if s <= 17.5: return 15
+    if s <= 22.5: return 20
+    return 25
+
+
+def _open_depth_bucket(stack_bb):
+    s = stack_bb or 0
+    if s < 20: return '10-20BB'
+    if s < 40: return '20-40BB'
+    return '100BB'
+
+
+def _coverage_for(idx):
+    """idx into the position-tries list: 0 = the real seat (exact), >0 = alias."""
+    return 'exact' if idx == 0 else 'proxy'
+
+
+def select_open_jam_chart(pos, stack_bb, ranges):
+    """Pick the open-SHOVE chart for (pos, effective stack). Prefers the JAM_
+    (jam-subset) chart over PUSH_ (full open range) at the depth-quantised tier,
+    then position aliases, then adjacent depth tiers.
+
+    Returns (chart_key|None, target_depth, coverage) with coverage in
+    {'exact','proxy','closest','none'}.
+    """
+    ranges = ranges or {}
+    target = _jam_target_depth(stack_bb)
+    pos_tries = [pos] + RANGE_POS_ALIAS.get(pos, [])
+    for px in ('JAM_', 'PUSH_'):
+        for i, pp in enumerate(pos_tries):
+            key = f'{px}{target}BB_{pp}'
+            if ranges.get(key):
+                return key, target, _coverage_for(i)
+    # adjacent depth tiers (nearest first), same position-tries
+    adj = sorted(_JAM_DEPTH_TIERS, key=lambda d: abs(d - target))
+    for at in adj:
+        if at == target:
+            continue
+        for px in ('JAM_', 'PUSH_'):
+            for pp in pos_tries:
+                key = f'{px}{at}BB_{pp}'
+                if ranges.get(key):
+                    return key, at, 'closest'
+    return None, target, 'none'
+
+
+def select_open_chart(pos, stack_bb, ranges):
+    """Pick the first-in OPEN (RFI) chart for (pos, Hero open depth). RFI depth
+    is Hero's OWN stack (how deep you open), not effective-vs-caller.
+
+    Returns (chart_key|None, bucket, coverage).
+    """
+    ranges = ranges or {}
+    bucket = _open_depth_bucket(stack_bb)
+    pos_tries = [pos] + RANGE_POS_ALIAS.get(pos, [])
+    for i, pp in enumerate(pos_tries):
+        key = f'OPEN_{bucket}_{pp}'
+        if ranges.get(key):
+            return key, bucket, _coverage_for(i)
+    # adjacent buckets (nearest first)
+    order = {'10-20BB': ['20-40BB', '100BB'],
+             '20-40BB': ['10-20BB', '100BB'],
+             '100BB': ['20-40BB', '10-20BB']}.get(bucket, [])
+    for ab in order:
+        for pp in pos_tries:
+            key = f'OPEN_{ab}_{pp}'
+            if ranges.get(key):
+                return key, ab, 'closest'
+    return None, bucket, 'none'
+
+
+def _range_top_examples(chart_dict, n=5):
+    """Highest n hand classes in the chart (for the 'includes' example line)."""
+    if not chart_dict:
+        return []
+    keys = list(chart_dict.keys())
+
+    def _rank(hc):
+        a = RANK_VAL.get(hc[0], 0) if hc else 0
+        b = RANK_VAL.get(hc[1], 0) if len(hc) > 1 else 0
+        pair_bonus = 100 if (len(hc) == 2) else 0
+        suit_bonus = 1 if hc.endswith('s') else 0
+        return (pair_bonus + a, b + suit_bonus)
+    keys.sort(key=_rank, reverse=True)
+    return keys[:n]
+
+
+def build_range_evidence(role, pos, cards, hero_stack_bb, eff_stack_bb,
+                         ranges, jammer_pos=None, opener_pos=None):
+    """Build a chart-backed range-evidence object for a preflop decision, or
+    None when no chart applies. Invents nothing: membership/boundary come from
+    the loaded chart cells; the caller humanises chart_key and discloses
+    coverage. `membership` is the SINGLE SOURCE OF TRUTH for in/out wording.
+
+    role: 'rfi' | 'open_shove' | 'call_jam' | 'rejam'
+    Returns dict: {role, spot_label, position, facing, depth_bb, depth_basis,
+                   chart_key, coverage, hero_hand, membership ('inside'|'outside'),
+                   boundary (bool), top_examples [..], boundary_examples str, note}
+    """
+    hc = normalize_hand_class(cards)
+    if not hc:
+        return None
+    ranges = ranges or {}
+    chart_key = None
+    coverage = 'none'
+    depth_bb = 0
+    depth_basis = ''
+    facing = ''
+    spot_label = ''
+    if role == 'rfi':
+        depth_bb = hero_stack_bb or 0
+        depth_basis = 'hero open depth'
+        chart_key, _bk, coverage = select_open_chart(pos, depth_bb, ranges)
+        spot_label = f'first-in open ({pos})'
+        facing = 'first-in (folded to Hero)'
+    elif role == 'open_shove':
+        depth_bb = eff_stack_bb or hero_stack_bb or 0
+        depth_basis = 'effective vs the live blind'
+        chart_key, _td, coverage = select_open_jam_chart(pos, depth_bb, ranges)
+        spot_label = f'open-shove ({pos})'
+        facing = 'first-in jam'
+    elif role == 'call_jam':
+        depth_bb = eff_stack_bb or hero_stack_bb or 0
+        depth_basis = 'effective vs the jam'
+        # nearest available call-jam tier (round to nearest, not ceil — a 17BB
+        # call is nearer the 15BB chart than the 20BB chart, and call ranges
+        # shift a lot between tiers).
+        _d = min([12, 15, 20, 30], key=lambda t: abs(t - (depth_bb or 0)))
+        _jp = (jammer_pos or '').strip()
+        # The shallowest call-jam chart is 12BB; below ~9BB the calling range is
+        # far wider than any chart, so membership against the 12BB chart would
+        # falsely read 'fold'. Treat a large depth gap as closest/unreliable and
+        # do NOT assert in/out (defer to pot-odds for short calls).
+        _depth_gap = abs(depth_bb - _d)
+        for _cand in ([f'CALLJAM_{_d}BB_vs{_jp}'] if _jp else []):
+            if ranges.get(_cand):
+                chart_key = _cand
+                coverage = 'exact' if _depth_gap <= 3 else 'closest'
+                break
+        spot_label = f'call a {_jp or "?"} jam ({pos})'
+        facing = f'vs {_jp or "?"} jam'
+        if chart_key and coverage == 'closest' and depth_bb < (_d - 3):
+            # spot is much shorter than the chart → calling widens; don't assert
+            hc2 = normalize_hand_class(cards)
+            return {'role': role, 'spot_label': spot_label, 'position': pos,
+                    'facing': facing, 'depth_bb': round(depth_bb, 1),
+                    'depth_basis': depth_basis, 'chart_key': chart_key,
+                    'coverage': 'closest', 'hero_hand': hc2,
+                    'membership': 'unknown', 'boundary': False,
+                    'top_examples': [], 'boundary_examples': '',
+                    'note': (f'at {depth_bb:.0f}BB the calling range is wider '
+                             f'than the shallowest ({_d}BB) chart — use pot-odds '
+                             f'/ equity, not chart membership')}
+    elif role == 'rejam':
+        _op = (opener_pos or '').strip().replace('+', '')
+        _hp = (pos or '').strip().replace('+', '')
+        for _cand in ([f'REJAM_{_hp}vs{_op}'] if (_op and _hp) else []):
+            if ranges.get(_cand):
+                chart_key, coverage = _cand, 'exact'
+                break
+        depth_bb = eff_stack_bb or hero_stack_bb or 0
+        depth_basis = 'effective at the re-jam'
+        spot_label = f're-jam ({pos} vs {_op or "?"})'
+        facing = f'vs {_op or "?"} open'
+    else:
+        return None
+    if not chart_key or coverage == 'none':
+        return {'role': role, 'spot_label': spot_label, 'position': pos,
+                'facing': facing, 'depth_bb': round(depth_bb, 1),
+                'depth_basis': depth_basis, 'chart_key': None,
+                'coverage': 'none', 'hero_hand': hc, 'membership': 'unknown',
+                'boundary': False, 'top_examples': [], 'boundary_examples': '',
+                'note': 'no charted range at this depth/position'}
+    chart_dict = ranges.get(chart_key, {})
+    inside = hc in chart_dict
+    _bnd_str = range_boundary(', '.join(chart_dict.keys()))
+    _bnd_set = set(x.strip() for x in _bnd_str.split(',') if x.strip())
+    return {
+        'role': role, 'spot_label': spot_label, 'position': pos,
+        'facing': facing, 'depth_bb': round(depth_bb, 1),
+        'depth_basis': depth_basis, 'chart_key': chart_key,
+        'coverage': coverage, 'hero_hand': hc,
+        'membership': 'inside' if inside else 'outside',
+        'boundary': bool(inside and hc in _bnd_set),
+        'top_examples': _range_top_examples(chart_dict),
+        'boundary_examples': _bnd_str,
+        'note': '',
+    }
+
+
 def load_ranges(path='/mnt/project/Poker_Ranges_Text.txt'):
     """Load all ranges from the RYE text file. Returns {key: {hand: weight}}."""
     ranges = {}

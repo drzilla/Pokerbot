@@ -8585,6 +8585,32 @@ if __name__ == '__main__':
                 with open(_qm_path, 'w', encoding='utf-8') as _qmf:
                     json.dump(_qman, _qmf, indent=2, ensure_ascii=False)
                 print(f"  Run manifest updated (quick re-render): {_qm_path}")
+                # v8.14.1 P0-1: the quick analyst re-render must ALSO persist the
+                # final-state report_data so the packaged gem_report_data_<player>.json
+                # AGREES with the manifest/log/report. Previously only the full
+                # AUTO_ONLY pass wrote it, so the packaged data shipped with
+                # state=AUTO_ONLY / reviewed=0 / analyst_commentary={} while the
+                # report claimed ANALYST_COMPLETE. report_data already carries
+                # analyst_commentary (applied at load) + report_completeness (_rc_q);
+                # recompute only gto_export_analyst_count honestly from the persisted
+                # GTO id-set. No poker facts are derived here.
+                try:
+                    report_data['report_completeness'] = _rc_q
+                    _ac_q = report_data.get('analyst_commentary') or {}
+                    _gto_ids_q = set(report_data.get('_gto_written_ids') or [])
+                    if _gto_ids_q:
+                        _ana_ids_q = {hid for hid, cmt in _ac_q.items()
+                                      if isinstance(cmt, dict) and str(hid).startswith('TM')
+                                      and str(cmt.get('verdict', '')).startswith(
+                                          ('I.7', 'III.1', 'III.4', 'III.5'))}
+                        report_data['gto_export_analyst_count'] = len(_ana_ids_q & _gto_ids_q)
+                    _rd_qpath = f'/home/claude/gem_report_data_{_pname_file}.json'
+                    with open(_rd_qpath, 'w', encoding='utf-8') as _rdqf:
+                        json.dump(report_data, _rdqf, indent=2,
+                                  default=str, ensure_ascii=False)
+                    print(f"  Report data updated (quick re-render): {_rd_qpath}")
+                except Exception as _rdqe:
+                    print(f"  Quick report_data update skipped: {_rdqe}")
                 _ql_path = (f'/home/claude/_run_log_'
                             f'{_pname_file}_{date_compact}.txt')
                 with open(_ql_path, 'w', encoding='utf-8') as _qlf:

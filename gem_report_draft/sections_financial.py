@@ -354,6 +354,18 @@ def _emit_section_i(doc, s, rd, hands):
     _cap_note = f" (top 50 of {_pnl_total} by impact)" if _pnl_total > 50 else ""
     summary = _per_tourney_one_liner(pnl_sorted) + f" — {_pnl_total} tournaments{_cap_note}"
     doc.subsection("sec-1-1", "S1.1 Per-Tournament P&L", summary)
+    # v8.17 Epic 4: the unified **Tournament Results** table (sortable, with a
+    # per-event drilldown) is now the single primary tournament surface. This
+    # per-tournament P&L stays as the per-hand-aggregated decision-quality
+    # cross-check (NetBB / bb-100 / Why), reconciling to the same canonical
+    # financials. Deep Runs + Stack Trajectories below are likewise folded into
+    # each event's drilldown.
+    doc.w("*Cross-check detail — the primary, sortable **Tournament Results** "
+          "table (with per-event drilldowns for finish, prize + bounty, deep-run "
+          "status and stack arc) is in the Tournament Results section. This "
+          "per-tournament view adds the per-hand decision-quality columns "
+          "(NetBB · bb/100 · Why) against the same canonical financials.*")
+    doc.w("")
     # B150 (Ron 2026-05-23): when the USD overlay is present, add $Net + ROI
     # columns so the per-tournament financial reality sits beside the BB/100
     # decision-quality numbers (memory: show both side by side).

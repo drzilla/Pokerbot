@@ -8873,6 +8873,83 @@ _render_tt(_tt_rd)
 check('T-TT-R-12: renderer is read-only on rd (no unrelated state mutation)',
       _tt_rd == _pre, '')
 
+# ============================================================
+# v8.17 Epic 4 — Unified Tournament Results (primary table + drilldown + recon)
+# ============================================================
+import json as _json_tr
+# Render the unified section with a stack trajectory + hands so the drilldown
+# payload is fully exercised.
+_tr_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed',
+  # canonical convention: total_cash holds the TOTAL return (cash + ticket);
+  # total_ticket_value is the ticket portion (so cash = 500 − 470 = 30).
+  'totals': {'n_tournaments': 2, 'n_bullets': 3, 'total_cost': 49,
+             'total_cash': 500, 'total_ticket_value': 470, 'total_net': 451,
+             'roi_pct': 920.4},
+  'per_tournament': [
+    {'tid': 'TR1', 'name': 'Mini Knockout Heater', 'start_date': '2026-06-14',
+     'buyin': 22, 'bullets': 2, 'cost': 44, 'cash_received': 30, 'ticket_value': 0,
+     'cash_total': 30, 'net': -14, 'is_sat': False, 'place': 12, 'total_players': 500, 'itm': False},
+    {'tid': 'TR2', 'name': 'Daily Sat', 'start_date': '2026-06-14', 'buyin': 5,
+     'bullets': 1, 'cost': 5, 'cash_received': 0, 'ticket_value': 470, 'cash_total': 0,
+     'net': 465, 'is_sat': True, 'place': 3, 'total_players': 40, 'itm': True}]}}
+_tr_s = {'stack_trajectories': {'TR1': {'start_bb': 50, 'peak_bb': 80, 'valley_bb': 5,
+         'end_bb': 0, 'n_hands': 40, 'peak_hand': 'H1', 'valley_hand': 'H2'}}}
+_tr_hands = [{'id': '71111111', 'tournament_id': 'TR1'},
+             {'id': '72222221', 'tournament_id': 'TR2'}]
+_tr_doc = _Doc_ttr()
+_ett(_tr_doc, _tr_s, _tr_rd, _tr_hands)
+_tr_md = _tr_doc.render_md()
+_tr_js = [j for j in _tr_doc._extra_js if j.startswith('window.tournamentEvents=')]
+_tr_payload = _json_tr.loads(_tr_js[0][len('window.tournamentEvents='):-1]) if _tr_js else []
+
+check('T-TR817-01: primary unified sortable table is emitted (id + sortable headers + Format/Status cols)',
+      "id='tt-unified-table'" in _tr_md and "data-tt-sort='0'" in _tr_md
+      and '>Format<' in _tr_md and '>Status<' in _tr_md and '>Invested<' in _tr_md, '')
+check('T-TR817-02: every event row has a Details drilldown affordance',
+      _tr_md.count('openTournamentDetail(') == 2
+      and "if(window.initTournamentResultsTable)" in ''.join(_tr_doc._extra_js), '')
+check('T-TR817-03: per-event drilldown payload is canonical (one entry per event, no recompute)',
+      len(_tr_payload) == 2
+      and {'event_id', 'name', 'format', 'bullets', 'finish_txt', 'return_txt',
+           'net_txt', 'roi_txt', 'status', 'return_breakdown', 'drivers',
+           'hand_ids'} <= set(_tr_payload[0]), str(_tr_payload[:1]))
+check('T-TR817-04: deep-run status derived from canonical finish (top% / day2 / itm)',
+      _tr_payload[0]['status'] == 'Deep run'        # 12/500 = top 2.4%
+      and _tr_payload[1]['status'] == 'Deep run', str([p['status'] for p in _tr_payload]))
+check('T-TR817-05: Stack Trajectory folded into the drilldown (no standalone recompute)',
+      any('Stack arc' in d for d in _tr_payload[0]['drivers']), str(_tr_payload[0]['drivers']))
+check('T-TR817-06: drilldown review-links route to the event hands',
+      _tr_payload[0]['hand_ids'] == ['71111111']
+      and _tr_payload[1]['hand_ids'] == ['72222221'], str([p['hand_ids'] for p in _tr_payload]))
+check('T-TR817-07: PKO/bounty return reconciliation line present (bounty folded into cash, never inferred)',
+      'included in Cash return' in _tr_md
+      and 'never split out or inferred' in _tr_md, '')
+check('T-TR817-08: satellite return breakdown = ticket (no fabricated bounty $)',
+      any('Ticket' in b for b in _tr_payload[1]['return_breakdown'])
+      and not any('$' in b and 'Bounty' in b for b in _tr_payload[1]['return_breakdown']), str(_tr_payload[1]['return_breakdown']))
+# Reconciliation invariants — the model is the single financial source of truth.
+from gem_tournament_model import build_tournament_model as _btm_tr
+_tr_model = _btm_tr(_tr_rd)
+_tr_ev = _tr_model['events']; _tr_tot = _tr_model['totals']
+check('T-TR817-09: sum(event bullets/cost/net) reconcile to canonical totals',
+      sum(e['bullets'] for e in _tr_ev) == _tr_tot['n_bullets']
+      and abs(sum(e['cost'] for e in _tr_ev) - _tr_tot['committed_cost']) <= 0.01
+      and _tr_model['diagnostics']['reconciles_canonical'] is True, '')
+check('T-TR817-10: event ROI denominator is committed cost, never return',
+      all((e['roi_pct'] is None) or abs(e['roi_pct'] - (e['net'] / e['cost'] * 100)) <= 0.05
+          for e in _tr_ev if e['cost']), '')
+check('T-TR817-11: one row per event_id (re-entries merged; multi-bullet stays one row)',
+      len({e['event_id'] for e in _tr_ev}) == len(_tr_ev)
+      and next(e for e in _tr_ev if e['tournament_id'] == 'TR1')['bullets'] == 2, '')
+check('T-TR817-12: legacy S1.1 P&L demoted to cross-check (heading kept, primary pointer added)',
+      'S1.1 Per-Tournament P&L' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+      and 'Cross-check detail' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(), '')
+_tr_html_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-TR817-13: drilldown JS + modal scaffold + sortable wired in _html.py',
+      'function openTournamentDetail(' in _tr_html_src
+      and 'id="tournament-detail-modal"' in _tr_html_src
+      and 'function _ttSort(' in _tr_html_src, '')
+
 print('\n--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---')
 
 # ---- Bug-2a: callAI excluded from missed-aggression; call/check wording ----

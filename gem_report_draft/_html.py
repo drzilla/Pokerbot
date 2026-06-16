@@ -863,6 +863,16 @@ _MODAL_HTML = r"""
     <div class="modal-body" id="ve-modal-body"></div>
   </div>
 </div>
+<div class="modal" id="tournament-detail-modal" aria-hidden="true">
+  <div class="modal-backdrop ttd-backdrop"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" style="max-width:820px">
+    <div class="modal-head">
+      <h3 id="ttd-modal-title">Tournament detail</h3>
+      <button id="ttd-modal-close" type="button">Close</button>
+    </div>
+    <div class="modal-body" id="ttd-modal-body"></div>
+  </div>
+</div>
 <div class="tooltip-pop" id="tip-pop"></div>
 <script>
 (function(){
@@ -3710,6 +3720,100 @@ _MODAL_HTML = r"""
     if(window.openHand)window.openHand(hid);
   }
 
+  /* ---- v8.17 Epic 4: unified Tournament Results — sortable + row drilldown ---- */
+  function _ttNum(v){
+    var n=parseFloat(String(v==null?'':v).replace(/[^0-9.+-]/g,''));
+    return isNaN(n)?null:n;
+  }
+  function _ttSort(tbl,th){
+    var ci=parseInt(th.getAttribute('data-tt-sort'),10);
+    var numeric=th.getAttribute('data-tt-num')==='1';
+    var asc=th.getAttribute('data-tt-dir')!=='asc';
+    var body=tbl.querySelector('tbody')||tbl;
+    var rows=Array.prototype.slice.call(body.querySelectorAll('tr')).filter(function(r){
+      return r.querySelector('td')&&!r.hasAttribute('data-tt-total');});
+    var totals=Array.prototype.slice.call(body.querySelectorAll('tr[data-tt-total]'));
+    Array.prototype.forEach.call(tbl.querySelectorAll('th[data-tt-sort]'),function(t){
+      t.removeAttribute('data-tt-dir');
+      t.textContent=t.textContent.replace(/ [▲▼]$/,'');});
+    th.setAttribute('data-tt-dir',asc?'asc':'desc');
+    th.textContent=th.textContent.replace(/ [▲▼]$/,'')+(asc?' ▲':' ▼');
+    rows.sort(function(a,b){
+      var ca=a.children[ci],cb=b.children[ci];
+      var xa=ca?(ca.getAttribute('data-sort-value')!=null?ca.getAttribute('data-sort-value'):ca.textContent):'';
+      var xb=cb?(cb.getAttribute('data-sort-value')!=null?cb.getAttribute('data-sort-value'):cb.textContent):'';
+      var cmp;
+      if(numeric){var na=_ttNum(xa),nb=_ttNum(xb);
+        if(na==null&&nb==null)cmp=0;else if(na==null)cmp=-1;else if(nb==null)cmp=1;else cmp=na-nb;}
+      else cmp=String(xa).trim().localeCompare(String(xb).trim());
+      return asc?cmp:-cmp;});
+    rows.forEach(function(r){body.appendChild(r);});
+    totals.forEach(function(r){body.appendChild(r);});
+  }
+  function initTournamentResultsTable(){
+    var tbl=document.getElementById('tt-unified-table');
+    if(!tbl||tbl._ttSortWired)return; tbl._ttSortWired=true;
+    Array.prototype.forEach.call(tbl.querySelectorAll('th[data-tt-sort]'),function(th){
+      th.style.cursor='pointer'; th.title='Click to sort';
+      th.addEventListener('click',function(){_ttSort(tbl,th);});});
+  }
+  window.initTournamentResultsTable=initTournamentResultsTable;
+  function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function openTournamentDetail(eventId){
+    var evs=window.tournamentEvents||[];
+    var e=null;for(var i=0;i<evs.length;i++){if(evs[i].event_id===eventId){e=evs[i];break;}}
+    if(!e)return false;
+    var body=document.getElementById('ttd-modal-body');if(!body)return false;
+    function row(k,v){if(v==null||v==='')return '';return '<div class="ttd-k">'+_ttEsc(k)+'</div><div class="ttd-v">'+_ttEsc(v)+'</div>';}
+    var html='<div class="ttd-grid">';
+    html+=row('Date',e.event_day);
+    html+=row('Format',e.format);
+    html+=row('Bullets',e.bullets+(e.entry_pattern==='multi_bullet'?' (re-entries)':''));
+    html+=row('Buy-in',e.buy_in);
+    html+=row('Invested',e.cost);
+    html+=row('Finish',e.finish_txt);
+    html+=row('Return',e.return_txt);
+    html+=row('Net',e.net_txt);
+    html+=row('ROI',e.roi_txt);
+    html+=row('Status',e.status);
+    html+='</div>';
+    if(e.return_breakdown&&e.return_breakdown.length){
+      html+='<h4 class="ttd-sub">Return breakdown</h4><ul class="ttd-list">';
+      e.return_breakdown.forEach(function(b){html+='<li>'+_ttEsc(b)+'</li>';});
+      html+='</ul>';}
+    if(e.drivers&&e.drivers.length){
+      html+='<h4 class="ttd-sub">Deep run &amp; stack arc</h4><ul class="ttd-list">';
+      e.drivers.forEach(function(d){html+='<li>'+_ttEsc(d)+'</li>';});
+      html+='</ul>';}
+    if(e.notes)html+='<p class="ttd-note">'+_ttEsc(e.notes)+'</p>';
+    if(e.hand_ids&&e.hand_ids.length){
+      html+='<h4 class="ttd-sub">Hands ('+e.hand_ids.length+')</h4>';
+      html+='<button type="button" class="ttd-hands-btn" onclick=\'openHandListPopup('
+        +JSON.stringify((e.name||"Tournament")+" — hands")+','+JSON.stringify(e.hand_ids)
+        +');return false;\'>Open the event’s hands</button>';}
+    else{html+='<p class="ttd-note">No reviewable hands captured for this event.</p>';}
+    body.innerHTML=html;
+    var t=document.getElementById('ttd-modal-title');if(t)t.textContent=(e.name||'Tournament')+' — detail';
+    var modal=document.getElementById('tournament-detail-modal');
+    modal.setAttribute('aria-hidden','false');modal.classList.add('is-open');
+    document.body.style.overflow='hidden';
+    return false;
+  }
+  window.openTournamentDetail=openTournamentDetail;
+  function closeTournamentDetail(){
+    var modal=document.getElementById('tournament-detail-modal');
+    if(modal){modal.setAttribute('aria-hidden','true');modal.classList.remove('is-open');}
+    document.body.style.overflow='';
+  }
+  window.closeTournamentDetail=closeTournamentDetail;
+  (function(){
+    var c=document.getElementById('ttd-modal-close');if(c)c.addEventListener('click',closeTournamentDetail);
+    var m=document.getElementById('tournament-detail-modal');
+    if(m){var bd=m.querySelector('.modal-backdrop');if(bd)bd.addEventListener('click',closeTournamentDetail);}
+  })();
+  /* The payload is set via _extra_js; if it loaded before this script, wire now. */
+  if(window.tournamentEvents)initTournamentResultsTable();
+
   /* v8.8.4: dimension-to-read support mapping for evidence partition */
   var READ_SUPPORT_DIMS={
     'Aggressive':['aggressive','pivot'],
@@ -5481,6 +5585,30 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .vb-pivot {{ background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }}
   .vb-miss {{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }}
   .vb-good {{ background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }}
+  /* v8.17 Epic 4: unified Tournament Results table + per-event drilldown modal */
+  table.tt-unified th[data-tt-sort] {{ cursor: pointer; white-space: nowrap; }}
+  table.tt-unified th[data-tt-sort]:hover {{ background: #eef2ff; }}
+  table.tt-unified td.tt-details-cell a {{ font-weight: 600; white-space: nowrap; }}
+  #tournament-detail-modal .ttd-grid {{ display: grid;
+    grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
+  #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}
+  #tournament-detail-modal .ttd-v {{ color: #111827; }}
+  #tournament-detail-modal .ttd-sub {{ margin: 12px 0 4px 0; font-size: 0.95em;
+    color: #1e3a8a; }}
+  #tournament-detail-modal .ttd-list {{ margin: 0 0 8px 1.1em; padding: 0; }}
+  #tournament-detail-modal .ttd-list li {{ margin: 2px 0; }}
+  #tournament-detail-modal .ttd-note {{ color: #475467; font-size: 0.92em; }}
+  #tournament-detail-modal .ttd-hands-btn {{ margin-top: 4px; padding: 6px 14px;
+    border: 1px solid #c7d2fe; border-radius: 6px; background: #eef2ff;
+    color: #3730a3; font-weight: 600; cursor: pointer; }}
+  #tournament-detail-modal .ttd-hands-btn:hover {{ background: #e0e7ff; }}
+  html.dark #tournament-detail-modal .ttd-v {{ color: #e5e7eb; }}
+  html.dark #tournament-detail-modal .ttd-k {{ color: #9ca3af; }}
+  html.dark table.tt-unified th[data-tt-sort]:hover {{ background: #1e1b3a; }}
+  /* mobile: keep the high-value columns; the shell already scroll-contains the rest */
+  @media (max-width: 768px) {{
+    table.tt-unified {{ font-size: 0.86em; }}
+  }}
   /* v8.12.8 (QA F): red ! evidence badge — villain tell ON the action row,
      explained by the ❗ Note block under the grid (same atom) */
   .vb-evid {{ background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;

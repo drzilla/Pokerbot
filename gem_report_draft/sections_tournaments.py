@@ -142,12 +142,13 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # P&L / Deep Runs / Stack Trajectories in S1 are demoted to collapsed
     # cross-check detail; the canonical per-event financial table is retained
     # below this primary table for cross-check.
-    doc.w('*Single primary **Tournament Results** — one sortable row per event. '
-          'Click any column header to sort; click **Details ▸** for the per-event '
-          'drilldown (bullets, finish/field, prize + bounty breakdown, deep-run '
-          'status + stack arc, and the event’s hands). The per-tournament '
-          'P&L / Deep Runs / Stack Trajectories in S1 are demoted to collapsed '
-          'cross-check detail; the canonical per-event financial table is '
+    doc.w('*Single primary **Tournament Results** — the first Results surface, one '
+          'sortable row per event. Click any column header to sort; click '
+          '**Details ▸** for the per-event drilldown (bullets, finish/field, prize '
+          '+ bounty breakdown, deep-run status + stack arc, and the event’s hands). '
+          'The legacy per-tournament P&L / Deep Runs / Stack Trajectories now render '
+          'only inside ONE collapsed secondary reconciliation disclosure in S1 '
+          '(below); the canonical per-event financial table is '
           'retained for cross-check below.*')
     doc.w('')
 

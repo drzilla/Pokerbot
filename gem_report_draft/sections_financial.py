@@ -353,18 +353,20 @@ def _emit_section_i(doc, s, rd, hands):
         pnl_sorted = pnl_sorted[:50]
     _cap_note = f" (top 50 of {_pnl_total} by impact)" if _pnl_total > 50 else ""
     summary = _per_tourney_one_liner(pnl_sorted) + f" — {_pnl_total} tournaments{_cap_note}"
+    # v8.17.0-rc3: the unified **Tournament Results** table (rendered ABOVE this
+    # section, the PRIMARY Results surface) is canonical. The per-tournament P&L,
+    # Deep Runs and Stack Trajectories are NO LONGER competing primary surfaces —
+    # they render inside ONE explicitly-collapsed (closed-by-default) secondary
+    # reconciliation disclosure. Their unique per-hand-aggregated decision-quality
+    # info (NetBB / bb-100 / Why) is preserved; the canonical financials are
+    # unchanged. (Opened by `_S1_RECON_OPEN` below; closed after Stack Trajectories.)
+    doc.w("<details class='s1-recon-detail'><summary><strong>Per-tournament "
+          "reconciliation detail (secondary)</strong> — the unified Tournament "
+          "Results table above is the primary surface; these per-hand-aggregated "
+          "views (P&L · Deep Runs · Stack Trajectories) reconcile to the same "
+          "canonical financials.</summary>")
+    doc.w("")
     doc.subsection("sec-1-1", "S1.1 Per-Tournament P&L", summary)
-    # v8.17 Epic 4: the unified **Tournament Results** table (sortable, with a
-    # per-event drilldown) is now the single primary tournament surface. This
-    # per-tournament P&L stays as the per-hand-aggregated decision-quality
-    # cross-check (NetBB / bb-100 / Why), reconciling to the same canonical
-    # financials. Deep Runs + Stack Trajectories below are likewise folded into
-    # each event's drilldown.
-    doc.w("*Cross-check detail — the primary, sortable **Tournament Results** "
-          "table (with per-event drilldowns for finish, prize + bounty, deep-run "
-          "status and stack arc) is in the Tournament Results section. This "
-          "per-tournament view adds the per-hand decision-quality columns "
-          "(NetBB · bb/100 · Why) against the same canonical financials.*")
     doc.w("")
     # B150 (Ron 2026-05-23): when the USD overlay is present, add $Net + ROI
     # columns so the per-tournament financial reality sits beside the BB/100
@@ -539,6 +541,12 @@ def _emit_section_i(doc, s, rd, hands):
             doc.w("")
         doc.w("</details>")
         doc.w("")
+
+    # v8.17.0-rc3: close the secondary reconciliation disclosure opened before the
+    # S1.1 P&L. P&L + Deep Runs + Stack Trajectories are now collapsed together as
+    # one secondary surface; the All-Ins / card-quality / arc below stay primary.
+    doc.w("</details>")
+    doc.w("")
 
     # Phase 4.8: Full Result Attribution — moved here from TL;DR <details>.
     # Lazy import to avoid circular dependency (tldr imports from _helpers/_html,

@@ -3008,7 +3008,9 @@ with open(_html_path, encoding='utf-8') as _f:
         # insertions shifted the pinned comment past the old cutoff)
         # v8.14.0 Slice C: 2800 -> 2950 (PBReviewQueue controller insertion
         # shifted the pinned push-range comment down again)
-        if _i > 2950:
+        # v8.17.0-rc3: 2950 -> 3100 (lesson_7part teaching-render block + CSS
+        # insertions shifted the pinned push-range comment to ~2955)
+        if _i > 3100:
             break
 _html_head = ''.join(_html_lines)
 
@@ -8810,12 +8812,15 @@ check('T-TT-R-01: new section renders from build_tournament_model (header + even
       and 'retained for cross-check' in _ttr_md
       and '| Date | Tournament | Type |' in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
-# old/current Results tables still render (S1 unchanged + STT ADDED after it)
+# v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface -> STT
+# is now wired BEFORE S1 (the nav order derives from this list). S1 still renders
+# (All-Ins/arc), but its P&L/Deep-Runs/Stack-Trajectories are collapsed into one
+# secondary reconciliation <details>.
 _draft_src_ttr = open('gem_report_draft/draft.py', encoding='utf-8').read()
-check('T-TT-R-02: old Results section still wired (S1 kept) and STT added additively AFTER it',
+check('T-TT-R-02: unified Tournament Results (STT) wired BEFORE S1 (primary Results surface)',
       "('S1',  _emit_section_i)" in _draft_src_ttr
       and "('STT', _emit_tournament_tables)" in _draft_src_ttr
-      and _draft_src_ttr.index("('S1',  _emit_section_i)") < _draft_src_ttr.index("('STT', _emit_tournament_tables)")
+      and _draft_src_ttr.index("('STT', _emit_tournament_tables)") < _draft_src_ttr.index("('S1',  _emit_section_i)")
       and 'def _emit_section_i(' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(), '')
 # repeated names => separate rows
 _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
@@ -8941,14 +8946,53 @@ check('T-TR817-10: event ROI denominator is committed cost, never return',
 check('T-TR817-11: one row per event_id (re-entries merged; multi-bullet stays one row)',
       len({e['event_id'] for e in _tr_ev}) == len(_tr_ev)
       and next(e for e in _tr_ev if e['tournament_id'] == 'TR1')['bullets'] == 2, '')
-check('T-TR817-12: legacy S1.1 P&L demoted to cross-check (heading kept, primary pointer added)',
-      'S1.1 Per-Tournament P&L' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
-      and 'Cross-check detail' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(), '')
+# v8.17.0-rc3: the legacy P&L is no longer a paragraph "cross-check detail" — it
+# (with Deep Runs + Stack Trajectories) is now COLLAPSED into ONE closed secondary
+# reconciliation <details class='s1-recon-detail'>. Heading preserved; the closed
+# disclosure is opened on hash-nav by the openTargetDetails ancestor-expand fix.
+_sf_src_rc3 = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-TR817-12: legacy P&L/Deep-Runs/Stack-Traj collapsed into one closed secondary reconciliation details',
+      'S1.1 Per-Tournament P&L' in _sf_src_rc3
+      and "<details class='s1-recon-detail'>" in _sf_src_rc3
+      and "<details class='s1-recon-detail' open" not in _sf_src_rc3, '')
 _tr_html_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
 check('T-TR817-13: drilldown JS + modal scaffold + sortable wired in _html.py',
       'function openTournamentDetail(' in _tr_html_src
       and 'id="tournament-detail-modal"' in _tr_html_src
       and 'function _ttSort(' in _tr_html_src, '')
+
+# ============================================================
+# v8.17.0-rc3 — correction pass (unify Tournament Results + lesson_7part render)
+# ============================================================
+_draft_rc3 = open('gem_report_draft/draft.py', encoding='utf-8').read()
+_sf_rc3 = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+# RC3-1: STT (Tournament Results) is the PRIMARY surface — wired before S1.
+check('T-RC3-01: STT (Tournament Results) wired BEFORE S1 in section_emitters',
+      _draft_rc3.index("('STT', _emit_tournament_tables)") < _draft_rc3.index("('S1',  _emit_section_i)"), '')
+# RC3-1: legacy P&L/Deep-Runs/Stack-Traj collapsed into ONE closed secondary details.
+check('T-RC3-02: one closed s1-recon-detail collapse wrapping the legacy surfaces',
+      _sf_rc3.count("<details class='s1-recon-detail'>") == 1
+      and "<details class='s1-recon-detail' open" not in _sf_rc3
+      # the collapse opens before the P&L subsection and closes after stack traj
+      and _sf_rc3.index("s1-recon-detail") < _sf_rc3.index('"sec-1-1"')
+      and _sf_rc3.index("s1-recon-detail") < _sf_rc3.index('Stack trajectories'), '')
+# RC3-1: hash-nav into the collapsed block auto-expands the ancestor <details>.
+check('T-RC3-03: openTargetDetails expands ANCESTOR details (anchor into collapsed S1)',
+      "var anc=el.closest('details');" in _tr_html_src
+      and "anc.setAttribute('open','')" in _tr_html_src, '')
+# RC3-2: the visible villain teaching render provably consumes lesson_7part.
+check('T-RC3-04: villain teaching render reads ctx.teaching.lesson_7part (compact 7-part)',
+      'ctx.teaching.lesson_7part' in _tr_html_src and '_t.lesson_7part' in _tr_html_src
+      and "data-from','lesson_7part'" in _tr_html_src and 'v25-lesson7' in _tr_html_src
+      and '_L.q5_exploit_now' in _tr_html_src and '_L.q7_do_not_overadjust' in _tr_html_src, '')
+# RC3-2: the compact structure carries Read+Confidence / Cue / Exploit now / Future / Guardrail.
+check('T-RC3-05: compact labelled rows present (Read/Cue/Exploit now/Next time/Guardrail)',
+      'v25-teach-cue' in _tr_html_src and 'v25-teach-now' in _tr_html_src
+      and 'v25-teach-future' in _tr_html_src and 'v25-teach-guard' in _tr_html_src
+      and 'v25-teach-confchip' in _tr_html_src, '')
+# RC3-2: the legacy teach_lines path is preserved as a fallback (T-VT-18 guard).
+check('T-RC3-06: legacy teach_lines.forEach fallback preserved',
+      'teach_lines.forEach' in _tr_html_src, '')
 
 print('\n--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---')
 

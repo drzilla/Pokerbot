@@ -1027,19 +1027,46 @@ _MODAL_HTML = r"""
        evidence count, the do-not-over-adjust guardrail, PKO cover, and the
        thin-read fallback). All copy is built in Python (gem_villain_teaching)
        so the renderer only displays strings and invents nothing. */
-    if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
-      /* v8.14.0 Slice D: render the FULL pre-built teaching contract (What
-         villain did / Cue / Read / Confidence / Exploit now / Exploit future /
-         Do not over-adjust / Bounty / Tag suggestion), or the single fallback
-         line. All strings are built in Python; the renderer only classifies +
-         displays them. The Tag-suggestion line carries the Natural8 candidate
-         client tag; its trailing "(colour)" token drives a small colour swatch. */
+    /* v8.17.0-rc3 (Villain Step-3 visible delivery): the compact villain
+       teaching is now rendered from the explicit 7-part lesson object
+       (ctx.teaching.lesson_7part: q1..q7 + gradable + non_gradable_reason) as a
+       labelled Exploit/read support structure integrated into the Commentary
+       hierarchy — Read+Confidence / Cue / Exploit now / Future / Do-not-over-
+       adjust guardrail. Strings are built in Python (gem_villain_teaching.
+       lesson_7part); the renderer only labels + displays them. ICM caution,
+       PKO cover, and the Natural8 tag are preserved from the teaching object.
+       data-from="lesson_7part" makes the render source provable. Falls back to
+       the legacy teach_lines list only if lesson_7part is absent. */
+    if(ctx.teaching&&ctx.teaching.lesson_7part){
+      var _t=ctx.teaching;var _L=_t.lesson_7part;var _tp=[];var _thin=!!(_t.fallback)||(!_L.q3_read&&!_L.q2_cue);
+      if(_thin){
+        _tp.push('<div class="v25-teach-weak">'+_esc(_L.q1_villain_did||'')+'</div>');
+      } else {
+        if(_L.q1_villain_did){_tp.push('<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div>');}
+        var _head='Read: '+_esc(_L.q3_read||'');
+        if(_L.q4_confidence){_head+=' <span class="v25-teach-confchip">'+_esc(_L.q4_confidence)+'</span>';}
+        _tp.push('<div class="v25-teach-head">'+_head+'</div>');
+        if(_L.q2_cue){_tp.push('<div class="v25-teach-cue">Cue: '+_esc(_L.q2_cue)+'</div>');}
+        if(_L.q5_exploit_now){_tp.push('<div class="v25-teach-now">Exploit now: '+_esc(_L.q5_exploit_now)+'</div>');}
+        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
+        if(_L.q7_do_not_overadjust){_tp.push('<div class="v25-teach-guard">Don’t over-adjust: '+_esc(_L.q7_do_not_overadjust)+'</div>');}
+        if(_t.icm_guardrail){_tp.push('<div class="v25-teach-icm">ICM caution: '+_esc(_t.icm_guardrail)+'</div>');}
+        if(_t.pko&&_t.pko.cover_label){_tp.push('<div class="v25-teach-pko">Bounty: '+_esc(_t.pko.cover_label)+'</div>');}
+      }
+      var _tag=_t.tag_suggestion;
+      if(_tag&&_tag.label){
+        var _tc=_tag.color||'yellow';
+        _tp.push('<div class="v25-teach-tag" data-tag-color="'+_esc(_tc)+'">Tag suggestion: '+_esc(_tag.label)+' ('+_esc(_tc)+')</div>');
+      }
+      var _td=document.createElement('div');_td.className='v25-teach v25-lesson7';
+      _td.setAttribute('data-from','lesson_7part');_td.innerHTML=_tp.join('');_bl.appendChild(_td);
+    }
+    else if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
+      /* Legacy fallback (teaching object without lesson_7part). */
       var _t=ctx.teaching;var _tp=[];
       _t.teach_lines.forEach(function(ln){
         var cls='v25-teach-line';var attr='';
         if(ln.indexOf('Tag suggestion:')===0){
-          /* styled (and colour-swatched) even on a fallback read, since
-             'Unsure / Tag-me-later' is itself the takeaway. */
           cls='v25-teach-tag';
           var _m=ln.match(/\(([a-z]+)\)\s*$/);
           if(_m){attr=' data-tag-color="'+_m[1]+'"';}
@@ -4909,6 +4936,12 @@ else window.initPerTournamentPnlTable();
   function openTargetDetails(){
     var h=location.hash;if(!h)return;
     var el=document.getElementById(h.slice(1));if(!el)return;
+    /* v8.17.0-rc3: also expand any ANCESTOR <details> the target sits INSIDE
+       (e.g. sec-1-1 / sec-1-3 now live in the collapsed s1-recon-detail
+       secondary reconciliation block — a KPI card or section backlink must
+       auto-open it, not leave the reader inside a closed disclosure). */
+    var anc=el.closest('details');
+    while(anc){anc.setAttribute('open','');anc=anc.parentElement&&anc.parentElement.closest('details');}
     var det=el.nextElementSibling;
     /* Skip anchor-compat nodes */
     while(det&&det.tagName==='A')det=det.nextElementSibling;
@@ -6335,6 +6368,15 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-guard {{ color: #92400e; margin-top: 2px; }}
   .v25-teach-pko {{ color: #1e3a5f; margin-top: 2px; }}
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
+  /* v8.17.0-rc3 (Villain Step-3 visible delivery): compact lesson_7part rows */
+  .v25-teach-evid {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  .v25-teach-cue {{ color: #334155; margin: 1px 0; }}
+  .v25-teach-now {{ color: #0f766e; font-weight: 600; margin-top: 2px; }}
+  .v25-teach-future {{ color: #475569; margin-top: 1px; }}
+  .v25-teach-icm {{ color: #92400e; margin-top: 1px; font-size: 11px; }}
+  .v25-teach-confchip {{ display: inline-block; font-size: 10px; font-weight: 600;
+    color: #475569; background: #e2e8f0; border-radius: 999px; padding: 0 6px;
+    margin-left: 4px; vertical-align: middle; }}
   /* v8.14.0 Slice D: confidence line + Natural8 candidate-tag swatch */
   .v25-teach-conf {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
   .v25-teach-tag {{ margin-top: 3px; font-weight: 600; color: #334155;

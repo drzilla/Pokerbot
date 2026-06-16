@@ -15,7 +15,7 @@ VERSION = "v8.17.0-rc2"   # v8.17.0-rc2 MAJOR product release (four epics): Fina
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("3adefe7bdb95266132ba98741427b72930f53013f9fdc551e9928c54ed7aad73", 124711, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("47809d702d43688d407da964142d56573bb48b919ec6ea238973b4173df88422", 127979, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("200e3dbb4c1dedb86d3fca2cb79143d6a71d179c899821b57747439eae11f0d4", 4171, "v8.16.4: 42 files, 412 canaries"),

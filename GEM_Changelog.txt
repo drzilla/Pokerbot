@@ -1,3 +1,50 @@
+v8.17.0-rc2 (2026-06-16) -- MAJOR PRODUCT RELEASE, four epics (RELEASE CANDIDATE 2)
+================================================================================
+Expands rc1 (Commentary + PKO) to the full V8.17_MAJOR_PRODUCT_RELEASE: adds the
+two omitted epics. Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.17.0-rc1 -> v8.17.0-rc2 (RC; NOT final,
+NOT merged/tagged, Chat NOT updated). rc1's README/hashes are NOT overwritten.
+
+EPIC 3 — Villain Exploitation Step 3:
+  * gem_villain_intel._build_read_states now emits profile_label (consistent/split/
+    mixed) from three-axis dim coherence (Q3 read completeness).
+  * _stamp_exploit_read stamps action_index + available_before_action_index (0 for
+    cross-hand/population reads) -> auditable no-hindsight timing (Q5).
+  * NEW _gradable_exploit producer predicate: gradable + non_gradable_reason enum;
+    a graded missed/good survives ONLY on a trusted preflop steal/nit baseline +
+    med/high confidence + known-before + graded outcome, else a factual teaching
+    moment carrying its reason. Feeds (never overrides) the projection _grade_bucket.
+  * NEW gem_villain_teaching.lesson_7part(): explicit Q1-Q7 contract object on every
+    teaching object (pure projection; thin reads -> fallback in Q1, nothing fabricated).
+  * split/mixed AGGREGATE profile dominates the Read line; consistent aggregate keeps
+    the per-hand node-specific cue caveat (_aggregate_profile_override; derive_profile
+    unchanged). Villain aggregate drilldown: count-of-one opens the lone example direct.
+  * Step-1 temporal/identity, _no_hindsight, stable key, word caps, Natural8 taxonomy,
+    derived guardrails, ICM coarse caution — all PRESERVED.
+
+EPIC 4 — Unified Tournament Results redesign:
+  * sections_tournaments._emit_tournament_tables is now the SINGLE PRIMARY surface:
+    one sortable HTML table (Date/Tournament/Format/Bullets/Buy-in/Invested/Finish/
+    Return/Net/ROI/Status/Details), consuming ONLY canonical build_tournament_model
+    events (no recompute). Default chronological/session order.
+  * Status column = canonical deep-run/Day2/ITM from finish fields.
+  * Per-event drilldown modal (openTournamentDetail): bullets, finish/field, prize +
+    bounty breakdown, deep-run + stack arc (folded from stack_trajectories via
+    drivers_by_tid), notes, the event's hands (-> hand-list popup -> V25 Prev/Next).
+  * PKO/bounty return reconciliation line (bounty folded into cash, never inferred).
+  * Canonical per-event financial table KEPT as a collapsed cross-check <details>;
+    S1.1 P&L / Deep Runs / Stack Trajectories demoted to cross-check.
+  * Reconciliation invariants: sum(bullets/cost/return)=canonical; ROI denom =
+    committed cost; one row per event_id (re-entries merged); renderer read-only on rd.
+  * One responsive impl; table-shell scroll-contains the wide table on mobile.
+
+VALIDATION: clean LF extract 43/43 files, 443/443 canaries, 10/10 anti, clean
+v8.17.0-rc2; _test_scratch.py 1421/1421 (+T-VS3-01..07, +T-TR817-01..13; all 12 prior
+T-TT-R financial-correctness assertions PASS unchanged); four-epic synthetic
+acceptance 18/18; browser QA (sortable + drilldown + mobile containment) PASS;
+JS node --check clean.
+
+
 v8.17.0-rc1 (2026-06-16) -- Decision Coach (RELEASE CANDIDATE — GPT/Ron review)
 ================================================================================
 First materially-significant release in the sequence. Two visible product epics,

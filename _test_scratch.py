@@ -5320,10 +5320,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.17.0-rc2 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.17.0-rc2'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.0-rc2'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.0-rc2', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.17.0-rc3 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.17.0-rc3'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.0-rc3'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.0-rc3', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8993,6 +8993,12 @@ check('T-RC3-05: compact labelled rows present (Read/Cue/Exploit now/Next time/G
 # RC3-2: the legacy teach_lines path is preserved as a fallback (T-VT-18 guard).
 check('T-RC3-06: legacy teach_lines.forEach fallback preserved',
       'teach_lines.forEach' in _tr_html_src, '')
+# RC3-1: the closed reconciliation collapse must GENUINELY hide its content
+# (browser QA found this report's CSS context does not collapse native <details>
+# block children on its own) — else the legacy tables stay competing primaries.
+check('T-RC3-07: closed s1-recon-detail collapse hides its content via explicit CSS',
+      'details.s1-recon-detail:not([open]) > :not(summary)' in _tr_html_src
+      and 'display: none !important' in _tr_html_src, '')
 
 print('\n--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---')
 

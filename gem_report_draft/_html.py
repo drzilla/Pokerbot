@@ -5618,6 +5618,15 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .vb-pivot {{ background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }}
   .vb-miss {{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }}
   .vb-good {{ background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }}
+  /* v8.17.0-rc3: the secondary reconciliation collapse must GENUINELY hide its
+     content when closed. This report's CSS/engine context does not collapse a
+     native <details>' block children on its own (the legacy stack-traj details
+     has the same behaviour), so enforce it explicitly — otherwise the legacy
+     P&L / Deep Runs / Stack Trajectories would still render as competing primary
+     surfaces beside the unified Tournament Results table. */
+  details.s1-recon-detail:not([open]) > :not(summary) {{ display: none !important; }}
+  details.s1-recon-detail > summary {{ cursor: pointer; font-weight: 600;
+    color: #475467; padding: 6px 0; }}
   /* v8.17 Epic 4: unified Tournament Results table + per-event drilldown modal */
   table.tt-unified th[data-tt-sort] {{ cursor: pointer; white-space: nowrap; }}
   table.tt-unified th[data-tt-sort]:hover {{ background: #eef2ff; }}

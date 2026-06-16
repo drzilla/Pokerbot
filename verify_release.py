@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.17.0-rc2"   # v8.17.0-rc2 MAJOR product release (four epics): Final Commentary capsules + Complete PKO coaching (rc1) + Villain Exploitation Step 3 (profile_label / available_before / gradable+non_gradable_reason / explicit 7-part lesson / cue-family aggregate count-of-one) + Unified Tournament Results (single primary sortable table + per-event drilldown absorbing P&L/Deep-Runs/Stack-Trajectories, canonical financials, no recompute)
+VERSION = "v8.17.0-rc3"   # v8.17.0-rc3 narrow correction pass on rc2: Tournament Results GENUINELY unified (STT primary before S1; legacy P&L/Deep-Runs/Stack-Trajectories collapsed into one closed secondary reconciliation <details>; ancestor-expand on hash-nav) + Villain Step-3 VISIBLE delivery wired from lesson_7part (compact Cue+Read+Confidence / Exploit-now / Future / Guardrail) + integrated four-epic acceptance via the real renderer + bundled QA harnesses (reproducible self-verify)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("47809d702d43688d407da964142d56573bb48b919ec6ea238973b4173df88422", 127979, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("c880256e39fb2d5032496bd2d535d6e48e3fbc79583cc11630cad2e20e92e349", 130515, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("200e3dbb4c1dedb86d3fca2cb79143d6a71d179c899821b57747439eae11f0d4", 4171, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("deb451c6b908454021bbf527defffd9e90a954d15c6ff8223ed2a8a861688275", 541495, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
+    "_test_scratch.py": ("4c36772091fcde01fdb3376051e37f98fc9d296060f1fb50eeba8bc5648f398f", 545185, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
@@ -42,14 +42,14 @@ MANIFEST = {
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("6f2052a557d0ad966da0f666445f196379d69a22420b5a1072597fd8405eeab3", 65127, "v8.16.1 hotfix: call-vs-check wording + auto_verdict_needs_review (Bug 2a/2b)"),
-    "gem_report_draft/_html.py": ("1ca4e41844274dfc8cb64c54abd34504b9eb2836a78f8589697ff8acd55e4bb2", 398317, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
+    "gem_report_draft/_html.py": ("0629f5be1450cacaf1bf2a17bd7026d08afd6d5931dccd75b315a0fae74b4972", 402046, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
-    "gem_report_draft/draft.py": ("a3b6172e186d88f4fca4939dd2100d9e9d916104e00a32020209c494525823f8", 35268, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
-    "gem_report_draft/sections_financial.py": ("1ea8cac1629604c0a3694cf2330df2b17a0fa21d7abe942581129666b6bc6530", 131841, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
+    "gem_report_draft/draft.py": ("9fa0b8b7ee101c9995f7ad3b854f5cec1a6be90851c818af688072c6989bc533", 35569, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
+    "gem_report_draft/sections_financial.py": ("823479baef66eef5de4df8cdf37ef733784e2fdac685fe5f76bc6c55209f21e7", 132271, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
     "gem_report_draft/sections_iv_xii.py": ("80520701383157257ee6d46e83fa35bb6f5033f3ea0c45dc8d037372ee5432ae", 225848, "v8.16.0 villain: matrix Teaching Signals wording"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
-    "gem_report_draft/sections_tournaments.py": ("a69b9c2e3f953a59da37271ea101e5fbc7ba4002d242c8643c8d693df44e1feb", 17623, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
+    "gem_report_draft/sections_tournaments.py": ("149f5b66ce8b74062557639f088c76d942145f6bcb301d51c77fc8c12d6a15e0", 17707, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
     "gem_report_draft/sections_xiv.py": ("e93226f483f433fc1f41268741815fdfe3fdeb1af7a0fc0e832425976add6687", 224421, "v8.17 B6/B7: how-PKO-changes-the-decision coaching + 4-state provenance on BOTH XIV.A + XIV.B PKO pills"),
     "gem_report_draft/tldr.py": ("0b4f29698f408f8dac5b707b14e4a28dcd772a24028fb7b8e6f0a3256e49b157", 148637, "v8.16.4 DTI Blocker 1: build_review_queue routes through aggregate_review_queue (bounded + aggregated + internal-QA)"),
@@ -57,7 +57,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("0309570b4a26518334db9e7c0051bbd20f76a4ef16c037fab90f0ca23c1aff30", 122465, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("5ca67b09268af894933c2a9cfef54e4bbb54be947072bdbc797a22b3800e6579", 42569, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("1307d0e740dfb4399a1f1daa387e6cb0d84a130f4e1fc842898ddca0aea19288", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("fbf0e6995599f09c92cb10eaa0dc183b80eaeed44264865195cd120f961df4fa", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -963,8 +963,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc2'",
-     "v8.17.0-rc2: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc3'",
+     "v8.17.0-rc3: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),
@@ -1240,8 +1240,23 @@ CANARIES = [
      "v8.17 Epic 4: sortable widget on the unified Tournament Results table"),
     ("gem_report_draft/_html.py", "id=\"tournament-detail-modal\"",
      "v8.17 Epic 4: tournament-detail modal scaffold"),
-    ("gem_report_draft/sections_financial.py", "Cross-check detail",
-     "v8.17 Epic 4: S1.1 P&L demoted to cross-check; unified table is primary"),
+    # ── v8.17.0-rc3 correction pass ──
+    ("gem_report_draft/draft.py", "('STT', _emit_tournament_tables),      # Tournament Results — PRIMARY",
+     "v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface (STT before S1)"),
+    ("gem_report_draft/sections_financial.py", "<details class='s1-recon-detail'>",
+     "v8.17.0-rc3: legacy P&L/Deep-Runs/Stack-Trajectories collapsed into ONE closed secondary reconciliation details"),
+    ("gem_report_draft/_html.py", "also expand any ANCESTOR <details>",
+     "v8.17.0-rc3: openTargetDetails auto-expands the ancestor collapse on hash-nav (#sec-1-1/#sec-1-3)"),
+    ("gem_report_draft/_html.py", "ctx.teaching.lesson_7part",
+     "v8.17.0-rc3: Villain Step-3 visible render consumes the explicit 7-part lesson object"),
+    ("gem_report_draft/_html.py", "data-from','lesson_7part'",
+     "v8.17.0-rc3: villain teaching block marked as sourced from lesson_7part (provable render)"),
+    ("gem_report_draft/_html.py", "v25-teach-now",
+     "v8.17.0-rc3: compact labelled lesson rows (Exploit now / Cue / Future / Guardrail)"),
+    ("gem_report_draft/_html.py", "details.s1-recon-detail:not([open]) > :not(summary)",
+     "v8.17.0-rc3: closed reconciliation collapse genuinely hides the legacy tables (browser-QA fix)"),
+    ("_qa_v817_rc3_acceptance.py", "INTEGRATED four-epic acceptance via the REAL renderer",
+     "v8.17.0-rc3 (audit B6): the RC3 acceptance harness is bundled — README self-verify runs from the extracted ZIP"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).
@@ -1254,6 +1269,10 @@ ANTI_CANARIES = [
     # only exists if someone un-quarantines a chart.
     ("Poker_Ranges_Text.txt", "\nSBD_",
      "v8.12.0 D1: wrong-node SB defend charts re-enabled (must stay quarantined)"),
+    # v8.17.0-rc3: the legacy S1 reconciliation collapse must NEVER ship expanded
+    # (an `open` attribute would re-make P&L/Deep-Runs a competing primary surface).
+    ("gem_report_draft/sections_financial.py", "<details class='s1-recon-detail' open",
+     "v8.17.0-rc3: the secondary reconciliation collapse must stay closed-by-default"),
     # v8.12.7: artifact-era jam-mix claims must stay retired
     ("gem_pko_research.py", "call:shove",
      "v8.12.7: v1 jam-mix ratio claim resurfaced (artifact-era)"),

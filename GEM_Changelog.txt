@@ -1,3 +1,43 @@
+v8.17.0-rc3 (2026-06-17) -- four-epic MAJOR release: narrow correction pass (RC3)
+================================================================================
+RC2 passed code integrity but was rejected for release acceptance (integration not
+proven on a real report; legacy Results surfaces still rendered; lesson_7part unused;
+package self-verify not reproducible). RC3 corrects these without redesign or new
+features. Additive; re-grades NO real decisions. Runtime v8.17.0-rc2 -> v8.17.0-rc3.
+NOT final, NOT merged/tagged, Chat NOT updated. RC1/RC2 deliverables not overwritten.
+
+(1) TOURNAMENT RESULTS GENUINELY UNIFIED:
+  * draft.py: ('STT', _emit_tournament_tables) wired BEFORE ('S1', _emit_section_i);
+    the nav rail/topbar order follows section_emitters, so "Tournament Results"
+    is the first Results surface.
+  * sections_financial._emit_section_i: S1.1 Per-Tournament P&L + Deep Runs + Stack
+    Trajectories collapsed into ONE closed <details class='s1-recon-detail'> secondary
+    reconciliation block (no longer competing open primaries; unique NetBB/bb-100/Why
+    preserved inside).
+  * _html.py openTargetDetails: auto-expands the ANCESTOR <details> on hash-nav so
+    #sec-1-1 (KPI cards) / #sec-1-3 (section backlinks) into the collapse still work.
+  * Verified in real production output: sec-tournaments before sec-1; one closed
+    s1-recon-detail; unified table renders (no "no overlay" stub).
+
+(2) VILLAIN STEP-3 VISIBLE DELIVERY:
+  * _html.py: the V25 commentary teaching block renders FROM ctx.teaching.lesson_7part
+    (the explicit Q1-Q7 object) as a compact labelled structure (Read+Confidence · Cue ·
+    Exploit now · Next time · Don't over-adjust + ICM/Bounty/Tag), marked
+    data-from="lesson_7part" / v25-lesson7. Legacy teach_lines kept as fallback.
+
+(3) INTEGRATED ACCEPTANCE VIA THE REAL RENDERER:
+  * NEW _qa_v817_rc3_acceptance.py: renders through production render_html and asserts
+    all four epics COEXIST (capsule + PKO + lesson_7part + unified table) + AUTO_ONLY vs
+    ANALYST_COMPLETE banners + canonical reconciliation. Real-pipeline integrated report
+    from gem_analyzer.py on test_hands.txt (33 hands, 2 PKO tournaments).
+
+(4) PACKAGE REPRODUCIBILITY: _build_bundle.QA_HARNESS bundles the _qa_* harnesses so the
+    README self-verify (python _qa_v817_rc3_acceptance.py) runs from the extracted ZIP.
+
+Tests: T-TT-R-02 STT-before-S1; T-TR817-12 closed collapse; T-891-21 cutoff 3100;
++T-RC3-01..06; T-H141-01 -> rc3. +16 canaries + 1 anti-canary (collapse never `open`).
+
+
 v8.17.0-rc2 (2026-06-16) -- MAJOR PRODUCT RELEASE, four epics (RELEASE CANDIDATE 2)
 ================================================================================
 Expands rc1 (Commentary + PKO) to the full V8.17_MAJOR_PRODUCT_RELEASE: adds the

@@ -20,13 +20,14 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("302a6522a8d4be8eb4c2d3efd5c314a2d392a8a5925c8019e5aa4cc2ab6da60b", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("2057b7ca3027fbe35c0ce8fb2bbe8631b3e93c1954c1d3844cda7353ebe08c49", 520443, "v8.17 B6/B7/B8: +T-PKO817-01..12 (how-PKO-changes + 4-state provenance + count-cell direct-open)"),
+    "_test_scratch.py": ("5f5ed84e914116e59c96088659503e8c6a00e481b018a8a1c6626ef94ae99dc6", 524387, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
     "gem_analyzer.py": ("b409e6afa1f97f16cf7a685748838034051686b84e19f934eb128f85e6d6ac69", 584897, "v8.16.4 DTI Obj5: validator Check 14 calls verdict_validation_issue"),
     "gem_chart_labels.py": ("888e5f961efcb47197e5ee3eaee3cd2bba7fab0a9eea4681a04a508784decdf2", 5554, "v8.14.4: + find_raw_chart_ids_in_user_text / humanize_raw_chart_ids (centralized raw-chart-ID guard)"),
     "gem_coaching_cards.py": ("9327a09b5edb2e1d7e384f592c2f4d4d61ed5c10f67c239aa4be09365901efa3", 47332, "v8.14.1 rev-3: not-collectible card reads canonical collectibility"),
+    "gem_commentary_capsule.py": ("feb7ff171f0fe67f051b14e2936a6e001bcef32bce82ea39ca50f502e4db88f2", 10031, "v8.17 Epic A: commentary capsule layer (registers + evidence tiers + capsule builder + content lints L1-L13)"),
     "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
     "gem_coverage_builder.py": ("a7ac54b791b2fe103b6eac5e09cf09d7e48dbcba106231488496a7571f227780", 128365, "v8.14.1 REV5: re-jam key strips '+' + resolves at any depth (REJAM_MPvsUTG1, 72692569)"),
     "gem_eai_equity.py": ("4313ade454b4dd4f163b9576832d42ca28fdadffc406e7438558c32131b9abfb", 8687, "v8.9.9: except Exception + smoke value compare + MC comment fix"),
@@ -1187,6 +1188,15 @@ CANARIES = [
      "v8.17 B6: explicit 4-state provenance incl. the unavailable state on the pill"),
     ("gem_report_draft/_html.py", "v8.17 B8: a count of exactly ONE opens the hand directly",
      "v8.17 B8: PKO/count cells with one hand open it directly (one click), not a 1-row popup"),
+    # ── v8.17 Epic A: commentary capsule layer + live content lints ──
+    ("gem_commentary_capsule.py", "def classify_register(",
+     "v8.17 A1: capsule register classifier (factual/coaching/no_clear_lesson)"),
+    ("gem_commentary_capsule.py", "def capsule_content_lints(",
+     "v8.17 A6: capsule content lints (L1/L2/L3/L6/L7/L9/L12/L13)"),
+    ("gem_commentary_capsule.py", "def scan_visible_text_lints(",
+     "v8.17 A6: visible-text content-lint scanner (L2/L3/L6) for the live audit"),
+    ("gem_commentary_migration.py", "from gem_commentary_capsule import scan_visible_text_lints",
+     "v8.17 A6: capsule content lints wired into the live migration-audit channel"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

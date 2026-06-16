@@ -9508,6 +9508,58 @@ check('T-PKO817-12: S4 PKO aggregate has Opportunity/Actual/Wrong/Missed, clicka
       and 'Missed | "\n                  "Review | Drill cue |' in _sm817
       and '+= " ⚠"' in _sm817, 'S4 aggregate contract')
 
+print('\n--- v8.17 Epic A (capsule layer): registers / tiers / capsule / content lints ---')
+import gem_commentary_capsule as _CAP
+check('T-CAP817-01: register — mistake/borderline/exploit/leak -> coaching; correct/standard -> factual',
+      _CAP.classify_register(verdict_class='mistake') == 'coaching'
+      and _CAP.classify_register(verdict_class='exploit') == 'coaching'
+      and _CAP.classify_register(verdict_class='correct') == 'factual'
+      and _CAP.classify_register(verdict_class='standard') == 'factual', '')
+check('T-CAP817-02: result-only / non-gradeable ALWAYS -> no_clear_lesson (hard rule §9)',
+      _CAP.classify_register(verdict_class='mistake', result_only=True) == 'no_clear_lesson'
+      and _CAP.classify_register(verdict_class='correct', gradeable=False) == 'no_clear_lesson', '')
+check('T-CAP817-03: evidence-tier verb gate — exact verbs allowed only chart-sourced',
+      _CAP.evidence_tier_ok('chart_sourced', 'AKo is inside the BTN range')
+      and not _CAP.evidence_tier_ok('constructed', 'AKo is inside the BTN range')
+      and _CAP.evidence_tier_ok('constructed', 'AKo is likely in a wider range'), '')
+_cap = _CAP.build_capsule('turn', {
+    'Decision': 'Hero jams 14BB', 'Verdict': 'Mistake', 'Why': 'turns a made hand into a bluff',
+    'Math': 'needs 38% vs the calling range', 'Range': '', 'Exploit': '', 'Caveat': '',
+    'Consequence': ''}, register='coaching', evidence_tier='chart_sourced')
+check('T-CAP817-04: build_capsule drops empty roles, keeps order, marks a visible anchor',
+      _cap['roles'] == ['Decision', 'Verdict', 'Why', 'Math'] and _cap['has_anchor'] is True
+      and '**Decision:** Hero jams 14BB' in _cap['md'] and 'Range' not in _cap['md'], _cap['roles'])
+check('T-CAP817-05: build_capsule returns None when every role is blank (no empty capsule)',
+      _CAP.build_capsule('flop', {'Decision': '', 'Why': '  '}, register='factual',
+                         evidence_tier='chart_sourced') is None, '')
+# content lints
+check('T-CAP817-06: L6 terminal-result leakage + L3 internal token are FAIL',
+      any(l[0] == 'L6' for l in _CAP.capsule_content_lints(
+          'Correct call because hero won at showdown', register='coaching',
+          evidence_tier='chart_sourced', has_anchor=True))
+      and any(l[0] == 'L3' for l in _CAP.capsule_content_lints(
+          'A known_leak pattern here', register='coaching', evidence_tier='chart_sourced',
+          has_anchor=True)), '')
+check('T-CAP817-07: L13 result-only scored + L7 factual praise/takeaway are FAIL',
+      any(l[0] == 'L13' for l in _CAP.capsule_content_lints(
+          'Hero got it in good', register='coaching', evidence_tier='result_only', has_anchor=True))
+      and any(l[0] == 'L7' for l in _CAP.capsule_content_lints(
+          'Standard — next time keep barreling', register='factual',
+          evidence_tier='chart_sourced', has_anchor=True)), '')
+check('T-CAP817-08: L1 verdict/range contradiction + L12 missing anchor are FAIL',
+      any(l[0] == 'L1' for l in _CAP.capsule_content_lints(
+          'Correct open', register='factual', evidence_tier='chart_sourced',
+          has_anchor=True, verdict_approves=True, range_outside=True))
+      and any(l[0] == 'L12' for l in _CAP.capsule_content_lints(
+          'Mistake', register='coaching', evidence_tier='chart_sourced', has_anchor=False)), '')
+check('T-CAP817-09 (anti): a clean chart-sourced coaching capsule with anchor + takeaway has ZERO FAILs',
+      not any(l[1] == 'FAIL' for l in _CAP.capsule_content_lints(
+          'Hero jams 14BB; needs 38% vs the call range; widen next orbit',
+          register='coaching', evidence_tier='chart_sourced', has_anchor=True, has_takeaway=True)), '')
+check('T-CAP817-10: lint summary gates the build (fail>0 -> gate_ok False)',
+      _CAP.capsule_lint_summary([[('L6', 'FAIL', 'x')], []])['gate_ok'] is False
+      and _CAP.capsule_lint_summary([[('L7c', 'WARN', 'x')]])['gate_ok'] is True, '')
+
 # ============================================================
 # SUMMARY
 # ============================================================

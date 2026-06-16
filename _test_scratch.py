@@ -5318,10 +5318,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.16.0 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.16.0'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.0'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.0', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.16.1 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.16.1'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.1'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.1', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8754,6 +8754,112 @@ _pre = _copy_ttr.deepcopy(_tt_rd)
 _render_tt(_tt_rd)
 check('T-TT-R-12: renderer is read-only on rd (no unrelated state mutation)',
       _tt_rd == _pre, '')
+
+print('\n--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---')
+
+# ---- Bug-2a: callAI excluded from missed-aggression; call/check wording ----
+from gem_aggression_detector import analyze_postflop_aggression as _apa
+# Hand shaped like 78024888: flop/turn aggressive, river is a CALL of an all-in.
+# Facing an all-in there is no more-aggressive line, so it must NOT be scored as
+# a passive (missed-aggression) spot.
+_callai_hand = {
+    'hero': 'Hero', 'id': 'TEST_CALLAI', 'cards': ['Ah', 'Qh'],
+    'board': ['9h', 'Td', '2s', '2h', '3h'],
+    'hero_street_actions': {'flop': 'bet', 'turn': 'bet', 'river': 'callAI'},
+    'hero_ip': True, 'pfr': True, 'pf_action': 'raise', 'line': '',
+    'n_players_flop': 2, 'position': 'UTG+1', 'eff_stack_bb': 43,
+}
+check('T-CALLAI-1: callAI river not a missed-aggression spot',
+      _apa(_callai_hand) is None,
+      f'expected None, got {_apa(_callai_hand)}')
+# Same shape but river is a CALL of a NON-all-in bet — a raise WAS available,
+# so it remains missed-aggression-eligible (proves the change is callAI-only).
+_call_hand = dict(_callai_hand)
+_call_hand['hero_street_actions'] = {'flop': 'bet', 'turn': 'bet', 'river': 'call'}
+_call_res = _apa(_call_hand)
+check('T-CALLAI-2: non-all-in river call still evaluated',
+      _call_res is not None and _call_res.get('street_of_interest') == 'river',
+      f'got {_call_res}')
+
+from gem_report_draft._helpers import (_agg_one_label as _aol,
+                                       _AGG_ACTION_WORDS as _aaw,
+                                       auto_verdict_needs_review as _avnr)
+_lbl_call = _aol({'verdict': 'CORRECTLY_PASSIVE', 'street_of_interest': 'river',
+                  'hsa': {'river': 'call'}})[1]
+check('T-CALLAI-3: CORRECTLY_PASSIVE on a CALL says "Correct call" not "check"',
+      'Correct call' in _lbl_call and 'check' not in _lbl_call.lower(),
+      f'got {_lbl_call!r}')
+_lbl_x = _aol({'verdict': 'CORRECTLY_PASSIVE', 'street_of_interest': 'river',
+               'hsa': {'river': 'x'}})[1]
+check('T-CALLAI-4: CORRECTLY_PASSIVE on a CHECK still says "Correct check"',
+      'Correct check' in _lbl_x, f'got {_lbl_x!r}')
+check('T-CALLAI-5: all-in/composite action codes map to readable words',
+      _aaw.get('callai') == 'call' and _aaw.get('bet-callai') == 'bet'
+      and _aaw.get('xc-ai') == 'check-call',
+      'callai/bet-callai/xc-ai not mapped — raw code would leak into prose')
+
+# ---- Bug-2b root: HH10#1 excludes strong draws ----
+from gem_parser import classify_draw as _cd
+check('T-HH10-1: 78024888 turn (AQhh on 9hTd2s2h) is a nut flush draw',
+      _cd(['Ah', 'Qh'], ['9h', 'Td', '2s', '2h']) == 'nut_fd',
+      f'got {_cd(["Ah","Qh"], ["9h","Td","2s","2h"])}')
+with open('gem_analyzer.py', encoding='utf-8') as _fhh:
+    _hh_code = _fhh.read()
+check('T-HH10-2: HH10#1 detector guards on a strong draw',
+      "_hh10_draw = classify_draw(cards, board[:4])" in _hh_code
+      and "if _hh10_draw in ('nut_fd', 'fd', 'oesd'):" in _hh_code,
+      'HH10#1 draw-exclusion guard missing')
+check('T-HH10-3: a weak no-draw hand is NOT excluded (detector still fires)',
+      _cd(['Kc', '7d'], ['9h', 'Td', '2s', '2h']) not in ('nut_fd', 'fd', 'oesd'),
+      'no-draw hand wrongly classified as a strong draw')
+
+# ---- Bug-2b reconciliation: auto Mistake/Punt vs action markers ----
+check('T-RECON-1: auto Mistake + all-correct/borderline label -> downgrade',
+      _avnr('III.2 Mistake', True,
+            'Correct check on the river · Borderline turn decision') is True, '')
+check('T-RECON-2: corroborated by "Too aggressive" -> keep Mistake',
+      _avnr('III.2 Mistake', True, 'Too aggressive on the turn') is False, '')
+check('T-RECON-3: corroborated by "Missed" -> keep Mistake',
+      _avnr('III.2 Mistake', True, 'Missed turn aggression') is False, '')
+check('T-RECON-4: analyst verdict (not auto) never downgraded',
+      _avnr('III.2 Mistake', False, 'Correct check on the river') is False, '')
+check('T-RECON-5: no aggression label (preflop) -> left alone',
+      _avnr('III.2 Mistake', True, '') is False, '')
+check('T-RECON-6: III.1 Punt also reconciled',
+      _avnr('III.1 Punt', True, 'Borderline turn decision') is True, '')
+check('T-RECON-7: non-mistake verdict (III.5) never downgraded',
+      _avnr('III.5 Justified', True, 'Correct check on the river') is False, '')
+check('T-RECON-8: render wires the reconciliation guard',
+      'auto_verdict_needs_review(' in open(
+          'gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+      and "data-verdict='Review'" in open(
+          'gem_report_draft/sections_xiv.py', encoding='utf-8').read(),
+      'sections_xiv does not wire auto_verdict_needs_review / Review pill')
+
+# ---- Bug-1: session date-coverage transparency ----
+import gem_analyzer as _ga_dc
+import tempfile as _tf_dc, os as _os_dc
+_dc_dir = _tf_dc.mkdtemp()
+_os_dc.makedirs(_os_dc.path.join(_dc_dir, 'game_summaries'))
+for _fn in ('GG20260613-2205 - SUPER SIX.txt', 'GG20260613-2030 - Encore.txt',
+            'GG20260614-2040 - Encore.txt'):
+    open(_os_dc.path.join(_dc_dir, _fn), 'w').write('x')
+for _fn in ('GG20260613 - Tournament #1 - X.txt', 'GG20260614 - Tournament #2 - Z.txt'):
+    open(_os_dc.path.join(_dc_dir, 'game_summaries', _fn), 'w').write('x')
+_cov = _ga_dc.build_date_coverage(
+    [{'date': '2026-06-13'}, {'date': '2026-06-13'}, {'date': '2026-06-14'}], _dc_dir)
+check('T-DATECOV-1: both dates included (no silent filter)',
+      _cov['included_dates'] == ['2026-06-13', '2026-06-14'],
+      str(_cov['included_dates']))
+check('T-DATECOV-2: HH file count included==total==3',
+      _cov['hh_files_total'] == 3 and _cov['hh_files_included'] == 3, str(_cov))
+check('T-DATECOV-3: summary file count included==total==2',
+      _cov['summary_files_total'] == 2 and _cov['summary_files_included'] == 2, str(_cov))
+check('T-DATECOV-4: nothing excluded, filtered=False',
+      _cov['filtered'] is False and _cov['excluded_dates'] == [], str(_cov))
+check('T-DATECOV-5: multi-date session is loudly flagged',
+      any('MULTI-DATE' in _l for _l in _cov['summary_lines']),
+      str(_cov['summary_lines']))
 
 # ============================================================
 # SUMMARY

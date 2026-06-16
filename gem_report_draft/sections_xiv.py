@@ -15,6 +15,7 @@ from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
     _hero_action_verbs_by_street_from_app, _split_argument_into_notes,
     _verdict_display_label)
+from gem_report_draft._helpers import auto_verdict_needs_review
 
 import gem_made_hands as mh
 import gem_gtow
@@ -1926,6 +1927,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
         _agl = _agg_gate_label(h.get('id') or hid_short, rd)
         _agl_str = f" · {_agl[0]} {_agl[1]}" if _agl else ''
+        # v8.16.1 Bug-2b: reconcile an AUTO Mistake/Punt with the hand's own
+        # action review. If the only postflop signal is the aggression label and
+        # it shows ONLY correct/borderline play (no Missed/Too-aggressive marker),
+        # the auto verdict has no corroborating action-level mistake → downgrade
+        # to Review instead of asserting an unconfirmed Mistake (78024888). Never
+        # touches analyst verdicts; preflop/no-label mistakes are left alone.
+        _review_downgrade = False
+        _orig_auto_label = ''
+        if auto_verdict_needs_review(verdict, _is_auto_verdict,
+                                     (_agl[1] if _agl else '')):
+            _review_downgrade = True
+            _orig_auto_label = _verdict_display_label(verdict) or 'Mistake'
+            verdict = ''
+            _is_auto_verdict = False
         # v8.14.1 P0-5: when an analyst graded this hand on a SPECIFIC street, the
         # auto aggression-gate header tag must not assert a DIFFERENT street
         # (73279283: detector "Missed turn aggression" vs analyst river-call
@@ -1957,7 +1972,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if _h_fmt == 'SATELLITE' or _icm_p > 0.7:
             _fmt_pill += ' <span class="context-pill icm-caution" title="cEV-only; may be misleading in satellite / extreme ICM context">⚠️ ICM</span>'
         from gem_report_draft._helpers import short_verdict_pill as _svp
-        _vp = _svp(h, verdict, app_details)
+        if _review_downgrade:
+            _vp = "<span class='verdict-pill' data-verdict='Review'>Review</span>"
+        else:
+            _vp = _svp(h, verdict, app_details)
         # v8.14.1 P0-4: for a preflop all-in the meaningful depth is the
         # EFFECTIVE stack vs the live opponent, not Hero's nominal stack. Show
         # both when they differ (e.g. SB 33.6BB jam into an 18BB BB).
@@ -2064,7 +2082,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # Store explanation for yellow notes block BELOW the grid
         _xiva_why_content = None
         _xiva_why_street = ''
-        if not verdict:
+        if _review_downgrade:
+            # v8.16.1 Bug-2b: explicit Review line — the auto Mistake/Punt was
+            # not corroborated by the hand's own action review.
+            _rv_badge = (' <span style="font-size:11px;color:#6b7280;border:1px '
+                         'solid #d1d5db;border-radius:8px;padding:1px 6px;'
+                         'margin-left:4px">auto</span>')
+            _agl_ctx = f" ({_agl[0]} {_agl[1]})" if _agl else ''
+            verdict_line = (f"*Verdict:* 🔍 Review{_rv_badge} — auto-flagged "
+                            f"{_orig_auto_label}, but the hand's action review "
+                            f"shows no clear mistake{_agl_ctx}; confirm manually.")
+        elif not verdict:
             # B166 / B-A fix: no analyst verdict — show a neutral label above
             # the grid, and store the explanation for the yellow block below.
             _wf = _xivb_flag_note(hid, s, rd, h)

@@ -1,3 +1,38 @@
+v8.16.1 (2026-06-16) -- Live-smoke trust hotfix (two bugs from the v8.16.0 AUTO_ONLY report)
+================================================================================
+Bug 1 - Session date-scope transparency. A prior smoke silently ran only
+2026-06-14 although the source zip also held 2026-06-13. gem_analyzer now prints
+a "Session date coverage" block at parse time (included dates, excluded dates,
+HH + summary file counts included/total, hands-by-date, filter reason) and stamps
+report_data['date_coverage']. No date filtering is applied by default; a
+multi-date session is loudly flagged. New build_date_coverage() (pure/tested).
+
+Bug 2a - "Correct check on the river" when Hero CALLED a jam (hand 78024888).
+gem_aggression_detector no longer treats callAI (a call of an all-in) as a
+missed-aggression spot: facing an all-in there is no more-aggressive line, so it
+is not a bet/check or raise decision to grade. CORRECTLY_PASSIVE on a CALLED bet
+(xc/call) now reads "Correct call - raising wasn't justified" instead of
+"Correct check"; all-in / B253 composite action codes (callai, bet-callai,
+xc-ai) map to readable words instead of leaking into prose.
+
+Bug 2b - hand verdict said "Mistake" with no action-level mistake (78024888 won
+with the nut flush, all grid annotations positive/borderline). ROOT: HH10#1
+("continue vs check-back-flop raise-turn") flagged a "pair-or-weaker" continue as
+a CLEAR mistake while ignoring DRAW equity - 78024888 held the nut flush draw +
+two overs, a correct continue. HH10#1 now excludes strong draws (nut_fd/fd/oesd).
+RECONCILIATION (defense-in-depth): an AUTO Mistake/Punt whose only postflop
+action signal is an all-correct/borderline aggression label (no Missed/Too
+aggressive marker) is downgraded to "Review" rather than asserting an unconfirmed
+mistake. Analyst verdicts and preflop/no-label mistakes are never touched. New
+auto_verdict_needs_review() (pure/tested).
+
+Tests: +21 (T-CALLAI-1..5, T-HH10-1..3, T-RECON-1..8, T-DATECOV-1..5). No villain
+Step-3 grading; villain teaching modules untouched. Verified on the regenerated
+combined 2026-06-13+14 report (5066 hands): 78024888 no longer a Mistake / no
+"correct check"; 24 called-bet hands now read "Correct call"; date-coverage block
+prints both dates.
+
+
 v8.16.0 (2026-06-16) -- Delivery: Villain Teaching Coach Layer v1
 ================================================================================
 Teaches villain cues SAFELY and COHERENTLY: villain did X -> why it is a cue ->

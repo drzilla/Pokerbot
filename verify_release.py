@@ -20,7 +20,7 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("302a6522a8d4be8eb4c2d3efd5c314a2d392a8a5925c8019e5aa4cc2ab6da60b", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("b4ea61b605503675c211abd105c11bfb878aa439d2a70acdf58fe219e62fff98", 518848, "v8.17 B6/B7: +T-PKO817-01..07 (how-PKO-changes-the-decision + 4-state provenance)"),
+    "_test_scratch.py": ("2057b7ca3027fbe35c0ce8fb2bbe8631b3e93c1954c1d3844cda7353ebe08c49", 520443, "v8.17 B6/B7/B8: +T-PKO817-01..12 (how-PKO-changes + 4-state provenance + count-cell direct-open)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
@@ -41,7 +41,7 @@ MANIFEST = {
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("6f2052a557d0ad966da0f666445f196379d69a22420b5a1072597fd8405eeab3", 65127, "v8.16.1 hotfix: call-vs-check wording + auto_verdict_needs_review (Bug 2a/2b)"),
-    "gem_report_draft/_html.py": ("ce786c00caf803e04452b521df80264f5a48dc3bf89fb3fd3d3ee3e5bd80918b", 388724, "v8.16.4 Obj1/2/6: reviewed-row grid + queue ResizeObserver + range-highlight CSS"),
+    "gem_report_draft/_html.py": ("b5c33ecb9ed53538b7f2e2f8ea49ceed0cce26b5987f4264467c52858fcf1379", 389278, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
     "gem_report_draft/draft.py": ("a3b6172e186d88f4fca4939dd2100d9e9d916104e00a32020209c494525823f8", 35268, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
     "gem_report_draft/sections_financial.py": ("742454bb03cd349eef3c639ecf3076be68bdf8292ad7b97828dd87cf7f6801b7", 131012, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
@@ -1185,6 +1185,8 @@ CANARIES = [
      "v8.17 B7/C2: same coaching rendered on the XIV.B compact pill (parity)"),
     ("gem_report_draft/sections_xiv.py", "Bounty value unavailable",
      "v8.17 B6: explicit 4-state provenance incl. the unavailable state on the pill"),
+    ("gem_report_draft/_html.py", "v8.17 B8: a count of exactly ONE opens the hand directly",
+     "v8.17 B8: PKO/count cells with one hand open it directly (one click), not a 1-row popup"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

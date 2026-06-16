@@ -2788,6 +2788,15 @@ _MODAL_HTML = r"""
   function openHandListPopup(title,hids){
     if(!hids||!hids.length)return false;
     hids=hids.map(normalizeHandId);
+    /* v8.17 B8: a count of exactly ONE opens the hand directly (one click),
+       not a one-row popup. Falls through to the list popup when the single
+       hand is not openable, so the availability reason still shows. */
+    if(hids.length===1){
+      var _only=hids[0]; if(_only.length>8)_only=_only.slice(-8);
+      var _art=document.querySelector('article.hand-detail-card[data-hand-id="'+_only+'"]');
+      var _lazy=!!(window.PB_PAYLOADS&&window.PB_PAYLOADS.lazyHands);
+      if(_art||_lazy){ try{openHand(_only);return true;}catch(e){} }
+    }
     var body=document.getElementById('list-modal-body');
     body.innerHTML='';
     var tbl=document.createElement('table');tbl.className='data-table';

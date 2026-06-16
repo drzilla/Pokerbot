@@ -9486,6 +9486,28 @@ check('T-PKO817-07: XIV.A + XIV.B PKO pills render how_changes_md + 4-state prov
       and "'effective_bb'" in _xivb and "'starting_bb_flat'" in _xivb
       and 'Bounty value unavailable' in _xivb, 'pill B6/B7 not wired both paths')
 
+print('\n--- v8.17 Epic B (B8): PKO aggregate count-cell contract ---')
+from gem_report_draft._helpers import render_count_cell as _rcc817
+check('T-PKO817-08: count 0 -> muted non-clickable plain "0"',
+      _rcc817(0, [], 'X') == '0', _rcc817(0, [], 'X'))
+_rc1 = _rcc817(1, ['TM99000001'], 'PKO BB Defense → spot')
+check('T-PKO817-09: count 1 -> single hand-list-trigger (no separate Hands col); JS opens it directly',
+      'class="hand-list-trigger"' in _rc1 and '>1</a>' in _rc1
+      and 'data-hids="TM99000001"' in _rc1, _rc1)
+_rcN = _rcc817(3, ['a', 'b', 'b', 'c'], 'X')
+check('T-PKO817-10: count = unique ids (dedup), >1 opens the hand list',
+      '>3</a>' in _rcN and 'class="hand-list-trigger"' in _rcN, _rcN)
+_html817 = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-PKO817-11: openHandListPopup short-circuits a single id to openHand (direct open, 1 click)',
+      'v8.17 B8: a count of exactly ONE opens the hand directly' in _html817
+      and 'if(hids.length===1){' in _html817 and 'openHand(_only);return true;' in _html817, '')
+_sm817 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-PKO817-12: S4 PKO aggregate has Opportunity/Actual/Wrong/Missed, clickable counts, no Hands col in that table, directional⚠',
+      '| Opportunity | PKO ' in _sm817 and "_t('Actual')" in _sm817 and "_t('Too wide')" in _sm817
+      and "_t('Missed')" in _sm817 and 'render_count_cell as _rcc' in _sm817
+      and 'Missed | "\n                  "Review | Drill cue |' in _sm817
+      and '+= " ⚠"' in _sm817, 'S4 aggregate contract')
+
 # ============================================================
 # SUMMARY
 # ============================================================

@@ -9588,6 +9588,44 @@ check('T-CAP817-16: register-variant capsule CSS present (coaching/factual/no_cl
       'div.analyst-notes.pb-capsule' in _html817cap and 'pb-cap-coaching' in _html817cap
       and 'pb-cap-factual' in _html817cap and 'pb-cap-no_clear_lesson' in _html817cap, '')
 
+print('\n--- v8.17 worksheet classification (unreviewed worksheet / empty analyst) ---')
+# The uploaded _analyst_villain_worksheet_20260407.json is NOT co-located in this
+# env; per the fallback clause these use a controlled synthetic empty-worksheet fixture
+# (fabricated ids, EMPTY analyst fields) — they assert the REAL classification logic.
+from gem_report_data import compute_report_completeness as _crc817
+# 1. an unreviewed worksheet (no analyst-reviewed ids) is AUTO_ONLY, never COMPLETE
+_rd_ws = {'analyst_commentary': {}, '_candidate_need_ids': ['TM97000001'],
+          '_critical_need_ids': [], '_significant_loss_ids': []}
+_st_ws = _crc817(_rd_ws, candidates=None)
+check('T-WS817-01: unreviewed worksheet (empty analyst) -> AUTO_ONLY, never ANALYST_COMPLETE',
+      _st_ws['state'] == 'AUTO_ONLY', _st_ws['state'])
+# even an empty-but-present analyst dict + no reviewed ids is not COMPLETE
+_st_ws2 = _crc817(
+    {'analyst_commentary': {'__meta__': {}}, '_candidate_need_ids': [],
+     '_critical_need_ids': [], '_significant_loss_ids': []}, candidates=None)
+check('T-WS817-01b: only-meta analyst dict (no real reviews) -> not ANALYST_COMPLETE',
+      _st_ws2['state'] != 'ANALYST_COMPLETE', _st_ws2['state'])
+# 2. empty analyst fields must NOT suppress AUTO_ONLY commentary: a capsule still
+#    builds from the auto signals (decision + price) with analyst_why=''
+_ws_cap = _CAP.decision_capsule_from_signals('preflop', decision_label='Call vs jam',
+    verdict_hint='', analyst_why='', required_eq_pct=33)
+check('T-WS817-02: empty analyst fields do NOT suppress AUTO_ONLY commentary (capsule still builds)',
+      _ws_cap is not None and 'Decision' in _ws_cap['roles'] and 'Math' in _ws_cap['roles'], '')
+# 4. detector suggestions are NOT analyst-approved coaching: with no graded verdict the
+#    register is factual/no_clear, never 'coaching' (coaching needs an analyst grade)
+check('T-WS817-04: detector-only spot (no analyst grade) is factual/no_clear, never coaching',
+      _ws_cap['register'] in ('factual', 'no_clear_lesson')
+      and _CAP.classify_register(verdict_class='', gradeable=True) != 'coaching', _ws_cap['register'])
+# 3. synthetic Villain evidence / exploit sources survive the migration (no silent drop)
+import gem_commentary_migration as _migws
+_ws_body = ("<div class='villain-street-notes' data-street='turn'>Villain exploit: "
+            "over-folds turn vs a probe (sample 7)</div>"
+            "<div class='analyst-notes' data-street='flop'>flop note</div>")
+_ws_rows = _migws.scan_hand_body(_ws_body)  # [(source_type, street, data_street), ...]
+check('T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (survives migration, no silent drop)',
+      any('villain' in str(r[0]).lower() for r in _ws_rows) and len(_ws_rows) >= 2,
+      str([r[0] for r in _ws_rows]))
+
 # ============================================================
 # SUMMARY
 # ============================================================

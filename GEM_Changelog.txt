@@ -1,3 +1,47 @@
+v8.16.2 (2026-06-16) -- Delivery: Report Reliability + Sticky Review UX v1
+================================================================================
+Phase B - Appendix double-render fix. On large multi-day sessions ~2040 hands
+rendered BOTH a budget-trimmed stub (XIV.C) AND a full lazy card: XIV.A renders
+full cards from reviewed_mistakes.needs_review directly, which the HA3 budget
+planner can trim into _BUDGET_TRIMMED_IDS without rescuing from XIV.A. New
+render-level guard: _state._FULL_CARD_IDS records every id that got a full card
+(XIV.A + XIV.B); XIV.C emits a stub ONLY for ids not in that set. Each hand now
+appears exactly once; the appendix availability count reflects unique hands;
+critical/reviewed hands keep full detail; the lazy loader is unaffected. The
+post-render validator's "rendered BOTH" (Issue 3) count goes to 0.
+
+Phase C - Sticky Hand Context. In the V25 hand-detail modal, the Board/Hero and
+Action columns now pin BELOW the sticky street header while long Commentary
+scrolls. Sticky is bounded by .v25-street-body per street (never overflows into
+the next street); z-index 30 stays under the street header (70). New measured
+--v25-street-head-h offset var. One shared renderer: on narrow/mobile only the
+compact Board/Hero strip pins. CSS/JS only — no analysis, verdict, or commentary
+change.
+
+Phase D - Tournament Results surface polish (no financial math change). The
+internal label 'STT' (which leaked into the sidebar nav AND the topbar tab) is
+now 'Tournament Results' (subtitle 'event-level P&L'); section heading renamed;
+explanatory note added (original S1 Results tables retained for cross-check).
+Summary strip relabelled Invested / Cash return / Ticket return / Net / ROI /
+Bullets / Events (canonical usd_overlay totals; cash = total return − ticket, a
+display split only). The always-empty per-event cEV/100 column is hidden when no
+canonical per-tournament source exists (auto-restores if one is ever passed).
+Legacy S1 tables and the financial reconciliation/overlay are unchanged.
+
+Phase E - Hand Review Queue Polish v1 (UI only; no queue-selection change). Queue
+status icons now match the modal verdict-chips (Agree ✅, Debate 🤔, Bug 🐞,
+Drill 🎯, Rulebook 📘) — previously the queue used a bare 🟡 for Debate and the
+modal used 👍 for Agree. Status colors were already consistent (Agree green / Bug
+red / Debate amber / Drill blue / Rulebook purple). Open rows compacted; the 20+
+"Show all" list scroll-caps within the card; reviewed list stays collapsed by
+default; cheerful completion card copy.
+
+Tests: +20 (T-B-DEDUP, T-C-STICKY, T-D-TT, T-E-RQ) and 4 Tournament-Tables render
+tests updated for the new Phase D copy/columns. No analyst pass; no villain Step
+3; no commentary/range or PKO change. Verified on the combined 2026-06-13+14
+report (5066 hands): appendix double-render 0; 78024888 still fixed.
+
+
 v8.16.1 (2026-06-16) -- Live-smoke trust hotfix (two bugs from the v8.16.0 AUTO_ONLY report)
 ================================================================================
 Bug 1 - Session date-scope transparency. A prior smoke silently ran only

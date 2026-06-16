@@ -49,8 +49,8 @@ def _emit_tournament_tables(doc, s, rd, hands):
     tot = model.get('totals') or {}
     diag = model.get('diagnostics') or {}
 
-    doc.subsection('sec-tournaments', 'Tournament Tables (event-level)',
-                   'financial-first; one row per tournament event')
+    doc.subsection('sec-tournaments', 'Tournament Results',
+                   'event-level P&L · one row per tournament event')
 
     if model.get('financial_source') != 'usd_overlay' or not events:
         doc.w('*Tournament Tables: no canonical committed-cost financial overlay '
@@ -78,25 +78,52 @@ def _emit_tournament_tables(doc, s, rd, hands):
           % (model.get('financial_source'), tot.get('return_basis', EMDASH),
              recon, stale, model.get('event_day_tz_source', EMDASH)))
     doc.w('')
+    # v8.16.2 Phase D: orient the reader — this is the new event-level surface;
+    # the original per-tournament Results tables remain for cross-check. (S1 is
+    # rendered above this section in the current order.)
+    doc.w('*New event-level tournament table. The original per-tournament Results '
+          'tables (S1, above) are retained for cross-check.*')
+    doc.w('')
 
     # ---- Summary strip (canonical session totals) ----
-    s_hdr = ('| Events | Bullets | Cost | Return (cash+ticket) | of which Ticket | '
-             'Net | ROI | Return basis |')
-    s_sep = '|---:|---:|---:|---:|---:|---:|---:|---|'
-    s_row = ('| %s | %s | %s | %s | %s | %s | %s | %s |' % (
-        tot.get('n_tournaments', len(events)), tot.get('n_bullets', EMDASH),
-        _fmt_usd(tot.get('committed_cost', 0)), _fmt_usd(tot.get('return', 0)),
-        _fmt_usd(tot.get('ticket_value', 0)),
+    # v8.16.2 Phase D: user-facing labels (Invested / Cash return / Ticket return
+    # / Net / ROI / Bullets / Events). Values are the canonical usd_overlay totals
+    # verbatim — only the labels/order are presented. tot['return'] is the cash
+    # total and ticket_value the ticket total (shown as separate columns); no
+    # financial math is computed here. Return basis stays on the trust line above.
+    # tot['return'] is the TOTAL return (cash + ticket); ticket_value is the
+    # ticket portion. Split for display: cash = total − ticket (no new math, just
+    # a presentation split of the canonical totals; the two columns sum to the
+    # total return shown in the legacy S1 tables).
+    _tot_return = tot.get('return', 0) or 0
+    _tot_ticket = tot.get('ticket_value', 0) or 0
+    _tot_cash = round(_tot_return - _tot_ticket, 2)
+    s_hdr = '| Invested | Cash return | Ticket return | Net | ROI | Bullets | Events |'
+    s_sep = '|---:|---:|---:|---:|---:|---:|---:|'
+    s_row = ('| %s | %s | %s | %s | %s | %s | %s |' % (
+        _fmt_usd(tot.get('committed_cost', 0)),
+        _fmt_usd(_tot_cash),
+        _fmt_usd(_tot_ticket),
         _fmt_usd(tot.get('net', 0), plus=True), _pct_or_dash(tot.get('roi_pct')),
-        tot.get('return_basis', EMDASH)))
+        tot.get('n_bullets', EMDASH),
+        tot.get('n_tournaments', len(events))))
     doc.write_block(financial_table_block(
         'tt-summary', 'financial_summary', s_hdr, s_sep, [s_row]))
     doc.w('')
 
     # ---- Event table (one row per tournament event) ----
+    # v8.16.2 Phase D: the per-event cEV/100 column is blank unless a canonical
+    # per-tournament cEV source is passed (none today, SP-2 decision). Hide the
+    # whole column when every value is empty rather than show a column of
+    # em-dashes; a future caller that passes cev_by_tid auto-restores it (the
+    # guard is "any non-None value").
+    has_cev = any(((e.get('performance') or {}).get('cev100')) is not None
+                  for e in events)
+    _cev_h = ' cEV/100 |' if has_cev else ''
+    _cev_s = '---:|' if has_cev else ''
     hdr = ('| Date | Tournament | Type | Buy-in | Bullets | Cost | Cash | Ticket | '
-           'Return | Net | ROI | Finish | Adv/Seat | cEV/100 |')
-    sep = '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---:|'
+           'Return | Net | ROI | Finish | Adv/Seat |' + _cev_h)
+    sep = '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|' + _cev_s
     rows = []
     has_inferred = False
     for e in events:
@@ -123,7 +150,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
 
         tick = ret.get('ticket_value')
         name = (e.get('name') or EMDASH).replace('|', '/')
-        rows.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % (
+        _row = '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % (
             e.get('event_day') or EMDASH, name, pt,
             _usd_or_dash(e.get('buy_in')), e.get('bullets', 1),
             _fmt_usd(e.get('cost', 0)),
@@ -132,7 +159,10 @@ def _emit_tournament_tables(doc, s, rd, hands):
             _fmt_usd(ret.get('value', 0)),
             _fmt_usd(e.get('net', 0), plus=True),
             _pct_or_dash(e.get('roi_pct')),
-            finish_txt, adv, cev_txt))
+            finish_txt, adv)
+        if has_cev:                       # v8.16.2 Phase D: append cEV cell only when shown
+            _row += ' %s |' % cev_txt
+        rows.append(_row)
     doc.write_block(financial_table_block(
         'tt-events', 'tournament_pnl', hdr, sep, rows))
     doc.w('')
@@ -141,9 +171,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
     if has_inferred:
         doc.w('*\\* Prize type inferred from the tournament name '
               '(provenance: inferred).*')
-    doc.w('*cEV/100 is raw chip-EV per 100 hands; shown blank (—) per event '
-          'because no canonical per-tournament cEV/100 source exists — it is never '
-          'approximated. Session/aggregate cEV remains where it already appears.*')
+    if has_cev:                           # v8.16.2 Phase D: only when the column is shown
+        doc.w('*cEV/100 is raw chip-EV per 100 hands. Session/aggregate cEV '
+              'remains where it already appears.*')
     doc.w('*Bounty dollar amounts are shown only when safely sourced (never '
           'inferred); blank otherwise.*')
     doc.w('')

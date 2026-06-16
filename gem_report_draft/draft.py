@@ -561,6 +561,10 @@ def _build(stats, report_data, hands, sections=None):
     }
     _NAV_LABELS = {
         'S7': 'Coach', 'S1': 'Result',
+        # v8.16.2 Phase D: 'STT' had no label so the raw internal code leaked into
+        # BOTH the sidebar nav rail and the topbar workflow tab. Give it the
+        # user-facing name (subtitle 'event-level P&L' already set in _NAV_SUBTITLES).
+        'STT': 'Tournament Results',
         'S6': 'KPIs', 'S2': 'Top hands',
         'SIE': 'Issue Explorer', 'S3': 'Leaks (Legacy)', 'S4': 'Tourney type',
         'S8': 'Preflop', 'S9': 'Postflop SRP',

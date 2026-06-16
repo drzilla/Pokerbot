@@ -10808,8 +10808,16 @@ if __name__ == '__main__':
             r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
             _html_content)}
         if _trim_all_v and _lazy_html_v:
+            # v8.16.2 Phase B: count only FULL cards in the lazy payload. Full
+            # cards carry `data-hand-id=X data-format=...`; budget-trimmed stubs
+            # are themselves pb-lazy (their inner HTML is in the same payload) but
+            # carry data-availability='budget_trimmed' and NO data-format. The old
+            # bare `data-hand-id` regex matched the stubs too, so it flagged every
+            # stub as "also a full card" (a false positive on large sessions). The
+            # --quick mirror already excludes stubs via _decode_lazy_cards; this
+            # aligns the full-pipeline check to the same TRUE invariant.
             _full_suf_v = {m[-8:] for m in _re_val.findall(
-                r"data-hand-id=['\"]([\w-]+)['\"]", _lazy_html_v)}
+                r"data-hand-id=['\"]([\w-]+)['\"]\s+data-format=", _lazy_html_v)}
             _dup_v = sorted(_trim_all_v & _full_suf_v)
             if _dup_v:
                 _val_issues.append(f"❌ {len(_dup_v)} hand(s) rendered BOTH a "

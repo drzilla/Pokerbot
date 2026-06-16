@@ -1919,6 +1919,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         _vaa_eff = (h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb')
                     or h.get('stack_bb') or 0)
         _vaa_t = _html_escape(str(h.get('tournament', '') or ''))
+        _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
               f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'>")
@@ -3226,6 +3227,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 _va_ph = _html_escape(h.get('tournament_phase', '') or '')
                 _va_eff = h.get('eff_stack_bb') or h.get('stack_bb') or 0
                 _va_t = _html_escape(str(h.get('tournament', '') or ''))
+                _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
                       f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'>")
@@ -3806,7 +3808,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
     # `#sec-app-hand-X` links directly without going through _record_citation,
     # so filtering on _CITATIONS alone leaves those links dead.
     _trimmed = sorted(set(getattr(_state, '_BUDGET_TRIMMED_IDS', set()) or set()))
-    _cited_trimmed = _trimmed
+    # v8.16.2 Phase B: never emit a budget-trimmed STUB for a hand that already
+    # received a FULL card in XIV.A/XIV.B. A trimmed needs_review hand can still
+    # be rendered full by XIV.A (it reads needs_review directly, not the budgeted
+    # appendix_hand_ids_all), so without this guard the hand appears BOTH as a
+    # full lazy card and a budget_trimmed stub (the validator's "Issue 3"
+    # double-render). Match on the 8-digit suffix used by both surfaces.
+    _full_card_ids = set(getattr(_state, '_FULL_CARD_IDS', set()) or set())
+    _cited_trimmed = [t for t in _trimmed
+                      if (t[-8:] if len(t) > 8 else t) not in _full_card_ids]
     if _cited_trimmed:
         doc.w("")
         doc.w("<details>")

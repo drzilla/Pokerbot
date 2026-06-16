@@ -813,7 +813,7 @@ _MODAL_HTML = r"""
     <div class="modal-review">
       <div class="verdict-chip-row">
         <span class="verdict-label">Verdict</span>
-        <button type="button" class="verdict-chip verdict-agree" data-verdict="Agree">👍 Agree</button>
+        <button type="button" class="verdict-chip verdict-agree" data-verdict="Agree">✅ Agree</button>
         <button type="button" class="verdict-chip verdict-debate" data-verdict="Debate">🤔 Debate</button>
         <button type="button" class="verdict-chip verdict-bug" data-verdict="Report bug">🐞 Report bug</button>
         <button type="button" class="verdict-chip verdict-drill" data-verdict="Drill">🎯 Drill</button>
@@ -1855,7 +1855,10 @@ _MODAL_HTML = r"""
      canonical review store, updates counts / top-N / celebratory state, and
      opens a row in the EXISTING V25 modal with the FULL queue as
      activeHandQueue so Prev/Next walks the whole queue, not the visible top-N. */
-  var _RQ_META={agree:['✅','Agree','agree'],debate:['🟡','Debate','debate'],
+  /* v8.16.2 Phase E: queue status icons MUST match the modal verdict-chips
+     (L816-820) — Agree=✅ check, Debate=🤔 question, Bug=🐞, Drill=🎯, Rulebook=📘.
+     Was debate '🟡' (a bare yellow dot) which drifted from the modal's 🤔. */
+  var _RQ_META={agree:['✅','Agree','agree'],debate:['🤔','Debate','debate'],
     report_bug:['🐞','Bug','bug'],drill:['🎯','Drill','drill'],
     rulebook:['📘','Rulebook','rulebook']};
   function _rqNorm(raw){
@@ -2242,6 +2245,12 @@ _MODAL_HTML = r"""
     if(queue) panel.style.setProperty('--v25-queue-h',
       (queue.style.display==='none'?0:queue.offsetHeight)+'px');
     if(review) panel.style.setProperty('--v25-review-h', review.offsetHeight+'px');
+    /* v8.16.2 Phase C: tallest street-header height so the sticky Board/Action
+       context columns pin exactly BELOW the sticky street header (no overlap,
+       even when a header wraps to two lines on narrow widths). */
+    var _heads=panel.querySelectorAll('.v25-street-head'),_shh=0;
+    _heads.forEach(function(_h){if(_h.offsetHeight>_shh)_shh=_h.offsetHeight;});
+    if(_shh) panel.style.setProperty('--v25-street-head-h', _shh+'px');
   }
   async function openHand(hid){
     if(window.PBLazy&&PBLazy.has(hid)){try{await PBLazy.ensure(hid);}catch(e){}}
@@ -5847,10 +5856,13 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .rq-priority-label {{ font-size: 11px; font-weight: 950; color: #92400e; white-space: nowrap; }}
   .rq-bcount {{ font-size: 11px; font-weight: 850; padding: 3px 7px; border: 1px solid #fde68a;
     background: #fff7cc; color: #92400e; border-radius: 999px; white-space: nowrap; }}
-  .rq-list {{ display: grid; }}
+  /* v8.16.2 Phase E: denser open rows on desktop (less wasted space); the mobile
+     @620px block below keeps 52px tap targets. rq-list caps its expanded height so
+     a 20+ "Show all" scrolls WITHIN the card instead of pushing the whole page. */
+  .rq-list {{ display: grid; max-height: 60vh; overflow-y: auto; }}
   .rq-row {{ display: grid; grid-template-columns: 26px auto auto auto minmax(0,1fr) auto auto;
-    gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eef2f7;
-    cursor: pointer; min-height: 44px; }}
+    gap: 8px; align-items: center; padding: 6px 12px; border-bottom: 1px solid #eef2f7;
+    cursor: pointer; min-height: 38px; }}
   .rq-row:hover {{ background: #f8fafc; }}
   .rq-row:focus-visible {{ outline: 2px solid var(--brand2, #2563eb); outline-offset: -2px; }}
   .rq-rank {{ width: 24px; height: 24px; border-radius: 999px; background: #eef2ff;
@@ -6201,7 +6213,7 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .modal-review .save-state {{ font-size: 12px; color: #15803d;
     margin-top: 4px; opacity: 0; }}
   /* ======== V25 STREET-MERGED MODAL CSS ======== */
-  :root {{ --v25-topbar-h: 58px; --v25-queue-h: 42px; --v25-review-h: 120px; }}
+  :root {{ --v25-topbar-h: 58px; --v25-queue-h: 42px; --v25-review-h: 120px; --v25-street-head-h: 56px; }}
   .v25-panel {{ position: absolute; inset: 4vh 4vw; background: #fff;
     border-radius: 22px; display: flex; flex-direction: column;
     overflow-y: auto; box-shadow: 0 24px 80px rgba(15,23,42,.18); z-index: 11; }}
@@ -6506,6 +6518,31 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   }}
   @media (max-width: 899px) {{
     .v25-street-body {{ grid-template-columns: 1fr; }}
+  }}
+  /* v8.16.2 Phase C — Sticky Hand Context. Within each street card the Board/Hero
+     and Action columns pin BELOW the sticky street header while the (often long)
+     Commentary column scrolls past. Sticky is bounded by .v25-street-body so it
+     never overflows into the next street; z-index 30 stays under the street
+     header (70) so the header always covers it; align-self:start is required for
+     sticky to move inside a grid row. */
+  @media (min-width: 900px) {{
+    .v25-board-section, .v25-action-section {{
+      position: sticky; align-self: start; z-index: 30;
+      top: calc(var(--v25-topbar-h, 58px) + var(--v25-queue-h, 0px)
+                + var(--v25-street-head-h, 56px) + 8px);
+      max-height: calc(100vh - var(--v25-topbar-h, 58px) - var(--v25-queue-h, 0px)
+                - var(--v25-street-head-h, 56px) - var(--v25-review-h, 120px) - 28px);
+      overflow-y: auto; overflow-x: hidden; background: #f8fbff; border-radius: 14px; }}
+  }}
+  /* Mobile / narrow: ONE shared renderer — only the compact Board/Hero strip
+     pins (a sticky action column would crowd the narrow viewport). Still bounded
+     by .v25-street-body and offset below the sticky street header. */
+  @media (max-width: 899px) {{
+    .v25-board-section {{
+      position: sticky; z-index: 30; background: #f8fbff;
+      top: calc(var(--v25-topbar-h, 58px) + var(--v25-queue-h, 0px)
+                + var(--v25-street-head-h, 56px) + 4px);
+      box-shadow: 0 2px 8px rgba(15,23,42,.10); border-radius: 12px; }}
   }}
   /* V25.3 item 15: overflow prevention for grid columns */
   .v25-commentary-section p {{ overflow-wrap: anywhere; }}

@@ -5318,10 +5318,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.16.1 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.16.1'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.1'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.1', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.16.2 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.16.2'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.2'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.2', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8693,7 +8693,8 @@ def _render_tt(rd):
 _ttr_md = _render_tt(_tt_rd)   # reuse the SP-1 canonical fixture
 
 check('T-TT-R-01: new section renders from build_tournament_model (header + event table)',
-      'Tournament Tables (event-level)' in _ttr_md
+      'Tournament Results' in _ttr_md          # v8.16.2 Phase D: renamed from "Tournament Tables (event-level)"
+      and 'retained for cross-check' in _ttr_md
       and '| Date | Tournament | Type |' in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
 # old/current Results tables still render (S1 unchanged + STT ADDED after it)
@@ -8721,11 +8722,13 @@ _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
       _mb_md.count('| Big Re-entry ') == 1 and '| Big Re-entry | Standard* | $50 | 3 |' in _mb_md, '')
 # summary totals match canonical usd_overlay.totals
-check('T-TT-R-05: summary strip totals match canonical usd_overlay.totals',
-      '| 2 | 3 | $3946.97 | $1370.43 | $470 |' in _ttr_md and '-65.3%' in _ttr_md, '')
-# return basis text appears
-check('T-TT-R-06: return basis text "cash + ticket" appears in trust line + summary',
-      'return basis: **cash + ticket**' in _ttr_md and '| cash + ticket |' in _ttr_md, '')
+check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
+      # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
+      '| $3946.97 | $900.43 | $470 |' in _ttr_md
+      and '| -65.3% | 3 | 2 |' in _ttr_md, '')  # ROI | Bullets | Events
+# return basis text appears (v8.16.2 Phase D: now on the trust line only, not the strip)
+check('T-TT-R-06: return basis "cash + ticket" stays on the trust line',
+      'return basis: **cash + ticket**' in _ttr_md, '')
 # cash + ticket displayed consistently (satellite row: Cash $0 + Ticket $470 = Return $470)
 check('T-TT-R-07: per-row cash + ticket = return (satellite: $0 + $470 = $470)',
       '| $0 | $470 | $470 |' in _ttr_md, '')
@@ -8744,11 +8747,13 @@ check('T-TT-R-09: inferred prize type marked with * + footnote present',
 check('T-TT-R-10: bounty dollars not inferred (audit footnote present; no $ on the bounty Type cell)',
       'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
       and '| Bounty* | $30 |' in _ttr_md, '')
-# per-event cEV blank (no canonical source) — last column is em dash for both rows
-check('T-TT-R-11: per-event cEV/100 stays blank (—) for every row — no canonical tid->cEV source',
-      '12/500 | — | — |' in _ttr_md          # Mini Knockout: Adv —, cEV — (trailing)
-      and '3/40 | seat | — |' in _ttr_md      # Daily Sat: Adv seat, cEV — (trailing)
-      and 'no canonical per-tournament cEV/100 source exists' in _ttr_md, '')
+# v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
+# of em-dashes) when no canonical per-tournament cEV source exists.
+check('T-TT-R-11: per-event cEV/100 COLUMN hidden when no canonical source',
+      '| cEV/100 |' not in _ttr_md            # header cell absent (column dropped)
+      and '12/500 | — |' in _ttr_md           # Mini Knockout row now ends at Adv (—)
+      and '3/40 | seat |' in _ttr_md          # Daily Sat row now ends at Adv (seat)
+      and 'per-event cEV/100: unavailable' in _ttr_md, '')  # trust line still states why
 # read-only: emitter does not mutate rd (no unrelated state changes)
 _pre = _copy_ttr.deepcopy(_tt_rd)
 _render_tt(_tt_rd)
@@ -8860,6 +8865,100 @@ check('T-DATECOV-4: nothing excluded, filtered=False',
 check('T-DATECOV-5: multi-date session is loudly flagged',
       any('MULTI-DATE' in _l for _l in _cov['summary_lines']),
       str(_cov['summary_lines']))
+
+print('\n--- v8.16.2 Report Reliability + Sticky Review UX v1 (Phases B-E) ---')
+
+_sx_code = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_st_code = open('gem_report_draft/_state.py', encoding='utf-8').read()
+_hx_code = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_tt_code = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+_df_code = open('gem_report_draft/draft.py', encoding='utf-8').read()
+_tl_code = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+
+# ---- Phase B: appendix double-render dedup ----
+import gem_report_draft._state as _st_mod
+check('T-B-DEDUP-1: _state exposes _FULL_CARD_IDS registry',
+      hasattr(_st_mod, '_FULL_CARD_IDS') and isinstance(_st_mod._FULL_CARD_IDS, set),
+      'missing _FULL_CARD_IDS set')
+check('T-B-DEDUP-2: _reset_citations clears _FULL_CARD_IDS',
+      '_FULL_CARD_IDS = set()' in _st_code and 'global _BUDGET_TRIMMED_IDS, _FULL_CARD_IDS' in _st_code,
+      'reset does not clear _FULL_CARD_IDS')
+check('T-B-DEDUP-3: both full-card emit sites register the id',
+      _sx_code.count('_state._FULL_CARD_IDS.add(hid_short)') >= 2,
+      'full-card emit sites do not all register into _FULL_CARD_IDS')
+check('T-B-DEDUP-4: XIV.C stub loop excludes full-carded ids',
+      '_full_card_ids = set(getattr(_state, \'_FULL_CARD_IDS\'' in _sx_code
+      and 'not in _full_card_ids' in _sx_code,
+      'XIV.C does not filter out full-carded ids')
+# Functional: a hand in BOTH _BUDGET_TRIMMED_IDS and _FULL_CARD_IDS is filtered.
+_st_mod._FULL_CARD_IDS = {'78024888'}
+_dedup_trim = ['78024888', '12345678']
+_dedup_keep = [t for t in _dedup_trim
+               if (t[-8:] if len(t) > 8 else t) not in _st_mod._FULL_CARD_IDS]
+check('T-B-DEDUP-5: full-carded id removed from the stub list (the fix logic)',
+      _dedup_keep == ['12345678'], f'got {_dedup_keep}')
+_st_mod._FULL_CARD_IDS = set()
+# Validator (Check 11) must count only FULL cards (data-format) in the lazy
+# payload — budget-trimmed stubs are themselves pb-lazy, so a bare data-hand-id
+# match over-counts and falsely flags every stub as "also a full card".
+_ga_dedup_code = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-B-DEDUP-6: full-render dup validator counts data-format full cards only',
+      'data-hand-id=[\'\\"]([\\w-]+)[\'\\"]\\s+data-format=' in _ga_dedup_code
+      and "_full_suf_v = {m[-8:] for m in _re_val.findall(" in _ga_dedup_code,
+      'Check 11 still uses a bare data-hand-id regex (counts pb-lazy stubs)')
+
+# ---- Phase C: Sticky Hand Context ----
+check('T-C-STICKY-1: board+action sections are position:sticky in the V25 layout',
+      '.v25-board-section, .v25-action-section {{' in _hx_code
+      and 'position: sticky' in _hx_code,
+      'sticky board/action CSS missing')
+check('T-C-STICKY-2: --v25-street-head-h var declared + measured',
+      '--v25-street-head-h: 56px' in _hx_code
+      and "setProperty('--v25-street-head-h'" in _hx_code,
+      'street-head sticky offset var not defined/measured')
+check('T-C-STICKY-3: mobile keeps a single shared compact sticky board strip',
+      '@media (max-width: 899px) {{\n    .v25-board-section {{' in _hx_code
+      or ('.v25-board-section {{\n      position: sticky' in _hx_code),
+      'mobile compact sticky strip not present')
+check('T-C-STICKY-4: sticky context sits BELOW the street header (lower z-index)',
+      'z-index: 30' in _hx_code and 'z-index: 70 !important' in _hx_code,
+      'sticky z-index ordering vs street header not preserved')
+
+# ---- Phase D: Tournament Results polish ----
+check('T-D-TT-1: STT nav label is "Tournament Results"',
+      "'STT': 'Tournament Results'" in _df_code, 'STT label not set')
+check('T-D-TT-2: section title renamed + explanatory note present',
+      "'sec-tournaments', 'Tournament Results'" in _tt_code
+      and 'retained for cross-check' in _tt_code,
+      'title/explanatory note missing')
+check('T-D-TT-3: summary strip uses Invested/Cash return/Ticket return labels',
+      'Invested | Cash return | Ticket return | Net | ROI | Bullets | Events' in _tt_code,
+      'summary strip not relabelled to spec')
+check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard)',
+      'has_cev = any(' in _tt_code and "_cev_h = ' cEV/100 |' if has_cev else ''" in _tt_code,
+      'cEV column not conditionally hidden')
+check('T-D-TT-5: legacy S1 financial tables NOT removed',
+      'S1.1 Per-Tournament P&L' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(),
+      'legacy S1.1 Per-Tournament P&L table missing')
+
+# ---- Phase E: Review Queue polish ----
+check('T-E-RQ-1: queue Debate icon aligned to modal (🤔, not bare 🟡)',
+      "debate:['🤔','Debate','debate']" in _hx_code
+      and "debate:['🟡'" not in _hx_code,
+      'queue debate icon still drifts from the modal')
+check('T-E-RQ-2: queue + modal Agree icon consistent (✅)',
+      "agree:['✅','Agree','agree']" in _hx_code
+      and '>✅ Agree</button>' in _hx_code,
+      'Agree icon inconsistent between queue and modal')
+check('T-E-RQ-3: status colors consistent across pill + revchip + modal chip',
+      _hx_code.count('#166534') >= 2 and '#991b1b' in _hx_code
+      and '#92400e' in _hx_code and '#1d4ed8' in _hx_code and '#6d28d9' in _hx_code,
+      'status color families missing (Agree/Bug/Debate/Drill/Rulebook)')
+check('T-E-RQ-4: open rows compacted + 20+ list scroll-capped',
+      'max-height: 60vh; overflow-y: auto' in _hx_code and 'min-height: 38px' in _hx_code,
+      'rq-list scroll cap / compact rows missing')
+check('T-E-RQ-5: cheerful completion card copy',
+      'Review list cleared' in _tl_code, 'completion card copy not updated')
 
 # ============================================================
 # SUMMARY

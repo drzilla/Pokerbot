@@ -18,6 +18,14 @@ _CURRENT_SECTION_LABEL = None
 # popup fallback) and must be excluded from the B4 orphan-pill lint rule.
 _BUDGET_TRIMMED_IDS = set()
 
+# v8.16.2 (Phase B): 8-digit suffixes of every hand that actually received a FULL
+# hand-detail card (XIV.A or XIV.B). XIV.C only emits a budget-trimmed STUB for a
+# hand NOT in this set, so a hand can never render BOTH a full card and a stub
+# (the "Issue 3" double-render). Populated at the full-card emit sites; read +
+# filtered in the XIV.C stub loop. Render-level guarantee, independent of any
+# upstream set-math gap in the HA3 budget planner.
+_FULL_CARD_IDS = set()
+
 
 # --- Accessors (the ONLY way to write these globals) -----------------------
 
@@ -69,13 +77,14 @@ def _reset_citations():
     across multiple render calls in the same process."""
     global _CITATIONS, _CURRENT_SECTION_ANCHOR, _CURRENT_SECTION_LABEL
     global _APPENDIX_HAND_IDS, _APPENDIX_HAND_PRIORITIES
-    global _BUDGET_TRIMMED_IDS
+    global _BUDGET_TRIMMED_IDS, _FULL_CARD_IDS
     _CITATIONS = {}
     _CURRENT_SECTION_ANCHOR = None
     _CURRENT_SECTION_LABEL = None
     _APPENDIX_HAND_IDS = set()
     _APPENDIX_HAND_PRIORITIES = {}
     _BUDGET_TRIMMED_IDS = set()
+    _FULL_CARD_IDS = set()
 
 
 def _get_citations_for(hand_id):

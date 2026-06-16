@@ -1228,10 +1228,13 @@ def _emit_opening_dashboard(doc, s, rd):
                   '<span class="rq-revchips" id="rq-revchips"></span></button>'
                   '<div class="rq-reviewed-list" id="rq-reviewed-list" hidden></div>'
                   '</div>')
+            # v8.16.2 Phase E: cheerful completion card (shown by
+            # PBReviewQueue.refresh when no priority hands remain: open==0 && rows>0).
             doc.w('<div class="rq-empty-win" id="rq-empty-win" hidden>'
-                  '<div class="rq-trophy">🏆</div>'
-                  '<div class="rq-win-title">Priority queue cleared — nice work.</div>'
-                  '<div class="rq-win-sub">Review streak complete · +1 session discipline</div>'
+                  '<div class="rq-trophy">🎉</div>'
+                  '<div class="rq-win-title">Review list cleared — nice work!</div>'
+                  '<div class="rq-win-sub">All priority hands reviewed · nothing '
+                  'urgent left in this queue.</div>'
                   '</div>')
             doc.w('<div class="rq-footer"><span class="rq-foot-note" id="rq-foot-note"></span>'
                   '<button type="button" class="rq-showall" id="rq-showall" hidden>Show all</button>'

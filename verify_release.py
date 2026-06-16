@@ -15,12 +15,12 @@ VERSION = "v8.16.4"   # v8.16.4 (Review Precision & Decision-Trust hotfix: revie
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("1094f711408d75ff003f1ea0a5f4d3e3e9bdb04f1a1632c37bf0b99fa94b8838", 119551, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ live wiring note)"),
+    "GEM_Changelog.txt": ("202be7154a216a25fc4d5899b50b72e80a2197b7d6f1b757715867ac3c6cb0b1", 121665, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("0be0ff6071b68e897ec16c4303d63fbbf715ca362d45df8df4028ef07367471e", 4167, "v8.16.4: 42 files, 404 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("302a6522a8d4be8eb4c2d3efd5c314a2d392a8a5925c8019e5aa4cc2ab6da60b", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("c533dc28ff30816bece6690963e19a33240506e6d69c39e2ac0476171ae4390e", 506781, "v8.16.4: +T-RPDT-* + T-DTI-* Decision-Trust Integration tests"),
+    "_test_scratch.py": ("9ab565b853d92fa022ba6c720aa8ffa9f09a66755e814a8a38ea6f175ab138bb", 514990, "v8.16.4 DTI blockers: +T-QUEUE-/T-DK-/T-CPATH-/T-ATTR- (bounded queue + compact-path decision evidence)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
@@ -50,8 +50,8 @@ MANIFEST = {
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
     "gem_report_draft/sections_tournaments.py": ("15c0e301521a6a4d64372cb6bf3fb36021451793a3adf46d348190196c0068d6", 8812, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
-    "gem_report_draft/sections_xiv.py": ("2ae1732faefae49538da73942a4b0892a8dbda2b0e425ee0045f460831a4c748", 213666, "v8.16.4 DTI Obj6/8/9: range-highlight + multiway-suppress + bounty-provenance wired"),
-    "gem_report_draft/tldr.py": ("ffa7a2a0688e3b32bc649ad4e0444a15fc20785c45362a694a81b5343da4c695", 146910, "v8.16.2 Phase E: completion-card copy"),
+    "gem_report_draft/sections_xiv.py": ("c87cd32e04003a8aef9b42344267a8665e403a607cbdeeabbefb5869a2dc8e2b", 218472, "v8.16.4 DTI Blocker 2: decision-kind label + multiway-suppress + bounty-provenance + optional attribution on BOTH XIV.A full + XIV.B compact paths"),
+    "gem_report_draft/tldr.py": ("0b4f29698f408f8dac5b707b14e4a28dcd772a24028fb7b8e6f0a3256e49b157", 148637, "v8.16.4 DTI Blocker 1: build_review_queue routes through aggregate_review_queue (bounded + aggregated + internal-QA)"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
@@ -1157,6 +1157,23 @@ CANARIES = [
      "v8.16.2: per-event cEV column hidden when no canonical source (trust-line audit note)"),
     ("gem_report_draft/draft.py", "('STT', _emit_tournament_tables)",
      "v8.15.0: Tournament Tables wired additively AFTER S1 (old Results tables retained)"),
+    # ── v8.16.4 DTI blockers: bounded queue + decision evidence on every path ──
+    ("gem_review_trust.py", "def aggregate_review_queue(",
+     "v8.16.4 DTI Blocker 1: canonical bounded + aggregated review-queue helper"),
+    ("gem_review_trust.py", "def classify_preflop_allin(",
+     "v8.16.4 DTI Blocker 2: structurally-provable all-in decision-kind classifier"),
+    ("gem_review_trust.py", "def attribution_render_line(",
+     "v8.16.4 DTI: optional root/downstream attribution render-line helper"),
+    ("gem_report_draft/tldr.py", "aggregate_review_queue as _agg_q",
+     "v8.16.4 DTI Blocker 1: dashboard build_review_queue routes through the bounded aggregator"),
+    ("gem_report_draft/tldr.py", "_REVIEW_QUEUE_CAP",
+     "v8.16.4 DTI Blocker 1: explicit configurable review-budget cap"),
+    ("gem_report_draft/sections_xiv.py", "classify_preflop_allin as _cpa_b",
+     "v8.16.4 DTI Blocker 2: decision-kind label on the XIV.B compact path"),
+    ("gem_report_draft/sections_xiv.py", "classify_preflop_allin as _cpa_a",
+     "v8.16.4 DTI Blocker 2: decision-kind label on the XIV.A full-card path (every path)"),
+    ("gem_report_draft/sections_xiv.py", "attribution_render_line as _arl_b",
+     "v8.16.4 DTI: optional attribution render wired into the compact path"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

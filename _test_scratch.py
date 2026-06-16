@@ -5353,12 +5353,23 @@ check('T-H141-05: chip-vs-PKO threshold still renders when a discount is present
       'Chip-only call needs 35%' in _h141_thr['strip_md']
       and 'PKO-adjusted needs ~29%' in _h141_thr['strip_md'], _h141_thr['strip_md'])
 # #4 queue auto-clear: neutral title, never "mistake" (real report had +7.5BB titled mistake).
+# v8.16.4 DTI Blocker 1: auto-clear is detector-health -> routed to internal QA, no
+# longer a visible review row. The original intent (a +7.5BB auto-clear is never a
+# "mistake") is preserved AND strengthened: it is not surfaced as a review row at all,
+# and where it carries a title (internal QA) that title stays the neutral "Auto-cleared".
 _h141_q = _brq141({'mistakes': [{'id': 'TM6073281442', 'desc': 'loose call'}]}, {}, {},
                   {'TM6073281442': {'net_bb': 7.5, 'cards': ['Kh', '5d']}})
-_h141_ac = [x for x in _h141_q if x['bucket'] == 'auto_clear']
-check('T-H141-06: auto-clear queue rows are NOT titled "mistake" (neutral copy)',
-      bool(_h141_ac) and 'mistake' not in _h141_ac[0]['title'].lower()
-      and 'Auto-cleared' in _h141_ac[0]['title'], _h141_ac[0]['title'] if _h141_ac else 'none')
+import gem_review_trust as _bt141
+_h141_agg = _bt141.aggregate_review_queue(
+    [{'id': 'TM6073281442', 'bucket': 'auto_clear',
+      'title': 'Auto-cleared — quick scan, no analyst action needed.', 'net': 7.5}])
+_h141_iq = _h141_agg['internal_qa']
+check('T-H141-06: auto-clear -> internal QA (not a visible row), never titled "mistake"',
+      not any(x['bucket'] == 'auto_clear' for x in _h141_q)
+      and not any('mistake' in (x.get('title') or '').lower() for x in _h141_q)
+      and bool(_h141_iq) and 'Auto-cleared' in _h141_iq[0]['title']
+      and 'mistake' not in _h141_iq[0]['title'].lower(),
+      str([x.get('title') for x in _h141_q]))
 # #71725727 chart-id humanization (registry + both render paths use it).
 check('T-H141-07: raw chart ids humanize (REJAM/PUSH/CALLJAM) and are not exposed raw',
       _cl141.chart_display_label('REJAM_SBvsCO') == 'SB re-jam vs CO open'
@@ -5475,7 +5486,7 @@ check('T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key}
 # B5: required-equity teaching attaches to the compact XIV.B line too (not only XIV.A)
 check('T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)',
       _xiv141.count('not how often you are') >= 2
-      and '_po_lines_b' in _xiv141 and 'if _req_b:' in _xiv141,
+      and '_po_lines_b' in _xiv141 and 'if _req_b and not _mw_sup_b:' in _xiv141,
       'teach-copy count=' + str(_xiv141.count('not how often you are')))
 
 # B6: settlement-date label lands in the REAL results-attribution table path
@@ -8314,15 +8325,20 @@ from gem_report_draft.tldr import (build_review_queue as _rq_build,
 _rqh = open('gem_report_draft/_html.py', encoding='utf-8').read()
 _rqt = open('gem_report_draft/tldr.py', encoding='utf-8').read()
 
-_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'x'},
-          'TMm': {'verdict': 'III.2', 'hand_strength': 'y'}}
+_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'Punt — overfold the river'},
+          'TMm': {'verdict': 'III.2', 'hand_strength': 'Over-jam turns made hand into bluff'}}
 _rq_s = {'mistakes': [{'id': 'TMa', 'desc': 'auto', 'net_bb': -9}]}
-_rq_rd = {'issue_explorer_issues': [{'name': 'Leak', 'all_hand_ids': ['TMk']}],
-          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'm'}]}}
+# v8.16.4 DTI Blocker 1: priority order across the SURVIVING visible buckets. A
+# non-generic leak name aggregates to one known-leak row (count 1); auto-clear is
+# detector-health and is routed to internal QA (no longer a visible queue bucket).
+_rq_rd = {'issue_explorer_issues': [{'name': 'Missed BTN steal — extended range',
+                                     'all_hand_ids': ['TMk']}],
+          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'flat too wide vs UTG'}]}}
 _rq_hb = {k: {'net_bb': -10, 'cards': ['Ah', 'Kd']} for k in ('TMp', 'TMm', 'TMa', 'TMk', 'TMg')}
 _rq_q = _rq_build(_rq_s, _rq_rd, _rq_an, _rq_hb)
-check('T-RQ-01: queue priority order punt<analyst<known_leak<auto_clear<marginal',
-      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'auto_clear', 'marginal'],
+check('T-RQ-01: queue priority order punt<analyst<known_leak<marginal (auto_clear -> internal QA)',
+      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'marginal']
+      and not any(x['bucket'] == 'auto_clear' for x in _rq_q),
       str([x['bucket'] for x in _rq_q]))
 check('T-RQ-02: status normalize (Agree/Report bug/Drill/Rulebook/Clear); Ignore rejected',
       _rq_norm('Agree') == 'agree' and _rq_norm('Report bug') == 'report_bug'
@@ -9334,6 +9350,93 @@ check('T-DTI-06: Obj4 worklist builds why_contract via build_why_review + adds w
       and "'why_review_actionable': _why_contract is not None" in _wl_dti, 'why-contract not wired')
 check('T-DTI-07 (anti): why-contract wiring is ADDITIVE — does not drop hands (no gate/continue on None)',
       'never gate-drops' in _wl_dti.lower() or 'Never gate-drops' in _wl_dti, '')
+
+print('\n--- v8.16.4 DTI Blockers — bounded queue + compact-path decision evidence ---')
+import gem_review_trust as _BT
+from gem_report_draft.tldr import build_review_queue as _BRQ
+
+# ---- Blocker 1: canonical bounded + aggregated queue (pure helper) ----
+_q38 = [{'id': 'L%02d' % i, 'bucket': 'known_leak',
+         'title': 'Missed BTN steal — extended range', 'net': -3} for i in range(38)]
+_q38 += [{'id': 'M1', 'bucket': 'analyst_mistake', 'title': 'Over-jam turns a made hand into a bluff', 'net': -40},
+         {'id': 'A1', 'bucket': 'auto_clear', 'title': 'Auto-cleared — quick scan', 'net': 1},
+         {'id': 'G1', 'bucket': 'analyst_mistake', 'title': 'Strategic leak.', 'net': -5},
+         {'id': 'DB', 'bucket': 'known_leak', 'title': 'Potential detector blind spot', 'net': 0}]
+_agg = _BT.aggregate_review_queue(_q38, cap=8)
+check('T-QUEUE-01: 38 identical leak examples -> ONE aggregated leak group, all 38 in drilldown',
+      len(_agg['leak_groups']) == 1 and _agg['leak_groups'][0]['count'] == 38
+      and len(_agg['leak_groups'][0]['drilldown_ids']) == 38, _agg['counts'])
+check('T-QUEUE-02: primary queue is BOUNDED (<= cap) despite 42 candidates',
+      _agg['counts']['primary'] <= 8 and _agg['counts']['total_hands'] == 42, _agg['counts'])
+check('T-QUEUE-03: detector-health (auto_clear) + generic detector reason -> internal QA, not primary',
+      all(x.get('bucket') != 'auto_clear' for x in _agg['primary'])
+      and any(x.get('id') == 'A1' for x in _agg['internal_qa'])
+      and any((x.get('title') or '').startswith('Potential detector blind spot')
+              for x in _agg['internal_qa']), _agg['counts'])
+check('T-QUEUE-04: zero generic-only titles in the primary queue (generic high-value demoted to overflow)',
+      not any(_BT.is_generic_reason(x.get('title')) for x in _agg['primary'])
+      and any(x.get('id') == 'G1' for x in _agg['overflow']), [x.get('title') for x in _agg['primary']])
+# end-to-end through the REAL dashboard builder
+_rd_q = {'issue_explorer_issues': [{'name': 'Missed BTN steal — extended range',
+                                    'all_hand_ids': ['TM%02d' % i for i in range(38)]}],
+         'reviewed_mistakes': {'needs_review': []}, 'read_dependent_screen': []}
+_an_q = {'TMX1': {'verdict': 'III.2', 'hand_strength': 'Over-jam turns a made hand into a bluff'}}
+_hbi_q = {('TM%02d' % i): {'net_bb': -3, 'cards': ['Ah', 'Kd']} for i in range(38)}
+_hbi_q['TMX1'] = {'net_bb': -40, 'cards': ['Qs', 'Qc']}
+_q_real = _BRQ({'mistakes': [{'id': 'TMA1'}]}, _rd_q, _an_q, _hbi_q)
+_lg = [r for r in _q_real if r.get('kind') == 'leak_group']
+check('T-QUEUE-05: the REAL build_review_queue bounds + aggregates (38 leak hands -> 1 leak_group row, count 38; auto_clear excluded)',
+      len(_q_real) == 2 and len(_lg) == 1 and _lg[0]['count'] == 38
+      and len(_lg[0]['drilldown_ids']) == 38
+      and not any(r['bucket'] == 'auto_clear' for r in _q_real), _q_real)
+
+# ---- Blocker 2: structurally-provable preflop all-in decision kind ----
+check('T-DK-01: call-vs-jam (Hero calls, faced an all-in)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'calls', 'villain_jammed': True})[0] == 'call_vs_jam', '')
+check('T-DK-02: open-shove (Hero aggresses first-in)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'raises all-in', 'first_in': True})[0] == 'open_shove', '')
+check('T-DK-03: rejam (Hero jams over a prior raise)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'jams', 'hero_faced_raise': True, 'pf_raise_count': 1})[0] == 'rejam', '')
+check('T-DK-04: unprovable -> "All-in decision (exact node type unavailable)", NOT a guess',
+      (lambda r: r[0] == 'unknown' and r[1] is False)(_BT.classify_preflop_allin({'pf_allin': True, 'pf_action': ''}))
+      and 'exact node type unavailable' in _BT.allin_kind_label('unknown')
+      and _BT.classify_preflop_allin({'pf_allin': False})[0] == 'not_allin', '')
+check('T-DK-05: a typed label cannot contradict the ledger',
+      _BT.allin_label_contradicts_ledger('call_vs_jam', hero_aggressed=True, faced_allin=True) is True
+      and _BT.allin_label_contradicts_ledger('open_shove', hero_aggressed=False, faced_allin=False) is True
+      and _BT.allin_label_contradicts_ledger('call_vs_jam', hero_aggressed=False, faced_allin=True) is False, '')
+
+# ---- compact-path (XIV.B) wiring presence: same canonical _po_b object ----
+_xivb = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_tldr_src = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+check('T-CPATH-01: compact _po_lines_b path wires multiway suppression + decision-kind + provenance',
+      'multiway_render_plan as _mwp_b' in _xivb and 'classify_preflop_allin as _cpa_b' in _xivb
+      and 'bounty_provenance_label as _bpl_b' in _xivb
+      and "_mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))" in _xivb, 'compact path not fully wired')
+check('T-CPATH-02: compact path consumes the SAME _po_b object (no recompute)',
+      "_mwp_b(\n                            n_live_opponents=max(0, (_po_b.get('n_players_at_showdown')" in _xivb
+      or "_po_b.get('n_players_at_showdown')" in _xivb, 'compact multiway not from _po_b')
+check('T-CPATH-03: dashboard build_review_queue routes through aggregate_review_queue + bounded cap',
+      'aggregate_review_queue as _agg_q' in _tldr_src and '_REVIEW_QUEUE_CAP' in _tldr_src, 'queue not wired')
+
+# ---- optional root/downstream attribution render support (backward-compatible) ----
+check('T-ATTR-01: attribution_render_line renders root -> downstream -> consequence in street order',
+      _BT.attribution_render_line({'preflop': 'root_mistake', 'turn': 'downstream', 'river': 'consequence'})
+      == '**Attribution:** preflop: root mistake → turn: downstream — compounds the earlier error'
+         ' → river: result', _BT.attribution_render_line({'preflop': 'root_mistake', 'turn': 'downstream', 'river': 'consequence'}))
+check('T-ATTR-02 (anti): absent/empty/all-none roles -> "" (unattributed hands unchanged)',
+      _BT.attribution_render_line({}) == '' and _BT.attribution_render_line(None) == ''
+      and _BT.attribution_render_line({'flop': 'none'}) == '', '')
+check('T-ATTR-03: a repeated role is not echoed with its full explanation across streets',
+      _BT.attribution_render_line({'turn': 'downstream', 'river': 'downstream'})
+      == '**Attribution:** turn: downstream — compounds the earlier error → river: downstream', '')
+check('T-CPATH-04: compact path optionally renders attribution_render_line gated on h[attribution_roles]',
+      'attribution_render_line as _arl_b' in _xivb
+      and "h.get('attribution_roles') or {}" in _xivb, 'attribution not wired into compact path')
+check('T-CPATH-05: XIV.A full-card path carries SAME decision-kind + attribution (every path)',
+      'classify_preflop_allin as _cpa_a' in _xivb and 'allin_kind_label as _akl_a' in _xivb
+      and 'attribution_render_line as _arl_a' in _xivb
+      and _xivb.count('"**Decision:** "') >= 2, 'XIV.A decision-kind not wired')
 
 # ============================================================
 # SUMMARY

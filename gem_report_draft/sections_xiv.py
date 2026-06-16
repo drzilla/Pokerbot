@@ -2893,6 +2893,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
                              f"(call {_po.get('call_bb', '\u2014')}BB into "
                              f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
+            # v8.16.4 DTI Blocker 2: the SAME structurally-provable all-in
+            # decision-kind label the compact path carries, on the XIV.A full
+            # card too (same _po object family / same hand fields, no recompute).
+            # Unprovable -> "All-in decision (exact node type unavailable)".
+            try:
+                from gem_review_trust import (classify_preflop_allin as _cpa_a,
+                                              allin_kind_label as _akl_a)
+                if h.get('pf_allin'):
+                    _k_a = _cpa_a(h)[0]
+                    if _k_a != 'not_allin':
+                        _po_lines.append("**Decision:** " + _akl_a(_k_a))
+            except Exception:
+                pass
             # v8.16.4 Obj 8: a multiway all-in is NOT a heads-up spot. Suppress the
             # single heads-up "Required equity" threshold (valid only vs one
             # villain) and frame the decision against the FIELD; flag uncertainty
@@ -3050,6 +3063,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _vh = _po.get('verdict_hint', '')
             if _ev is not None:
                 _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
+            # v8.16.4 DTI: OPTIONAL root/downstream attribution render support on
+            # the XIV.A full card too. Renders ONLY when a producer stamped
+            # h['attribution_roles'] = {street: role}; absent -> unchanged.
+            try:
+                from gem_review_trust import attribution_render_line as _arl_a
+                _attr_a = _arl_a(h.get('attribution_roles') or {})
+                if _attr_a:
+                    _po_lines.append(_attr_a)
+            except Exception:
+                pass
             if _po_lines:
                 _po_st = _street_attr(_po.get('street'))
                 _po_ds = f" data-street='{_po_st}'" if _po_st else ''
@@ -3559,9 +3582,35 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _po_lines_b = []
                     _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
                                        f"(call {_po_b.get('call_bb', '—')}BB)")
+                    # v8.16.4 DTI Blocker 2: the COMPACT path (the one most hands
+                    # actually open) now carries the SAME decision evidence as the
+                    # full card — consuming the SAME _po_b object, no recompute:
+                    # a structurally-provable all-in DECISION-KIND label, and the
+                    # multiway suppression of the heads-up required-equity line.
+                    try:
+                        from gem_review_trust import (
+                            multiway_render_plan as _mwp_b,
+                            classify_preflop_allin as _cpa_b, allin_kind_label as _akl_b)
+                        _mw_b = _mwp_b(
+                            n_live_opponents=max(0, (_po_b.get('n_players_at_showdown') or 0) - 1),
+                            players_still_to_act=_po_b.get('players_still_to_act', 0) or 0)
+                        if h.get('pf_allin'):
+                            _k_b = _cpa_b(h)[0]
+                            if _k_b != 'not_allin':
+                                _po_lines_b.append("**Decision:** " + _akl_b(_k_b))
+                    except Exception:
+                        _mw_b = {'suppress_hu_required_equity': False,
+                                 'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
-                    if _req_b:
+                    _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
+                    if _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
+                    elif _mw_sup_b:
+                        _po_lines_b.append(
+                            (_mw_b.get('label') or 'Multiway all-in')
+                            + " — compare your equity to the FIELD, not one villain"
+                            + ("; players still to act (pot odds uncertain)"
+                               if _mw_b.get('pot_odds_uncertain') else ""))
                     _eq_b = _po_b.get('hero_equity_pct')
                     if _eq_b is not None:
                         _po_lines_b.append(f"**Hero equity vs range:** {_eq_b:.1f}%")
@@ -3577,7 +3626,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         # teaching line to EVERY visible Required-equity line, not
                         # only the comprehensive XIV.A block. This is the compact
                         # XIV.B path that 73281169 / 72696769 actually render on.
-                        if _req_b:
+                        if _req_b and not _mw_sup_b:
                             doc.w("")
                             doc.w("*This is the share you need to win versus the "
                                   "betting/jamming range (including draws and worse "
@@ -3596,6 +3645,34 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
+                        # v8.16.4 DTI Blocker 2/Obj 9: bounty provenance on the
+                        # compact path (exact $ vs flat starting-BB estimate),
+                        # reusing the same bounty fields (one source, no recompute).
+                        try:
+                            from gem_review_trust import bounty_provenance_label as _bpl_b
+                            _bb_b = ((_po_b.get('bounty') or {}).get('value_bb')
+                                     or h.get('bounty_value_bb'))
+                            _usd_b = _pko_bounty_usd(rd, h)
+                            if _usd_b is not None:
+                                doc.w("")
+                                doc.w("*" + _bpl_b('exact', value_usd=_usd_b, value_bb=_bb_b) + "*")
+                            elif _bb_b:
+                                doc.w("")
+                                doc.w("*" + _bpl_b('starting_bb_flat', value_bb=round(_bb_b, 1)) + "*")
+                        except Exception:
+                            pass
+                        # v8.16.4 DTI: OPTIONAL root/downstream attribution render
+                        # support. Renders ONLY when a producer has stamped
+                        # h['attribution_roles'] = {street: role}; absent -> the
+                        # hand is unchanged. Schema/render only (no re-grading).
+                        try:
+                            from gem_review_trust import attribution_render_line as _arl_b
+                            _attr_b = _arl_b(h.get('attribution_roles') or {})
+                            if _attr_b:
+                                doc.w("")
+                                doc.w("*" + _attr_b + "*")
+                        except Exception:
+                            pass
                         doc.w("</div>")
                         doc.w("")
                         _has_notes_b = True

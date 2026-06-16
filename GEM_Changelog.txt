@@ -7,6 +7,34 @@ fixtures (T-RPDT-01..26). Most of the 13 objectives were already partly shipped
 in v8.14.1 / v8.16.2 / v8.16.3; this batch fixes the remaining defects and adds
 the durable decision-trust CONTRACTS as a pure module.
 
+DECISION-TRUST INTEGRATION — live-path blockers (continued, same v8.16.4):
+  Blocker 1  The VISIBLE dashboard review queue (tldr.build_review_queue) was
+             unbounded — it imported every Issue Explorer hand as its own row
+             (a real corpus rendered 179 rows, one per leak hand) and never used
+             the actionable reason contract. It now routes through the canonical
+             gem_review_trust.aggregate_review_queue: repeated leak families
+             collapse to ONE row (human pattern name + count + impact + drilldown
+             to every hand), detector-health (auto_clear) + generic-only reasons
+             move to internal QA (never a normal review reason), and the open
+             queue is bounded by an explicit configurable cap (_REVIEW_QUEUE_CAP).
+             Real-corpus AUTO_ONLY: 179 -> 10 bounded aggregated rows; every hand
+             still reachable. (gem_review_trust.py, tldr.py)
+  Blocker 2  The decision-trust math (decision-kind label, multiway HU-required-
+             equity suppression, PKO provenance) only sat on the rarely-rendered
+             XIV.A full-card path, so 0 fired on the live compact/lazy path. The
+             SAME canonical evidence now renders on EVERY hand path — XIV.A full
+             card AND the XIV.B compact/lazy path most hands open — consuming the
+             SAME _po object (no recompute). All-in node type is classified from
+             structurally-provable ledger fields (pf_allin/pf_action/first_in/
+             villain_jammed/hero_faced_raise/pf_raise_count); when unprovable it
+             renders "All-in decision (exact node type unavailable)" and never
+             guesses (validated against the ledger). Optional, backward-compatible
+             root/downstream/consequence attribution renders only when a producer
+             stamps attribution_roles (absent -> unchanged; no re-grading).
+             Locked by T-QUEUE-*/T-DK-*/T-CPATH-*/T-ATTR- + a synthetic 21-scenario
+             integration HTML opened through the real modal/nav.
+             (gem_review_trust.py, sections_xiv.py)
+
 USER-VISIBLE FIXES (fully wired):
   Obj 1  Reviewed-row layout — the .rq-rev-row grid declared 4 columns while the
          JS emitted 5 cells, so the status pill wrapped to a 2nd line. Now a

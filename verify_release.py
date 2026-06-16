@@ -20,7 +20,7 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("200e3dbb4c1dedb86d3fca2cb79143d6a71d179c899821b57747439eae11f0d4", 4171, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("82a4f4d92ad2d39146e28277e8b9b252b1da880c6cb6f50264a401aacf61bc7e", 529488, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
+    "_test_scratch.py": ("deb451c6b908454021bbf527defffd9e90a954d15c6ff8223ed2a8a861688275", 541495, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),

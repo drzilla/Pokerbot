@@ -1699,9 +1699,16 @@ def _emit_range_lens(doc, h, hid_short):
     try:
         _ev = _hre(h, _ranges)
         if _ev:
-            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges))
+            # v8.16.4 Obj 6: render path highlights the range expression in-place.
+            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges, highlight=True))
     except Exception:
         pass
+
+    # v8.16.4 Objective 10: when Hero is all-in PREFLOP there is no later Hero
+    # decision, so a postflop Range Lens would teach nothing about a choice Hero
+    # never made — skip it (the preflop lens above still applies).
+    if h.get('pf_allin'):
+        return
 
     # postflop: per street Hero actually acted on, with a long-enough board.
     _board = h.get('board') or []
@@ -2886,18 +2893,81 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
                              f"(call {_po.get('call_bb', '\u2014')}BB into "
                              f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
-            _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
-            # v8.12.8 QA3: side-pot-aware price carries its basis
-            if _po.get('required_eq_note'):
-                _po_lines.append(f"*({_po['required_eq_note']})*")
-            # v8.14.1 hotfix (#73281169): teach what required equity MEANS \u2014
-            # equity vs the betting/jamming range (incl. draws + worse hands),
-            # NOT "how often you are ahead right now" (the user's exact question).
-            if _po.get('required_eq_pct') not in (None, '\u2014'):
+            # v8.16.4 DTI Blocker 2: the SAME structurally-provable all-in
+            # decision-kind label the compact path carries, on the XIV.A full
+            # card too (same _po object family / same hand fields, no recompute).
+            # Unprovable -> "All-in decision (exact node type unavailable)".
+            try:
+                from gem_review_trust import (classify_preflop_allin as _cpa_a,
+                                              allin_kind_label as _akl_a)
+                if h.get('pf_allin'):
+                    _k_a = _cpa_a(h)[0]
+                    if _k_a != 'not_allin':
+                        _po_lines.append("**Decision:** " + _akl_a(_k_a))
+            except Exception:
+                pass
+            # v8.16.4 Obj 8: a multiway all-in is NOT a heads-up spot. Suppress the
+            # single heads-up "Required equity" threshold (valid only vs one
+            # villain) and frame the decision against the FIELD; flag uncertainty
+            # when players are still to act. Uses the existing showdown-count
+            # signal only \u2014 no equity/pot recompute.
+            try:
+                from gem_review_trust import multiway_render_plan as _mw_render_plan
+                _mw_plan = _mw_render_plan(
+                    n_live_opponents=max(0, (_po.get('n_players_at_showdown') or 0) - 1),
+                    players_still_to_act=_po.get('players_still_to_act', 0) or 0)
+            except Exception:
+                _mw_plan = {'suppress_hu_required_equity': False,
+                            'pot_odds_uncertain': False, 'label': ''}
+            # v8.17 Epic A \u00a79: the VISIBLE DECISION CAPSULE \u2014 the prioritized,
+            # register-classified LEAD of this street's commentary. Built from the
+            # SAME canonical signals (decision-kind, verdict_hint, analyst why,
+            # required-equity, multiway suppression \u2014 no recompute); the existing
+            # detailed notes follow it (preserved = zero-drop). Routed via
+            # .analyst-notes[data-street]; styled distinctly by .pb-capsule.
+            try:
+                from gem_commentary_capsule import (
+                    decision_capsule_from_signals as _dcs_a, render_capsule_md as _rcm_a)
+                _capdec_a = ''
+                if h.get('pf_allin'):
+                    _kc_a = _cpa_a(h)[0]
+                    if _kc_a != 'not_allin':
+                        _capdec_a = _akl_a(_kc_a)
+                _cap_a = _dcs_a(
+                    _po.get('street') or 'preflop', decision_label=_capdec_a,
+                    verdict_hint=_po.get('verdict_hint', ''),
+                    analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
+                    required_eq_pct=_po.get('required_eq_pct'),
+                    multiway_suppressed=bool(_mw_plan.get('suppress_hu_required_equity')))
+                if _cap_a:
+                    _cst_a = _street_attr(_po.get('street'))
+                    _cds_a = f" data-street='{_cst_a}'" if _cst_a else ''
+                    doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_a['register']}'{_cds_a}>")
+                    doc.w(_rcm_a(_cap_a))
+                    doc.w("</div>")
+                    doc.w("")
+            except Exception:
+                pass
+            if not _mw_plan.get('suppress_hu_required_equity'):
+                _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
+                # v8.12.8 QA3: side-pot-aware price carries its basis
+                if _po.get('required_eq_note'):
+                    _po_lines.append(f"*({_po['required_eq_note']})*")
+                # v8.14.1 hotfix (#73281169): teach what required equity MEANS \u2014
+                # equity vs the betting/jamming range (incl. draws + worse hands),
+                # NOT "how often you are ahead right now" (the user's exact question).
+                if _po.get('required_eq_pct') not in (None, '\u2014'):
+                    _po_lines.append(
+                        "*This is the share you need to win versus the betting/"
+                        "jamming range (including draws and worse hands) to break "
+                        "even \u2014 not how often you are ahead right now.*")
+            else:
                 _po_lines.append(
-                    "*This is the share you need to win versus the betting/"
-                    "jamming range (including draws and worse hands) to break "
-                    "even \u2014 not how often you are ahead right now.*")
+                    f"**{_mw_plan.get('label') or 'Multiway all-in'}** \u2014 heads-up "
+                    "required equity is not shown here; compare your equity to the "
+                    "FIELD (all live opponents), not a single villain."
+                    + ("" if not _mw_plan.get('pot_odds_uncertain')
+                       else " Players are still to act, so the final pot odds are uncertain."))
             # v8.12.8: non-all-in calldown block \u2014 per-street lines with
             # the OVERBET flag (handover Issue 1)
             if _po.get('mode') == 'street_calls':
@@ -2953,10 +3023,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                 f"**Estimated bounty:** ${_usd:,.2f} \u2248 "
                                 f"{_vbb:.1f}BB *(estimated bounty model)*")
                         else:
-                            _po_lines.append(
-                                f"**Estimated bounty value:** \u2248 {_vbb:.1f}BB "
-                                f"*(estimated bounty model \u2014 "
-                                f"{_bnt.get('method', 'flat_table')})*")
+                            # v8.16.4 Obj 9: label the BB estimate's PROVENANCE
+                            # explicitly (a flat event-level estimate is never
+                            # shown as a per-decision dynamic value) and drop the
+                            # internal method token from user text (Obj 3). Reuses
+                            # the same _bnt fields (one source, no recompute).
+                            try:
+                                from gem_review_trust import bounty_provenance_label as _bpl2
+                                _meth2 = str(_bnt.get('method') or 'flat_table')
+                                _pkind2 = ('effective_bb' if 'effective' in _meth2
+                                           else 'starting_bb_flat')
+                                _po_lines.append("**" + _bpl2(_pkind2, value_bb=round(_vbb, 1)) + "**")
+                            except Exception:
+                                _po_lines.append(
+                                    f"**Estimated bounty value:** \u2248 {_vbb:.1f}BB")
                             _po_lines.append(
                                 "*Dollar bounty unavailable in HH export; using "
                                 "estimated bounty model.*")
@@ -3012,6 +3092,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _vh = _po.get('verdict_hint', '')
             if _ev is not None:
                 _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
+            # v8.16.4 DTI: OPTIONAL root/downstream attribution render support on
+            # the XIV.A full card too. Renders ONLY when a producer stamped
+            # h['attribution_roles'] = {street: role}; absent -> unchanged.
+            try:
+                from gem_review_trust import attribution_render_line as _arl_a
+                _attr_a = _arl_a(h.get('attribution_roles') or {})
+                if _attr_a:
+                    _po_lines.append(_attr_a)
+            except Exception:
+                pass
             if _po_lines:
                 _po_st = _street_attr(_po.get('street'))
                 _po_ds = f" data-street='{_po_st}'" if _po_st else ''
@@ -3089,6 +3179,35 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _pk_render.get('strip_md'):
                 doc.w("")
                 doc.w("  " + _pk_render['strip_md'])
+            # v8.17 Epic B (B7): the explicit "how the bounty changes the decision"
+            # coaching line — built by pko_trust_render from the SAME reconciled
+            # facts (no recompute). Empty on a contradiction / no-bounty / Hero-covered.
+            if _pk_render.get('how_changes_md'):
+                doc.w("")
+                doc.w("  " + _pk_render['how_changes_md'])
+            # v8.16.4 Obj 9 / v8.17 B6: user-visible bounty PROVENANCE — one of the
+            # four honest states {exact / estimated current / flat event-start /
+            # unavailable}, derived from the bounty $ + the model method, so a static
+            # event-start figure is never shown as a per-decision dynamic value.
+            # Reuses the same bounty fields the strip used (one source, no recompute).
+            try:
+                from gem_review_trust import bounty_provenance_label as _bpl
+                _bp_usd = _pko_bounty_usd(rd, h)
+                _bp_bb = _po_bnt.get('value_bb') or h.get('bounty_value_bb')
+                _bp_method = str(_po_bnt.get('method') or '').lower()
+                if _bp_usd is not None:
+                    _bp_line = _bpl('exact', value_usd=_bp_usd, value_bb=_bp_bb)
+                elif _bp_bb and ('ratio' in _bp_method or 'effective' in _bp_method
+                                 or 'current' in _bp_method):
+                    _bp_line = _bpl('effective_bb', value_bb=round(_bp_bb, 1))
+                elif _bp_bb:
+                    _bp_line = _bpl('starting_bb_flat', value_bb=round(_bp_bb, 1))
+                else:
+                    _bp_line = 'Bounty value unavailable'
+                doc.w("")
+                doc.w("  *" + _bp_line + "*")
+            except Exception:
+                pass
             doc.w("")
             doc.w(f"  {_pko_ctx.get('teaching_note', '')} "
                   f"*{_pko_ctx.get('caveat', '')}*")
@@ -3502,9 +3621,61 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _po_lines_b = []
                     _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
                                        f"(call {_po_b.get('call_bb', '—')}BB)")
+                    # v8.16.4 DTI Blocker 2: the COMPACT path (the one most hands
+                    # actually open) now carries the SAME decision evidence as the
+                    # full card — consuming the SAME _po_b object, no recompute:
+                    # a structurally-provable all-in DECISION-KIND label, and the
+                    # multiway suppression of the heads-up required-equity line.
+                    try:
+                        from gem_review_trust import (
+                            multiway_render_plan as _mwp_b,
+                            classify_preflop_allin as _cpa_b, allin_kind_label as _akl_b)
+                        _mw_b = _mwp_b(
+                            n_live_opponents=max(0, (_po_b.get('n_players_at_showdown') or 0) - 1),
+                            players_still_to_act=_po_b.get('players_still_to_act', 0) or 0)
+                        if h.get('pf_allin'):
+                            _k_b = _cpa_b(h)[0]
+                            if _k_b != 'not_allin':
+                                _po_lines_b.append("**Decision:** " + _akl_b(_k_b))
+                    except Exception:
+                        _mw_b = {'suppress_hu_required_equity': False,
+                                 'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
-                    if _req_b:
+                    _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
+                    # v8.17 Epic A §9: the VISIBLE DECISION CAPSULE on the compact
+                    # path too (C2 parity) — register-classified lead, same signals,
+                    # no recompute; detailed lines below are preserved (zero-drop).
+                    try:
+                        from gem_commentary_capsule import (
+                            decision_capsule_from_signals as _dcs_b, render_capsule_md as _rcm_b)
+                        _capdec_b = ''
+                        if h.get('pf_allin'):
+                            _kc_b = _cpa_b(h)[0]
+                            if _kc_b != 'not_allin':
+                                _capdec_b = _akl_b(_kc_b)
+                        _cap_b = _dcs_b(
+                            _po_b.get('street') or 'preflop', decision_label=_capdec_b,
+                            verdict_hint=_po_b.get('verdict_hint', ''),
+                            analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
+                            required_eq_pct=_req_b, multiway_suppressed=_mw_sup_b)
+                        if _cap_b:
+                            _cst_b = _street_attr(_po_b.get('street'))
+                            _cds_b = f" data-street='{_cst_b}'" if _cst_b else ''
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_b['register']}'{_cds_b}>")
+                            doc.w(_rcm_b(_cap_b))
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                    except Exception:
+                        pass
+                    if _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
+                    elif _mw_sup_b:
+                        _po_lines_b.append(
+                            (_mw_b.get('label') or 'Multiway all-in')
+                            + " — compare your equity to the FIELD, not one villain"
+                            + ("; players still to act (pot odds uncertain)"
+                               if _mw_b.get('pot_odds_uncertain') else ""))
                     _eq_b = _po_b.get('hero_equity_pct')
                     if _eq_b is not None:
                         _po_lines_b.append(f"**Hero equity vs range:** {_eq_b:.1f}%")
@@ -3520,7 +3691,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         # teaching line to EVERY visible Required-equity line, not
                         # only the comprehensive XIV.A block. This is the compact
                         # XIV.B path that 73281169 / 72696769 actually render on.
-                        if _req_b:
+                        if _req_b and not _mw_sup_b:
                             doc.w("")
                             doc.w("*This is the share you need to win versus the "
                                   "betting/jamming range (including draws and worse "
@@ -3539,6 +3710,34 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
+                        # v8.16.4 DTI Blocker 2/Obj 9: bounty provenance on the
+                        # compact path (exact $ vs flat starting-BB estimate),
+                        # reusing the same bounty fields (one source, no recompute).
+                        try:
+                            from gem_review_trust import bounty_provenance_label as _bpl_b
+                            _bb_b = ((_po_b.get('bounty') or {}).get('value_bb')
+                                     or h.get('bounty_value_bb'))
+                            _usd_b = _pko_bounty_usd(rd, h)
+                            if _usd_b is not None:
+                                doc.w("")
+                                doc.w("*" + _bpl_b('exact', value_usd=_usd_b, value_bb=_bb_b) + "*")
+                            elif _bb_b:
+                                doc.w("")
+                                doc.w("*" + _bpl_b('starting_bb_flat', value_bb=round(_bb_b, 1)) + "*")
+                        except Exception:
+                            pass
+                        # v8.16.4 DTI: OPTIONAL root/downstream attribution render
+                        # support. Renders ONLY when a producer has stamped
+                        # h['attribution_roles'] = {street: role}; absent -> the
+                        # hand is unchanged. Schema/render only (no re-grading).
+                        try:
+                            from gem_review_trust import attribution_render_line as _arl_b
+                            _attr_b = _arl_b(h.get('attribution_roles') or {})
+                            if _attr_b:
+                                doc.w("")
+                                doc.w("*" + _attr_b + "*")
+                        except Exception:
+                            pass
                         doc.w("</div>")
                         doc.w("")
                         _has_notes_b = True
@@ -3587,13 +3786,18 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     from gem_pko_research import pko_trust_render as _pko_trust_render_b
                     _po_db = _po_b or {}
                     _po_bnt_b = _po_db.get('bounty') or {}
-                    _pkb_cls = _pko_trust_render_b(
+                    # v8.17 C2 parity: the XIV.B compact pill now carries the SAME
+                    # reconciled trust strip + "how the bounty changes the decision"
+                    # coaching + 4-state provenance as the XIV.A full card (same
+                    # _po_b object, no recompute) — not just the downgraded class.
+                    _pkb_render = _pko_trust_render_b(
                         _pko_ctx_b,
                         bounty_usd=_pko_bounty_usd(rd, h),
                         discount_pp=_po_bnt_b.get('discount_pp', 0) or 0,
                         chip_threshold_pct=_po_db.get('required_eq_pct'),
                         pko_threshold_pct=_po_db.get('required_eq_bounty_pct'),
-                        overjam_bb=None)['classification_display']
+                        overjam_bb=None)
+                    _pkb_cls = _pkb_render['classification_display']
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
                     doc.w(f"🎯 **PKO "
                           f"{_pkb_cls}** · "
@@ -3604,6 +3808,30 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                           f"· Δ {_pkb_d} aggregate"
                           + (f" · {_pkb_cov}"
                              if _pkb_cov else ""))
+                    if _pkb_render.get('strip_md'):
+                        doc.w("")
+                        doc.w("  " + _pkb_render['strip_md'])
+                    if _pkb_render.get('how_changes_md'):
+                        doc.w("")
+                        doc.w("  " + _pkb_render['how_changes_md'])
+                    try:
+                        from gem_review_trust import bounty_provenance_label as _bpl_pb
+                        _pb_usd = _pko_bounty_usd(rd, h)
+                        _pb_bb = _po_bnt_b.get('value_bb') or h.get('bounty_value_bb')
+                        _pb_method = str(_po_bnt_b.get('method') or '').lower()
+                        if _pb_usd is not None:
+                            _pb_line = _bpl_pb('exact', value_usd=_pb_usd, value_bb=_pb_bb)
+                        elif _pb_bb and ('ratio' in _pb_method or 'effective' in _pb_method
+                                         or 'current' in _pb_method):
+                            _pb_line = _bpl_pb('effective_bb', value_bb=round(_pb_bb, 1))
+                        elif _pb_bb:
+                            _pb_line = _bpl_pb('starting_bb_flat', value_bb=round(_pb_bb, 1))
+                        else:
+                            _pb_line = 'Bounty value unavailable'
+                        doc.w("")
+                        doc.w("  *" + _pb_line + "*")
+                    except Exception:
+                        pass
                     doc.w("")
                     doc.w(f"  {_pko_ctx_b.get('teaching_note', '')} "
                           f"*{_pko_ctx_b.get('caveat', '')}*")

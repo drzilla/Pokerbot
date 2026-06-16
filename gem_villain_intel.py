@@ -2469,13 +2469,53 @@ _EXPLOIT_COACHING = {
 }
 
 
+# v8.17 Step-3: the ONLY families a graded missed/good may rest on are the
+# preflop-chart steal/nit detectors (they already gate on Hero's open chart +
+# read confidence). Every other detector — postflop value, multiway donks, weird
+# sizing, station call-downs, generic LAG/maniac pressure, same-hand pivots —
+# has no trusted baseline, so its read teaches as a factual moment, never a
+# graded Hero mistake. This mirrors the teaching layer's _TRUSTED_BASELINE_DETECTORS.
+_GRADABLE_DETECTORS = {
+    'missed_steal_vs_nit', 'missed_steal_vs_nit_blinds', 'good_steal_vs_nit',
+}
+
+
+def _gradable_exploit(detector, read_source, confidence, outcome,
+                      available_before, n_atoms):
+    """Producer-side gradable predicate (spec §Epic3 gradable gate).
+
+    Returns (gradable: bool, non_gradable_reason: str). A villain exploit may be
+    presented as a GRADED missed/good ONLY when ALL hold: a trusted preflop-chart
+    baseline backs it; the read was known before the decision (available_before
+    is not None); confidence is medium/high; the detector emitted a graded
+    outcome. Otherwise it teaches as a factual moment carrying the specific
+    reason it was not graded. This feeds (never overrides) the teaching layer's
+    _grade_bucket, which arrives at the same conclusion independently.
+    """
+    if (detector or '') not in _GRADABLE_DETECTORS:
+        return False, 'no_trusted_baseline'
+    if available_before is None:
+        return False, 'read_not_available_before_decision'
+    if (confidence or 'low') not in ('medium', 'high'):
+        return False, 'low_confidence'
+    if (n_atoms or 0) < 2:
+        return False, 'single_atom'
+    if outcome not in ('missed', 'missed_exploit', 'good', 'good_exploit'):
+        return False, 'no_graded_outcome'
+    return True, ''
+
+
 def _stamp_exploit_read(exp, detector, read_source, outcome='missed',
-                        confidence='', n_atoms=0):
+                        confidence='', n_atoms=0, action_index=None,
+                        available_before=None):
     """Stamp exploit dict with detector identity and canonical read label.
 
     v8.8.3: called by each detector after building the exploit dict.
     Keeps _EXPLOIT_READ_MAP as the single source of truth for grouping.
     v8.8.5: also stamps assumption transparency metadata.
+    v8.17 Step-3: also stamps decision-timing fields (action_index,
+    available_before_action_index) and the producer-side gradable predicate
+    (gradable + non_gradable_reason) the teaching layer consumes.
     """
     exp['exploit_detector'] = detector
     exp['exploit_type'] = detector          # backward-compatible alias
@@ -2497,7 +2537,53 @@ def _stamp_exploit_read(exp, detector, read_source, outcome='missed',
     exp['suggests'] = _ec.get('suggests', '')
     exp['so_what'] = _ec.get('so_what', '')
     exp['default_timing'] = _ec.get('default_timing', '')
+    # v8.17 Step-3: decision-timing fields. The teaching layer's no-hindsight
+    # gate reads available_before_action_index; for a cross-hand / population
+    # read the cue is known from BEFORE this hand begins (index 0); for a
+    # same-hand pivot it is the pivot's own action index (passed in, else None);
+    # otherwise unknown (None) -> the gate fails safe to a review note.
+    if action_index is not None:
+        exp['action_index'] = action_index
+    if read_source in ('prior_atoms_mapped', 'profiler_archetype'):
+        exp['available_before_action_index'] = (
+            0 if available_before is None else available_before)
+    else:
+        exp['available_before_action_index'] = available_before
+    # v8.17 Step-3: producer-side gradable predicate -> the teaching layer only
+    # promotes to a graded missed/good when this is True; otherwise it teaches a
+    # factual moment carrying non_gradable_reason.
+    _grad, _reason = _gradable_exploit(
+        detector, read_source, confidence, outcome,
+        exp.get('available_before_action_index'), n_atoms)
+    exp['gradable'] = _grad
+    exp['non_gradable_reason'] = _reason
     return exp
+
+
+# v8.17 Step-3: behavioural-axis coherence of the AGGREGATE read. The six
+# scoring dimensions collapse onto three broad axes (the same families the
+# teaching layer's _read_axis uses): passive (loose+passive+sticky), aggressive,
+# tight. 'consistent' = one axis carries the evidence; 'split' = two axes are
+# both material; 'mixed' = all three are material. Pure + deterministic. This is
+# a DESCRIPTION of the already-computed dims, not a new classifier or score.
+def _derive_profile_label(dims):
+    axes = {
+        'passive': (dims.get('loose', 0) + dims.get('passive', 0)
+                    + dims.get('sticky', 0)),
+        'aggressive': dims.get('aggressive', 0),
+        'tight': dims.get('tight', 0),
+    }
+    total = sum(axes.values())
+    if total <= 0:
+        return 'consistent'          # no behavioural signal -> trivially coherent
+    # an axis is "material" only with both an absolute floor and a real share,
+    # so a 20-vs-1 distribution is never called split.
+    material = [k for k, v in axes.items() if v >= 3 and v >= 0.30 * total]
+    if len(material) >= 3:
+        return 'mixed'
+    if len(material) == 2:
+        return 'split'
+    return 'consistent'
 
 
 def _build_read_states(aliases, atoms_by_villain):
@@ -2561,6 +2647,7 @@ def _build_read_states(aliases, atoms_by_villain):
             'villain_key': vk,
             'villain_alias': va.get('display', ''),
             'primary_read': _READ_LABELS.get(primary, primary),
+            'profile_label': _derive_profile_label(dims),
             'confidence': conf,
             'dimensions': dims,
             'exceptions': exceptions,

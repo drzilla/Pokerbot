@@ -822,7 +822,7 @@ def compress_range(hand_classes):
     return '; '.join(parts)
 
 
-def preflop_range_lens(ev, ranges):
+def preflop_range_lens(ev, ranges, highlight=False):
     """Source-safe preflop 'Range lens:' line, or None. `ev` is the object from
     build_range_evidence(); `ranges` is the load_ranges() dict. The notation is
     compressed FROM the chart's own hand-class keys (invents nothing); the
@@ -848,6 +848,15 @@ def preflop_range_lens(ev, ranges):
     side = 'inside' if mem == 'inside' else 'outside'
     bnd = ' (boundary)' if ev.get('boundary') else ''
     hero_clause = f" {hero} is {side}{bnd} this region." if hero else ''
+    # v8.16.4 Obj 6 (render path): colour the range EXPRESSION itself
+    # (green=inside / amber=boundary / red=outside / neutral=no exact source)
+    # via the ONE shared highlighter. Default off so the pure/source-safe text
+    # path (and its tests) is unchanged.
+    if highlight:
+        try:
+            rng = highlight_range_expression(rng, mem, cov, ev.get('role'))['html']
+        except Exception:
+            pass
     return f"Range lens: the {spot} range{cov_note} is roughly {rng}.{hero_clause}"
 
 
@@ -996,11 +1005,37 @@ def _lens_board_structure(board):
             'few real draws here — mostly backdoors and overcards')
 
 
+_LENS_SCARY_TEXTURES = (
+    'a paired, flush-possible board', 'a paired board',
+    'a monotone board (a flush is already possible)',
+    'a wet two-tone, connected board',
+)
+_LENS_TOP_STRUCTURE = ('monster', 'full_house', 'flush', 'straight', 'set')
+_LENS_ONE_PAIR = ('overpair', 'top_pair', 'second_pair', 'weak_pair', 'underpair')
+
+
+def _lens_hero_relative(b, texture):
+    """v8.16.4 Objective 10: mention Hero ONLY when it adds decision value —
+    a value-target / bluff-catcher / blocker note — NEVER a bare restatement of
+    the made-hand bucket the street header already shows. Returns '' otherwise."""
+    made = b.get('made')
+    if made in _LENS_TOP_STRUCTURE:
+        return ' Hero sits at the top of this structure (value).'
+    if made in _LENS_ONE_PAIR and texture in _LENS_SCARY_TEXTURES:
+        return " Hero's one pair is a bluff-catcher on this texture."
+    if b.get('bucket') == 'draw' and b.get('live_draw') == 'nut_fd':
+        return ' Hero holds the nut-flush card (a blocker to the nut flush).'
+    return ''
+
+
 def postflop_range_lens(hole, board, street=None):
     """Source-safe postflop 'Range lens:' line for flop/turn/river, or None.
-    States Hero's bucket (made / draw / air) plus the board's value/draw
-    structure (board-texture derived). Pure; no villain combos, no solver %.
-    Returns None when Hero's hand cannot be classified (e.g. no board)."""
+
+    v8.16.4 Objective 10: leads with the BOARD's value/draw structure (the
+    classes the texture makes available to any range — board-derived, invents no
+    villain combos) instead of restating Hero's made hand (already shown in the
+    street header). Hero is mentioned only when relevant for value/bluff-catch/
+    blocker via _lens_hero_relative. Pure; no villain combos, no solver %."""
     b = postflop_hand_buckets(hole, board)
     if not b:
         return None
@@ -1008,21 +1043,75 @@ def postflop_range_lens(hole, board, street=None):
     if not tex:
         return None
     texture, value_str, draw_clause = tex
-    if b['bucket'] == 'made':
-        # Only surface a meaningful LIVE REDRAW (flush/straight draw), not 'two
-        # overcards'/backdoor — those read oddly next to a made hand. live_draw
-        # is None on the river, so a made river hand never claims a dead redraw.
-        extra = (f" plus {b['draw_phrase']}"
-                 if b.get('live_draw') in ('nut_fd', 'fd', 'oesd', 'gutshot') else '')
-        hero_phrase = f"Hero has {b['made_phrase']}{extra} (a made hand)"
-    elif b['bucket'] == 'draw':
-        hero_phrase = f"Hero has {b['draw_phrase']} (a drawing hand, not made)"
-    else:
-        hero_phrase = (f"Hero has {b['draw_phrase']} (no made hand)"
-                       if b['draw_phrase']
-                       else 'Hero has no made hand or strong draw (air)')
-    return (f"Range lens: {hero_phrase}. On {texture}, value = {value_str}; "
-            f"{draw_clause}.")
+    hero_rel = _lens_hero_relative(b, texture)
+    return (f"Range lens: on {texture}, value = {value_str}; {draw_clause}."
+            f"{hero_rel}")
+
+
+# ============================================================
+# RANGE HIGHLIGHT v1 — Objective 6 (preflop range relationship)
+# ============================================================
+# ONE shared helper so every report path shows Hero's membership the same way:
+# green=inside, amber=boundary/mixed, red=outside, neutral=no exact source. It is
+# a PURE DISPLAY function — reads membership/coverage/role and emits a marked
+# expression; it does not decide membership and invents no ranges.
+
+# membership (from build_range_evidence) -> colour
+_RH_COLOR = {'inside': 'green', 'boundary': 'amber', 'mixed': 'amber',
+             'outside': 'red', 'unknown': 'neutral'}
+
+# decision node -> human label (shown next to the range expression)
+DECISION_NODE_LABELS = {
+    'first_in_open': 'first-in open', 'open': 'first-in open',
+    'open_shove': 'open-shove', 'rejam': 'rejam',
+    'call_vs_raise': 'call vs raise', 'call_vs_jam': 'call vs jam',
+    'call_jam': 'call vs jam', 'limp_call': 'limp-call', 'open_call': 'open-call',
+}
+
+
+def range_membership_color(membership, coverage):
+    """green / amber / red / neutral. Any non-exact coverage (proxy/closest/none)
+    downgrades to neutral so we never assert a hard in/out on an inexact source."""
+    if not coverage or coverage in ('none', 'unknown'):
+        return 'neutral'
+    if coverage != 'exact' and membership != 'inside':
+        # proxy/closest charts: only 'inside' stays confident; out/boundary -> neutral
+        return 'neutral' if membership in ('outside', 'boundary', 'mixed', None) else \
+            _RH_COLOR.get(membership, 'neutral')
+    return _RH_COLOR.get(membership, 'neutral')
+
+
+def decision_node_label(role):
+    return DECISION_NODE_LABELS.get(role, '')
+
+
+def highlight_range_expression(expr, membership, coverage, role=None):
+    """Return an HTML span wrapping the range EXPRESSION itself with a colour
+    class (rng-hl rng-hl-{color}) + a tooltip stating node + membership, so the
+    relationship is visible ON the notation (not only in a separate sentence).
+    Returns {'color','css_class','html','node_label'}. expr is shown verbatim."""
+    color = range_membership_color(membership, coverage)
+    node = decision_node_label(role)
+    tip_bits = [b for b in (node, (membership or 'unknown'),
+                            (coverage if coverage and coverage != 'exact' else ''))
+                if b]
+    tip = ' · '.join(tip_bits)
+    css = 'rng-hl rng-hl-%s' % color
+    html = "<span class='%s' title='%s'>%s</span>" % (css, tip, expr)
+    return {'color': color, 'css_class': css, 'html': html, 'node_label': node}
+
+
+def outside_open_negative_ok(role, source_authoritative, table_caveat_handled,
+                             verdict_agrees, hero_folded=False):
+    """An outside-range FIRST-IN OPEN may receive a negative marker ONLY when the
+    source is authoritative for the actual node/depth, table-size/approximation
+    caveats are handled, and the final verdict agrees. NEVER flag a correct fold
+    merely because the folded hand is outside the opening range (objective 6)."""
+    if hero_folded:
+        return False
+    if role not in ('first_in_open', 'open'):
+        return False
+    return bool(source_authoritative and table_caveat_handled and verdict_agrees)
 
 
 # ============================================================

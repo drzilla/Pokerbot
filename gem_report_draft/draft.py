@@ -233,10 +233,14 @@ def _build(stats, report_data, hands, sections=None):
         # v8.2.1: Issue Explorer moved to #2 (between Summary and Result)
         # ('S7',  _emit_ii_mental_bluff),      # Coach — in dashboard
         ('SIE', _emit_issue_explorer),         # Issue Explorer — triage table (v8.2.0)
-        ('S1',  _emit_section_i),              # Result — P&L, All-Ins, card quality, coolers, arc
-        # v8.15 SP-2: NEW additive event-level Tournament Tables (alongside S1's
-        # existing Results tables; nothing removed yet — additive-then-swap).
-        ('STT', _emit_tournament_tables),      # Tournament Tables — event-level financial-first
+        # v8.17.0-rc3: the unified Tournament Results table is now the PRIMARY
+        # Results surface and renders BEFORE S1. S1's per-tournament P&L / Deep
+        # Runs / Stack Trajectories are collapsed into ONE secondary reconciliation
+        # disclosure inside _emit_section_i (no longer competing primaries). The
+        # nav order is derived from this list, so STT-before-S1 also reorders the
+        # rail/topbar tabs.
+        ('STT', _emit_tournament_tables),      # Tournament Results — PRIMARY event-level surface
+        ('S1',  _emit_section_i),              # Result — All-Ins, card quality, coolers, arc (+collapsed P&L reconciliation)
         ('S5',  _emit_section_viii),           # Action Items — promoted leaks, drills, GTO shortlist
         ('S6',  _emit_ii_verdict_kpis),        # KPIs — watchlist, cheat sheet, KPIs, mental game, exploits, bluff
         ('S2',  _emit_iii_punts_mistakes),     # Top hands — punts, mistakes, large-loss, picks

@@ -14,4 +14,4 @@ report footer) should reference RUNTIME_VERSION; the report-format version stays
 in draft.VERSION.
 """
 
-RUNTIME_VERSION = 'v8.16.3'
+RUNTIME_VERSION = 'v8.17.0'

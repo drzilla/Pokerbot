@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 GEM Analyzer v7.18 — Session analysis, metrics, deviations, output.
 Imports parsed hands from gem_parser.py, computes all GEM metrics.
@@ -10858,6 +10858,39 @@ if __name__ == '__main__':
                                    "ticket return-basis disclosure (v8.14.4)")
             else:
                 print(f"  ✅ Cash + ticket return-basis disclosed (ticket value > 0)")
+        # Check 14 (v8.16.4 Obj-5): every Mistake/Punt-class hand-level verdict
+        # must be substantiated by a visible explanation. The live render already
+        # downgrades an auto Mistake with no action-level marker to Review
+        # (_review_downgrade via auto_verdict_needs_review); this validator is the
+        # secondary net and CALLS the gem_review_trust.verdict_validation_issue
+        # contract directly. On AUTO_ONLY reports analyst_commentary is empty, so
+        # this is a no-op there.
+        try:
+            from gem_review_trust import verdict_validation_issue as _vvi14
+            _ac14 = report_data.get('analyst_commentary') or {}
+            _v14 = []
+            for _hid14, _c14 in _ac14.items():
+                if not isinstance(_c14, dict):
+                    continue
+                _vd14 = str(_c14.get('verdict', '') or '')
+                _low14 = _vd14.lower()
+                if _vd14.startswith('III.2') or 'mistake' in _low14:
+                    _lab14 = 'Mistake'
+                elif _vd14.startswith('III.1') or 'punt' in _low14:
+                    _lab14 = 'Punt'
+                else:
+                    continue
+                _has14 = bool((_c14.get('argument') or '').strip())
+                _iss14 = _vvi14(_lab14, has_bound_action_marker=_has14,
+                                has_explanation=_has14)
+                if _iss14:
+                    _v14.append(f"⚠️  {str(_hid14)[-8:]} {_lab14}: {_iss14}")
+            if _v14:
+                _val_issues.extend(_v14)
+            else:
+                print(f"  ✅ All Mistake/Punt verdicts substantiated (v8.16.4 Obj-5)")
+        except Exception:
+            pass
     except Exception as _val_e:
         print(f"  ⚠️  Validation skipped: {_val_e}")
 

@@ -559,6 +559,26 @@ def run_migration_audit(full_html, lazy_parity_mismatch=0, emit=True):
         rows, _by_hand = enumerate_report_sources(full_html)
         summary = build_migration_summary(rows, lazy_parity_mismatch)
         LAST_ROWS, LAST_SUMMARY = rows, summary
+        # v8.17 Epic A: capsule CONTENT lints (L2 generic / L3 internal token / L6
+        # result-leak) over the decoded VISIBLE commentary text — tags stripped so
+        # markup attributes (data-street etc.) never false-positive. Wired to the
+        # same stderr QA channel; counts stamped on the summary for the validator.
+        try:
+            import re as _re_cl
+            from gem_commentary_capsule import scan_visible_text_lints as _svtl
+            _bodies = decode_lazy_bodies(full_html) or {}
+            _l2 = _l3 = _l6 = 0
+            for _bd in _bodies.values():
+                _txt = _re_cl.sub(r'<[^>]+>', ' ', _bd or '')
+                _r = _svtl(_txt)
+                _l2 += _r['l2']; _l3 += _r['l3']; _l6 += _r['l6']
+            summary['content_lint_l2_generic'] = _l2
+            summary['content_lint_l3_internal'] = _l3
+            summary['content_lint_l6_result_leak'] = _l6
+        except Exception:
+            summary.setdefault('content_lint_l2_generic', 0)
+            summary.setdefault('content_lint_l3_internal', 0)
+            summary.setdefault('content_lint_l6_result_leak', 0)
         if emit:
             fails = migration_lints(summary)
             line = ("  COMMENTARY-MIGRATION: %d sources, %d visible / %d more / "
@@ -571,9 +591,20 @@ def run_migration_audit(full_html, lazy_parity_mismatch=0, emit=True):
                        summary['silent_drops'], summary['router_misbucket'],
                        summary['bottom_context_contamination'],
                        summary['lazy_parity_mismatch']))
+            line += (" | content-lint L2 %d L3 %d L6 %d"
+                     % (summary.get('content_lint_l2_generic', 0),
+                        summary.get('content_lint_l3_internal', 0),
+                        summary.get('content_lint_l6_result_leak', 0)))
             print(line, file=sys.stderr)
             for f in fails:
                 print('  COMMENTARY-MIGRATION FAIL: %s' % f, file=sys.stderr)
+            # L3 internal-token + L6 result-leak in visible text are content FAILs.
+            if summary.get('content_lint_l3_internal', 0):
+                print('  COMMENTARY-MIGRATION FAIL: L3 internal token in visible text: %d'
+                      % summary['content_lint_l3_internal'], file=sys.stderr)
+            if summary.get('content_lint_l6_result_leak', 0):
+                print('  COMMENTARY-MIGRATION FAIL: L6 result leakage in visible text: %d'
+                      % summary['content_lint_l6_result_leak'], file=sys.stderr)
         return summary
     except Exception as exc:                       # never block report render
         print('  COMMENTARY-MIGRATION: audit error (%s)' % exc, file=sys.stderr)

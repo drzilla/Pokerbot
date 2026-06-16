@@ -16,7 +16,7 @@ import base64, io, os, sys, zipfile, hashlib, datetime
 REPO = os.path.dirname(os.path.abspath(__file__))
 PROJ_FALLBACK = r'C:\Users\ron\Downloads\_proj_inventory\project'
 
-BUNDLE_VERSION = 'v8.16.3'
+BUNDLE_VERSION = 'v8.17.0'
 
 # gem_report_draft package members (zipped under gem_report_draft/)
 PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
@@ -24,6 +24,13 @@ PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
        'sections_financial.py', 'sections_mistakes.py', 'sections_iv_xii.py',
        'sections_xiii.py', 'sections_xiv.py', 'sections_issue_explorer.py',
        'sections_tournaments.py']   # v8.15: additive Tournament Tables section
+
+# v8.17.0-rc3 (audit B6): the QA acceptance/decoder harnesses must extract WITH
+# the runtime so the README self-verify commands (e.g. `python
+# _qa_v817_rc3_acceptance.py`) work directly from the bundle — RC2 shipped them
+# package-level only, so the documented command failed from the extracted dir.
+QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
+              '_qa_v817_assert.py', '_qa_v817_rc2_assert.py', '_qa_decode_lazy.py']
 
 # Stage-A kill list — never bundled
 KILL = {
@@ -100,6 +107,9 @@ def build(project_dir):
     # gem_report_draft/ member (e.g. sections_tournaments.py) is never silently
     # dropped. Mirrors the _repo_runtime_modules() union for root modules.
     names |= set(PKG)
+    # v8.17.0-rc3 (audit B6): bundle the QA acceptance/decoder harnesses from the
+    # repo so the README self-verify commands run directly from the extracted ZIP.
+    names |= set(QA_HARNESS)
     bundle_names = sorted(n for n in names
                           if n not in KILL and n not in FLAT_DATA
                           and (n not in PROSE or n in BUNDLE_ALSO))

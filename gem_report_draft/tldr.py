@@ -248,6 +248,11 @@ def _dashboard_fix_items(s, rd, analyst):
 # marginal candidates.
 _REVIEW_QUEUE_BUCKETS = ('punt', 'analyst_mistake', 'known_leak',
                          'auto_clear', 'marginal')
+# v8.16.4 DTI Blocker 1: explicit, configurable review-budget cap for the primary
+# (open) queue. Repeated leak families collapse to one row first, so the bound is
+# on high-value decisions + leak-group rows; overflow + every occurrence stay
+# reachable via the Issue Explorer drilldown + the per-hand appendix.
+_REVIEW_QUEUE_CAP = 10
 _REVIEW_QUEUE_BUCKET_LABEL = {
     'punt': 'Punt',
     'analyst_mistake': 'Analyst mistake',
@@ -327,6 +332,34 @@ def build_review_queue(s, rd, analyst, hands_by_id):
     for c in (rd.get('read_dependent_screen') or []):
         if isinstance(c, dict):
             _add(c.get('id', ''), 'marginal', 'Read-dependent call.')
+
+    # v8.16.4 DTI Blocker 1: route the flat candidates through the canonical
+    # bounded + aggregated queue model BEFORE ordering. Repeated leak families
+    # collapse to ONE row (count + drilldown ids); detector-health (auto_clear)
+    # leaves the visible queue for internal QA; generic-only titles are demoted;
+    # the open queue is bounded to _REVIEW_QUEUE_CAP. Every hand stays reachable
+    # via the Issue Explorer drilldown + the per-hand appendix. Degrades to the
+    # legacy flat list if the helper is unavailable.
+    try:
+        from gem_review_trust import aggregate_review_queue as _agg_q
+        _agg = _agg_q(items, cap=_REVIEW_QUEUE_CAP)
+        _bounded = []
+        for it in _agg['primary']:
+            if it.get('kind') == 'leak_group':
+                _ex = (it.get('examples') or [''])[0] or ''
+                _h = hands_by_id.get(_ex, {}) or {}
+                _bounded.append({
+                    'id': _ex, 'bucket': 'known_leak', 'reason_label': 'Leak pattern',
+                    'title': it['title'], 'net': it.get('net', 0) or 0,
+                    'cards': ''.join(_h.get('cards', []) or []),
+                    'kind': 'leak_group', 'count': it['count'],
+                    'drilldown_ids': it['drilldown_ids'],
+                })
+            else:
+                _bounded.append(it)
+        items = _bounded
+    except Exception:
+        pass
 
     _order = {b: i for i, b in enumerate(_REVIEW_QUEUE_BUCKETS)}
     items.sort(key=lambda x: (_order[x['bucket']], -abs(x['net']), x['id']))

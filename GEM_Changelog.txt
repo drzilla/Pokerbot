@@ -1,3 +1,285 @@
+v8.17.0 (2026-06-17) -- DECISION COACH: four-epic MAJOR PRODUCT RELEASE (FINAL)
+================================================================================
+First materially-significant product release in the v8.17 sequence. Ships FOUR
+visible epics together, each production-connected and validated on the real
+renderer:
+  1. FINAL COMMENTARY EXPERIENCE -- register-classified (factual / coaching /
+     no_clear_lesson) decision capsules lead each street, with evidence tiers and
+     content lints; zero-drop migration audit preserved.
+  2. COMPLETE PKO DECISION COACHING -- explicit "how the bounty changes it"
+     (chip-only % -> bounty-adjusted %), 4-state cover/$ provenance, trust strip
+     with threshold status, multiway suppression, and the unified S4 PKO aggregate
+     with clickable drilldowns.
+  3. VILLAIN EXPLOITATION STEP 3 -- the 7-part teaching lesson (what villain did /
+     cue / read+archetype / confidence / exploit now / future adjustment /
+     do-not-over-adjust guardrail) wired VISIBLY into the commentary modal from the
+     explicit lesson_7part object; missed/good-exploit grading is gated (else
+     factual); chronology + identity guards preserved.
+  4. UNIFIED TOURNAMENT RESULTS -- ONE primary sortable table from canonical
+     financials (no recompute), with per-event drilldown absorbing P&L / Deep Runs /
+     Stack Trajectories; the legacy per-tournament surfaces are demoted into one
+     closed secondary reconciliation <details> (genuinely hidden when closed).
+
+Released from the GPT-audited rc3 tip (0b9f11d); the rc1/rc2/rc3 correction passes
+are folded in. Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.17.0-rc3 -> v8.17.0 (FINAL; drops the
+pre-release suffix only -- the audited bytes/behaviour are unchanged). Acceptance:
+verify_release clean v8.17.0 (43/43 files, 450 canaries, 11 anti); _test_scratch
+1428/1428; _qa_v817_rc3_acceptance four-epic integrated 12/12. T-H141-01 -> v8.17.0.
+
+
+v8.17.0-rc3 (2026-06-17) -- four-epic MAJOR release: narrow correction pass (RC3)
+================================================================================
+RC2 passed code integrity but was rejected for release acceptance (integration not
+proven on a real report; legacy Results surfaces still rendered; lesson_7part unused;
+package self-verify not reproducible). RC3 corrects these without redesign or new
+features. Additive; re-grades NO real decisions. Runtime v8.17.0-rc2 -> v8.17.0-rc3.
+NOT final, NOT merged/tagged, Chat NOT updated. RC1/RC2 deliverables not overwritten.
+
+(1) TOURNAMENT RESULTS GENUINELY UNIFIED:
+  * draft.py: ('STT', _emit_tournament_tables) wired BEFORE ('S1', _emit_section_i);
+    the nav rail/topbar order follows section_emitters, so "Tournament Results"
+    is the first Results surface.
+  * sections_financial._emit_section_i: S1.1 Per-Tournament P&L + Deep Runs + Stack
+    Trajectories collapsed into ONE closed <details class='s1-recon-detail'> secondary
+    reconciliation block (no longer competing open primaries; unique NetBB/bb-100/Why
+    preserved inside).
+  * _html.py openTargetDetails: auto-expands the ANCESTOR <details> on hash-nav so
+    #sec-1-1 (KPI cards) / #sec-1-3 (section backlinks) into the collapse still work.
+  * Verified in real production output: sec-tournaments before sec-1; one closed
+    s1-recon-detail; unified table renders (no "no overlay" stub).
+
+(2) VILLAIN STEP-3 VISIBLE DELIVERY:
+  * _html.py: the V25 commentary teaching block renders FROM ctx.teaching.lesson_7part
+    (the explicit Q1-Q7 object) as a compact labelled structure (Read+Confidence · Cue ·
+    Exploit now · Next time · Don't over-adjust + ICM/Bounty/Tag), marked
+    data-from="lesson_7part" / v25-lesson7. Legacy teach_lines kept as fallback.
+
+(3) INTEGRATED ACCEPTANCE VIA THE REAL RENDERER:
+  * NEW _qa_v817_rc3_acceptance.py: renders through production render_html and asserts
+    all four epics COEXIST (capsule + PKO + lesson_7part + unified table) + AUTO_ONLY vs
+    ANALYST_COMPLETE banners + canonical reconciliation. Real-pipeline integrated report
+    from gem_analyzer.py on test_hands.txt (33 hands, 2 PKO tournaments).
+
+(4) PACKAGE REPRODUCIBILITY: _build_bundle.QA_HARNESS bundles the _qa_* harnesses so the
+    README self-verify (python _qa_v817_rc3_acceptance.py) runs from the extracted ZIP.
+
+Tests: T-TT-R-02 STT-before-S1; T-TR817-12 closed collapse; T-891-21 cutoff 3100;
++T-RC3-01..06; T-H141-01 -> rc3. +16 canaries + 1 anti-canary (collapse never `open`).
+
+
+v8.17.0-rc2 (2026-06-16) -- MAJOR PRODUCT RELEASE, four epics (RELEASE CANDIDATE 2)
+================================================================================
+Expands rc1 (Commentary + PKO) to the full V8.17_MAJOR_PRODUCT_RELEASE: adds the
+two omitted epics. Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.17.0-rc1 -> v8.17.0-rc2 (RC; NOT final,
+NOT merged/tagged, Chat NOT updated). rc1's README/hashes are NOT overwritten.
+
+EPIC 3 — Villain Exploitation Step 3:
+  * gem_villain_intel._build_read_states now emits profile_label (consistent/split/
+    mixed) from three-axis dim coherence (Q3 read completeness).
+  * _stamp_exploit_read stamps action_index + available_before_action_index (0 for
+    cross-hand/population reads) -> auditable no-hindsight timing (Q5).
+  * NEW _gradable_exploit producer predicate: gradable + non_gradable_reason enum;
+    a graded missed/good survives ONLY on a trusted preflop steal/nit baseline +
+    med/high confidence + known-before + graded outcome, else a factual teaching
+    moment carrying its reason. Feeds (never overrides) the projection _grade_bucket.
+  * NEW gem_villain_teaching.lesson_7part(): explicit Q1-Q7 contract object on every
+    teaching object (pure projection; thin reads -> fallback in Q1, nothing fabricated).
+  * split/mixed AGGREGATE profile dominates the Read line; consistent aggregate keeps
+    the per-hand node-specific cue caveat (_aggregate_profile_override; derive_profile
+    unchanged). Villain aggregate drilldown: count-of-one opens the lone example direct.
+  * Step-1 temporal/identity, _no_hindsight, stable key, word caps, Natural8 taxonomy,
+    derived guardrails, ICM coarse caution — all PRESERVED.
+
+EPIC 4 — Unified Tournament Results redesign:
+  * sections_tournaments._emit_tournament_tables is now the SINGLE PRIMARY surface:
+    one sortable HTML table (Date/Tournament/Format/Bullets/Buy-in/Invested/Finish/
+    Return/Net/ROI/Status/Details), consuming ONLY canonical build_tournament_model
+    events (no recompute). Default chronological/session order.
+  * Status column = canonical deep-run/Day2/ITM from finish fields.
+  * Per-event drilldown modal (openTournamentDetail): bullets, finish/field, prize +
+    bounty breakdown, deep-run + stack arc (folded from stack_trajectories via
+    drivers_by_tid), notes, the event's hands (-> hand-list popup -> V25 Prev/Next).
+  * PKO/bounty return reconciliation line (bounty folded into cash, never inferred).
+  * Canonical per-event financial table KEPT as a collapsed cross-check <details>;
+    S1.1 P&L / Deep Runs / Stack Trajectories demoted to cross-check.
+  * Reconciliation invariants: sum(bullets/cost/return)=canonical; ROI denom =
+    committed cost; one row per event_id (re-entries merged); renderer read-only on rd.
+  * One responsive impl; table-shell scroll-contains the wide table on mobile.
+
+VALIDATION: clean LF extract 43/43 files, 443/443 canaries, 10/10 anti, clean
+v8.17.0-rc2; _test_scratch.py 1421/1421 (+T-VS3-01..07, +T-TR817-01..13; all 12 prior
+T-TT-R financial-correctness assertions PASS unchanged); four-epic synthetic
+acceptance 18/18; browser QA (sortable + drilldown + mobile containment) PASS;
+JS node --check clean.
+
+
+v8.17.0-rc1 (2026-06-16) -- Decision Coach (RELEASE CANDIDATE — GPT/Ron review)
+================================================================================
+First materially-significant release in the sequence. Two visible product epics,
+both production-connected, on the v8.16.4 Decision-Trust foundation (commit 5fe27dc,
+preserved intact). Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.16.4 -> v8.17.0-rc1 (RC; NOT a final
+v8.17.0 release, NOT merged/tagged, Chat NOT updated).
+
+EPIC A — Final Commentary experience (v3.4 ROUTER_AWARE FINAL):
+  * NEW visible §9 CAPSULE that LEADS each decision street: a register-classified
+    (factual / coaching / no_clear_lesson), prioritized, smallest-useful role set
+    (Decision / Verdict / Why / Math / Range / Exploit / Caveat / Consequence — no
+    empty roles, a visible evidence anchor on every scored capsule), with a 🧭 badge
+    and a register-coloured accent (gem_commentary_capsule.py + sections_xiv + _html CSS).
+    Routed through the existing .analyst-notes[data-street] (no competing router); the
+    detailed routed notes are PRESERVED below it (zero-drop). Result-only evidence
+    never produces a coaching verdict; approximate evidence never reads as exact.
+  * Content lints L1/L2/L3/L6/L7/L9/L12/L13 wired LIVE into the migration-audit stderr
+    channel (L2 generic / L3 internal-token / L6 result-leak validated on every report;
+    5066-corpus = 0/0/0). Builds on the v8.16.3 zero-drop migration audit (preserved).
+  * Optional root/downstream/consequence attribution renders where a producer stamps it.
+
+EPIC B — Complete PKO decision coaching:
+  * "How the bounty changes the decision" coaching prose (chip-only X% -> bounty-adjusted
+    Y% (-Zpp); who Hero covers; materiality; positive/negative/mixed incentive; multiway
+    uncertainty stated honestly) — on both the XIV.A full card and the XIV.B compact pill,
+    consuming the same canonical _po object (no recompute).
+  * Explicit 4-state bounty PROVENANCE {exact $ / estimated current / flat event-start /
+    unavailable} on the hand-detail pill.
+  * S4 aggregate (Opportunity / Actual / Wrong / Missed, no Hands column, directional vs
+    exact marker) revalidated production-connected; a count of exactly ONE opens the hand
+    directly (one click), >1 opens the hand list, 0 is muted.
+
+Validation: +T-PKO817-/T-CAP817-/T-WS817-* (suite 1394/1394 in the clean LF extract;
+the lone working-tree CRLF SHA-pin passes on LF). Synthetic acceptance report (real
+renderer/lazy/modal/queue/PKO, fabricated ids) 24/24 scenario-groups. Real 5066-hand
+AUTO_ONLY corpus: queue 10 bounded leak-groups, drops/misbucket/bottom-contam/lazy-parity
+0, content-lints 0/0/0, 84 capsules (21 factual + 63 no_clear), 100 how-PKO-changes lines.
+Browser QA 1440/1024/390 = 0px overflow, capsule visible. ANALYST_COMPLETE via a
+controlled synthetic fixture (real artifact's raw corpus not co-located — documented).
+verify_release 43/43 files, 427 canaries.
+
+v8.16.4 (2026-06-16) -- Delivery: Review Precision & Decision-Trust Hotfix
+================================================================================
+A systemic, renderer-layer maintenance batch. It re-grades NO poker decisions,
+changes NO analyst content, and contains NO rules keyed to any real hand /
+tournament / player / session id — every behaviour is locked by synthetic
+fixtures (T-RPDT-01..26). Most of the 13 objectives were already partly shipped
+in v8.14.1 / v8.16.2 / v8.16.3; this batch fixes the remaining defects and adds
+the durable decision-trust CONTRACTS as a pure module.
+
+DECISION-TRUST INTEGRATION — live-path blockers (continued, same v8.16.4):
+  Blocker 1  The VISIBLE dashboard review queue (tldr.build_review_queue) was
+             unbounded — it imported every Issue Explorer hand as its own row
+             (a real corpus rendered 179 rows, one per leak hand) and never used
+             the actionable reason contract. It now routes through the canonical
+             gem_review_trust.aggregate_review_queue: repeated leak families
+             collapse to ONE row (human pattern name + count + impact + drilldown
+             to every hand), detector-health (auto_clear) + generic-only reasons
+             move to internal QA (never a normal review reason), and the open
+             queue is bounded by an explicit configurable cap (_REVIEW_QUEUE_CAP).
+             Real-corpus AUTO_ONLY: 179 -> 10 bounded aggregated rows; every hand
+             still reachable. (gem_review_trust.py, tldr.py)
+  Blocker 2  The decision-trust math (decision-kind label, multiway HU-required-
+             equity suppression, PKO provenance) only sat on the rarely-rendered
+             XIV.A full-card path, so 0 fired on the live compact/lazy path. The
+             SAME canonical evidence now renders on EVERY hand path — XIV.A full
+             card AND the XIV.B compact/lazy path most hands open — consuming the
+             SAME _po object (no recompute). All-in node type is classified from
+             structurally-provable ledger fields (pf_allin/pf_action/first_in/
+             villain_jammed/hero_faced_raise/pf_raise_count); when unprovable it
+             renders "All-in decision (exact node type unavailable)" and never
+             guesses (validated against the ledger). Optional, backward-compatible
+             root/downstream/consequence attribution renders only when a producer
+             stamps attribution_roles (absent -> unchanged; no re-grading).
+             Locked by T-QUEUE-*/T-DK-*/T-CPATH-*/T-ATTR- + a synthetic 21-scenario
+             integration HTML opened through the real modal/nav.
+             (gem_review_trust.py, sections_xiv.py)
+
+USER-VISIBLE FIXES (fully wired):
+  Obj 1  Reviewed-row layout — the .rq-rev-row grid declared 4 columns while the
+         JS emitted 5 cells, so the status pill wrapped to a 2nd line. Now a
+         5-column named-grid-area layout (rank|hid|cards|note|status) pins the
+         status pill to row 1 (right-aligned) whether or not the optional cards
+         cell is present; reviewed rows also show a concise note preview; mobile
+         tightened. (_html.py)
+  Obj 2  Sticky street-header overlap — the nav/queue area can grow to multiple
+         rows after the one-shot measure, leaving --v25-queue-h stale so headers
+         overlapped the nav. Added a ResizeObserver on the queue bar that
+         re-measures the offset on any height change, and raised the nav z-index
+         (80) above street headers (70, still below the topbar 90). (_html.py)
+  Obj 10 Range Lens pruning — the postflop lens no longer restates Hero's made
+         hand (the street header already shows it). It now leads with the board's
+         value/draw structure and mentions Hero only for a blocker / value-target
+         / bluff-catch note. No postflop lens is emitted when Hero is all-in
+         preflop (no later decision). (gem_ranges.py, sections_xiv.py)
+  Obj 6  ONE shared range-membership highlighter (green=inside / amber=boundary /
+         red=outside / neutral=no exact source) that marks the range EXPRESSION
+         itself + the decision node; an outside first-in open is flaggable only
+         under trust gates and never for a correct fold. Helper + CSS shipped
+         (gem_ranges.highlight_range_expression + .rng-hl classes).
+
+NEW PURE DECISION-TRUST MODULE gem_review_trust.py (synthetic-fixtured contracts;
+now WIRED into the live render under V8.16.4_DECISION_TRUST_INTEGRATION — see the
+wiring note after Obj 11):
+  Obj 4  build_why_review / is_generic_reason — every primary item needs a
+         concrete street + Hero action + reason + category; generic-only copy
+         ("Strategic leak", "Known leak", "Potential detector blind spot",
+         "Spots cleared or monitored", ...) is rejected so it can never be the
+         whole explanation.
+  Obj 5  reconcile_verdict / verdict_validation_issue — a Mistake verdict that
+         cannot point to a bound action-level marker + explanation is downgraded
+         to Review; a non-mistake verdict scrubs any stale "Key mistake" marker.
+  Obj 7  allin_math_kind / required_allin_fields / equity_label — typed decision
+         math (call-vs-jam vs open-shove vs rejam); never claims exactness on a
+         heuristic range; never substitutes result equity.
+  Obj 8  multiway_render_plan — suppresses the single heads-up "Required equity"
+         line in a multiway all-in, asks for one range line per live opponent +
+         field equity, and marks pot odds uncertain when players are still to act.
+  Obj 9  bounty_provenance_label — distinguishes exact / estimated / flat
+         starting-BB / effective-BB bounty figures and labels a flat event
+         estimate explicitly ("Estimated bounty ~ X starting BB — flat event
+         estimate"), never showing a static figure as if dynamic.
+  Obj 11 attribution roles — optional structural support to distinguish a root
+         mistake from a downstream compounding action and a result/consequence
+         (the analyst still authors the prose; this invents nothing).
+
+LIVE WIRING (V8.16.4_DECISION_TRUST_INTEGRATION) — the contracts are now called
+from production render sites, ADDITIVELY (consume existing canonical fields, no
+recompute, no re-grade, no real-ID logic; +T-DTI-01..07):
+  Obj 6  preflop_range_lens(highlight=True) colours the range expression in the
+         live Range Lens (sections_xiv._emit_range_lens); default path unchanged.
+  Obj 8  the pot-odds block (sections_xiv) calls multiway_render_plan and, in a
+         multiway all-in, SUPPRESSES the single heads-up "Required equity" line
+         (an intentional transform — that line is valid only vs one villain) and
+         replaces it with a field-framed note (+ players-to-act uncertainty).
+  Obj 9  the PKO/bounty strip appends bounty_provenance_label — exact $ vs flat
+         starting-BB event estimate — so a static figure is never shown as dynamic.
+  Obj 5  the post-render validator (gem_analyzer Check 14) calls
+         verdict_validation_issue to flag any unsubstantiated Mistake/Punt; the
+         live render already downgrades auto Mistakes lacking a bound marker to
+         Review (_review_downgrade). No-op on AUTO_ONLY reports.
+  Obj 4  the analyst worklist attaches an additive why_contract (street + Hero
+         action + category) + why_review_actionable; generic-only reasons are
+         linted, NEVER gate-dropped (dropping is deferred to Analyst-Expansion
+         measurement).
+  DEFERRED (documented): Obj 7 live all-in math-TYPE label needs a clean
+  decision-kind signal that does not exist without the deferred decision-identity
+  work — kept as the tested allin_math_kind contract rather than risk mislabeling
+  a decision. Obj 11 attribution has no analyst-authored root/downstream field to
+  drive it yet (authoring is out of scope) — helper remains available.
+
+VERIFIED / NO-CHANGE:
+  Obj 3  The three-product review split (primary queue / leak groups / internal
+         QA) was already complete (v8.16.2/v8.16.3); the generic-copy lint keeps
+         internal QA jargon out of user-facing reasons.
+  Obj 12 Tournament Results is already a single primary Results section + a
+         supplementary event-level cross-check — no duplicate primary. Guarded.
+  Obj 13 Debate is a first-class non-mistake state preserved in the review UI and
+         never forced to Mistake/Justified; cross-session persistence is a
+         backend concern outside this static-report batch.
+
+Release guards: feature branch only; NOT merged / tagged / Chat-updated; villain
+Step 3 not enabled; Analyst Expansion not started.
+
 v8.16.3 (2026-06-16) -- Delivery: Commentary & Range Explanation v1
                         + Commentary Column v3.4 (router-aware zero-drop migration foundation)
 ================================================================================

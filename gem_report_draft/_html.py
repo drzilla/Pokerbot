@@ -863,6 +863,16 @@ _MODAL_HTML = r"""
     <div class="modal-body" id="ve-modal-body"></div>
   </div>
 </div>
+<div class="modal" id="tournament-detail-modal" aria-hidden="true">
+  <div class="modal-backdrop ttd-backdrop"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" style="max-width:820px">
+    <div class="modal-head">
+      <h3 id="ttd-modal-title">Tournament detail</h3>
+      <button id="ttd-modal-close" type="button">Close</button>
+    </div>
+    <div class="modal-body" id="ttd-modal-body"></div>
+  </div>
+</div>
 <div class="tooltip-pop" id="tip-pop"></div>
 <script>
 (function(){
@@ -1017,19 +1027,46 @@ _MODAL_HTML = r"""
        evidence count, the do-not-over-adjust guardrail, PKO cover, and the
        thin-read fallback). All copy is built in Python (gem_villain_teaching)
        so the renderer only displays strings and invents nothing. */
-    if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
-      /* v8.14.0 Slice D: render the FULL pre-built teaching contract (What
-         villain did / Cue / Read / Confidence / Exploit now / Exploit future /
-         Do not over-adjust / Bounty / Tag suggestion), or the single fallback
-         line. All strings are built in Python; the renderer only classifies +
-         displays them. The Tag-suggestion line carries the Natural8 candidate
-         client tag; its trailing "(colour)" token drives a small colour swatch. */
+    /* v8.17.0-rc3 (Villain Step-3 visible delivery): the compact villain
+       teaching is now rendered from the explicit 7-part lesson object
+       (ctx.teaching.lesson_7part: q1..q7 + gradable + non_gradable_reason) as a
+       labelled Exploit/read support structure integrated into the Commentary
+       hierarchy — Read+Confidence / Cue / Exploit now / Future / Do-not-over-
+       adjust guardrail. Strings are built in Python (gem_villain_teaching.
+       lesson_7part); the renderer only labels + displays them. ICM caution,
+       PKO cover, and the Natural8 tag are preserved from the teaching object.
+       data-from="lesson_7part" makes the render source provable. Falls back to
+       the legacy teach_lines list only if lesson_7part is absent. */
+    if(ctx.teaching&&ctx.teaching.lesson_7part){
+      var _t=ctx.teaching;var _L=_t.lesson_7part;var _tp=[];var _thin=!!(_t.fallback)||(!_L.q3_read&&!_L.q2_cue);
+      if(_thin){
+        _tp.push('<div class="v25-teach-weak">'+_esc(_L.q1_villain_did||'')+'</div>');
+      } else {
+        if(_L.q1_villain_did){_tp.push('<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div>');}
+        var _head='Read: '+_esc(_L.q3_read||'');
+        if(_L.q4_confidence){_head+=' <span class="v25-teach-confchip">'+_esc(_L.q4_confidence)+'</span>';}
+        _tp.push('<div class="v25-teach-head">'+_head+'</div>');
+        if(_L.q2_cue){_tp.push('<div class="v25-teach-cue">Cue: '+_esc(_L.q2_cue)+'</div>');}
+        if(_L.q5_exploit_now){_tp.push('<div class="v25-teach-now">Exploit now: '+_esc(_L.q5_exploit_now)+'</div>');}
+        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
+        if(_L.q7_do_not_overadjust){_tp.push('<div class="v25-teach-guard">Don’t over-adjust: '+_esc(_L.q7_do_not_overadjust)+'</div>');}
+        if(_t.icm_guardrail){_tp.push('<div class="v25-teach-icm">ICM caution: '+_esc(_t.icm_guardrail)+'</div>');}
+        if(_t.pko&&_t.pko.cover_label){_tp.push('<div class="v25-teach-pko">Bounty: '+_esc(_t.pko.cover_label)+'</div>');}
+      }
+      var _tag=_t.tag_suggestion;
+      if(_tag&&_tag.label){
+        var _tc=_tag.color||'yellow';
+        _tp.push('<div class="v25-teach-tag" data-tag-color="'+_esc(_tc)+'">Tag suggestion: '+_esc(_tag.label)+' ('+_esc(_tc)+')</div>');
+      }
+      var _td=document.createElement('div');_td.className='v25-teach v25-lesson7';
+      _td.setAttribute('data-from','lesson_7part');_td.innerHTML=_tp.join('');_bl.appendChild(_td);
+    }
+    else if(ctx.teaching&&ctx.teaching.teach_lines&&ctx.teaching.teach_lines.length){
+      /* Legacy fallback (teaching object without lesson_7part). */
       var _t=ctx.teaching;var _tp=[];
       _t.teach_lines.forEach(function(ln){
         var cls='v25-teach-line';var attr='';
         if(ln.indexOf('Tag suggestion:')===0){
-          /* styled (and colour-swatched) even on a fallback read, since
-             'Unsure / Tag-me-later' is itself the takeaway. */
           cls='v25-teach-tag';
           var _m=ln.match(/\(([a-z]+)\)\s*$/);
           if(_m){attr=' data-tag-color="'+_m[1]+'"';}
@@ -1938,7 +1975,7 @@ _MODAL_HTML = r"""
             if(cats[k])ch.push('<span class="rq-revchip '+_RQ_META[k][2]+'">'+_RQ_META[k][0]+' '+_RQ_META[k][1]+' '+cats[k]+'</span>');});
             chips.innerHTML=ch.join('');}
           var rl=document.getElementById('rq-reviewed-list');
-          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span>'+(x.cards?'<span class="handcards">'+x.cards+'</span>':'')+'<span class="rq-main"></span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
+          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span>'+(x.cards?'<span class="handcards">'+x.cards+'</span>':'')+'<span class="rq-main">'+((x.reason||x.note||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;'))+'</span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
         }else{rev.hidden=true;}
       }
       var win=document.getElementById('rq-empty-win');var list=document.getElementById('rq-list');
@@ -2788,6 +2825,15 @@ _MODAL_HTML = r"""
   function openHandListPopup(title,hids){
     if(!hids||!hids.length)return false;
     hids=hids.map(normalizeHandId);
+    /* v8.17 B8: a count of exactly ONE opens the hand directly (one click),
+       not a one-row popup. Falls through to the list popup when the single
+       hand is not openable, so the availability reason still shows. */
+    if(hids.length===1){
+      var _only=hids[0]; if(_only.length>8)_only=_only.slice(-8);
+      var _art=document.querySelector('article.hand-detail-card[data-hand-id="'+_only+'"]');
+      var _lazy=!!(window.PB_PAYLOADS&&window.PB_PAYLOADS.lazyHands);
+      if(_art||_lazy){ try{openHand(_only);return true;}catch(e){} }
+    }
     var body=document.getElementById('list-modal-body');
     body.innerHTML='';
     var tbl=document.createElement('table');tbl.className='data-table';
@@ -3573,6 +3619,17 @@ _MODAL_HTML = r"""
       });
     }
     if(!filtered.length){return;}
+    /* v8.17 Epic 3: count-of-one opens the single hand directly (0 muted /
+       1 direct open / >1 popup), mirroring the PKO aggregate behavior. A lone
+       reviewable example needs no intermediate one-row table. */
+    var _revFiltered=filtered.filter(function(e){
+      return _isReviewable(window.normalizeHandId?window.normalizeHandId(e.hand_id):e.hand_id);
+    });
+    if(_revFiltered.length===1){
+      var _solo=window.normalizeHandId?window.normalizeHandId(_revFiltered[0].hand_id):_revFiltered[0].hand_id;
+      openHandFromExploitDrilldown(_solo,readLabel,filterType,filtered);
+      return;
+    }
     var body=document.getElementById('ve-modal-body');
     body.innerHTML='';
     var title=filterType==='missed'
@@ -3689,6 +3746,100 @@ _MODAL_HTML = r"""
     closeVillainEvidence();
     if(window.openHand)window.openHand(hid);
   }
+
+  /* ---- v8.17 Epic 4: unified Tournament Results — sortable + row drilldown ---- */
+  function _ttNum(v){
+    var n=parseFloat(String(v==null?'':v).replace(/[^0-9.+-]/g,''));
+    return isNaN(n)?null:n;
+  }
+  function _ttSort(tbl,th){
+    var ci=parseInt(th.getAttribute('data-tt-sort'),10);
+    var numeric=th.getAttribute('data-tt-num')==='1';
+    var asc=th.getAttribute('data-tt-dir')!=='asc';
+    var body=tbl.querySelector('tbody')||tbl;
+    var rows=Array.prototype.slice.call(body.querySelectorAll('tr')).filter(function(r){
+      return r.querySelector('td')&&!r.hasAttribute('data-tt-total');});
+    var totals=Array.prototype.slice.call(body.querySelectorAll('tr[data-tt-total]'));
+    Array.prototype.forEach.call(tbl.querySelectorAll('th[data-tt-sort]'),function(t){
+      t.removeAttribute('data-tt-dir');
+      t.textContent=t.textContent.replace(/ [▲▼]$/,'');});
+    th.setAttribute('data-tt-dir',asc?'asc':'desc');
+    th.textContent=th.textContent.replace(/ [▲▼]$/,'')+(asc?' ▲':' ▼');
+    rows.sort(function(a,b){
+      var ca=a.children[ci],cb=b.children[ci];
+      var xa=ca?(ca.getAttribute('data-sort-value')!=null?ca.getAttribute('data-sort-value'):ca.textContent):'';
+      var xb=cb?(cb.getAttribute('data-sort-value')!=null?cb.getAttribute('data-sort-value'):cb.textContent):'';
+      var cmp;
+      if(numeric){var na=_ttNum(xa),nb=_ttNum(xb);
+        if(na==null&&nb==null)cmp=0;else if(na==null)cmp=-1;else if(nb==null)cmp=1;else cmp=na-nb;}
+      else cmp=String(xa).trim().localeCompare(String(xb).trim());
+      return asc?cmp:-cmp;});
+    rows.forEach(function(r){body.appendChild(r);});
+    totals.forEach(function(r){body.appendChild(r);});
+  }
+  function initTournamentResultsTable(){
+    var tbl=document.getElementById('tt-unified-table');
+    if(!tbl||tbl._ttSortWired)return; tbl._ttSortWired=true;
+    Array.prototype.forEach.call(tbl.querySelectorAll('th[data-tt-sort]'),function(th){
+      th.style.cursor='pointer'; th.title='Click to sort';
+      th.addEventListener('click',function(){_ttSort(tbl,th);});});
+  }
+  window.initTournamentResultsTable=initTournamentResultsTable;
+  function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function openTournamentDetail(eventId){
+    var evs=window.tournamentEvents||[];
+    var e=null;for(var i=0;i<evs.length;i++){if(evs[i].event_id===eventId){e=evs[i];break;}}
+    if(!e)return false;
+    var body=document.getElementById('ttd-modal-body');if(!body)return false;
+    function row(k,v){if(v==null||v==='')return '';return '<div class="ttd-k">'+_ttEsc(k)+'</div><div class="ttd-v">'+_ttEsc(v)+'</div>';}
+    var html='<div class="ttd-grid">';
+    html+=row('Date',e.event_day);
+    html+=row('Format',e.format);
+    html+=row('Bullets',e.bullets+(e.entry_pattern==='multi_bullet'?' (re-entries)':''));
+    html+=row('Buy-in',e.buy_in);
+    html+=row('Invested',e.cost);
+    html+=row('Finish',e.finish_txt);
+    html+=row('Return',e.return_txt);
+    html+=row('Net',e.net_txt);
+    html+=row('ROI',e.roi_txt);
+    html+=row('Status',e.status);
+    html+='</div>';
+    if(e.return_breakdown&&e.return_breakdown.length){
+      html+='<h4 class="ttd-sub">Return breakdown</h4><ul class="ttd-list">';
+      e.return_breakdown.forEach(function(b){html+='<li>'+_ttEsc(b)+'</li>';});
+      html+='</ul>';}
+    if(e.drivers&&e.drivers.length){
+      html+='<h4 class="ttd-sub">Deep run &amp; stack arc</h4><ul class="ttd-list">';
+      e.drivers.forEach(function(d){html+='<li>'+_ttEsc(d)+'</li>';});
+      html+='</ul>';}
+    if(e.notes)html+='<p class="ttd-note">'+_ttEsc(e.notes)+'</p>';
+    if(e.hand_ids&&e.hand_ids.length){
+      html+='<h4 class="ttd-sub">Hands ('+e.hand_ids.length+')</h4>';
+      html+='<button type="button" class="ttd-hands-btn" onclick=\'openHandListPopup('
+        +JSON.stringify((e.name||"Tournament")+" — hands")+','+JSON.stringify(e.hand_ids)
+        +');return false;\'>Open the event’s hands</button>';}
+    else{html+='<p class="ttd-note">No reviewable hands captured for this event.</p>';}
+    body.innerHTML=html;
+    var t=document.getElementById('ttd-modal-title');if(t)t.textContent=(e.name||'Tournament')+' — detail';
+    var modal=document.getElementById('tournament-detail-modal');
+    modal.setAttribute('aria-hidden','false');modal.classList.add('is-open');
+    document.body.style.overflow='hidden';
+    return false;
+  }
+  window.openTournamentDetail=openTournamentDetail;
+  function closeTournamentDetail(){
+    var modal=document.getElementById('tournament-detail-modal');
+    if(modal){modal.setAttribute('aria-hidden','true');modal.classList.remove('is-open');}
+    document.body.style.overflow='';
+  }
+  window.closeTournamentDetail=closeTournamentDetail;
+  (function(){
+    var c=document.getElementById('ttd-modal-close');if(c)c.addEventListener('click',closeTournamentDetail);
+    var m=document.getElementById('tournament-detail-modal');
+    if(m){var bd=m.querySelector('.modal-backdrop');if(bd)bd.addEventListener('click',closeTournamentDetail);}
+  })();
+  /* The payload is set via _extra_js; if it loaded before this script, wire now. */
+  if(window.tournamentEvents)initTournamentResultsTable();
 
   /* v8.8.4: dimension-to-read support mapping for evidence partition */
   var READ_SUPPORT_DIMS={
@@ -4094,6 +4245,20 @@ _MODAL_HTML = r"""
       }
     });
     _ro.observe(_reviewEl);
+  }
+  /* v8.16.4 Obj 2: the nav/queue area can grow to MULTIPLE rows (>=20 chips
+     wrapping, overflow rows, secondary context text) AFTER the one-shot measure,
+     leaving --v25-queue-h stale so street headers overlap the nav. Observe the
+     queue bar itself so any height change re-measures the offset from the actual
+     bottom of the rendered nav area. */
+  var _queueEl=document.getElementById('hand-queue-context');
+  if(window.ResizeObserver&&_queueEl){
+    var _roq=new ResizeObserver(function(){
+      if(document.getElementById('hand-modal').classList.contains('is-open')){
+        _syncV25StickyVars();
+      }
+    });
+    _roq.observe(_queueEl);
   }
 })();
 </script>
@@ -4771,6 +4936,12 @@ else window.initPerTournamentPnlTable();
   function openTargetDetails(){
     var h=location.hash;if(!h)return;
     var el=document.getElementById(h.slice(1));if(!el)return;
+    /* v8.17.0-rc3: also expand any ANCESTOR <details> the target sits INSIDE
+       (e.g. sec-1-1 / sec-1-3 now live in the collapsed s1-recon-detail
+       secondary reconciliation block — a KPI card or section backlink must
+       auto-open it, not leave the reader inside a closed disclosure). */
+    var anc=el.closest('details');
+    while(anc){anc.setAttribute('open','');anc=anc.parentElement&&anc.parentElement.closest('details');}
     var det=el.nextElementSibling;
     /* Skip anchor-compat nodes */
     while(det&&det.tagName==='A')det=det.nextElementSibling;
@@ -5447,12 +5618,58 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .vb-pivot {{ background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }}
   .vb-miss {{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }}
   .vb-good {{ background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }}
+  /* v8.17.0-rc3: the secondary reconciliation collapse must GENUINELY hide its
+     content when closed. This report's CSS/engine context does not collapse a
+     native <details>' block children on its own (the legacy stack-traj details
+     has the same behaviour), so enforce it explicitly — otherwise the legacy
+     P&L / Deep Runs / Stack Trajectories would still render as competing primary
+     surfaces beside the unified Tournament Results table. */
+  details.s1-recon-detail:not([open]) > :not(summary) {{ display: none !important; }}
+  details.s1-recon-detail > summary {{ cursor: pointer; font-weight: 600;
+    color: #475467; padding: 6px 0; }}
+  /* v8.17 Epic 4: unified Tournament Results table + per-event drilldown modal */
+  table.tt-unified th[data-tt-sort] {{ cursor: pointer; white-space: nowrap; }}
+  table.tt-unified th[data-tt-sort]:hover {{ background: #eef2ff; }}
+  table.tt-unified td.tt-details-cell a {{ font-weight: 600; white-space: nowrap; }}
+  #tournament-detail-modal .ttd-grid {{ display: grid;
+    grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
+  #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}
+  #tournament-detail-modal .ttd-v {{ color: #111827; }}
+  #tournament-detail-modal .ttd-sub {{ margin: 12px 0 4px 0; font-size: 0.95em;
+    color: #1e3a8a; }}
+  #tournament-detail-modal .ttd-list {{ margin: 0 0 8px 1.1em; padding: 0; }}
+  #tournament-detail-modal .ttd-list li {{ margin: 2px 0; }}
+  #tournament-detail-modal .ttd-note {{ color: #475467; font-size: 0.92em; }}
+  #tournament-detail-modal .ttd-hands-btn {{ margin-top: 4px; padding: 6px 14px;
+    border: 1px solid #c7d2fe; border-radius: 6px; background: #eef2ff;
+    color: #3730a3; font-weight: 600; cursor: pointer; }}
+  #tournament-detail-modal .ttd-hands-btn:hover {{ background: #e0e7ff; }}
+  html.dark #tournament-detail-modal .ttd-v {{ color: #e5e7eb; }}
+  html.dark #tournament-detail-modal .ttd-k {{ color: #9ca3af; }}
+  html.dark table.tt-unified th[data-tt-sort]:hover {{ background: #1e1b3a; }}
+  /* mobile: keep the high-value columns; the shell already scroll-contains the rest */
+  @media (max-width: 768px) {{
+    table.tt-unified {{ font-size: 0.86em; }}
+  }}
   /* v8.12.8 (QA F): red ! evidence badge — villain tell ON the action row,
      explained by the ❗ Note block under the grid (same atom) */
   .vb-evid {{ background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
     font-weight: 700; }}
   div.analyst-notes {{ background: #fffbe8; border-left: 4px solid #f5d75e;
     padding: 0.7em 1em 0.7em 1em; margin: 0.5em 0 1.2em 0; border-radius: 4px; }}
+  /* v8.17 Epic A §9 — the visible DECISION CAPSULE: a register-classified, scannable
+     LEAD block, visually distinct from the routed detail notes below it. */
+  div.analyst-notes.pb-capsule {{ background: #f1f5ff; border-left-width: 5px;
+    border-left-color: #6366f1; box-shadow: 0 1px 2px rgba(15,23,42,.06);
+    font-size: 0.98em; margin-bottom: 0.6em; }}
+  div.analyst-notes.pb-capsule strong {{ color: #1e1b4b; }}
+  div.analyst-notes.pb-cap-coaching {{ background: #fef6f1; border-left-color: #ea7c3c; }}
+  div.analyst-notes.pb-cap-factual {{ background: #f0faf3; border-left-color: #3aa564; }}
+  div.analyst-notes.pb-cap-no_clear_lesson {{ background: #f6f7f9; border-left-color: #94a3b8; }}
+  html.dark div.analyst-notes.pb-capsule {{ background: #1e1b3a !important; border-left-color: #818cf8 !important; }}
+  html.dark div.analyst-notes.pb-cap-coaching {{ background: #3a1f12 !important; border-left-color: #f59e6b !important; }}
+  html.dark div.analyst-notes.pb-cap-factual {{ background: #0f2a1b !important; border-left-color: #4ade80 !important; }}
+  html.dark div.analyst-notes.pb-cap-no_clear_lesson {{ background: #20242b !important; border-left-color: #94a3b8 !important; }}
   div.analyst-notes .note-num {{ display: inline-block; background: #f5d75e;
     color: #1a1a2e; font-weight: 700; padding: 0 0.5em; border-radius: 10px;
     margin-right: 0.4em; font-size: 0.85em;
@@ -5928,10 +6145,33 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
      so the collapsed reviewed-list stayed visible. Force the hidden attribute to
      win for both the wrapper and the inner list. */
   #rq-reviewed[hidden], #rq-reviewed-list[hidden] {{ display: none !important; }}
-  .rq-rev-row {{ display: grid; grid-template-columns: 26px auto minmax(0,1fr) auto; gap: 8px;
+  /* v8.16.4 Obj 1: 5 cells emitted (rank|hid|cards|note|status) but the grid
+     declared 4 cols, so the status pill wrapped to a 2nd line. Named grid-areas
+     pin every cell to row 1 regardless of whether the optional cards cell is
+     present, so the status pill is always right-aligned on a single line. */
+  .rq-rev-row {{ display: grid; grid-template-columns: 26px auto auto minmax(0,1fr) auto;
+    grid-template-areas: "rank hid cards note status"; gap: 8px;
     align-items: center; width: 100%; text-align: left; border: 0; background: #fff;
     border-top: 1px solid #f1f5f9; cursor: pointer; padding: 7px 14px; font: inherit; }}
+  .rq-rev-row .rq-rank {{ grid-area: rank; }}
+  .rq-rev-row .rq-hid {{ grid-area: hid; justify-self: start; }}
+  .rq-rev-row .handcards {{ grid-area: cards; }}
+  .rq-rev-row .rq-main {{ grid-area: note; min-width: 0; color: #64748b;
+    font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .rq-rev-row .status-pill {{ grid-area: status; justify-self: end; white-space: nowrap; }}
   .rq-rev-row:hover {{ background: #f8fafc; }}
+  /* v8.16.4 Obj 6: shared preflop range-membership highlight (green=inside,
+     amber=boundary/mixed, red=outside, neutral=no exact source). Applied ON the
+     range expression itself by gem_ranges.highlight_range_expression. */
+  .rng-hl {{ font-weight: 800; border-radius: 5px; padding: 0 3px; }}
+  .rng-hl-green {{ background: #e7f6ee; color: #0f7a48; }}
+  .rng-hl-amber {{ background: #fff3d7; color: #a15c00; }}
+  .rng-hl-red {{ background: #feeceb; color: #b42318; }}
+  .rng-hl-neutral {{ background: #eef1f5; color: #53606f; }}
+  @media(max-width:620px){{
+    .rq-rev-row {{ grid-template-columns: 22px auto auto minmax(0,1fr) auto;
+      padding: 8px 10px; gap: 6px; }}
+  }}
   .rq-empty-win {{ padding: 18px 14px; text-align: center;
     background: linear-gradient(180deg,#ffffff,#f0fdf4); }}
   .rq-trophy {{ font-size: 26px; }}
@@ -6137,6 +6377,15 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-guard {{ color: #92400e; margin-top: 2px; }}
   .v25-teach-pko {{ color: #1e3a5f; margin-top: 2px; }}
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
+  /* v8.17.0-rc3 (Villain Step-3 visible delivery): compact lesson_7part rows */
+  .v25-teach-evid {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  .v25-teach-cue {{ color: #334155; margin: 1px 0; }}
+  .v25-teach-now {{ color: #0f766e; font-weight: 600; margin-top: 2px; }}
+  .v25-teach-future {{ color: #475569; margin-top: 1px; }}
+  .v25-teach-icm {{ color: #92400e; margin-top: 1px; font-size: 11px; }}
+  .v25-teach-confchip {{ display: inline-block; font-size: 10px; font-weight: 600;
+    color: #475569; background: #e2e8f0; border-radius: 999px; padding: 0 6px;
+    margin-left: 4px; vertical-align: middle; }}
   /* v8.14.0 Slice D: confidence line + Natural8 candidate-tag swatch */
   .v25-teach-conf {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
   .v25-teach-tag {{ margin-top: 3px; font-weight: 600; color: #334155;
@@ -6272,7 +6521,9 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-queue-bar {{ background: #fff; border-bottom: 1px solid var(--line);
     padding: 6px 10px; display: block;
     overflow-x: hidden; overflow-y: visible; position: sticky;
-    top: var(--v25-topbar-h); z-index: 70;
+    /* v8.16.4 Obj 2: nav (queue) z-index ABOVE street headers (70) so a sticky
+       street header can never paint over the navigation; still below topbar (90). */
+    top: var(--v25-topbar-h); z-index: 80;
     box-shadow: 0 2px 8px rgba(15,23,42,.06); min-height: 0;
     flex-shrink: 0; }}
   /* V25 hand wrapper */

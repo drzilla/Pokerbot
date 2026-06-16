@@ -408,6 +408,54 @@ def reconcile_pko_trust(*, coverage_bucket=None, can_collect_bounty=None,
     }
 
 
+def how_pko_changes_decision(*, cover_state, discount_applies, contradiction,
+                             suppress_overclaim, multiway, classification,
+                             chip_threshold_pct=None, pko_threshold_pct=None,
+                             discount_pp=0.0, bounty_available=False):
+    """v8.17 Epic B (B7) — the explicit "how the bounty changes the decision"
+    coaching sentence. PURE; composes the SAME reconciled facts reconcile_pko_trust
+    already produced (no recompute, invents no value). Returns '' when there is no
+    honest claim to make (contradiction, no bounty, or villain covers Hero).
+
+    Answers, in one sentence: does the bounty lower Hero's required equity, by how
+    much, against whom, does it materially change the action, and is the incentive
+    positive / negative / mixed (with multiway uncertainty stated honestly)."""
+    if contradiction or not bounty_available:
+        return ''
+    try:
+        chip = float(chip_threshold_pct) if chip_threshold_pct is not None else None
+        pko = float(pko_threshold_pct) if pko_threshold_pct is not None else None
+        dpp = float(discount_pp or 0)
+    except Exception:
+        chip, pko, dpp = None, None, 0.0
+    # villain covers Hero: the bounty cannot be collected here -> not an incentive.
+    if cover_state == 'hero_covered':
+        return ('How the bounty changes it: it does not — the villain covers Hero, '
+                'so Hero collects no bounty here. Price this as a chip decision.')
+    # multiway / ambiguous side-pot: positive but not precisely priceable.
+    if multiway or suppress_overclaim or cover_state in ('mixed', 'unknown'):
+        return ('How the bounty changes it: it is a positive incentive to continue, '
+                'but multiway/side-pot uncertainty means the exact discount is not '
+                'reliable — treat it directionally, not as a fixed price cut.')
+    # Hero covers / near-equal: a real, collectible bounty.
+    _act = {'Good': 'and continuing is correct here',
+            'Missed': 'and Hero passed up a continue the bounty made profitable',
+            'Too wide': 'but the spot is still too wide to continue even with the bounty',
+            }.get(classification, 'so weigh continuing')
+    if discount_applies and chip is not None and pko is not None and dpp > 0:
+        delta = max(0.0, chip - pko)
+        mat = ('a meaningful shift' if delta >= 2.0
+               else 'a small shift that rarely flips a borderline spot')
+        return ('How the bounty changes it: chip-only need %.0f%% → '
+                'bounty-adjusted ~%.0f%% (−%.1fpp). Hero covers the all-in '
+                'caller, so the bounty lowers the call requirement by %.1fpp — '
+                '%s, %s.' % (chip, pko, dpp, delta, mat, _act))
+    # collectible but no discount modelled at this depth -> directional only.
+    return ('How the bounty changes it: Hero covers the all-in caller, so the bounty '
+            'is a positive incentive to continue, but no chip-vs-PKO discount was '
+            'modelled at this depth — treat it directionally.')
+
+
 # Confident PKO classifications that must NOT survive a trust contradiction.
 _PKO_CONFIDENT_CLS = ('Good', 'Missed', 'Too wide')
 
@@ -445,6 +493,16 @@ def pko_trust_render(pko_ctx, *, bounty_usd=None, discount_pp=0.0,
         cls_display, downgraded = cls, False
     prefix = '⚠️ ' if tr['contradiction'] else '\U0001F3AF '
     strip_md = (prefix + '**Bounty trust:** ' + tr['trust_line']) if tr['trust_line'] else ''
+    # v8.17 Epic B (B7): the explicit "how the bounty changes the decision" coaching
+    # sentence, built from the SAME reconciled facts (no recompute). Uses the
+    # POST-downgrade display class so the coaching can never out-claim the verdict.
+    _bounty_available = bool(ctx.get('bounty_value_bb_est')) or bounty_usd is not None
+    how_changes_md = how_pko_changes_decision(
+        cover_state=tr['cover_state'], discount_applies=tr['discount_applies'],
+        contradiction=tr['contradiction'], suppress_overclaim=tr['suppress_overclaim'],
+        multiway=tr['multiway'], classification=cls_display,
+        chip_threshold_pct=chip_threshold_pct, pko_threshold_pct=pko_threshold_pct,
+        discount_pp=discount_pp, bounty_available=_bounty_available)
     return {
         'trust_line': tr['trust_line'],
         'strip_md': strip_md,
@@ -454,6 +512,10 @@ def pko_trust_render(pko_ctx, *, bounty_usd=None, discount_pp=0.0,
         'suppress_overclaim': tr['suppress_overclaim'],
         'classification_display': cls_display,
         'downgraded': downgraded,
+        'cover_state': tr['cover_state'],
+        'discount_applies': tr['discount_applies'],
+        'multiway': tr['multiway'],
+        'how_changes_md': how_changes_md,
     }
 
 

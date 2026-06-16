@@ -3008,7 +3008,9 @@ with open(_html_path, encoding='utf-8') as _f:
         # insertions shifted the pinned comment past the old cutoff)
         # v8.14.0 Slice C: 2800 -> 2950 (PBReviewQueue controller insertion
         # shifted the pinned push-range comment down again)
-        if _i > 2950:
+        # v8.17.0-rc3: 2950 -> 3100 (lesson_7part teaching-render block + CSS
+        # insertions shifted the pinned push-range comment to ~2955)
+        if _i > 3100:
             break
 _html_head = ''.join(_html_lines)
 
@@ -5318,10 +5320,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.16.3 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.16.3'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.3'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.3', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.17.0 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.17.0'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.0'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.0', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -5353,12 +5355,23 @@ check('T-H141-05: chip-vs-PKO threshold still renders when a discount is present
       'Chip-only call needs 35%' in _h141_thr['strip_md']
       and 'PKO-adjusted needs ~29%' in _h141_thr['strip_md'], _h141_thr['strip_md'])
 # #4 queue auto-clear: neutral title, never "mistake" (real report had +7.5BB titled mistake).
+# v8.16.4 DTI Blocker 1: auto-clear is detector-health -> routed to internal QA, no
+# longer a visible review row. The original intent (a +7.5BB auto-clear is never a
+# "mistake") is preserved AND strengthened: it is not surfaced as a review row at all,
+# and where it carries a title (internal QA) that title stays the neutral "Auto-cleared".
 _h141_q = _brq141({'mistakes': [{'id': 'TM6073281442', 'desc': 'loose call'}]}, {}, {},
                   {'TM6073281442': {'net_bb': 7.5, 'cards': ['Kh', '5d']}})
-_h141_ac = [x for x in _h141_q if x['bucket'] == 'auto_clear']
-check('T-H141-06: auto-clear queue rows are NOT titled "mistake" (neutral copy)',
-      bool(_h141_ac) and 'mistake' not in _h141_ac[0]['title'].lower()
-      and 'Auto-cleared' in _h141_ac[0]['title'], _h141_ac[0]['title'] if _h141_ac else 'none')
+import gem_review_trust as _bt141
+_h141_agg = _bt141.aggregate_review_queue(
+    [{'id': 'TM6073281442', 'bucket': 'auto_clear',
+      'title': 'Auto-cleared — quick scan, no analyst action needed.', 'net': 7.5}])
+_h141_iq = _h141_agg['internal_qa']
+check('T-H141-06: auto-clear -> internal QA (not a visible row), never titled "mistake"',
+      not any(x['bucket'] == 'auto_clear' for x in _h141_q)
+      and not any('mistake' in (x.get('title') or '').lower() for x in _h141_q)
+      and bool(_h141_iq) and 'Auto-cleared' in _h141_iq[0]['title']
+      and 'mistake' not in _h141_iq[0]['title'].lower(),
+      str([x.get('title') for x in _h141_q]))
 # #71725727 chart-id humanization (registry + both render paths use it).
 check('T-H141-07: raw chart ids humanize (REJAM/PUSH/CALLJAM) and are not exposed raw',
       _cl141.chart_display_label('REJAM_SBvsCO') == 'SB re-jam vs CO open'
@@ -5475,7 +5488,7 @@ check('T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key}
 # B5: required-equity teaching attaches to the compact XIV.B line too (not only XIV.A)
 check('T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)',
       _xiv141.count('not how often you are') >= 2
-      and '_po_lines_b' in _xiv141 and 'if _req_b:' in _xiv141,
+      and '_po_lines_b' in _xiv141 and 'if _req_b and not _mw_sup_b:' in _xiv141,
       'teach-copy count=' + str(_xiv141.count('not how often you are')))
 
 # B6: settlement-date label lands in the REAL results-attribution table path
@@ -8185,6 +8198,103 @@ check('T-VC-22: high-confidence aggregate read + off-axis cue -> "read is from o
       and 'still forming' not in _vc_hi_read, _vc_hi_read)
 
 # ============================================================
+# v8.17 Epic 3 — Villain Step 3 producer completeness (T-VS3-*)
+# ============================================================
+# T-VS3-01: _build_read_states emits profile_label (consistent/split/mixed) from dims
+check('T-VS3-01: _build_read_states emits profile_label from dimension coherence',
+      _gvi_vc._derive_profile_label({'sticky': 10}) == 'consistent'
+      and _gvi_vc._derive_profile_label({'sticky': 6, 'aggressive': 6}) == 'split'
+      and _gvi_vc._derive_profile_label({'sticky': 6, 'aggressive': 6, 'tight': 6}) == 'mixed'
+      and _gvi_vc._derive_profile_label({}) == 'consistent', '')
+_vs3_rs = _gvi_vc._build_read_states(
+    {'T|v': {'display': 'Rocky'}},
+    {'T|v': [{'dimension': 'tight', 'strength': 2, 'hand_id': 'P%d' % i, 'badge': 'note',
+              'signal': 'repeated_blind_overfold', 'hero_involved': True} for i in range(5)]})
+check('T-VS3-01b: a real read_state carries a profile_label key',
+      'profile_label' in _vs3_rs['T|v']
+      and _vs3_rs['T|v']['profile_label'] in ('consistent', 'split', 'mixed'), str(_vs3_rs))
+
+# T-VS3-02: _stamp_exploit_read stamps timing fields + gradable predicate
+_vs3_e = {}
+_gvi_vc._stamp_exploit_read(_vs3_e, 'missed_steal_vs_nit', 'prior_atoms_mapped',
+                            outcome='missed', confidence='medium', n_atoms=4, action_index=3)
+check('T-VS3-02: cross-hand trusted exploit -> available_before=0, action_index stamped, gradable',
+      _vs3_e['available_before_action_index'] == 0 and _vs3_e['action_index'] == 3
+      and _vs3_e['gradable'] is True and _vs3_e['non_gradable_reason'] == '', str(_vs3_e))
+
+# T-VS3-03: gradable predicate gates — trusted+conf+avail+outcome only
+check('T-VS3-03a: non-trusted detector is never gradable (no_trusted_baseline)',
+      _gvi_vc._gradable_exploit('bluffed_sticky', 'prior_atoms_mapped', 'high', 'missed', 0, 5)
+      == (False, 'no_trusted_baseline'), '')
+check('T-VS3-03b: trusted but low confidence -> low_confidence',
+      _gvi_vc._gradable_exploit('good_steal_vs_nit', 'prior_atoms_mapped', 'low', 'good', 0, 4)
+      == (False, 'low_confidence'), '')
+check('T-VS3-03c: trusted med/high but no availability -> read_not_available_before_decision',
+      _gvi_vc._gradable_exploit('missed_steal_vs_nit', 'same_hand_pivot', 'high', 'missed', None, 4)
+      == (False, 'read_not_available_before_decision'), '')
+check('T-VS3-03d: trusted + ungraded outcome (downgraded thin) -> no_graded_outcome',
+      _gvi_vc._gradable_exploit('missed_steal_vs_nit', 'prior_atoms_mapped', 'medium', '', 0, 4)
+      == (False, 'no_graded_outcome'), '')
+
+# T-VS3-04: lesson_7part — all 7 parts always present; graded vs thin behave differently
+_vs3_graded = _vt.teaching_from_exploit(
+    _vt_exp(exploit_read_label='Nit / Rock', exploit_read_display='Nit / Rock',
+            exploit_detector='missed_steal_vs_nit', exploit_outcome='missed',
+            auto_verdict='missed_exploit', read_source='prior_atoms_mapped',
+            available_before_action_index=0, gradable=True, non_gradable_reason='',
+            suggests='Villain overfolds blinds; wide steal spot.',
+            so_what='Open wider from steal seats.', recommended_exploit='Steal wider in blinds.',
+            hero_decision_street='preflop'),
+    {_vt_vk: {'villain_alias': 'Rocky', 'primary_read': 'Nit / Rock', 'profile_label': 'consistent',
+              'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['P1', 'P2', 'P3']}},
+    {_vt_vk: [{'dimension': 'tight'} for _ in range(9)]})
+_l7 = _vs3_graded['lesson_7part']
+check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason',
+      {'q1_villain_did', 'q2_cue', 'q3_read', 'q4_confidence', 'q5_exploit_now',
+       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} == set(_l7), str(_l7))
+check('T-VS3-04b: graded trusted exploit -> gradable True, q5/q6/q7 present, reason empty',
+      _l7['gradable'] is True and _l7['q5_exploit_now'] and _l7['q6_exploit_future']
+      and _l7['q7_do_not_overadjust'] and _l7['non_gradable_reason'] == '', str(_l7))
+check('T-VS3-04c: thin/fallback object -> q1 is the fixed fallback, q2..q7 None, not gradable',
+      _thin['lesson_7part']['q1_villain_did'] == _vt.FALLBACK_LINE
+      and _thin['lesson_7part']['q5_exploit_now'] is None
+      and _thin['lesson_7part']['gradable'] is False, str(_thin['lesson_7part']))
+
+# T-VS3-05: aggregate profile_label override — 'mixed'/'split' dominates; 'consistent' does NOT
+#           suppress the per-hand node-specific caveat.
+_vs3_mixed = _vt.teaching_from_atom(
+    dict(_vc_split_atom, villain_key='T1|mx'),
+    {'T1|mx': {'primary_read': 'Sticky Passive', 'confidence': 'high', 'n_evidence': 9,
+               'evidence_hand_ids': ['H9', 'H7', 'H5'], 'profile_label': 'mixed'}},
+    {'T1|mx': [{'dimension': 'loose_passive'}] * 9}, signal_coaching={})
+_vs3_cons = _vt.teaching_from_atom(
+    dict(_vc_split_atom, villain_key='T1|cn'),
+    {'T1|cn': {'primary_read': 'Aggressive', 'confidence': 'low', 'n_evidence': 3,
+               'evidence_hand_ids': ['H9', 'H7'], 'profile_label': 'consistent'}},
+    {'T1|cn': [{'dimension': 'loose_passive'}] * 3}, signal_coaching={})
+check('T-VS3-05: mixed aggregate -> Mixed-profile prefix; consistent aggregate keeps node-specific cue',
+      _vs3_mixed['profile_label'] == 'mixed'
+      and any('Mixed profile' in l for l in _vs3_mixed['teach_lines'])
+      and _vs3_cons['profile_label'] == 'split'
+      and any('node-specific' in l.lower() for l in _vs3_cons['teach_lines']),
+      str((_vs3_mixed['profile_label'], _vs3_cons['profile_label'])))
+
+# T-VS3-06: a non-trusted detector exploit surfaces its non_gradable_reason on the object
+_vs3_ng = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='bluffed_sticky', exploit_outcome='missed',
+            gradable=False, non_gradable_reason='no_trusted_baseline'),
+    _vt_rs(), _vt_sticky)
+check('T-VS3-06: non-trusted exploit is non-graded + carries the producer reason',
+      _vs3_ng['teaching_status'] not in _vt._GRADED_STATUSES
+      and _vs3_ng['non_gradable_reason'] == 'no_trusted_baseline', str(_vs3_ng.get('non_gradable_reason')))
+
+# T-VS3-07: villain aggregate drilldown opens a lone example directly (count-of-one)
+_vs3_html = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-VS3-07: openExploitDrilldown short-circuits a single reviewable example to a direct open',
+      '_revFiltered' in _vs3_html and 'openHandFromExploitDrilldown(_solo' in _vs3_html
+      and '_revFiltered.length===1' in _vs3_html, '')
+
+# ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)
 # ============================================================
 import gem_report_data as _ctrd
@@ -8314,15 +8424,20 @@ from gem_report_draft.tldr import (build_review_queue as _rq_build,
 _rqh = open('gem_report_draft/_html.py', encoding='utf-8').read()
 _rqt = open('gem_report_draft/tldr.py', encoding='utf-8').read()
 
-_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'x'},
-          'TMm': {'verdict': 'III.2', 'hand_strength': 'y'}}
+_rq_an = {'TMp': {'verdict': 'III.1', 'hand_strength': 'Punt — overfold the river'},
+          'TMm': {'verdict': 'III.2', 'hand_strength': 'Over-jam turns made hand into bluff'}}
 _rq_s = {'mistakes': [{'id': 'TMa', 'desc': 'auto', 'net_bb': -9}]}
-_rq_rd = {'issue_explorer_issues': [{'name': 'Leak', 'all_hand_ids': ['TMk']}],
-          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'm'}]}}
+# v8.16.4 DTI Blocker 1: priority order across the SURVIVING visible buckets. A
+# non-generic leak name aggregates to one known-leak row (count 1); auto-clear is
+# detector-health and is routed to internal QA (no longer a visible queue bucket).
+_rq_rd = {'issue_explorer_issues': [{'name': 'Missed BTN steal — extended range',
+                                     'all_hand_ids': ['TMk']}],
+          'reviewed_mistakes': {'needs_review': [{'id': 'TMg', 'reason': 'flat too wide vs UTG'}]}}
 _rq_hb = {k: {'net_bb': -10, 'cards': ['Ah', 'Kd']} for k in ('TMp', 'TMm', 'TMa', 'TMk', 'TMg')}
 _rq_q = _rq_build(_rq_s, _rq_rd, _rq_an, _rq_hb)
-check('T-RQ-01: queue priority order punt<analyst<known_leak<auto_clear<marginal',
-      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'auto_clear', 'marginal'],
+check('T-RQ-01: queue priority order punt<analyst<known_leak<marginal (auto_clear -> internal QA)',
+      [x['bucket'] for x in _rq_q] == ['punt', 'analyst_mistake', 'known_leak', 'marginal']
+      and not any(x['bucket'] == 'auto_clear' for x in _rq_q),
       str([x['bucket'] for x in _rq_q]))
 check('T-RQ-02: status normalize (Agree/Report bug/Drill/Rulebook/Clear); Ignore rejected',
       _rq_norm('Agree') == 'agree' and _rq_norm('Report bug') == 'report_bug'
@@ -8697,12 +8812,15 @@ check('T-TT-R-01: new section renders from build_tournament_model (header + even
       and 'retained for cross-check' in _ttr_md
       and '| Date | Tournament | Type |' in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
-# old/current Results tables still render (S1 unchanged + STT ADDED after it)
+# v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface -> STT
+# is now wired BEFORE S1 (the nav order derives from this list). S1 still renders
+# (All-Ins/arc), but its P&L/Deep-Runs/Stack-Trajectories are collapsed into one
+# secondary reconciliation <details>.
 _draft_src_ttr = open('gem_report_draft/draft.py', encoding='utf-8').read()
-check('T-TT-R-02: old Results section still wired (S1 kept) and STT added additively AFTER it',
+check('T-TT-R-02: unified Tournament Results (STT) wired BEFORE S1 (primary Results surface)',
       "('S1',  _emit_section_i)" in _draft_src_ttr
       and "('STT', _emit_tournament_tables)" in _draft_src_ttr
-      and _draft_src_ttr.index("('S1',  _emit_section_i)") < _draft_src_ttr.index("('STT', _emit_tournament_tables)")
+      and _draft_src_ttr.index("('STT', _emit_tournament_tables)") < _draft_src_ttr.index("('S1',  _emit_section_i)")
       and 'def _emit_section_i(' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(), '')
 # repeated names => separate rows
 _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
@@ -8759,6 +8877,128 @@ _pre = _copy_ttr.deepcopy(_tt_rd)
 _render_tt(_tt_rd)
 check('T-TT-R-12: renderer is read-only on rd (no unrelated state mutation)',
       _tt_rd == _pre, '')
+
+# ============================================================
+# v8.17 Epic 4 — Unified Tournament Results (primary table + drilldown + recon)
+# ============================================================
+import json as _json_tr
+# Render the unified section with a stack trajectory + hands so the drilldown
+# payload is fully exercised.
+_tr_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed',
+  # canonical convention: total_cash holds the TOTAL return (cash + ticket);
+  # total_ticket_value is the ticket portion (so cash = 500 − 470 = 30).
+  'totals': {'n_tournaments': 2, 'n_bullets': 3, 'total_cost': 49,
+             'total_cash': 500, 'total_ticket_value': 470, 'total_net': 451,
+             'roi_pct': 920.4},
+  'per_tournament': [
+    {'tid': 'TR1', 'name': 'Mini Knockout Heater', 'start_date': '2026-06-14',
+     'buyin': 22, 'bullets': 2, 'cost': 44, 'cash_received': 30, 'ticket_value': 0,
+     'cash_total': 30, 'net': -14, 'is_sat': False, 'place': 12, 'total_players': 500, 'itm': False},
+    {'tid': 'TR2', 'name': 'Daily Sat', 'start_date': '2026-06-14', 'buyin': 5,
+     'bullets': 1, 'cost': 5, 'cash_received': 0, 'ticket_value': 470, 'cash_total': 0,
+     'net': 465, 'is_sat': True, 'place': 3, 'total_players': 40, 'itm': True}]}}
+_tr_s = {'stack_trajectories': {'TR1': {'start_bb': 50, 'peak_bb': 80, 'valley_bb': 5,
+         'end_bb': 0, 'n_hands': 40, 'peak_hand': 'H1', 'valley_hand': 'H2'}}}
+_tr_hands = [{'id': '71111111', 'tournament_id': 'TR1'},
+             {'id': '72222221', 'tournament_id': 'TR2'}]
+_tr_doc = _Doc_ttr()
+_ett(_tr_doc, _tr_s, _tr_rd, _tr_hands)
+_tr_md = _tr_doc.render_md()
+_tr_js = [j for j in _tr_doc._extra_js if j.startswith('window.tournamentEvents=')]
+_tr_payload = _json_tr.loads(_tr_js[0][len('window.tournamentEvents='):-1]) if _tr_js else []
+
+check('T-TR817-01: primary unified sortable table is emitted (id + sortable headers + Format/Status cols)',
+      "id='tt-unified-table'" in _tr_md and "data-tt-sort='0'" in _tr_md
+      and '>Format<' in _tr_md and '>Status<' in _tr_md and '>Invested<' in _tr_md, '')
+check('T-TR817-02: every event row has a Details drilldown affordance',
+      _tr_md.count('openTournamentDetail(') == 2
+      and "if(window.initTournamentResultsTable)" in ''.join(_tr_doc._extra_js), '')
+check('T-TR817-03: per-event drilldown payload is canonical (one entry per event, no recompute)',
+      len(_tr_payload) == 2
+      and {'event_id', 'name', 'format', 'bullets', 'finish_txt', 'return_txt',
+           'net_txt', 'roi_txt', 'status', 'return_breakdown', 'drivers',
+           'hand_ids'} <= set(_tr_payload[0]), str(_tr_payload[:1]))
+check('T-TR817-04: deep-run status derived from canonical finish (top% / day2 / itm)',
+      _tr_payload[0]['status'] == 'Deep run'        # 12/500 = top 2.4%
+      and _tr_payload[1]['status'] == 'Deep run', str([p['status'] for p in _tr_payload]))
+check('T-TR817-05: Stack Trajectory folded into the drilldown (no standalone recompute)',
+      any('Stack arc' in d for d in _tr_payload[0]['drivers']), str(_tr_payload[0]['drivers']))
+check('T-TR817-06: drilldown review-links route to the event hands',
+      _tr_payload[0]['hand_ids'] == ['71111111']
+      and _tr_payload[1]['hand_ids'] == ['72222221'], str([p['hand_ids'] for p in _tr_payload]))
+check('T-TR817-07: PKO/bounty return reconciliation line present (bounty folded into cash, never inferred)',
+      'included in Cash return' in _tr_md
+      and 'never split out or inferred' in _tr_md, '')
+check('T-TR817-08: satellite return breakdown = ticket (no fabricated bounty $)',
+      any('Ticket' in b for b in _tr_payload[1]['return_breakdown'])
+      and not any('$' in b and 'Bounty' in b for b in _tr_payload[1]['return_breakdown']), str(_tr_payload[1]['return_breakdown']))
+# Reconciliation invariants — the model is the single financial source of truth.
+from gem_tournament_model import build_tournament_model as _btm_tr
+_tr_model = _btm_tr(_tr_rd)
+_tr_ev = _tr_model['events']; _tr_tot = _tr_model['totals']
+check('T-TR817-09: sum(event bullets/cost/net) reconcile to canonical totals',
+      sum(e['bullets'] for e in _tr_ev) == _tr_tot['n_bullets']
+      and abs(sum(e['cost'] for e in _tr_ev) - _tr_tot['committed_cost']) <= 0.01
+      and _tr_model['diagnostics']['reconciles_canonical'] is True, '')
+check('T-TR817-10: event ROI denominator is committed cost, never return',
+      all((e['roi_pct'] is None) or abs(e['roi_pct'] - (e['net'] / e['cost'] * 100)) <= 0.05
+          for e in _tr_ev if e['cost']), '')
+check('T-TR817-11: one row per event_id (re-entries merged; multi-bullet stays one row)',
+      len({e['event_id'] for e in _tr_ev}) == len(_tr_ev)
+      and next(e for e in _tr_ev if e['tournament_id'] == 'TR1')['bullets'] == 2, '')
+# v8.17.0-rc3: the legacy P&L is no longer a paragraph "cross-check detail" — it
+# (with Deep Runs + Stack Trajectories) is now COLLAPSED into ONE closed secondary
+# reconciliation <details class='s1-recon-detail'>. Heading preserved; the closed
+# disclosure is opened on hash-nav by the openTargetDetails ancestor-expand fix.
+_sf_src_rc3 = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+check('T-TR817-12: legacy P&L/Deep-Runs/Stack-Traj collapsed into one closed secondary reconciliation details',
+      'S1.1 Per-Tournament P&L' in _sf_src_rc3
+      and "<details class='s1-recon-detail'>" in _sf_src_rc3
+      and "<details class='s1-recon-detail' open" not in _sf_src_rc3, '')
+_tr_html_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-TR817-13: drilldown JS + modal scaffold + sortable wired in _html.py',
+      'function openTournamentDetail(' in _tr_html_src
+      and 'id="tournament-detail-modal"' in _tr_html_src
+      and 'function _ttSort(' in _tr_html_src, '')
+
+# ============================================================
+# v8.17.0-rc3 — correction pass (unify Tournament Results + lesson_7part render)
+# ============================================================
+_draft_rc3 = open('gem_report_draft/draft.py', encoding='utf-8').read()
+_sf_rc3 = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
+# RC3-1: STT (Tournament Results) is the PRIMARY surface — wired before S1.
+check('T-RC3-01: STT (Tournament Results) wired BEFORE S1 in section_emitters',
+      _draft_rc3.index("('STT', _emit_tournament_tables)") < _draft_rc3.index("('S1',  _emit_section_i)"), '')
+# RC3-1: legacy P&L/Deep-Runs/Stack-Traj collapsed into ONE closed secondary details.
+check('T-RC3-02: one closed s1-recon-detail collapse wrapping the legacy surfaces',
+      _sf_rc3.count("<details class='s1-recon-detail'>") == 1
+      and "<details class='s1-recon-detail' open" not in _sf_rc3
+      # the collapse opens before the P&L subsection and closes after stack traj
+      and _sf_rc3.index("s1-recon-detail") < _sf_rc3.index('"sec-1-1"')
+      and _sf_rc3.index("s1-recon-detail") < _sf_rc3.index('Stack trajectories'), '')
+# RC3-1: hash-nav into the collapsed block auto-expands the ancestor <details>.
+check('T-RC3-03: openTargetDetails expands ANCESTOR details (anchor into collapsed S1)',
+      "var anc=el.closest('details');" in _tr_html_src
+      and "anc.setAttribute('open','')" in _tr_html_src, '')
+# RC3-2: the visible villain teaching render provably consumes lesson_7part.
+check('T-RC3-04: villain teaching render reads ctx.teaching.lesson_7part (compact 7-part)',
+      'ctx.teaching.lesson_7part' in _tr_html_src and '_t.lesson_7part' in _tr_html_src
+      and "data-from','lesson_7part'" in _tr_html_src and 'v25-lesson7' in _tr_html_src
+      and '_L.q5_exploit_now' in _tr_html_src and '_L.q7_do_not_overadjust' in _tr_html_src, '')
+# RC3-2: the compact structure carries Read+Confidence / Cue / Exploit now / Future / Guardrail.
+check('T-RC3-05: compact labelled rows present (Read/Cue/Exploit now/Next time/Guardrail)',
+      'v25-teach-cue' in _tr_html_src and 'v25-teach-now' in _tr_html_src
+      and 'v25-teach-future' in _tr_html_src and 'v25-teach-guard' in _tr_html_src
+      and 'v25-teach-confchip' in _tr_html_src, '')
+# RC3-2: the legacy teach_lines path is preserved as a fallback (T-VT-18 guard).
+check('T-RC3-06: legacy teach_lines.forEach fallback preserved',
+      'teach_lines.forEach' in _tr_html_src, '')
+# RC3-1: the closed reconciliation collapse must GENUINELY hide its content
+# (browser QA found this report's CSS context does not collapse native <details>
+# block children on its own) — else the legacy tables stay competing primaries.
+check('T-RC3-07: closed s1-recon-detail collapse hides its content via explicit CSS',
+      'details.s1-recon-detail:not([open]) > :not(summary)' in _tr_html_src
+      and 'display: none !important' in _tr_html_src, '')
 
 print('\n--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---')
 
@@ -9149,6 +9389,466 @@ check('T-CM-14 (anti): a post-lazy STUB body has NO inline notes — enumeration
       'stub html should yield 0 in-body sources without decoding')
 check('T-CM-15 (anti): no out-of-scope source is ever classified visible_capsule',
       all(_CM._STATUS[k] == 'leave_untouched_out_of_scope' for k in _CM._BOTTOM_ONLY), '')
+
+print('\n--- v8.16.4 Review Precision & Decision-Trust (synthetic fixtures only) ---')
+import gem_review_trust as _RT
+import gem_ranges as _RR
+_html_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+
+# ---- Objective 1: reviewed-row layout (5-col grid, status pinned row 1) ----
+check('T-RPDT-01: .rq-rev-row declares 5 columns + named grid-areas (was 4 -> pill wrapped)',
+      "grid-template-areas: \"rank hid cards note status\"" in _html_src
+      and "26px auto auto minmax(0,1fr) auto" in _html_src
+      and ".rq-rev-row .status-pill" in _html_src, 'rq-rev-row grid not fixed')
+check('T-RPDT-02: reviewed row emits a note preview in rq-main (no empty cell)',
+      "<span class=\"rq-main\">'+((x.reason||x.note||'')" in _html_src, 'rq-main still empty')
+
+# ---- Objective 2: sticky offset re-measures multi-row nav; nav above headers ----
+check('T-RPDT-03: queue ResizeObserver re-syncs sticky vars + nav z-index above street headers',
+      "_roq=new ResizeObserver" in _html_src and "_roq.observe(_queueEl)" in _html_src
+      and "z-index: 80" in _html_src, 'queue observer / z-index missing')
+
+# ---- Objective 4: actionable "why this hand" + generic-copy ban ----
+for _g in ('Strategic leak', 'Known leak', 'Potential detector blind spot',
+           'Spots cleared or monitored', 'Marginal candidate', ''):
+    check('T-RPDT-04: generic reason banned: %r' % (_g or '(empty)'),
+          _RT.is_generic_reason(_g) is True, _g)
+check('T-RPDT-05: concrete reason accepted; build_why_review structured',
+      not _RT.is_generic_reason('barrels into a capped range with no fold equity')
+      and _RT.build_why_review('turn', 'bets 75% pot',
+            'barrels into a capped range with no fold equity', 'confirmed_mistake'
+          )['why'].startswith('Turn: bets 75% pot — '), '')
+check('T-RPDT-06: build_why_review gates out generic / bad street / bad category',
+      _RT.build_why_review('turn', 'bet', 'Strategic leak', 'candidate') is None
+      and _RT.build_why_review('zz', 'bet', 'real', 'candidate') is None
+      and _RT.build_why_review('turn', 'bet', 'real', 'nope') is None
+      and _RT.build_why_review('turn', '', 'real', 'candidate') is None, '')
+check('T-RPDT-07: actionable_reason_ok validates a full why-contract',
+      _RT.actionable_reason_ok(_RT.build_why_review('river', 'jams 2.1x pot',
+            'overjam turns a made hand into a bluff', 'confirmed_mistake'))
+      and not _RT.actionable_reason_ok({'street': 'turn', 'action': '',
+            'reason': 'x', 'category': 'candidate'}), '')
+
+# ---- Objective 5: verdict/action reconciliation invariant ----
+check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
+      _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'
+      and _RT.reconcile_verdict('Mistake', True, False)[0] == 'Review'
+      and _RT.reconcile_verdict('Mistake', True, True)[0] == 'Mistake', '')
+check('T-RPDT-09: non-mistake verdict scrubs stale negative marker, keeps verdict',
+      _RT.reconcile_verdict('Justified', True, True) == ('Justified', True,
+            ['non-mistake verdict: scrub stale negative marker'])
+      and _RT.reconcile_verdict('Cooler', False, False)[1] is True, '')
+check('T-RPDT-10: verdict_validation_issue flags unsubstantiated Mistake only',
+      _RT.verdict_validation_issue('Mistake', False, True) is not None
+      and _RT.verdict_validation_issue('Mistake', True, True) is None
+      and _RT.verdict_validation_issue('Read-Dependent', False, False) is None, '')
+
+# ---- Objective 6: shared preflop range highlight ----
+check('T-RPDT-11: range_membership_color green/amber/red/neutral + inexact->neutral',
+      _RR.range_membership_color('inside', 'exact') == 'green'
+      and _RR.range_membership_color('boundary', 'exact') == 'amber'
+      and _RR.range_membership_color('outside', 'exact') == 'red'
+      and _RR.range_membership_color('inside', 'none') == 'neutral'
+      and _RR.range_membership_color('outside', 'proxy') == 'neutral', '')
+_hl = _RR.highlight_range_expression('22+, AJs+, KQo', 'outside', 'exact', 'first_in_open')
+check('T-RPDT-12: highlight wraps the expression itself + colour class + node label',
+      _hl['color'] == 'red' and 'rng-hl-red' in _hl['html']
+      and '22+, AJs+, KQo' in _hl['html'] and 'first-in open' in _hl['html'], _hl)
+check('T-RPDT-13: outside-open negative ONLY under trust gates; never flag a fold',
+      _RR.outside_open_negative_ok('first_in_open', True, True, True) is True
+      and _RR.outside_open_negative_ok('first_in_open', False, True, True) is False
+      and _RR.outside_open_negative_ok('first_in_open', True, True, True,
+            hero_folded=True) is False
+      and _RR.outside_open_negative_ok('call_vs_jam', True, True, True) is False, '')
+
+# ---- Objective 7: preflop all-in decision math (by type) ----
+check('T-RPDT-14: allin_math_kind classifies call-vs-jam / open-shove / rejam / none',
+      _RT.allin_math_kind(True, False, False, True) == 'call_vs_jam'
+      and _RT.allin_math_kind(True, True, True, False) == 'open_shove'
+      and _RT.allin_math_kind(True, False, True, False) == 'rejam'
+      and _RT.allin_math_kind(False, True, True, True) == 'not_allin', '')
+check('T-RPDT-15: required fields per type; equity never claims exactness on heuristic',
+      'required_equity' in _RT.required_allin_fields('call_vs_jam')
+      and 'fold_equity_or_ev' in _RT.required_allin_fields('open_shove')
+      and _RT.equity_label(True) == 'estimated equity (heuristic range)', '')
+
+# ---- Objective 8: canonical multiway snapshot (no heads-up math) ----
+_mw = _RT.multiway_render_plan(2, 1)
+check('T-RPDT-16: multiway suppresses HU required-equity, shows field+per-opponent, marks uncertainty',
+      _mw['is_multiway'] and _mw['suppress_hu_required_equity'] and _mw['show_field_equity']
+      and _mw['per_opponent_range_lines'] == 2 and _mw['pot_odds_uncertain']
+      and not _RT.multiway_render_plan(1, 0)['is_multiway'], _mw)
+
+# ---- Objective 9: PKO bounty provenance ----
+check('T-RPDT-17: bounty provenance labels distinguish exact/estimated/flat/effective',
+      _RT.bounty_provenance_label('starting_bb_flat', value_bb=12)
+            == 'Estimated bounty ~ 12 starting BB — flat event estimate'
+      and _RT.bounty_provenance_label('exact', value_usd=50) == 'Bounty: $50 (exact)'
+      and not _RT.bounty_is_dynamic('starting_bb_flat')
+      and _RT.bounty_is_dynamic('effective_bb'), '')
+
+# ---- Objective 10: Range Lens pruning + no postflop lens after preflop all-in ----
+_pl = _RR.postflop_range_lens(['Ah', 'Kd'], ['Ks', '7d', '2c'], 'flop')
+check('T-RPDT-18 (anti): postflop lens does NOT restate Hero made hand by default',
+      _pl.startswith('Range lens: on ')
+      and 'Hero has top pair' not in _pl and 'Hero has second pair' not in _pl
+      and 'Hero has a flush draw' not in _pl and 'Hero has no made hand' not in _pl, _pl)
+check('T-RPDT-19: lens mentions Hero only for blocker/value/bluff-catch',
+      'Hero holds the nut-flush card' in
+        _RR.postflop_range_lens(['Ah', 'Qh'], ['9h', 'Td', '2s', '2h'], 'turn')
+      and 'Hero sits at the top' in
+        _RR.postflop_range_lens(['Ah', 'Ad'], ['As', '7d', '2c'], 'flop'), '')
+check('T-RPDT-20: _emit_range_lens skips postflop when Hero is all-in preflop',
+      'Objective 10: when Hero is all-in PREFLOP' in _xiv_src
+      and "if h.get('pf_allin'):\n        return" in _xiv_src, 'pf_allin lens gate missing')
+check('T-RPDT-21 (anti): lens still carries no solver %/combo counts',
+      '%' not in _pl and 'combos' not in _pl.lower(), _pl)
+
+# ---- Objective 11: commentary attribution (structural support) ----
+check('T-RPDT-22: attribution roles distinguish root / downstream / consequence',
+      _RT.attribution_label('root_mistake') == 'root mistake'
+      and 'compounds' in _RT.attribution_label('downstream')
+      and _RT.attribution_label('consequence') == 'result', '')
+_ap = _RT.attribution_plan({'turn': 'root_mistake', 'river': 'downstream'})
+check('T-RPDT-23: attribution_plan orders streets + flags root/downstream, no dup',
+      _ap['streets'] == ['turn', 'river'] and _ap['has_root'] and _ap['has_downstream']
+      and not _ap['duplicated'], _ap)
+
+# ---- Objective 12: ONE integrated Results section (no duplicate primary) ----
+_draft_src = open('gem_report_draft/draft.py', encoding='utf-8').read()
+check('T-RPDT-24: Tournament Results is the supplementary cross-check label (single primary)',
+      "'STT'" in _draft_src and 'Tournament Results' in _draft_src, 'STT label regressed')
+
+# ---- Objective 13: Debate is a first-class non-mistake (not forced) ----
+check('T-RPDT-25: Debate verdict is preserved, never forced to Mistake/Justified',
+      'debate' in _RT.NON_MISTAKE_VERDICTS
+      and _RT.reconcile_verdict('Debate', False, False)[0] == 'Debate'
+      and not _RT.is_mistake_verdict('Debate'), '')
+
+# ---- Objective 3: internal QA jargon never a user-facing reason ----
+check('T-RPDT-26: internal QA jargon is caught as generic (kept out of user queue)',
+      all(_RT.is_generic_reason(j) for j in
+          ('blind-spot sample', 'detector blind spot', 'Auto-cleared',
+           'Spots cleared or monitored')), '')
+
+print('\n--- v8.16.4 Decision-Trust Integration (live contract wiring) ---')
+import gem_ranges as _DTIR
+_xiv_dti = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_anl_dti = open('gem_analyzer.py', encoding='utf-8').read()
+_wl_dti = open('gem_analyst_worklist.py', encoding='utf-8').read()
+
+# Obj 6 — range highlight wired into the live lens render path
+_dti_ev = {'chart_key': 'OPEN_100BB_BTN', 'coverage': 'exact', 'membership': 'outside',
+           'hero_hand': '72o', 'spot_label': 'first-in open (BTN)', 'boundary': False,
+           'role': 'first_in_open'}
+_dti_rng = {'OPEN_100BB_BTN': {h: 1 for h in ['22', '33', 'AA', 'AKs', 'AKo', 'KQs']}}
+_dti_plain = _DTIR.preflop_range_lens(_dti_ev, _dti_rng)
+_dti_hl = _DTIR.preflop_range_lens(_dti_ev, _dti_rng, highlight=True)
+check('T-DTI-01: Obj6 preflop_range_lens(highlight=True) colours the expression; default unchanged',
+      '<span' not in _dti_plain and 'rng-hl-red' in _dti_hl
+      and 'first-in open' in _dti_hl and '72o is outside' in _dti_hl, '')
+check('T-DTI-02: Obj6 render path calls preflop_range_lens(..., highlight=True)',
+      'preflop_range_lens(_ev, _ranges, highlight=True)' in _xiv_dti, 'lens highlight not wired')
+
+# Obj 8 — multiway HU-suppression wired into the pot-odds block
+check('T-DTI-03: Obj8 pot-odds block imports + applies multiway_render_plan to suppress HU required-equity',
+      'multiway_render_plan as _mw_render_plan' in _xiv_dti
+      and "_mw_plan.get('suppress_hu_required_equity')" in _xiv_dti
+      and 'compare your equity to the' in _xiv_dti, 'multiway suppression not wired')
+
+# Obj 9 — bounty provenance wired after the trust strip
+check('T-DTI-04: Obj9 bounty provenance label wired (exact vs flat starting-BB estimate)',
+      'bounty_provenance_label as _bpl' in _xiv_dti
+      and "_bpl('exact'" in _xiv_dti and "_bpl('starting_bb_flat'" in _xiv_dti, 'provenance not wired')
+
+# Obj 5 — verdict_validation_issue called by the post-render validator (Check 14)
+check('T-DTI-05: Obj5 validator Check 14 calls verdict_validation_issue',
+      'verdict_validation_issue as _vvi14' in _anl_dti
+      and 'Mistake/Punt verdicts substantiated' in _anl_dti, 'verdict validator not wired')
+
+# Obj 4 — why-contract enrichment wired into the worklist item (additive, no gate-drop)
+check('T-DTI-06: Obj4 worklist builds why_contract via build_why_review + adds why_review_actionable',
+      'build_why_review as _bwr' in _wl_dti
+      and "'why_contract': _why_contract" in _wl_dti
+      and "'why_review_actionable': _why_contract is not None" in _wl_dti, 'why-contract not wired')
+check('T-DTI-07 (anti): why-contract wiring is ADDITIVE — does not drop hands (no gate/continue on None)',
+      'never gate-drops' in _wl_dti.lower() or 'Never gate-drops' in _wl_dti, '')
+
+print('\n--- v8.16.4 DTI Blockers — bounded queue + compact-path decision evidence ---')
+import gem_review_trust as _BT
+from gem_report_draft.tldr import build_review_queue as _BRQ
+
+# ---- Blocker 1: canonical bounded + aggregated queue (pure helper) ----
+_q38 = [{'id': 'L%02d' % i, 'bucket': 'known_leak',
+         'title': 'Missed BTN steal — extended range', 'net': -3} for i in range(38)]
+_q38 += [{'id': 'M1', 'bucket': 'analyst_mistake', 'title': 'Over-jam turns a made hand into a bluff', 'net': -40},
+         {'id': 'A1', 'bucket': 'auto_clear', 'title': 'Auto-cleared — quick scan', 'net': 1},
+         {'id': 'G1', 'bucket': 'analyst_mistake', 'title': 'Strategic leak.', 'net': -5},
+         {'id': 'DB', 'bucket': 'known_leak', 'title': 'Potential detector blind spot', 'net': 0}]
+_agg = _BT.aggregate_review_queue(_q38, cap=8)
+check('T-QUEUE-01: 38 identical leak examples -> ONE aggregated leak group, all 38 in drilldown',
+      len(_agg['leak_groups']) == 1 and _agg['leak_groups'][0]['count'] == 38
+      and len(_agg['leak_groups'][0]['drilldown_ids']) == 38, _agg['counts'])
+check('T-QUEUE-02: primary queue is BOUNDED (<= cap) despite 42 candidates',
+      _agg['counts']['primary'] <= 8 and _agg['counts']['total_hands'] == 42, _agg['counts'])
+check('T-QUEUE-03: detector-health (auto_clear) + generic detector reason -> internal QA, not primary',
+      all(x.get('bucket') != 'auto_clear' for x in _agg['primary'])
+      and any(x.get('id') == 'A1' for x in _agg['internal_qa'])
+      and any((x.get('title') or '').startswith('Potential detector blind spot')
+              for x in _agg['internal_qa']), _agg['counts'])
+check('T-QUEUE-04: zero generic-only titles in the primary queue (generic high-value demoted to overflow)',
+      not any(_BT.is_generic_reason(x.get('title')) for x in _agg['primary'])
+      and any(x.get('id') == 'G1' for x in _agg['overflow']), [x.get('title') for x in _agg['primary']])
+# end-to-end through the REAL dashboard builder
+_rd_q = {'issue_explorer_issues': [{'name': 'Missed BTN steal — extended range',
+                                    'all_hand_ids': ['TM%02d' % i for i in range(38)]}],
+         'reviewed_mistakes': {'needs_review': []}, 'read_dependent_screen': []}
+_an_q = {'TMX1': {'verdict': 'III.2', 'hand_strength': 'Over-jam turns a made hand into a bluff'}}
+_hbi_q = {('TM%02d' % i): {'net_bb': -3, 'cards': ['Ah', 'Kd']} for i in range(38)}
+_hbi_q['TMX1'] = {'net_bb': -40, 'cards': ['Qs', 'Qc']}
+_q_real = _BRQ({'mistakes': [{'id': 'TMA1'}]}, _rd_q, _an_q, _hbi_q)
+_lg = [r for r in _q_real if r.get('kind') == 'leak_group']
+check('T-QUEUE-05: the REAL build_review_queue bounds + aggregates (38 leak hands -> 1 leak_group row, count 38; auto_clear excluded)',
+      len(_q_real) == 2 and len(_lg) == 1 and _lg[0]['count'] == 38
+      and len(_lg[0]['drilldown_ids']) == 38
+      and not any(r['bucket'] == 'auto_clear' for r in _q_real), _q_real)
+
+# ---- Blocker 2: structurally-provable preflop all-in decision kind ----
+check('T-DK-01: call-vs-jam (Hero calls, faced an all-in)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'calls', 'villain_jammed': True})[0] == 'call_vs_jam', '')
+check('T-DK-02: open-shove (Hero aggresses first-in)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'raises all-in', 'first_in': True})[0] == 'open_shove', '')
+check('T-DK-03: rejam (Hero jams over a prior raise)',
+      _BT.classify_preflop_allin({'pf_allin': True, 'pf_action': 'jams', 'hero_faced_raise': True, 'pf_raise_count': 1})[0] == 'rejam', '')
+check('T-DK-04: unprovable -> "All-in decision (exact node type unavailable)", NOT a guess',
+      (lambda r: r[0] == 'unknown' and r[1] is False)(_BT.classify_preflop_allin({'pf_allin': True, 'pf_action': ''}))
+      and 'exact node type unavailable' in _BT.allin_kind_label('unknown')
+      and _BT.classify_preflop_allin({'pf_allin': False})[0] == 'not_allin', '')
+check('T-DK-05: a typed label cannot contradict the ledger',
+      _BT.allin_label_contradicts_ledger('call_vs_jam', hero_aggressed=True, faced_allin=True) is True
+      and _BT.allin_label_contradicts_ledger('open_shove', hero_aggressed=False, faced_allin=False) is True
+      and _BT.allin_label_contradicts_ledger('call_vs_jam', hero_aggressed=False, faced_allin=True) is False, '')
+
+# ---- compact-path (XIV.B) wiring presence: same canonical _po_b object ----
+_xivb = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_tldr_src = open('gem_report_draft/tldr.py', encoding='utf-8').read()
+check('T-CPATH-01: compact _po_lines_b path wires multiway suppression + decision-kind + provenance',
+      'multiway_render_plan as _mwp_b' in _xivb and 'classify_preflop_allin as _cpa_b' in _xivb
+      and 'bounty_provenance_label as _bpl_b' in _xivb
+      and "_mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))" in _xivb, 'compact path not fully wired')
+check('T-CPATH-02: compact path consumes the SAME _po_b object (no recompute)',
+      "_mwp_b(\n                            n_live_opponents=max(0, (_po_b.get('n_players_at_showdown')" in _xivb
+      or "_po_b.get('n_players_at_showdown')" in _xivb, 'compact multiway not from _po_b')
+check('T-CPATH-03: dashboard build_review_queue routes through aggregate_review_queue + bounded cap',
+      'aggregate_review_queue as _agg_q' in _tldr_src and '_REVIEW_QUEUE_CAP' in _tldr_src, 'queue not wired')
+
+# ---- optional root/downstream attribution render support (backward-compatible) ----
+check('T-ATTR-01: attribution_render_line renders root -> downstream -> consequence in street order',
+      _BT.attribution_render_line({'preflop': 'root_mistake', 'turn': 'downstream', 'river': 'consequence'})
+      == '**Attribution:** preflop: root mistake → turn: downstream — compounds the earlier error'
+         ' → river: result', _BT.attribution_render_line({'preflop': 'root_mistake', 'turn': 'downstream', 'river': 'consequence'}))
+check('T-ATTR-02 (anti): absent/empty/all-none roles -> "" (unattributed hands unchanged)',
+      _BT.attribution_render_line({}) == '' and _BT.attribution_render_line(None) == ''
+      and _BT.attribution_render_line({'flop': 'none'}) == '', '')
+check('T-ATTR-03: a repeated role is not echoed with its full explanation across streets',
+      _BT.attribution_render_line({'turn': 'downstream', 'river': 'downstream'})
+      == '**Attribution:** turn: downstream — compounds the earlier error → river: downstream', '')
+check('T-CPATH-04: compact path optionally renders attribution_render_line gated on h[attribution_roles]',
+      'attribution_render_line as _arl_b' in _xivb
+      and "h.get('attribution_roles') or {}" in _xivb, 'attribution not wired into compact path')
+check('T-CPATH-05: XIV.A full-card path carries SAME decision-kind + attribution (every path)',
+      'classify_preflop_allin as _cpa_a' in _xivb and 'allin_kind_label as _akl_a' in _xivb
+      and 'attribution_render_line as _arl_a' in _xivb
+      and _xivb.count('"**Decision:** "') >= 2, 'XIV.A decision-kind not wired')
+
+print('\n--- v8.17 Epic B (B6/B7): how-PKO-changes-the-decision + 4-state provenance ---')
+import gem_pko_research as _P817
+# B7 helper: Hero covers + discount -> explicit chip→bounty delta + materiality + action
+_hpd = _P817.how_pko_changes_decision(
+    cover_state='hero_covers', discount_applies=True, contradiction=False,
+    suppress_overclaim=False, multiway=False, classification='Good',
+    chip_threshold_pct=31.0, pko_threshold_pct=27.4, discount_pp=3.6, bounty_available=True)
+check('T-PKO817-01: B7 covers+discount states chip→bounty threshold delta + positive incentive + action',
+      'chip-only need 31%' in _hpd and 'bounty-adjusted ~27%' in _hpd
+      and '3.6pp' in _hpd and 'meaningful shift' in _hpd and 'continuing is correct' in _hpd, _hpd)
+check('T-PKO817-02: B7 multiway/suppressed -> directional, NOT a fixed price cut',
+      'directionally' in _P817.how_pko_changes_decision(
+          cover_state='hero_covers', discount_applies=False, contradiction=False,
+          suppress_overclaim=True, multiway=True, classification='Review', bounty_available=True), '')
+check('T-PKO817-03: B7 villain-covers-Hero -> bounty not collectible, price as chip decision',
+      'does not' in _P817.how_pko_changes_decision(
+          cover_state='hero_covered', discount_applies=False, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Review', bounty_available=True)
+      and 'chip decision' in _P817.how_pko_changes_decision(
+          cover_state='hero_covered', discount_applies=False, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Review', bounty_available=True), '')
+check('T-PKO817-04 (anti): B7 empty on contradiction OR no bounty (never out-claims math)',
+      _P817.how_pko_changes_decision(cover_state='hero_covers', discount_applies=True,
+          contradiction=True, suppress_overclaim=False, multiway=False, classification='Good',
+          bounty_available=True) == ''
+      and _P817.how_pko_changes_decision(cover_state='hero_covers', discount_applies=True,
+          contradiction=False, suppress_overclaim=False, multiway=False, classification='Good',
+          bounty_available=False) == '', '')
+check('T-PKO817-05: B7 "Too wide" classification keeps the not-continue caveat even with bounty',
+      'too wide to continue' in _P817.how_pko_changes_decision(
+          cover_state='hero_covers', discount_applies=True, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Too wide',
+          chip_threshold_pct=40.0, pko_threshold_pct=36.0, discount_pp=4.0, bounty_available=True), '')
+# pko_trust_render now EXPOSES how_changes_md + reconciled facts (single call, no recompute)
+_ptr817 = _P817.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'classification': 'Good',
+     'coverage_label': 'covers opener — bounty collectible', 'bounty_value_bb_est': 3.2},
+    bounty_usd=5.0, discount_pp=3.6, chip_threshold_pct=31.0, pko_threshold_pct=27.4)
+check('T-PKO817-06: pko_trust_render returns how_changes_md + cover_state/discount_applies (no recompute)',
+      _ptr817.get('how_changes_md', '').startswith('How the bounty changes it:')
+      and _ptr817.get('cover_state') == 'hero_covers' and _ptr817.get('discount_applies') is True, _ptr817.get('how_changes_md'))
+# render-path presence: how_changes + 4-state provenance on BOTH XIV.A and XIV.B pills
+check('T-PKO817-07: XIV.A + XIV.B PKO pills render how_changes_md + 4-state provenance (effective/flat/unavailable)',
+      _xivb.count("_pk_render['how_changes_md']") + _xivb.count("_pkb_render['how_changes_md']") >= 2
+      and "'effective_bb'" in _xivb and "'starting_bb_flat'" in _xivb
+      and 'Bounty value unavailable' in _xivb, 'pill B6/B7 not wired both paths')
+
+print('\n--- v8.17 Epic B (B8): PKO aggregate count-cell contract ---')
+from gem_report_draft._helpers import render_count_cell as _rcc817
+check('T-PKO817-08: count 0 -> muted non-clickable plain "0"',
+      _rcc817(0, [], 'X') == '0', _rcc817(0, [], 'X'))
+_rc1 = _rcc817(1, ['TM99000001'], 'PKO BB Defense → spot')
+check('T-PKO817-09: count 1 -> single hand-list-trigger (no separate Hands col); JS opens it directly',
+      'class="hand-list-trigger"' in _rc1 and '>1</a>' in _rc1
+      and 'data-hids="TM99000001"' in _rc1, _rc1)
+_rcN = _rcc817(3, ['a', 'b', 'b', 'c'], 'X')
+check('T-PKO817-10: count = unique ids (dedup), >1 opens the hand list',
+      '>3</a>' in _rcN and 'class="hand-list-trigger"' in _rcN, _rcN)
+_html817 = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-PKO817-11: openHandListPopup short-circuits a single id to openHand (direct open, 1 click)',
+      'v8.17 B8: a count of exactly ONE opens the hand directly' in _html817
+      and 'if(hids.length===1){' in _html817 and 'openHand(_only);return true;' in _html817, '')
+_sm817 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-PKO817-12: S4 PKO aggregate has Opportunity/Actual/Wrong/Missed, clickable counts, no Hands col in that table, directional⚠',
+      '| Opportunity | PKO ' in _sm817 and "_t('Actual')" in _sm817 and "_t('Too wide')" in _sm817
+      and "_t('Missed')" in _sm817 and 'render_count_cell as _rcc' in _sm817
+      and 'Missed | "\n                  "Review | Drill cue |' in _sm817
+      and '+= " ⚠"' in _sm817, 'S4 aggregate contract')
+
+print('\n--- v8.17 Epic A (capsule layer): registers / tiers / capsule / content lints ---')
+import gem_commentary_capsule as _CAP
+check('T-CAP817-01: register — mistake/borderline/exploit/leak -> coaching; correct/standard -> factual',
+      _CAP.classify_register(verdict_class='mistake') == 'coaching'
+      and _CAP.classify_register(verdict_class='exploit') == 'coaching'
+      and _CAP.classify_register(verdict_class='correct') == 'factual'
+      and _CAP.classify_register(verdict_class='standard') == 'factual', '')
+check('T-CAP817-02: result-only / non-gradeable ALWAYS -> no_clear_lesson (hard rule §9)',
+      _CAP.classify_register(verdict_class='mistake', result_only=True) == 'no_clear_lesson'
+      and _CAP.classify_register(verdict_class='correct', gradeable=False) == 'no_clear_lesson', '')
+check('T-CAP817-03: evidence-tier verb gate — exact verbs allowed only chart-sourced',
+      _CAP.evidence_tier_ok('chart_sourced', 'AKo is inside the BTN range')
+      and not _CAP.evidence_tier_ok('constructed', 'AKo is inside the BTN range')
+      and _CAP.evidence_tier_ok('constructed', 'AKo is likely in a wider range'), '')
+_cap = _CAP.build_capsule('turn', {
+    'Decision': 'Hero jams 14BB', 'Verdict': 'Mistake', 'Why': 'turns a made hand into a bluff',
+    'Math': 'needs 38% vs the calling range', 'Range': '', 'Exploit': '', 'Caveat': '',
+    'Consequence': ''}, register='coaching', evidence_tier='chart_sourced')
+check('T-CAP817-04: build_capsule drops empty roles, keeps order, marks a visible anchor',
+      _cap['roles'] == ['Decision', 'Verdict', 'Why', 'Math'] and _cap['has_anchor'] is True
+      and '**Decision:** Hero jams 14BB' in _cap['md'] and 'Range' not in _cap['md'], _cap['roles'])
+check('T-CAP817-05: build_capsule returns None when every role is blank (no empty capsule)',
+      _CAP.build_capsule('flop', {'Decision': '', 'Why': '  '}, register='factual',
+                         evidence_tier='chart_sourced') is None, '')
+# content lints
+check('T-CAP817-06: L6 terminal-result leakage + L3 internal token are FAIL',
+      any(l[0] == 'L6' for l in _CAP.capsule_content_lints(
+          'Correct call because hero won at showdown', register='coaching',
+          evidence_tier='chart_sourced', has_anchor=True))
+      and any(l[0] == 'L3' for l in _CAP.capsule_content_lints(
+          'A known_leak pattern here', register='coaching', evidence_tier='chart_sourced',
+          has_anchor=True)), '')
+check('T-CAP817-07: L13 result-only scored + L7 factual praise/takeaway are FAIL',
+      any(l[0] == 'L13' for l in _CAP.capsule_content_lints(
+          'Hero got it in good', register='coaching', evidence_tier='result_only', has_anchor=True))
+      and any(l[0] == 'L7' for l in _CAP.capsule_content_lints(
+          'Standard — next time keep barreling', register='factual',
+          evidence_tier='chart_sourced', has_anchor=True)), '')
+check('T-CAP817-08: L1 verdict/range contradiction + L12 missing anchor are FAIL',
+      any(l[0] == 'L1' for l in _CAP.capsule_content_lints(
+          'Correct open', register='factual', evidence_tier='chart_sourced',
+          has_anchor=True, verdict_approves=True, range_outside=True))
+      and any(l[0] == 'L12' for l in _CAP.capsule_content_lints(
+          'Mistake', register='coaching', evidence_tier='chart_sourced', has_anchor=False)), '')
+check('T-CAP817-09 (anti): a clean chart-sourced coaching capsule with anchor + takeaway has ZERO FAILs',
+      not any(l[1] == 'FAIL' for l in _CAP.capsule_content_lints(
+          'Hero jams 14BB; needs 38% vs the call range; widen next orbit',
+          register='coaching', evidence_tier='chart_sourced', has_anchor=True, has_takeaway=True)), '')
+check('T-CAP817-10: lint summary gates the build (fail>0 -> gate_ok False)',
+      _CAP.capsule_lint_summary([[('L6', 'FAIL', 'x')], []])['gate_ok'] is False
+      and _CAP.capsule_lint_summary([[('L7c', 'WARN', 'x')]])['gate_ok'] is True, '')
+# v8.17 §9 visible capsule: decision_capsule_from_signals + render + live render-path
+_dc_coach = _CAP.decision_capsule_from_signals('preflop', decision_label='Open-shove',
+    verdict_hint='Over-jam turns a made hand into a bluff', required_eq_pct=0)
+check('T-CAP817-11: signals->coaching capsule (mistake verdict) with Decision+Verdict roles',
+      _dc_coach['register'] == 'coaching' and 'Decision' in _dc_coach['roles']
+      and 'Verdict' in _dc_coach['roles'], _dc_coach['register'])
+_dc_fact = _CAP.decision_capsule_from_signals('preflop', decision_label='Call vs jam',
+    verdict_hint='Standard 12BB defend', required_eq_pct=38)
+check('T-CAP817-12: signals->factual capsule (standard verdict) keeps a Math anchor',
+      _dc_fact['register'] == 'factual' and 'Math' in _dc_fact['roles']
+      and _dc_fact['has_anchor'] is True, _dc_fact['register'])
+_dc_nc = _CAP.decision_capsule_from_signals('preflop', decision_label='All-in decision (exact node type unavailable)',
+    verdict_hint='node unprovable', required_eq_pct=40)
+check('T-CAP817-13: no_clear_lesson drops the scored Verdict + states what is missing',
+      _dc_nc['register'] == 'no_clear_lesson' and 'Verdict' not in _dc_nc['roles']
+      and 'Caveat' in _dc_nc['roles'], _dc_nc['roles'])
+check('T-CAP817-14: render_capsule_md emits a register badge + the role md',
+      '🧭' in _CAP.render_capsule_md(_dc_coach) and 'Coach' in _CAP.render_capsule_md(_dc_coach)
+      and 'Decision:' in _CAP.render_capsule_md(_dc_coach), '')
+# live render-path: both XIV.A + XIV.B emit the .analyst-notes pb-capsule lead + CSS present
+check('T-CAP817-15: XIV.A + XIV.B emit the visible pb-capsule (decision_capsule_from_signals wired both paths)',
+      'decision_capsule_from_signals as _dcs_a' in _xivb
+      and 'decision_capsule_from_signals as _dcs_b' in _xivb
+      and "pb-capsule pb-cap-" in _xivb, 'capsule not wired both paths')
+_html817cap = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-CAP817-16: register-variant capsule CSS present (coaching/factual/no_clear_lesson + dark)',
+      'div.analyst-notes.pb-capsule' in _html817cap and 'pb-cap-coaching' in _html817cap
+      and 'pb-cap-factual' in _html817cap and 'pb-cap-no_clear_lesson' in _html817cap, '')
+
+print('\n--- v8.17 worksheet classification (unreviewed worksheet / empty analyst) ---')
+# The uploaded _analyst_villain_worksheet_20260407.json is NOT co-located in this
+# env; per the fallback clause these use a controlled synthetic empty-worksheet fixture
+# (fabricated ids, EMPTY analyst fields) — they assert the REAL classification logic.
+from gem_report_data import compute_report_completeness as _crc817
+# 1. an unreviewed worksheet (no analyst-reviewed ids) is AUTO_ONLY, never COMPLETE
+_rd_ws = {'analyst_commentary': {}, '_candidate_need_ids': ['TM97000001'],
+          '_critical_need_ids': [], '_significant_loss_ids': []}
+_st_ws = _crc817(_rd_ws, candidates=None)
+check('T-WS817-01: unreviewed worksheet (empty analyst) -> AUTO_ONLY, never ANALYST_COMPLETE',
+      _st_ws['state'] == 'AUTO_ONLY', _st_ws['state'])
+# even an empty-but-present analyst dict + no reviewed ids is not COMPLETE
+_st_ws2 = _crc817(
+    {'analyst_commentary': {'__meta__': {}}, '_candidate_need_ids': [],
+     '_critical_need_ids': [], '_significant_loss_ids': []}, candidates=None)
+check('T-WS817-01b: only-meta analyst dict (no real reviews) -> not ANALYST_COMPLETE',
+      _st_ws2['state'] != 'ANALYST_COMPLETE', _st_ws2['state'])
+# 2. empty analyst fields must NOT suppress AUTO_ONLY commentary: a capsule still
+#    builds from the auto signals (decision + price) with analyst_why=''
+_ws_cap = _CAP.decision_capsule_from_signals('preflop', decision_label='Call vs jam',
+    verdict_hint='', analyst_why='', required_eq_pct=33)
+check('T-WS817-02: empty analyst fields do NOT suppress AUTO_ONLY commentary (capsule still builds)',
+      _ws_cap is not None and 'Decision' in _ws_cap['roles'] and 'Math' in _ws_cap['roles'], '')
+# 4. detector suggestions are NOT analyst-approved coaching: with no graded verdict the
+#    register is factual/no_clear, never 'coaching' (coaching needs an analyst grade)
+check('T-WS817-04: detector-only spot (no analyst grade) is factual/no_clear, never coaching',
+      _ws_cap['register'] in ('factual', 'no_clear_lesson')
+      and _CAP.classify_register(verdict_class='', gradeable=True) != 'coaching', _ws_cap['register'])
+# 3. synthetic Villain evidence / exploit sources survive the migration (no silent drop)
+import gem_commentary_migration as _migws
+_ws_body = ("<div class='villain-street-notes' data-street='turn'>Villain exploit: "
+            "over-folds turn vs a probe (sample 7)</div>"
+            "<div class='analyst-notes' data-street='flop'>flop note</div>")
+_ws_rows = _migws.scan_hand_body(_ws_body)  # [(source_type, street, data_street), ...]
+check('T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (survives migration, no silent drop)',
+      any('villain' in str(r[0]).lower() for r in _ws_rows) and len(_ws_rows) >= 2,
+      str([r[0] for r in _ws_rows]))
 
 # ============================================================
 # SUMMARY

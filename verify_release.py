@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.16.4"   # v8.16.4 (Review Precision & Decision-Trust hotfix: reviewed-row layout, sticky nav re-measure, NEW gem_review_trust pure helpers [why-review/verdict-reconcile/allin-math/multiway/bounty-provenance/attribution], gem_ranges range-highlight + Range Lens pruning)
+VERSION = "v8.17.0-rc1"   # v8.17.0-rc1 Decision Coach (Final Commentary capsules + Complete PKO coaching) on the v8.16.4 (Review Precision & Decision-Trust hotfix: reviewed-row layout, sticky nav re-measure, NEW gem_review_trust pure helpers [why-review/verdict-reconcile/allin-math/multiway/bounty-provenance/attribution], gem_ranges range-highlight + Range Lens pruning)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("202be7154a216a25fc4d5899b50b72e80a2197b7d6f1b757715867ac3c6cb0b1", 121665, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("3adefe7bdb95266132ba98741427b72930f53013f9fdc551e9928c54ed7aad73", 124711, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("302a6522a8d4be8eb4c2d3efd5c314a2d392a8a5925c8019e5aa4cc2ab6da60b", 4167, "v8.16.4: 42 files, 412 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("200e3dbb4c1dedb86d3fca2cb79143d6a71d179c899821b57747439eae11f0d4", 4171, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("600eafe8209561d0f80d5ce4a720291660c48f183320902e1fe0427740384053", 529472, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
+    "_test_scratch.py": ("82a4f4d92ad2d39146e28277e8b9b252b1da880c6cb6f50264a401aacf61bc7e", 529488, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
@@ -57,7 +57,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("4c2f93996d8cf9bcc2a55aafcf11d9cb66e60b6822782f98c109aca76b3f0eda", 38644, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("3ff7688f239fa7fca14058b3cfac4a505b364157de823f916206be19de66efe0", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("4ae532c8f734f25113347d614a4c179a30561ce73677df9ef8023f35e837ec13", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -963,8 +963,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.16.4'",
-     "v8.16.4: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc1'",
+     "v8.17.0-rc1: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),

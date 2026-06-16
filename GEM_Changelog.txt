@@ -1,3 +1,45 @@
+v8.17.0-rc1 (2026-06-16) -- Decision Coach (RELEASE CANDIDATE — GPT/Ron review)
+================================================================================
+First materially-significant release in the sequence. Two visible product epics,
+both production-connected, on the v8.16.4 Decision-Trust foundation (commit 5fe27dc,
+preserved intact). Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.16.4 -> v8.17.0-rc1 (RC; NOT a final
+v8.17.0 release, NOT merged/tagged, Chat NOT updated).
+
+EPIC A — Final Commentary experience (v3.4 ROUTER_AWARE FINAL):
+  * NEW visible §9 CAPSULE that LEADS each decision street: a register-classified
+    (factual / coaching / no_clear_lesson), prioritized, smallest-useful role set
+    (Decision / Verdict / Why / Math / Range / Exploit / Caveat / Consequence — no
+    empty roles, a visible evidence anchor on every scored capsule), with a 🧭 badge
+    and a register-coloured accent (gem_commentary_capsule.py + sections_xiv + _html CSS).
+    Routed through the existing .analyst-notes[data-street] (no competing router); the
+    detailed routed notes are PRESERVED below it (zero-drop). Result-only evidence
+    never produces a coaching verdict; approximate evidence never reads as exact.
+  * Content lints L1/L2/L3/L6/L7/L9/L12/L13 wired LIVE into the migration-audit stderr
+    channel (L2 generic / L3 internal-token / L6 result-leak validated on every report;
+    5066-corpus = 0/0/0). Builds on the v8.16.3 zero-drop migration audit (preserved).
+  * Optional root/downstream/consequence attribution renders where a producer stamps it.
+
+EPIC B — Complete PKO decision coaching:
+  * "How the bounty changes the decision" coaching prose (chip-only X% -> bounty-adjusted
+    Y% (-Zpp); who Hero covers; materiality; positive/negative/mixed incentive; multiway
+    uncertainty stated honestly) — on both the XIV.A full card and the XIV.B compact pill,
+    consuming the same canonical _po object (no recompute).
+  * Explicit 4-state bounty PROVENANCE {exact $ / estimated current / flat event-start /
+    unavailable} on the hand-detail pill.
+  * S4 aggregate (Opportunity / Actual / Wrong / Missed, no Hands column, directional vs
+    exact marker) revalidated production-connected; a count of exactly ONE opens the hand
+    directly (one click), >1 opens the hand list, 0 is muted.
+
+Validation: +T-PKO817-/T-CAP817-/T-WS817-* (suite 1394/1394 in the clean LF extract;
+the lone working-tree CRLF SHA-pin passes on LF). Synthetic acceptance report (real
+renderer/lazy/modal/queue/PKO, fabricated ids) 24/24 scenario-groups. Real 5066-hand
+AUTO_ONLY corpus: queue 10 bounded leak-groups, drops/misbucket/bottom-contam/lazy-parity
+0, content-lints 0/0/0, 84 capsules (21 factual + 63 no_clear), 100 how-PKO-changes lines.
+Browser QA 1440/1024/390 = 0px overflow, capsule visible. ANALYST_COMPLETE via a
+controlled synthetic fixture (real artifact's raw corpus not co-located — documented).
+verify_release 43/43 files, 427 canaries.
+
 v8.16.4 (2026-06-16) -- Delivery: Review Precision & Decision-Trust Hotfix
 ================================================================================
 A systemic, renderer-layer maintenance batch. It re-grades NO poker decisions,

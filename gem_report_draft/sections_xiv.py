@@ -1703,6 +1703,12 @@ def _emit_range_lens(doc, h, hid_short):
     except Exception:
         pass
 
+    # v8.16.4 Objective 10: when Hero is all-in PREFLOP there is no later Hero
+    # decision, so a postflop Range Lens would teach nothing about a choice Hero
+    # never made — skip it (the preflop lens above still applies).
+    if h.get('pf_allin'):
+        return
+
     # postflop: per street Hero actually acted on, with a long-enough board.
     _board = h.get('board') or []
     _cards = h.get('cards') or []

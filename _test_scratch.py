@@ -5318,10 +5318,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.16.3 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.16.3'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.3'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.3', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.16.4 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.16.4'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.4'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.4', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -9149,6 +9149,148 @@ check('T-CM-14 (anti): a post-lazy STUB body has NO inline notes — enumeration
       'stub html should yield 0 in-body sources without decoding')
 check('T-CM-15 (anti): no out-of-scope source is ever classified visible_capsule',
       all(_CM._STATUS[k] == 'leave_untouched_out_of_scope' for k in _CM._BOTTOM_ONLY), '')
+
+print('\n--- v8.16.4 Review Precision & Decision-Trust (synthetic fixtures only) ---')
+import gem_review_trust as _RT
+import gem_ranges as _RR
+_html_src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+
+# ---- Objective 1: reviewed-row layout (5-col grid, status pinned row 1) ----
+check('T-RPDT-01: .rq-rev-row declares 5 columns + named grid-areas (was 4 -> pill wrapped)',
+      "grid-template-areas: \"rank hid cards note status\"" in _html_src
+      and "26px auto auto minmax(0,1fr) auto" in _html_src
+      and ".rq-rev-row .status-pill" in _html_src, 'rq-rev-row grid not fixed')
+check('T-RPDT-02: reviewed row emits a note preview in rq-main (no empty cell)',
+      "<span class=\"rq-main\">'+((x.reason||x.note||'')" in _html_src, 'rq-main still empty')
+
+# ---- Objective 2: sticky offset re-measures multi-row nav; nav above headers ----
+check('T-RPDT-03: queue ResizeObserver re-syncs sticky vars + nav z-index above street headers',
+      "_roq=new ResizeObserver" in _html_src and "_roq.observe(_queueEl)" in _html_src
+      and "z-index: 80" in _html_src, 'queue observer / z-index missing')
+
+# ---- Objective 4: actionable "why this hand" + generic-copy ban ----
+for _g in ('Strategic leak', 'Known leak', 'Potential detector blind spot',
+           'Spots cleared or monitored', 'Marginal candidate', ''):
+    check('T-RPDT-04: generic reason banned: %r' % (_g or '(empty)'),
+          _RT.is_generic_reason(_g) is True, _g)
+check('T-RPDT-05: concrete reason accepted; build_why_review structured',
+      not _RT.is_generic_reason('barrels into a capped range with no fold equity')
+      and _RT.build_why_review('turn', 'bets 75% pot',
+            'barrels into a capped range with no fold equity', 'confirmed_mistake'
+          )['why'].startswith('Turn: bets 75% pot — '), '')
+check('T-RPDT-06: build_why_review gates out generic / bad street / bad category',
+      _RT.build_why_review('turn', 'bet', 'Strategic leak', 'candidate') is None
+      and _RT.build_why_review('zz', 'bet', 'real', 'candidate') is None
+      and _RT.build_why_review('turn', 'bet', 'real', 'nope') is None
+      and _RT.build_why_review('turn', '', 'real', 'candidate') is None, '')
+check('T-RPDT-07: actionable_reason_ok validates a full why-contract',
+      _RT.actionable_reason_ok(_RT.build_why_review('river', 'jams 2.1x pot',
+            'overjam turns a made hand into a bluff', 'confirmed_mistake'))
+      and not _RT.actionable_reason_ok({'street': 'turn', 'action': '',
+            'reason': 'x', 'category': 'candidate'}), '')
+
+# ---- Objective 5: verdict/action reconciliation invariant ----
+check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
+      _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'
+      and _RT.reconcile_verdict('Mistake', True, False)[0] == 'Review'
+      and _RT.reconcile_verdict('Mistake', True, True)[0] == 'Mistake', '')
+check('T-RPDT-09: non-mistake verdict scrubs stale negative marker, keeps verdict',
+      _RT.reconcile_verdict('Justified', True, True) == ('Justified', True,
+            ['non-mistake verdict: scrub stale negative marker'])
+      and _RT.reconcile_verdict('Cooler', False, False)[1] is True, '')
+check('T-RPDT-10: verdict_validation_issue flags unsubstantiated Mistake only',
+      _RT.verdict_validation_issue('Mistake', False, True) is not None
+      and _RT.verdict_validation_issue('Mistake', True, True) is None
+      and _RT.verdict_validation_issue('Read-Dependent', False, False) is None, '')
+
+# ---- Objective 6: shared preflop range highlight ----
+check('T-RPDT-11: range_membership_color green/amber/red/neutral + inexact->neutral',
+      _RR.range_membership_color('inside', 'exact') == 'green'
+      and _RR.range_membership_color('boundary', 'exact') == 'amber'
+      and _RR.range_membership_color('outside', 'exact') == 'red'
+      and _RR.range_membership_color('inside', 'none') == 'neutral'
+      and _RR.range_membership_color('outside', 'proxy') == 'neutral', '')
+_hl = _RR.highlight_range_expression('22+, AJs+, KQo', 'outside', 'exact', 'first_in_open')
+check('T-RPDT-12: highlight wraps the expression itself + colour class + node label',
+      _hl['color'] == 'red' and 'rng-hl-red' in _hl['html']
+      and '22+, AJs+, KQo' in _hl['html'] and 'first-in open' in _hl['html'], _hl)
+check('T-RPDT-13: outside-open negative ONLY under trust gates; never flag a fold',
+      _RR.outside_open_negative_ok('first_in_open', True, True, True) is True
+      and _RR.outside_open_negative_ok('first_in_open', False, True, True) is False
+      and _RR.outside_open_negative_ok('first_in_open', True, True, True,
+            hero_folded=True) is False
+      and _RR.outside_open_negative_ok('call_vs_jam', True, True, True) is False, '')
+
+# ---- Objective 7: preflop all-in decision math (by type) ----
+check('T-RPDT-14: allin_math_kind classifies call-vs-jam / open-shove / rejam / none',
+      _RT.allin_math_kind(True, False, False, True) == 'call_vs_jam'
+      and _RT.allin_math_kind(True, True, True, False) == 'open_shove'
+      and _RT.allin_math_kind(True, False, True, False) == 'rejam'
+      and _RT.allin_math_kind(False, True, True, True) == 'not_allin', '')
+check('T-RPDT-15: required fields per type; equity never claims exactness on heuristic',
+      'required_equity' in _RT.required_allin_fields('call_vs_jam')
+      and 'fold_equity_or_ev' in _RT.required_allin_fields('open_shove')
+      and _RT.equity_label(True) == 'estimated equity (heuristic range)', '')
+
+# ---- Objective 8: canonical multiway snapshot (no heads-up math) ----
+_mw = _RT.multiway_render_plan(2, 1)
+check('T-RPDT-16: multiway suppresses HU required-equity, shows field+per-opponent, marks uncertainty',
+      _mw['is_multiway'] and _mw['suppress_hu_required_equity'] and _mw['show_field_equity']
+      and _mw['per_opponent_range_lines'] == 2 and _mw['pot_odds_uncertain']
+      and not _RT.multiway_render_plan(1, 0)['is_multiway'], _mw)
+
+# ---- Objective 9: PKO bounty provenance ----
+check('T-RPDT-17: bounty provenance labels distinguish exact/estimated/flat/effective',
+      _RT.bounty_provenance_label('starting_bb_flat', value_bb=12)
+            == 'Estimated bounty ~ 12 starting BB — flat event estimate'
+      and _RT.bounty_provenance_label('exact', value_usd=50) == 'Bounty: $50 (exact)'
+      and not _RT.bounty_is_dynamic('starting_bb_flat')
+      and _RT.bounty_is_dynamic('effective_bb'), '')
+
+# ---- Objective 10: Range Lens pruning + no postflop lens after preflop all-in ----
+_pl = _RR.postflop_range_lens(['Ah', 'Kd'], ['Ks', '7d', '2c'], 'flop')
+check('T-RPDT-18 (anti): postflop lens does NOT restate Hero made hand by default',
+      _pl.startswith('Range lens: on ')
+      and 'Hero has top pair' not in _pl and 'Hero has second pair' not in _pl
+      and 'Hero has a flush draw' not in _pl and 'Hero has no made hand' not in _pl, _pl)
+check('T-RPDT-19: lens mentions Hero only for blocker/value/bluff-catch',
+      'Hero holds the nut-flush card' in
+        _RR.postflop_range_lens(['Ah', 'Qh'], ['9h', 'Td', '2s', '2h'], 'turn')
+      and 'Hero sits at the top' in
+        _RR.postflop_range_lens(['Ah', 'Ad'], ['As', '7d', '2c'], 'flop'), '')
+check('T-RPDT-20: _emit_range_lens skips postflop when Hero is all-in preflop',
+      'Objective 10: when Hero is all-in PREFLOP' in _xiv_src
+      and "if h.get('pf_allin'):\n        return" in _xiv_src, 'pf_allin lens gate missing')
+check('T-RPDT-21 (anti): lens still carries no solver %/combo counts',
+      '%' not in _pl and 'combos' not in _pl.lower(), _pl)
+
+# ---- Objective 11: commentary attribution (structural support) ----
+check('T-RPDT-22: attribution roles distinguish root / downstream / consequence',
+      _RT.attribution_label('root_mistake') == 'root mistake'
+      and 'compounds' in _RT.attribution_label('downstream')
+      and _RT.attribution_label('consequence') == 'result', '')
+_ap = _RT.attribution_plan({'turn': 'root_mistake', 'river': 'downstream'})
+check('T-RPDT-23: attribution_plan orders streets + flags root/downstream, no dup',
+      _ap['streets'] == ['turn', 'river'] and _ap['has_root'] and _ap['has_downstream']
+      and not _ap['duplicated'], _ap)
+
+# ---- Objective 12: ONE integrated Results section (no duplicate primary) ----
+_draft_src = open('gem_report_draft/draft.py', encoding='utf-8').read()
+check('T-RPDT-24: Tournament Results is the supplementary cross-check label (single primary)',
+      "'STT'" in _draft_src and 'Tournament Results' in _draft_src, 'STT label regressed')
+
+# ---- Objective 13: Debate is a first-class non-mistake (not forced) ----
+check('T-RPDT-25: Debate verdict is preserved, never forced to Mistake/Justified',
+      'debate' in _RT.NON_MISTAKE_VERDICTS
+      and _RT.reconcile_verdict('Debate', False, False)[0] == 'Debate'
+      and not _RT.is_mistake_verdict('Debate'), '')
+
+# ---- Objective 3: internal QA jargon never a user-facing reason ----
+check('T-RPDT-26: internal QA jargon is caught as generic (kept out of user queue)',
+      all(_RT.is_generic_reason(j) for j in
+          ('blind-spot sample', 'detector blind spot', 'Auto-cleared',
+           'Spots cleared or monitored')), '')
 
 # ============================================================
 # SUMMARY

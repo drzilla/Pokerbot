@@ -1938,7 +1938,7 @@ _MODAL_HTML = r"""
             if(cats[k])ch.push('<span class="rq-revchip '+_RQ_META[k][2]+'">'+_RQ_META[k][0]+' '+_RQ_META[k][1]+' '+cats[k]+'</span>');});
             chips.innerHTML=ch.join('');}
           var rl=document.getElementById('rq-reviewed-list');
-          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span>'+(x.cards?'<span class="handcards">'+x.cards+'</span>':'')+'<span class="rq-main"></span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
+          if(rl)rl.innerHTML=reviewed.map(function(x){return '<button type="button" class="rq-rev-row" data-hand-id="'+x.hid+'"><span class="rq-rank">✓</span><span class="rq-hid">'+x.hid+'</span>'+(x.cards?'<span class="handcards">'+x.cards+'</span>':'')+'<span class="rq-main">'+((x.reason||x.note||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;'))+'</span><span class="status-pill '+_RQ_META[x.st][2]+'">'+_RQ_META[x.st][0]+' '+_RQ_META[x.st][1]+'</span></button>';}).join('');
         }else{rev.hidden=true;}
       }
       var win=document.getElementById('rq-empty-win');var list=document.getElementById('rq-list');
@@ -4095,6 +4095,20 @@ _MODAL_HTML = r"""
     });
     _ro.observe(_reviewEl);
   }
+  /* v8.16.4 Obj 2: the nav/queue area can grow to MULTIPLE rows (>=20 chips
+     wrapping, overflow rows, secondary context text) AFTER the one-shot measure,
+     leaving --v25-queue-h stale so street headers overlap the nav. Observe the
+     queue bar itself so any height change re-measures the offset from the actual
+     bottom of the rendered nav area. */
+  var _queueEl=document.getElementById('hand-queue-context');
+  if(window.ResizeObserver&&_queueEl){
+    var _roq=new ResizeObserver(function(){
+      if(document.getElementById('hand-modal').classList.contains('is-open')){
+        _syncV25StickyVars();
+      }
+    });
+    _roq.observe(_queueEl);
+  }
 })();
 </script>
 """
@@ -5928,10 +5942,33 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
      so the collapsed reviewed-list stayed visible. Force the hidden attribute to
      win for both the wrapper and the inner list. */
   #rq-reviewed[hidden], #rq-reviewed-list[hidden] {{ display: none !important; }}
-  .rq-rev-row {{ display: grid; grid-template-columns: 26px auto minmax(0,1fr) auto; gap: 8px;
+  /* v8.16.4 Obj 1: 5 cells emitted (rank|hid|cards|note|status) but the grid
+     declared 4 cols, so the status pill wrapped to a 2nd line. Named grid-areas
+     pin every cell to row 1 regardless of whether the optional cards cell is
+     present, so the status pill is always right-aligned on a single line. */
+  .rq-rev-row {{ display: grid; grid-template-columns: 26px auto auto minmax(0,1fr) auto;
+    grid-template-areas: "rank hid cards note status"; gap: 8px;
     align-items: center; width: 100%; text-align: left; border: 0; background: #fff;
     border-top: 1px solid #f1f5f9; cursor: pointer; padding: 7px 14px; font: inherit; }}
+  .rq-rev-row .rq-rank {{ grid-area: rank; }}
+  .rq-rev-row .rq-hid {{ grid-area: hid; justify-self: start; }}
+  .rq-rev-row .handcards {{ grid-area: cards; }}
+  .rq-rev-row .rq-main {{ grid-area: note; min-width: 0; color: #64748b;
+    font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .rq-rev-row .status-pill {{ grid-area: status; justify-self: end; white-space: nowrap; }}
   .rq-rev-row:hover {{ background: #f8fafc; }}
+  /* v8.16.4 Obj 6: shared preflop range-membership highlight (green=inside,
+     amber=boundary/mixed, red=outside, neutral=no exact source). Applied ON the
+     range expression itself by gem_ranges.highlight_range_expression. */
+  .rng-hl {{ font-weight: 800; border-radius: 5px; padding: 0 3px; }}
+  .rng-hl-green {{ background: #e7f6ee; color: #0f7a48; }}
+  .rng-hl-amber {{ background: #fff3d7; color: #a15c00; }}
+  .rng-hl-red {{ background: #feeceb; color: #b42318; }}
+  .rng-hl-neutral {{ background: #eef1f5; color: #53606f; }}
+  @media(max-width:620px){{
+    .rq-rev-row {{ grid-template-columns: 22px auto auto minmax(0,1fr) auto;
+      padding: 8px 10px; gap: 6px; }}
+  }}
   .rq-empty-win {{ padding: 18px 14px; text-align: center;
     background: linear-gradient(180deg,#ffffff,#f0fdf4); }}
   .rq-trophy {{ font-size: 26px; }}
@@ -6272,7 +6309,9 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-queue-bar {{ background: #fff; border-bottom: 1px solid var(--line);
     padding: 6px 10px; display: block;
     overflow-x: hidden; overflow-y: visible; position: sticky;
-    top: var(--v25-topbar-h); z-index: 70;
+    /* v8.16.4 Obj 2: nav (queue) z-index ABOVE street headers (70) so a sticky
+       street header can never paint over the navigation; still below topbar (90). */
+    top: var(--v25-topbar-h); z-index: 80;
     box-shadow: 0 2px 8px rgba(15,23,42,.06); min-height: 0;
     flex-shrink: 0; }}
   /* V25 hand wrapper */

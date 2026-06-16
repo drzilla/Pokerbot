@@ -1,3 +1,72 @@
+v8.16.4 (2026-06-16) -- Delivery: Review Precision & Decision-Trust Hotfix
+================================================================================
+A systemic, renderer-layer maintenance batch. It re-grades NO poker decisions,
+changes NO analyst content, and contains NO rules keyed to any real hand /
+tournament / player / session id — every behaviour is locked by synthetic
+fixtures (T-RPDT-01..26). Most of the 13 objectives were already partly shipped
+in v8.14.1 / v8.16.2 / v8.16.3; this batch fixes the remaining defects and adds
+the durable decision-trust CONTRACTS as a pure module.
+
+USER-VISIBLE FIXES (fully wired):
+  Obj 1  Reviewed-row layout — the .rq-rev-row grid declared 4 columns while the
+         JS emitted 5 cells, so the status pill wrapped to a 2nd line. Now a
+         5-column named-grid-area layout (rank|hid|cards|note|status) pins the
+         status pill to row 1 (right-aligned) whether or not the optional cards
+         cell is present; reviewed rows also show a concise note preview; mobile
+         tightened. (_html.py)
+  Obj 2  Sticky street-header overlap — the nav/queue area can grow to multiple
+         rows after the one-shot measure, leaving --v25-queue-h stale so headers
+         overlapped the nav. Added a ResizeObserver on the queue bar that
+         re-measures the offset on any height change, and raised the nav z-index
+         (80) above street headers (70, still below the topbar 90). (_html.py)
+  Obj 10 Range Lens pruning — the postflop lens no longer restates Hero's made
+         hand (the street header already shows it). It now leads with the board's
+         value/draw structure and mentions Hero only for a blocker / value-target
+         / bluff-catch note. No postflop lens is emitted when Hero is all-in
+         preflop (no later decision). (gem_ranges.py, sections_xiv.py)
+  Obj 6  ONE shared range-membership highlighter (green=inside / amber=boundary /
+         red=outside / neutral=no exact source) that marks the range EXPRESSION
+         itself + the decision node; an outside first-in open is flaggable only
+         under trust gates and never for a correct fold. Helper + CSS shipped
+         (gem_ranges.highlight_range_expression + .rng-hl classes).
+
+NEW PURE DECISION-TRUST MODULE gem_review_trust.py (synthetic-fixtured contracts;
+render wiring into the per-hand detail is the next integration slice):
+  Obj 4  build_why_review / is_generic_reason — every primary item needs a
+         concrete street + Hero action + reason + category; generic-only copy
+         ("Strategic leak", "Known leak", "Potential detector blind spot",
+         "Spots cleared or monitored", ...) is rejected so it can never be the
+         whole explanation.
+  Obj 5  reconcile_verdict / verdict_validation_issue — a Mistake verdict that
+         cannot point to a bound action-level marker + explanation is downgraded
+         to Review; a non-mistake verdict scrubs any stale "Key mistake" marker.
+  Obj 7  allin_math_kind / required_allin_fields / equity_label — typed decision
+         math (call-vs-jam vs open-shove vs rejam); never claims exactness on a
+         heuristic range; never substitutes result equity.
+  Obj 8  multiway_render_plan — suppresses the single heads-up "Required equity"
+         line in a multiway all-in, asks for one range line per live opponent +
+         field equity, and marks pot odds uncertain when players are still to act.
+  Obj 9  bounty_provenance_label — distinguishes exact / estimated / flat
+         starting-BB / effective-BB bounty figures and labels a flat event
+         estimate explicitly ("Estimated bounty ~ X starting BB — flat event
+         estimate"), never showing a static figure as if dynamic.
+  Obj 11 attribution roles — optional structural support to distinguish a root
+         mistake from a downstream compounding action and a result/consequence
+         (the analyst still authors the prose; this invents nothing).
+
+VERIFIED / NO-CHANGE:
+  Obj 3  The three-product review split (primary queue / leak groups / internal
+         QA) was already complete (v8.16.2/v8.16.3); the generic-copy lint keeps
+         internal QA jargon out of user-facing reasons.
+  Obj 12 Tournament Results is already a single primary Results section + a
+         supplementary event-level cross-check — no duplicate primary. Guarded.
+  Obj 13 Debate is a first-class non-mistake state preserved in the review UI and
+         never forced to Mistake/Justified; cross-session persistence is a
+         backend concern outside this static-report batch.
+
+Release guards: feature branch only; NOT merged / tagged / Chat-updated; villain
+Step 3 not enabled; Analyst Expansion not started.
+
 v8.16.3 (2026-06-16) -- Delivery: Commentary & Range Explanation v1
                         + Commentary Column v3.4 (router-aware zero-drop migration foundation)
 ================================================================================

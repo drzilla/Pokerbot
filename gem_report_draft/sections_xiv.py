@@ -3150,23 +3150,33 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _pk_render.get('strip_md'):
                 doc.w("")
                 doc.w("  " + _pk_render['strip_md'])
-            # v8.16.4 Obj 9: bounty provenance — distinguish an EXACT $ bounty
-            # from a flat event-level BB estimate, so a static figure is never
-            # shown as if it were a per-decision dynamic value. Reuses the same
-            # bounty fields the strip already used (one source, no recompute).
+            # v8.17 Epic B (B7): the explicit "how the bounty changes the decision"
+            # coaching line — built by pko_trust_render from the SAME reconciled
+            # facts (no recompute). Empty on a contradiction / no-bounty / Hero-covered.
+            if _pk_render.get('how_changes_md'):
+                doc.w("")
+                doc.w("  " + _pk_render['how_changes_md'])
+            # v8.16.4 Obj 9 / v8.17 B6: user-visible bounty PROVENANCE — one of the
+            # four honest states {exact / estimated current / flat event-start /
+            # unavailable}, derived from the bounty $ + the model method, so a static
+            # event-start figure is never shown as a per-decision dynamic value.
+            # Reuses the same bounty fields the strip used (one source, no recompute).
             try:
                 from gem_review_trust import bounty_provenance_label as _bpl
                 _bp_usd = _pko_bounty_usd(rd, h)
                 _bp_bb = _po_bnt.get('value_bb') or h.get('bounty_value_bb')
+                _bp_method = str(_po_bnt.get('method') or '').lower()
                 if _bp_usd is not None:
                     _bp_line = _bpl('exact', value_usd=_bp_usd, value_bb=_bp_bb)
+                elif _bp_bb and ('ratio' in _bp_method or 'effective' in _bp_method
+                                 or 'current' in _bp_method):
+                    _bp_line = _bpl('effective_bb', value_bb=round(_bp_bb, 1))
                 elif _bp_bb:
-                    _bp_line = _bpl('starting_bb_flat', value_bb=_bp_bb)
+                    _bp_line = _bpl('starting_bb_flat', value_bb=round(_bp_bb, 1))
                 else:
-                    _bp_line = ''
-                if _bp_line:
-                    doc.w("")
-                    doc.w("  *" + _bp_line + "*")
+                    _bp_line = 'Bounty value unavailable'
+                doc.w("")
+                doc.w("  *" + _bp_line + "*")
             except Exception:
                 pass
             doc.w("")
@@ -3721,13 +3731,18 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     from gem_pko_research import pko_trust_render as _pko_trust_render_b
                     _po_db = _po_b or {}
                     _po_bnt_b = _po_db.get('bounty') or {}
-                    _pkb_cls = _pko_trust_render_b(
+                    # v8.17 C2 parity: the XIV.B compact pill now carries the SAME
+                    # reconciled trust strip + "how the bounty changes the decision"
+                    # coaching + 4-state provenance as the XIV.A full card (same
+                    # _po_b object, no recompute) — not just the downgraded class.
+                    _pkb_render = _pko_trust_render_b(
                         _pko_ctx_b,
                         bounty_usd=_pko_bounty_usd(rd, h),
                         discount_pp=_po_bnt_b.get('discount_pp', 0) or 0,
                         chip_threshold_pct=_po_db.get('required_eq_pct'),
                         pko_threshold_pct=_po_db.get('required_eq_bounty_pct'),
-                        overjam_bb=None)['classification_display']
+                        overjam_bb=None)
+                    _pkb_cls = _pkb_render['classification_display']
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
                     doc.w(f"🎯 **PKO "
                           f"{_pkb_cls}** · "
@@ -3738,6 +3753,30 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                           f"· Δ {_pkb_d} aggregate"
                           + (f" · {_pkb_cov}"
                              if _pkb_cov else ""))
+                    if _pkb_render.get('strip_md'):
+                        doc.w("")
+                        doc.w("  " + _pkb_render['strip_md'])
+                    if _pkb_render.get('how_changes_md'):
+                        doc.w("")
+                        doc.w("  " + _pkb_render['how_changes_md'])
+                    try:
+                        from gem_review_trust import bounty_provenance_label as _bpl_pb
+                        _pb_usd = _pko_bounty_usd(rd, h)
+                        _pb_bb = _po_bnt_b.get('value_bb') or h.get('bounty_value_bb')
+                        _pb_method = str(_po_bnt_b.get('method') or '').lower()
+                        if _pb_usd is not None:
+                            _pb_line = _bpl_pb('exact', value_usd=_pb_usd, value_bb=_pb_bb)
+                        elif _pb_bb and ('ratio' in _pb_method or 'effective' in _pb_method
+                                         or 'current' in _pb_method):
+                            _pb_line = _bpl_pb('effective_bb', value_bb=round(_pb_bb, 1))
+                        elif _pb_bb:
+                            _pb_line = _bpl_pb('starting_bb_flat', value_bb=round(_pb_bb, 1))
+                        else:
+                            _pb_line = 'Bounty value unavailable'
+                        doc.w("")
+                        doc.w("  *" + _pb_line + "*")
+                    except Exception:
+                        pass
                     doc.w("")
                     doc.w(f"  {_pko_ctx_b.get('teaching_note', '')} "
                           f"*{_pko_ctx_b.get('caveat', '')}*")

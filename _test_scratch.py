@@ -9438,6 +9438,54 @@ check('T-CPATH-05: XIV.A full-card path carries SAME decision-kind + attribution
       and 'attribution_render_line as _arl_a' in _xivb
       and _xivb.count('"**Decision:** "') >= 2, 'XIV.A decision-kind not wired')
 
+print('\n--- v8.17 Epic B (B6/B7): how-PKO-changes-the-decision + 4-state provenance ---')
+import gem_pko_research as _P817
+# B7 helper: Hero covers + discount -> explicit chip→bounty delta + materiality + action
+_hpd = _P817.how_pko_changes_decision(
+    cover_state='hero_covers', discount_applies=True, contradiction=False,
+    suppress_overclaim=False, multiway=False, classification='Good',
+    chip_threshold_pct=31.0, pko_threshold_pct=27.4, discount_pp=3.6, bounty_available=True)
+check('T-PKO817-01: B7 covers+discount states chip→bounty threshold delta + positive incentive + action',
+      'chip-only need 31%' in _hpd and 'bounty-adjusted ~27%' in _hpd
+      and '3.6pp' in _hpd and 'meaningful shift' in _hpd and 'continuing is correct' in _hpd, _hpd)
+check('T-PKO817-02: B7 multiway/suppressed -> directional, NOT a fixed price cut',
+      'directionally' in _P817.how_pko_changes_decision(
+          cover_state='hero_covers', discount_applies=False, contradiction=False,
+          suppress_overclaim=True, multiway=True, classification='Review', bounty_available=True), '')
+check('T-PKO817-03: B7 villain-covers-Hero -> bounty not collectible, price as chip decision',
+      'does not' in _P817.how_pko_changes_decision(
+          cover_state='hero_covered', discount_applies=False, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Review', bounty_available=True)
+      and 'chip decision' in _P817.how_pko_changes_decision(
+          cover_state='hero_covered', discount_applies=False, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Review', bounty_available=True), '')
+check('T-PKO817-04 (anti): B7 empty on contradiction OR no bounty (never out-claims math)',
+      _P817.how_pko_changes_decision(cover_state='hero_covers', discount_applies=True,
+          contradiction=True, suppress_overclaim=False, multiway=False, classification='Good',
+          bounty_available=True) == ''
+      and _P817.how_pko_changes_decision(cover_state='hero_covers', discount_applies=True,
+          contradiction=False, suppress_overclaim=False, multiway=False, classification='Good',
+          bounty_available=False) == '', '')
+check('T-PKO817-05: B7 "Too wide" classification keeps the not-continue caveat even with bounty',
+      'too wide to continue' in _P817.how_pko_changes_decision(
+          cover_state='hero_covers', discount_applies=True, contradiction=False,
+          suppress_overclaim=False, multiway=False, classification='Too wide',
+          chip_threshold_pct=40.0, pko_threshold_pct=36.0, discount_pp=4.0, bounty_available=True), '')
+# pko_trust_render now EXPOSES how_changes_md + reconciled facts (single call, no recompute)
+_ptr817 = _P817.pko_trust_render(
+    {'coverage_bucket': 'Hero covers', 'can_collect_bounty': True,
+     'players_if_hero_continues': 2, 'classification': 'Good',
+     'coverage_label': 'covers opener — bounty collectible', 'bounty_value_bb_est': 3.2},
+    bounty_usd=5.0, discount_pp=3.6, chip_threshold_pct=31.0, pko_threshold_pct=27.4)
+check('T-PKO817-06: pko_trust_render returns how_changes_md + cover_state/discount_applies (no recompute)',
+      _ptr817.get('how_changes_md', '').startswith('How the bounty changes it:')
+      and _ptr817.get('cover_state') == 'hero_covers' and _ptr817.get('discount_applies') is True, _ptr817.get('how_changes_md'))
+# render-path presence: how_changes + 4-state provenance on BOTH XIV.A and XIV.B pills
+check('T-PKO817-07: XIV.A + XIV.B PKO pills render how_changes_md + 4-state provenance (effective/flat/unavailable)',
+      _xivb.count("_pk_render['how_changes_md']") + _xivb.count("_pkb_render['how_changes_md']") >= 2
+      and "'effective_bb'" in _xivb and "'starting_bb_flat'" in _xivb
+      and 'Bounty value unavailable' in _xivb, 'pill B6/B7 not wired both paths')
+
 # ============================================================
 # SUMMARY
 # ============================================================

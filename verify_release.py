@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.17.0-rc3"   # v8.17.0-rc3 narrow correction pass on rc2: Tournament Results GENUINELY unified (STT primary before S1; legacy P&L/Deep-Runs/Stack-Trajectories collapsed into one closed secondary reconciliation <details>; ancestor-expand on hash-nav) + Villain Step-3 VISIBLE delivery wired from lesson_7part (compact Cue+Read+Confidence / Exploit-now / Future / Guardrail) + integrated four-epic acceptance via the real renderer + bundled QA harnesses (reproducible self-verify)
+VERSION = "v8.17.0"   # v8.17.0 FINAL (Decision Coach major product release): four epics — Final Commentary capsules + Complete PKO decision coaching + Villain Exploitation Step-3 (7-part lesson) + Unified Tournament Results. Released from the GPT-audited rc3 tip (0b9f11d); the rc1/rc2/rc3 correction passes are folded in. Tournament Results GENUINELY unified (STT primary before S1; legacy P&L/Deep-Runs/Stack-Trajectories collapsed into one closed secondary reconciliation <details>; ancestor-expand on hash-nav); Villain Step-3 VISIBLE delivery wired from lesson_7part; integrated four-epic acceptance via the real renderer; bundled QA harnesses (reproducible self-verify)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("c880256e39fb2d5032496bd2d535d6e48e3fbc79583cc11630cad2e20e92e349", 130515, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("3639e546c95a1e98fef2eb181c126f9e015c9d2365dc5989f45c72594403f9b5", 132526, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("200e3dbb4c1dedb86d3fca2cb79143d6a71d179c899821b57747439eae11f0d4", 4171, "v8.16.4: 42 files, 412 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("96e1a5bccdc3a207137bd730739ba1efdd2d9e3029ac126a541b03aa78f88d70", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("4c36772091fcde01fdb3376051e37f98fc9d296060f1fb50eeba8bc5648f398f", 545185, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
+    "_test_scratch.py": ("332feb1150d358f42b0e9f46907e30a34782ed49e152ba85bdeddcb4d418a9ce", 545169, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
@@ -57,7 +57,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("0309570b4a26518334db9e7c0051bbd20f76a4ef16c037fab90f0ca23c1aff30", 122465, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("5ca67b09268af894933c2a9cfef54e4bbb54be947072bdbc797a22b3800e6579", 42569, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("fbf0e6995599f09c92cb10eaa0dc183b80eaeed44264865195cd120f961df4fa", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("8c7130810f0d56022b6171fec21ad90e44438e7e19a2537eefa543c028b2c1f4", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -963,8 +963,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc3'",
-     "v8.17.0-rc3: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0'",
+     "v8.17.0 FINAL: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),

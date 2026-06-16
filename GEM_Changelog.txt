@@ -1,3 +1,33 @@
+v8.17.0 (2026-06-17) -- DECISION COACH: four-epic MAJOR PRODUCT RELEASE (FINAL)
+================================================================================
+First materially-significant product release in the v8.17 sequence. Ships FOUR
+visible epics together, each production-connected and validated on the real
+renderer:
+  1. FINAL COMMENTARY EXPERIENCE -- register-classified (factual / coaching /
+     no_clear_lesson) decision capsules lead each street, with evidence tiers and
+     content lints; zero-drop migration audit preserved.
+  2. COMPLETE PKO DECISION COACHING -- explicit "how the bounty changes it"
+     (chip-only % -> bounty-adjusted %), 4-state cover/$ provenance, trust strip
+     with threshold status, multiway suppression, and the unified S4 PKO aggregate
+     with clickable drilldowns.
+  3. VILLAIN EXPLOITATION STEP 3 -- the 7-part teaching lesson (what villain did /
+     cue / read+archetype / confidence / exploit now / future adjustment /
+     do-not-over-adjust guardrail) wired VISIBLY into the commentary modal from the
+     explicit lesson_7part object; missed/good-exploit grading is gated (else
+     factual); chronology + identity guards preserved.
+  4. UNIFIED TOURNAMENT RESULTS -- ONE primary sortable table from canonical
+     financials (no recompute), with per-event drilldown absorbing P&L / Deep Runs /
+     Stack Trajectories; the legacy per-tournament surfaces are demoted into one
+     closed secondary reconciliation <details> (genuinely hidden when closed).
+
+Released from the GPT-audited rc3 tip (0b9f11d); the rc1/rc2/rc3 correction passes
+are folded in. Additive; re-grades NO real decisions; no rule keyed to any real
+hand/tournament/player/session id. Runtime v8.17.0-rc3 -> v8.17.0 (FINAL; drops the
+pre-release suffix only -- the audited bytes/behaviour are unchanged). Acceptance:
+verify_release clean v8.17.0 (43/43 files, 450 canaries, 11 anti); _test_scratch
+1428/1428; _qa_v817_rc3_acceptance four-epic integrated 12/12. T-H141-01 -> v8.17.0.
+
+
 v8.17.0-rc3 (2026-06-17) -- four-epic MAJOR release: narrow correction pass (RC3)
 ================================================================================
 RC2 passed code integrity but was rejected for release acceptance (integration not

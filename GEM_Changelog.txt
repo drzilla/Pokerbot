@@ -31,7 +31,8 @@ USER-VISIBLE FIXES (fully wired):
          (gem_ranges.highlight_range_expression + .rng-hl classes).
 
 NEW PURE DECISION-TRUST MODULE gem_review_trust.py (synthetic-fixtured contracts;
-render wiring into the per-hand detail is the next integration slice):
+now WIRED into the live render under V8.16.4_DECISION_TRUST_INTEGRATION — see the
+wiring note after Obj 11):
   Obj 4  build_why_review / is_generic_reason — every primary item needs a
          concrete street + Hero action + reason + category; generic-only copy
          ("Strategic leak", "Known leak", "Potential detector blind spot",
@@ -53,6 +54,31 @@ render wiring into the per-hand detail is the next integration slice):
   Obj 11 attribution roles — optional structural support to distinguish a root
          mistake from a downstream compounding action and a result/consequence
          (the analyst still authors the prose; this invents nothing).
+
+LIVE WIRING (V8.16.4_DECISION_TRUST_INTEGRATION) — the contracts are now called
+from production render sites, ADDITIVELY (consume existing canonical fields, no
+recompute, no re-grade, no real-ID logic; +T-DTI-01..07):
+  Obj 6  preflop_range_lens(highlight=True) colours the range expression in the
+         live Range Lens (sections_xiv._emit_range_lens); default path unchanged.
+  Obj 8  the pot-odds block (sections_xiv) calls multiway_render_plan and, in a
+         multiway all-in, SUPPRESSES the single heads-up "Required equity" line
+         (an intentional transform — that line is valid only vs one villain) and
+         replaces it with a field-framed note (+ players-to-act uncertainty).
+  Obj 9  the PKO/bounty strip appends bounty_provenance_label — exact $ vs flat
+         starting-BB event estimate — so a static figure is never shown as dynamic.
+  Obj 5  the post-render validator (gem_analyzer Check 14) calls
+         verdict_validation_issue to flag any unsubstantiated Mistake/Punt; the
+         live render already downgrades auto Mistakes lacking a bound marker to
+         Review (_review_downgrade). No-op on AUTO_ONLY reports.
+  Obj 4  the analyst worklist attaches an additive why_contract (street + Hero
+         action + category) + why_review_actionable; generic-only reasons are
+         linted, NEVER gate-dropped (dropping is deferred to Analyst-Expansion
+         measurement).
+  DEFERRED (documented): Obj 7 live all-in math-TYPE label needs a clean
+  decision-kind signal that does not exist without the deferred decision-identity
+  work — kept as the tested allin_math_kind contract rather than risk mislabeling
+  a decision. Obj 11 attribution has no analyst-authored root/downstream field to
+  drive it yet (authoring is out of scope) — helper remains available.
 
 VERIFIED / NO-CHANGE:
   Obj 3  The three-product review split (primary queue / leak groups / internal

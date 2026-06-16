@@ -1699,7 +1699,8 @@ def _emit_range_lens(doc, h, hid_short):
     try:
         _ev = _hre(h, _ranges)
         if _ev:
-            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges))
+            # v8.16.4 Obj 6: render path highlights the range expression in-place.
+            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges, highlight=True))
     except Exception:
         pass
 
@@ -2892,18 +2893,39 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
                              f"(call {_po.get('call_bb', '\u2014')}BB into "
                              f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
-            _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
-            # v8.12.8 QA3: side-pot-aware price carries its basis
-            if _po.get('required_eq_note'):
-                _po_lines.append(f"*({_po['required_eq_note']})*")
-            # v8.14.1 hotfix (#73281169): teach what required equity MEANS \u2014
-            # equity vs the betting/jamming range (incl. draws + worse hands),
-            # NOT "how often you are ahead right now" (the user's exact question).
-            if _po.get('required_eq_pct') not in (None, '\u2014'):
+            # v8.16.4 Obj 8: a multiway all-in is NOT a heads-up spot. Suppress the
+            # single heads-up "Required equity" threshold (valid only vs one
+            # villain) and frame the decision against the FIELD; flag uncertainty
+            # when players are still to act. Uses the existing showdown-count
+            # signal only \u2014 no equity/pot recompute.
+            try:
+                from gem_review_trust import multiway_render_plan as _mw_render_plan
+                _mw_plan = _mw_render_plan(
+                    n_live_opponents=max(0, (_po.get('n_players_at_showdown') or 0) - 1),
+                    players_still_to_act=_po.get('players_still_to_act', 0) or 0)
+            except Exception:
+                _mw_plan = {'suppress_hu_required_equity': False,
+                            'pot_odds_uncertain': False, 'label': ''}
+            if not _mw_plan.get('suppress_hu_required_equity'):
+                _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
+                # v8.12.8 QA3: side-pot-aware price carries its basis
+                if _po.get('required_eq_note'):
+                    _po_lines.append(f"*({_po['required_eq_note']})*")
+                # v8.14.1 hotfix (#73281169): teach what required equity MEANS \u2014
+                # equity vs the betting/jamming range (incl. draws + worse hands),
+                # NOT "how often you are ahead right now" (the user's exact question).
+                if _po.get('required_eq_pct') not in (None, '\u2014'):
+                    _po_lines.append(
+                        "*This is the share you need to win versus the betting/"
+                        "jamming range (including draws and worse hands) to break "
+                        "even \u2014 not how often you are ahead right now.*")
+            else:
                 _po_lines.append(
-                    "*This is the share you need to win versus the betting/"
-                    "jamming range (including draws and worse hands) to break "
-                    "even \u2014 not how often you are ahead right now.*")
+                    f"**{_mw_plan.get('label') or 'Multiway all-in'}** \u2014 heads-up "
+                    "required equity is not shown here; compare your equity to the "
+                    "FIELD (all live opponents), not a single villain."
+                    + ("" if not _mw_plan.get('pot_odds_uncertain')
+                       else " Players are still to act, so the final pot odds are uncertain."))
             # v8.12.8: non-all-in calldown block \u2014 per-street lines with
             # the OVERBET flag (handover Issue 1)
             if _po.get('mode') == 'street_calls':
@@ -2959,10 +2981,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                 f"**Estimated bounty:** ${_usd:,.2f} \u2248 "
                                 f"{_vbb:.1f}BB *(estimated bounty model)*")
                         else:
-                            _po_lines.append(
-                                f"**Estimated bounty value:** \u2248 {_vbb:.1f}BB "
-                                f"*(estimated bounty model \u2014 "
-                                f"{_bnt.get('method', 'flat_table')})*")
+                            # v8.16.4 Obj 9: label the BB estimate's PROVENANCE
+                            # explicitly (a flat event-level estimate is never
+                            # shown as a per-decision dynamic value) and drop the
+                            # internal method token from user text (Obj 3). Reuses
+                            # the same _bnt fields (one source, no recompute).
+                            try:
+                                from gem_review_trust import bounty_provenance_label as _bpl2
+                                _meth2 = str(_bnt.get('method') or 'flat_table')
+                                _pkind2 = ('effective_bb' if 'effective' in _meth2
+                                           else 'starting_bb_flat')
+                                _po_lines.append("**" + _bpl2(_pkind2, value_bb=round(_vbb, 1)) + "**")
+                            except Exception:
+                                _po_lines.append(
+                                    f"**Estimated bounty value:** \u2248 {_vbb:.1f}BB")
                             _po_lines.append(
                                 "*Dollar bounty unavailable in HH export; using "
                                 "estimated bounty model.*")
@@ -3095,6 +3127,25 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _pk_render.get('strip_md'):
                 doc.w("")
                 doc.w("  " + _pk_render['strip_md'])
+            # v8.16.4 Obj 9: bounty provenance — distinguish an EXACT $ bounty
+            # from a flat event-level BB estimate, so a static figure is never
+            # shown as if it were a per-decision dynamic value. Reuses the same
+            # bounty fields the strip already used (one source, no recompute).
+            try:
+                from gem_review_trust import bounty_provenance_label as _bpl
+                _bp_usd = _pko_bounty_usd(rd, h)
+                _bp_bb = _po_bnt.get('value_bb') or h.get('bounty_value_bb')
+                if _bp_usd is not None:
+                    _bp_line = _bpl('exact', value_usd=_bp_usd, value_bb=_bp_bb)
+                elif _bp_bb:
+                    _bp_line = _bpl('starting_bb_flat', value_bb=_bp_bb)
+                else:
+                    _bp_line = ''
+                if _bp_line:
+                    doc.w("")
+                    doc.w("  *" + _bp_line + "*")
+            except Exception:
+                pass
             doc.w("")
             doc.w(f"  {_pko_ctx.get('teaching_note', '')} "
                   f"*{_pko_ctx.get('caveat', '')}*")

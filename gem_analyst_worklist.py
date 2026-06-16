@@ -911,6 +911,26 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         if _pfr and _pfr not in fmodes:
             fmodes = fmodes + [_pfr]
 
+        # v8.16.4 Obj 4: ADDITIVE actionable "why this hand" contract — enrich the
+        # reason with street + Hero action + category and lint generic-only copy.
+        # Never gate-drops a hand (dropping is a precision decision deferred to the
+        # Analyst-Expansion measurement work); these are extra fields only.
+        try:
+            from gem_review_trust import build_why_review as _bwr
+            _wr_srcs = sources_by_id.get(hid, [])
+            if any(_s in ('mistakes', 'punts') for _s in _wr_srcs):
+                _wr_cat = 'confirmed_mistake'
+            elif bucket in ('must_review', 'review_if_time'):
+                _wr_cat = 'candidate'
+            else:
+                _wr_cat = 'representative_leak'
+            _why_contract = _bwr(
+                dn.get('street'),
+                dn.get('hero_actual_action') or dn.get('hero_action') or '',
+                why, _wr_cat)
+        except Exception:
+            _why_contract = None
+
         po = pot_odds_by_hand.get(hid) or pot_odds_by_hand.get(_short(hid)) or {}
         items[hid] = {
             'hand_id': hid,
@@ -941,6 +961,8 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
             'reviewer_question': rq,
             'llm_prompt_hint': rq,
             'why_review': why,
+            'why_contract': _why_contract,             # v8.16.4 Obj 4 (additive)
+            'why_review_actionable': _why_contract is not None,
             'dedupe_group': grp,
             'report_anchor': '#sec-app-hand-' + _short(hid),
             'review_outcome': {

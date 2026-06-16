@@ -822,7 +822,7 @@ def compress_range(hand_classes):
     return '; '.join(parts)
 
 
-def preflop_range_lens(ev, ranges):
+def preflop_range_lens(ev, ranges, highlight=False):
     """Source-safe preflop 'Range lens:' line, or None. `ev` is the object from
     build_range_evidence(); `ranges` is the load_ranges() dict. The notation is
     compressed FROM the chart's own hand-class keys (invents nothing); the
@@ -848,6 +848,15 @@ def preflop_range_lens(ev, ranges):
     side = 'inside' if mem == 'inside' else 'outside'
     bnd = ' (boundary)' if ev.get('boundary') else ''
     hero_clause = f" {hero} is {side}{bnd} this region." if hero else ''
+    # v8.16.4 Obj 6 (render path): colour the range EXPRESSION itself
+    # (green=inside / amber=boundary / red=outside / neutral=no exact source)
+    # via the ONE shared highlighter. Default off so the pure/source-safe text
+    # path (and its tests) is unchanged.
+    if highlight:
+        try:
+            rng = highlight_range_expression(rng, mem, cov, ev.get('role'))['html']
+        except Exception:
+            pass
     return f"Range lens: the {spot} range{cov_note} is roughly {rng}.{hero_clause}"
 
 

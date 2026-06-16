@@ -9292,6 +9292,49 @@ check('T-RPDT-26: internal QA jargon is caught as generic (kept out of user queu
           ('blind-spot sample', 'detector blind spot', 'Auto-cleared',
            'Spots cleared or monitored')), '')
 
+print('\n--- v8.16.4 Decision-Trust Integration (live contract wiring) ---')
+import gem_ranges as _DTIR
+_xiv_dti = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+_anl_dti = open('gem_analyzer.py', encoding='utf-8').read()
+_wl_dti = open('gem_analyst_worklist.py', encoding='utf-8').read()
+
+# Obj 6 — range highlight wired into the live lens render path
+_dti_ev = {'chart_key': 'OPEN_100BB_BTN', 'coverage': 'exact', 'membership': 'outside',
+           'hero_hand': '72o', 'spot_label': 'first-in open (BTN)', 'boundary': False,
+           'role': 'first_in_open'}
+_dti_rng = {'OPEN_100BB_BTN': {h: 1 for h in ['22', '33', 'AA', 'AKs', 'AKo', 'KQs']}}
+_dti_plain = _DTIR.preflop_range_lens(_dti_ev, _dti_rng)
+_dti_hl = _DTIR.preflop_range_lens(_dti_ev, _dti_rng, highlight=True)
+check('T-DTI-01: Obj6 preflop_range_lens(highlight=True) colours the expression; default unchanged',
+      '<span' not in _dti_plain and 'rng-hl-red' in _dti_hl
+      and 'first-in open' in _dti_hl and '72o is outside' in _dti_hl, '')
+check('T-DTI-02: Obj6 render path calls preflop_range_lens(..., highlight=True)',
+      'preflop_range_lens(_ev, _ranges, highlight=True)' in _xiv_dti, 'lens highlight not wired')
+
+# Obj 8 — multiway HU-suppression wired into the pot-odds block
+check('T-DTI-03: Obj8 pot-odds block imports + applies multiway_render_plan to suppress HU required-equity',
+      'multiway_render_plan as _mw_render_plan' in _xiv_dti
+      and "_mw_plan.get('suppress_hu_required_equity')" in _xiv_dti
+      and 'compare your equity to the' in _xiv_dti, 'multiway suppression not wired')
+
+# Obj 9 — bounty provenance wired after the trust strip
+check('T-DTI-04: Obj9 bounty provenance label wired (exact vs flat starting-BB estimate)',
+      'bounty_provenance_label as _bpl' in _xiv_dti
+      and "_bpl('exact'" in _xiv_dti and "_bpl('starting_bb_flat'" in _xiv_dti, 'provenance not wired')
+
+# Obj 5 — verdict_validation_issue called by the post-render validator (Check 14)
+check('T-DTI-05: Obj5 validator Check 14 calls verdict_validation_issue',
+      'verdict_validation_issue as _vvi14' in _anl_dti
+      and 'Mistake/Punt verdicts substantiated' in _anl_dti, 'verdict validator not wired')
+
+# Obj 4 — why-contract enrichment wired into the worklist item (additive, no gate-drop)
+check('T-DTI-06: Obj4 worklist builds why_contract via build_why_review + adds why_review_actionable',
+      'build_why_review as _bwr' in _wl_dti
+      and "'why_contract': _why_contract" in _wl_dti
+      and "'why_review_actionable': _why_contract is not None" in _wl_dti, 'why-contract not wired')
+check('T-DTI-07 (anti): why-contract wiring is ADDITIVE — does not drop hands (no gate/continue on None)',
+      'never gate-drops' in _wl_dti.lower() or 'Never gate-drops' in _wl_dti, '')
+
 # ============================================================
 # SUMMARY
 # ============================================================

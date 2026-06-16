@@ -15,6 +15,7 @@ from gem_report_draft._hand_grid import (_render_hand_grid_table,
     _key_decision_action_class, _pick_key_action_idx, _hero_actions_by_street_from_app,
     _hero_action_verbs_by_street_from_app, _split_argument_into_notes,
     _verdict_display_label)
+from gem_report_draft._helpers import auto_verdict_needs_review
 
 import gem_made_hands as mh
 import gem_gtow
@@ -1662,6 +1663,59 @@ def _build_villain_badges(hid, s):
     return badges if badges else None
 
 
+def _emit_range_lens(doc, h, hid_short):
+    """v8.16.3 Commentary & Range Explanation Upgrade v1 — append a compact,
+    SOURCE-SAFE 'Range lens' line per street as its OWN ``<div class='analyst-notes'
+    data-street='X'>`` block. The V25 modal harvests .analyst-notes by data-street
+    and APPENDS clones in order, so this NEVER overwrites or drops existing
+    commentary; it just adds a teaching line into the correct street card. Every
+    line is skipped when its source is missing (no chart / no board / Hero did not
+    act that street), so nothing is invented. All notation/buckets come from
+    gem_ranges (chart hand-sets + phevaluator classifiers); no solver %, no
+    per-combo villain claims."""
+    try:
+        import gem_ranges as _grl
+        from gem_report_draft._helpers import (hand_range_evidence as _hre,
+                                               get_ranges_cached as _grc)
+    except Exception:
+        return
+
+    def _emit(street, text):
+        if not text:
+            return
+        doc.w(f"<div class='analyst-notes' data-street='{street}'>")
+        doc.w("")
+        doc.w("\U0001F4D0 " + text)   # 📐 range-lens marker
+        doc.w("")
+        doc.w("</div>")
+        doc.w("")
+
+    # preflop: chart-backed; reuse the canonical evidence object so the lens can
+    # never contradict the Range-evidence block's in/out wording.
+    try:
+        _ranges = _grc()
+    except Exception:
+        _ranges = None
+    try:
+        _ev = _hre(h, _ranges)
+        if _ev:
+            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges))
+    except Exception:
+        pass
+
+    # postflop: per street Hero actually acted on, with a long-enough board.
+    _board = h.get('board') or []
+    _cards = h.get('cards') or []
+    _hsa = h.get('hero_street_actions') or {}
+    if len(_cards) == 2:
+        for _street, _n in (('flop', 3), ('turn', 4), ('river', 5)):
+            if len(_board) >= _n and _hsa.get(_street):
+                try:
+                    _emit(_street, _grl.postflop_range_lens(_cards, _board[:_n], _street))
+                except Exception:
+                    pass
+
+
 def _emit_section_xiv_appendix(doc, s, rd, hands):
     """Appendix with readable full-hand details for hands the analyst flagged
     for review or judgment. Cross-linked from XIII.4.5 (Analyst-Reviewed
@@ -1918,6 +1972,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         _vaa_eff = (h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb')
                     or h.get('stack_bb') or 0)
         _vaa_t = _html_escape(str(h.get('tournament', '') or ''))
+        _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
               f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'>")
@@ -1926,6 +1981,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
         _agl = _agg_gate_label(h.get('id') or hid_short, rd)
         _agl_str = f" · {_agl[0]} {_agl[1]}" if _agl else ''
+        # v8.16.1 Bug-2b: reconcile an AUTO Mistake/Punt with the hand's own
+        # action review. If the only postflop signal is the aggression label and
+        # it shows ONLY correct/borderline play (no Missed/Too-aggressive marker),
+        # the auto verdict has no corroborating action-level mistake → downgrade
+        # to Review instead of asserting an unconfirmed Mistake (78024888). Never
+        # touches analyst verdicts; preflop/no-label mistakes are left alone.
+        _review_downgrade = False
+        _orig_auto_label = ''
+        if auto_verdict_needs_review(verdict, _is_auto_verdict,
+                                     (_agl[1] if _agl else '')):
+            _review_downgrade = True
+            _orig_auto_label = _verdict_display_label(verdict) or 'Mistake'
+            verdict = ''
+            _is_auto_verdict = False
         # v8.14.1 P0-5: when an analyst graded this hand on a SPECIFIC street, the
         # auto aggression-gate header tag must not assert a DIFFERENT street
         # (73279283: detector "Missed turn aggression" vs analyst river-call
@@ -1957,7 +2026,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if _h_fmt == 'SATELLITE' or _icm_p > 0.7:
             _fmt_pill += ' <span class="context-pill icm-caution" title="cEV-only; may be misleading in satellite / extreme ICM context">⚠️ ICM</span>'
         from gem_report_draft._helpers import short_verdict_pill as _svp
-        _vp = _svp(h, verdict, app_details)
+        if _review_downgrade:
+            _vp = "<span class='verdict-pill' data-verdict='Review'>Review</span>"
+        else:
+            _vp = _svp(h, verdict, app_details)
         # v8.14.1 P0-4: for a preflop all-in the meaningful depth is the
         # EFFECTIVE stack vs the live opponent, not Hero's nominal stack. Show
         # both when they differ (e.g. SB 33.6BB jam into an 18BB BB).
@@ -2064,7 +2136,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # Store explanation for yellow notes block BELOW the grid
         _xiva_why_content = None
         _xiva_why_street = ''
-        if not verdict:
+        if _review_downgrade:
+            # v8.16.1 Bug-2b: explicit Review line — the auto Mistake/Punt was
+            # not corroborated by the hand's own action review.
+            _rv_badge = (' <span style="font-size:11px;color:#6b7280;border:1px '
+                         'solid #d1d5db;border-radius:8px;padding:1px 6px;'
+                         'margin-left:4px">auto</span>')
+            _agl_ctx = f" ({_agl[0]} {_agl[1]})" if _agl else ''
+            verdict_line = (f"*Verdict:* 🔍 Review{_rv_badge} — auto-flagged "
+                            f"{_orig_auto_label}, but the hand's action review "
+                            f"shows no clear mistake{_agl_ctx}; confirm manually.")
+        elif not verdict:
             # B166 / B-A fix: no analyst verdict — show a neutral label above
             # the grid, and store the explanation for the yellow block below.
             _wf = _xivb_flag_note(hid, s, rd, h)
@@ -3029,6 +3111,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             doc.w("</div>")
             doc.w("")
 
+        # v8.16.3 Range Lens v1: source-safe per-street range/commentary lines,
+        # appended AFTER all existing commentary (preserves it; V25 routes by
+        # data-street into each street card).
+        _emit_range_lens(doc, h, hid_short)
+
         # B168 (Ron 2026-05-24): inline audit review row after the hand.
         # Bug C fix: use hero hole cards, not the last street's board cards
         _hole_title = _combo_to_chart(h.get('cards', []))
@@ -3198,6 +3285,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 _va_ph = _html_escape(h.get('tournament_phase', '') or '')
                 _va_eff = h.get('eff_stack_bb') or h.get('stack_bb') or 0
                 _va_t = _html_escape(str(h.get('tournament', '') or ''))
+                _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
                       f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'>")
@@ -3778,7 +3866,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
     # `#sec-app-hand-X` links directly without going through _record_citation,
     # so filtering on _CITATIONS alone leaves those links dead.
     _trimmed = sorted(set(getattr(_state, '_BUDGET_TRIMMED_IDS', set()) or set()))
-    _cited_trimmed = _trimmed
+    # v8.16.2 Phase B: never emit a budget-trimmed STUB for a hand that already
+    # received a FULL card in XIV.A/XIV.B. A trimmed needs_review hand can still
+    # be rendered full by XIV.A (it reads needs_review directly, not the budgeted
+    # appendix_hand_ids_all), so without this guard the hand appears BOTH as a
+    # full lazy card and a budget_trimmed stub (the validator's "Issue 3"
+    # double-render). Match on the 8-digit suffix used by both surfaces.
+    _full_card_ids = set(getattr(_state, '_FULL_CARD_IDS', set()) or set())
+    _cited_trimmed = [t for t in _trimmed
+                      if (t[-8:] if len(t) > 8 else t) not in _full_card_ids]
     if _cited_trimmed:
         doc.w("")
         doc.w("<details>")

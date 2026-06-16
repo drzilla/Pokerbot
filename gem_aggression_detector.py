@@ -480,7 +480,16 @@ def analyze_postflop_aggression(hand):
         ('river', river_cls, ra),
     ]:
         if not cls or not act: continue
-        is_passive = act in ('x', 'xc', 'call', 'callAI')
+        # v8.16.1 Bug-2a: a call of an ALL-IN bet (callAI) is NOT a
+        # missed-aggression spot. Facing an all-in there is no more-aggressive
+        # line available — you cannot bet into, or raise, an all-in — so the
+        # "should Hero have been more aggressive?" question does not apply.
+        # Scoring it produced a category-wrong "correct check — a bet wasn't
+        # justified" verdict on a pure call/fold decision (78024888: Hero called
+        # a river jam holding the nut flush; there was no bet/check or raise
+        # decision to grade). Only x (checked) and xc/call (called a NON-all-in
+        # bet, where a RAISE was still available) are missed-aggression-eligible.
+        is_passive = act in ('x', 'xc', 'call')
         if not is_passive: continue
         strong_made = cls['score'] >= 60
         strong_combo = 'OESD' in cls['draws'] and 'FD' in cls['draws']

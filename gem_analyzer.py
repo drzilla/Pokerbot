@@ -4152,6 +4152,16 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         if len(board) < 4 or len(cards) < 2: continue
         turn_hand = hand_strength_name(cards, board[:4])
         if turn_hand not in ('high_card', 'pair'): continue  # 2P+ = correct continue
+        # v8.16.1 Bug-2b: the "pair-or-weaker continue is a mistake" premise
+        # assumes Hero has little equity. A strong DRAW (flush draw / open-ender)
+        # has ~8-9+ outs plus implied odds, so continuing vs a turn check-raise
+        # is correct, not a CLEAR mistake. The made-hand rank gate above ignored
+        # draws entirely — 78024888 (AQhh on 9hTd2s2h = nut flush draw + 2 overs)
+        # was flagged a CLEAR mistake, then rivered the nut flush. Exclude flush
+        # draws and open-enders; weak made hands with no draw still flag.
+        _hh10_draw = classify_draw(cards, board[:4])
+        if _hh10_draw in ('nut_fd', 'fd', 'oesd'):
+            continue
         mistakes.append({'id': h['id'],
                          'cards': normalize_hand(cards),
                          'pos': h.get('position', ''),
@@ -8406,6 +8416,74 @@ def sanity_check(s, hands, prev_csv=None):
 # 5. MAIN — parse, analyze, check, output
 # ============================================================
 
+def build_date_coverage(hands, session_dir):
+    """v8.16.1 Bug-1: session date-scope transparency. Reports the date span of
+    the loaded session so a multi-date upload can never be silently narrowed to
+    one day (the prior smoke ran only 2026-06-14 although the source zip also
+    held 2026-06-13). Scans the HH .txt files and game_summaries/ in
+    `session_dir` (grouped by the GG filename date YYYYMMDD) and the parsed
+    `hands` (grouped by per-hand timestamp date — note GG names a file by the
+    tournament-START date, so late hands can carry the next day's timestamp).
+
+    NO filtering is applied here: every .txt found is parsed, so included == total
+    and `excluded_dates` is empty unless an explicit date filter is requested
+    upstream (none exists today). Returns a dict (stamped into report_data) plus a
+    printable `summary_lines` list. Pure aside from os.listdir on session_dir."""
+    import os as _os, re as _re
+    from collections import Counter as _Counter
+    _gg = _re.compile(r'GG(\d{8})')
+
+    def _scan(folder):
+        by_date = _Counter(); total = 0
+        try:
+            entries = _os.listdir(folder)
+        except OSError:
+            return by_date, total
+        for f in entries:
+            if f.startswith('.') or not f.lower().endswith('.txt'):
+                continue
+            m = _gg.search(f)
+            if m:
+                d = m.group(1)
+                d = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+            else:
+                d = 'unknown'
+            by_date[d] += 1; total += 1
+        return by_date, total
+
+    hh_by_date, hh_total = _scan(session_dir)
+    sum_by_date, sum_total = _scan(_os.path.join(session_dir, 'game_summaries'))
+    hands_by_date = _Counter(h.get('date', '') for h in (hands or []) if h.get('date'))
+    file_dates = sorted(d for d in (set(hh_by_date) | set(sum_by_date)) if d != 'unknown')
+    included_dates = sorted(set(file_dates) | set(hands_by_date))
+    cov = {
+        'included_dates': included_dates,
+        'excluded_dates': [],
+        'filtered': False,
+        'filter_reason': 'none — all dates in the session directory were included',
+        'hh_files_total': hh_total, 'hh_files_included': hh_total,
+        'summary_files_total': sum_total, 'summary_files_included': sum_total,
+        'hh_files_by_date': dict(hh_by_date),
+        'summary_files_by_date': dict(sum_by_date),
+        'hands_by_date': dict(hands_by_date),
+        'n_hands': sum(hands_by_date.values()),
+    }
+    lines = [
+        "Session date coverage (no silent date filtering):",
+        f"  included dates ({len(included_dates)}): {', '.join(included_dates) or '—'}",
+        "  excluded dates: none — all dates included by default",
+        f"  HH files included/total: {hh_total}/{hh_total} (by date: {dict(hh_by_date)})",
+        f"  summary files included/total: {sum_total}/{sum_total} (by date: {dict(sum_by_date)})",
+        f"  hands by date: {dict(hands_by_date)}",
+        f"  filter reason: {cov['filter_reason']}",
+    ]
+    if len(included_dates) > 1:
+        lines.append(f"  MULTI-DATE session: {len(included_dates)} dates present — "
+                     "all included (no silent date filter).")
+    cov['summary_lines'] = lines
+    return cov
+
+
 if __name__ == '__main__':
     # v7.36: support --section <Roman[,Roman,...]> for partial render.
     # Strip flag args before falling back to positional SESSION_DIR / SESSION_NAME
@@ -9196,6 +9274,10 @@ if __name__ == '__main__':
         _t_parse = _time.perf_counter() - _t0
         print(f"Parsed: {len(hands)} hands, {len(tournaments)} tournaments, "
               f"{n_files} files, {errors} errors")
+        # v8.16.1 Bug-1: loud session date-scope report (no silent date filter).
+        _date_coverage = build_date_coverage(hands, SESSION_DIR)
+        for _dc_ln in _date_coverage['summary_lines']:
+            print(_dc_ln)
         _log_profile('parse')
         # Save hash for next run
         try:
@@ -9833,6 +9915,12 @@ if __name__ == '__main__':
     report_data = generate_report_data(stats, hands, SESSION_DIR, session_hist,
                                        player_name=_pname_display)
     report_data['_session_fingerprint'] = _session_fingerprint
+    # v8.16.1 Bug-1: persist the date-coverage transparency record (printed at
+    # parse time) into report_data + the run log so the scope is auditable.
+    try:
+        report_data['date_coverage'] = _date_coverage
+    except NameError:
+        pass
     rd_path = f'/home/claude/gem_report_data_{_pname_file}.json'
     with open(rd_path, 'w', encoding='utf-8') as f:
         json.dump(report_data, f, indent=2, default=str, ensure_ascii=False)
@@ -10720,8 +10808,16 @@ if __name__ == '__main__':
             r"data-hand-id=['\"]([\w-]+)['\"]\s+data-availability=['\"]budget_trimmed['\"]",
             _html_content)}
         if _trim_all_v and _lazy_html_v:
+            # v8.16.2 Phase B: count only FULL cards in the lazy payload. Full
+            # cards carry `data-hand-id=X data-format=...`; budget-trimmed stubs
+            # are themselves pb-lazy (their inner HTML is in the same payload) but
+            # carry data-availability='budget_trimmed' and NO data-format. The old
+            # bare `data-hand-id` regex matched the stubs too, so it flagged every
+            # stub as "also a full card" (a false positive on large sessions). The
+            # --quick mirror already excludes stubs via _decode_lazy_cards; this
+            # aligns the full-pipeline check to the same TRUE invariant.
             _full_suf_v = {m[-8:] for m in _re_val.findall(
-                r"data-hand-id=['\"]([\w-]+)['\"]", _lazy_html_v)}
+                r"data-hand-id=['\"]([\w-]+)['\"]\s+data-format=", _lazy_html_v)}
             _dup_v = sorted(_trim_all_v & _full_suf_v)
             if _dup_v:
                 _val_issues.append(f"❌ {len(_dup_v)} hand(s) rendered BOTH a "

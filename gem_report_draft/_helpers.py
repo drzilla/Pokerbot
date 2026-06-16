@@ -491,7 +491,12 @@ def _agg_one_label(c):
     elif v in ('AMBIGUOUS', 'AMBIGUOUS_AGGRESSIVE'):
         label = f"Borderline {st} decision"
     elif v == 'CORRECTLY_PASSIVE':
-        label = f"Correct check on the {st}"
+        # v8.16.1 Bug-2a: if Hero CALLED a bet (xc/call) the passive verdict is
+        # about not RAISING — say "call", not "check". Only a literal check (x)
+        # is a "check".
+        _raw_pa = ((c.get('hsa', {}) or {}).get(st, '') or '').lower() if isinstance(c, dict) else ''
+        _pa_verb = 'call' if (_raw_pa in ('xc', 'call') or 'call' in _raw_pa) else 'check'
+        label = f"Correct {_pa_verb} on the {st}"
     elif v == 'CORRECTLY_AGGRESSIVE':
         label = f"Correct aggression on the {st}"
     else:
@@ -526,7 +531,47 @@ _AGG_ACTION_WORDS = {
     'cbet': 'c-bet', 'xr': 'check-raise', 'check-raise': 'check-raise',
     'bet': 'bet', 'raise': 'raise', 'jam': 'jam', 'donk': 'donk-lead',
     'check': 'check', 'call': 'call', '3bet': '3-bet', '4bet': '4-bet',
+    # v8.16.1 Bug-2a: all-in / B253 composite codes must map to readable words
+    # — otherwise the raw code leaked into prose ("Borderline bet-callai on the
+    # turn"). The over-aggression verdict grades the BET portion of a
+    # bet-then-call(-allin) composite, so those render as "bet".
+    'callai': 'call', 'xc-ai': 'check-call', 'xr-ai': 'check-raise',
+    'bet-call': 'bet', 'bet-callai': 'bet', 'x': 'check',
 }
+
+
+def auto_verdict_needs_review(verdict, is_auto_verdict, agg_label):
+    """v8.16.1 Bug-2b: an AUTO Mistake/Punt verdict must be corroborated by an
+    action-level mistake marker. When the hand's only postflop action signal is
+    the VIII.11 aggression gate label and it shows ONLY correct/borderline play
+    (no 'Missed …' / 'Too aggressive …'), the auto III.1/III.2 contradicts the
+    hand's own action review — downgrade it to *Review* rather than asserting an
+    unconfirmed Mistake.
+
+    Example: 78024888 — HH10#1 auto-flagged "continue mistake" (III.2) while the
+    aggression review said "Correct check on the river · Borderline turn
+    decision". No action marker = no confirmed mistake → Review.
+
+    Scope / safety:
+      • Only AUTO verdicts (is_auto_verdict) — an analyst's verdict is never touched.
+      • Only when an aggression label is PRESENT. Preflop mistakes (Missed Steal,
+        Hero folded preflop) and weak river call-downs have no aggression label,
+        so they are left alone — their marker lives elsewhere.
+      • A label containing 'missed' or 'too aggressive' IS an action-level mistake
+        marker → the auto verdict is corroborated and kept.
+
+    Pure / testable. `agg_label` is the label STRING (second element of the
+    _agg_gate_label tuple), or '' / None when absent.
+    """
+    if not is_auto_verdict:
+        return False
+    v = (verdict or '')
+    if not (v.startswith('III.2') or v.startswith('III.1')):
+        return False
+    lbl = (agg_label or '').lower()
+    if not lbl:
+        return False  # no postflop action label (e.g. preflop punt) — leave it
+    return ('missed' not in lbl) and ('too aggressive' not in lbl)
 
 
 def monotone_overcommit_lesson(board, hsa, net_bb=None, spr=None):
@@ -724,8 +769,16 @@ def _agg_commentary(c):
     elif verdict == 'CORRECTLY_AGGRESSIVE':
         lead = f"The {st} {act} was the correct aggressive line."
     elif verdict == 'CORRECTLY_PASSIVE':
-        lead = (f"Checking the {st} was correct — a bet wasn't justified "
-                f"here.")
+        # v8.16.1 Bug-2a: when Hero CALLED a bet (xc/call), the passive verdict
+        # is about not RAISING, not about checking — say so. Only a literal
+        # check (x) gets "Checking … was correct".
+        _raw_pa2 = (hsa.get(st) or '').lower()
+        if _raw_pa2 in ('xc', 'call') or 'call' in _raw_pa2:
+            lead = (f"Calling the {st} was correct — raising for value "
+                    f"wasn't justified here.")
+        else:
+            lead = (f"Checking the {st} was correct — a bet wasn't justified "
+                    f"here.")
     else:
         lead = rec or 'See detail.'
     # BUG-11 (Ron review 2026-05-31): enumerate value-bet conditions

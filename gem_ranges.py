@@ -731,6 +731,301 @@ def construct_villain_river_range(
     }
 
 # ============================================================
+# RANGE LENS v1 (v8.16.3) — source-aware range explanation
+# ============================================================
+# Pure helpers that turn EXISTING source facts (a chart's own hand-class keys,
+# Hero's made/draw class, board texture) into a compact "Range lens:" teaching
+# line. They INVENT nothing: preflop notation is compressed from the chart's own
+# keys; postflop buckets reuse the same phevaluator classifiers used elsewhere;
+# villain composition is described only QUALITATIVELY from board structure (no
+# per-combo / solver-% / villain-range claims). Every builder returns None when
+# its source is missing, so the caller skips the lens rather than hallucinate.
+
+_LENS_RANK_SEQ = '23456789TJQKA'
+
+
+def _lens_compress_pairs(rank_chars):
+    """Pair ranks -> run notation: run reaching AA -> 'XX+', bounded -> 'HH-LL',
+    singletons as-is. Highest run first. (Mirrors _helpers._compress_pair_ranks
+    but lives here, markup-free, so the lens shares ONE notation contract.)"""
+    idx = sorted({_LENS_RANK_SEQ.index(r) for r in rank_chars if r in _LENS_RANK_SEQ})
+    out, i = [], 0
+    while i < len(idx):
+        j = i
+        while j + 1 < len(idx) and idx[j + 1] == idx[j] + 1:
+            j += 1
+        lo, hi = idx[i], idx[j]
+        lo_r, hi_r = _LENS_RANK_SEQ[lo], _LENS_RANK_SEQ[hi]
+        if hi == len(_LENS_RANK_SEQ) - 1:        # run reaches AA
+            out.append(f"{lo_r}{lo_r}+")
+        elif lo == hi:
+            out.append(f"{lo_r}{lo_r}")
+        else:
+            out.append(f"{hi_r}{hi_r}-{lo_r}{lo_r}")
+        i = j + 1
+    out.reverse()
+    return out
+
+
+def _lens_compress_nonpairs(combos, suit):
+    """Suited/offsuit combos -> 'HXs+' (kicker run reaching the top), bounded
+    'Hhi-Hlo', singletons. Suit suffix preserved; suited and offsuit are kept in
+    SEPARATE calls so they never merge."""
+    by_hi = {}
+    for c in combos:
+        if len(c) == 3 and c[0] in _LENS_RANK_SEQ and c[1] in _LENS_RANK_SEQ:
+            by_hi.setdefault(c[0], []).append(c[1])
+    out = []
+    for hi in sorted(by_hi, key=lambda r: -_LENS_RANK_SEQ.index(r)):
+        hi_i = _LENS_RANK_SEQ.index(hi)
+        kid = sorted({_LENS_RANK_SEQ.index(k) for k in by_hi[hi]})
+        toks, i = [], 0
+        while i < len(kid):
+            j = i
+            while j + 1 < len(kid) and kid[j + 1] == kid[j] + 1:
+                j += 1
+            lo, khi = kid[i], kid[j]
+            lo_r, khi_r = _LENS_RANK_SEQ[lo], _LENS_RANK_SEQ[khi]
+            if khi == hi_i - 1:                  # kicker run reaches top
+                toks.append(f"{hi}{lo_r}{suit}+")
+            elif lo == khi:
+                toks.append(f"{hi}{lo_r}{suit}")
+            else:
+                toks.append(f"{hi}{khi_r}{suit}-{hi}{lo_r}{suit}")
+            i = j + 1
+        toks.reverse()
+        out.extend(toks)
+    return out
+
+
+def compress_range(hand_classes):
+    """Markup-free compact notation of an EXPLICIT hand-class list (e.g. a
+    chart's keys): groups Pairs / Suited / Offsuit and compresses each into
+    standard +/run notation (22+, ATs+, K9s-K6s). Suited and offsuit are NEVER
+    merged; pairs never get an s/o suffix. Pure. Returns '' for an empty input."""
+    pair_ranks, suited, offsuit = [], [], []
+    for h in (hand_classes or []):
+        h = str(h).strip()
+        if len(h) == 2 and h[0] == h[1]:
+            pair_ranks.append(h[0])
+        elif len(h) == 3 and h.endswith('s'):
+            suited.append(h)
+        elif len(h) == 3 and h.endswith('o'):
+            offsuit.append(h)
+    parts = []
+    if pair_ranks:
+        parts.append('pairs ' + ', '.join(_lens_compress_pairs(pair_ranks)))
+    if suited:
+        parts.append('suited ' + ', '.join(_lens_compress_nonpairs(suited, 's')))
+    if offsuit:
+        parts.append('offsuit ' + ', '.join(_lens_compress_nonpairs(offsuit, 'o')))
+    return '; '.join(parts)
+
+
+def preflop_range_lens(ev, ranges):
+    """Source-safe preflop 'Range lens:' line, or None. `ev` is the object from
+    build_range_evidence(); `ranges` is the load_ranges() dict. The notation is
+    compressed FROM the chart's own hand-class keys (invents nothing); the
+    in/out wording is taken verbatim from `ev` (the single source of truth).
+    Returns None when no chart applies (chart_key missing / coverage 'none' /
+    membership 'unknown') so the caller can skip the lens."""
+    if not isinstance(ev, dict):
+        return None
+    ck = ev.get('chart_key')
+    cov = ev.get('coverage')
+    mem = ev.get('membership')
+    if not ck or cov in (None, 'none') or mem in (None, '', 'unknown'):
+        return None
+    chart = (ranges or {}).get(ck)
+    classes = (list(chart.keys()) if isinstance(chart, dict)
+               else (list(chart) if chart else []))
+    rng = compress_range(classes)
+    if not rng:
+        return None
+    hero = (ev.get('hero_hand') or '').strip()
+    spot = (ev.get('spot_label') or 'this spot').strip()
+    cov_note = '' if cov == 'exact' else f' [{cov} chart]'
+    side = 'inside' if mem == 'inside' else 'outside'
+    bnd = ' (boundary)' if ev.get('boundary') else ''
+    hero_clause = f" {hero} is {side}{bnd} this region." if hero else ''
+    return f"Range lens: the {spot} range{cov_note} is roughly {rng}.{hero_clause}"
+
+
+_LENS_MADE_PHRASE = {
+    'monster': 'quads or better', 'full_house': 'a full house', 'flush': 'a flush',
+    'straight': 'a straight', 'set': 'a set', 'two_pair': 'two pair',
+    'overpair': 'an overpair', 'underpair': 'an underpair', 'top_pair': 'top pair',
+    'second_pair': 'second pair', 'weak_pair': 'a weak pair',
+}
+
+
+def _lens_made_class(hole, board):
+    """Made-hand bucket key for any board length (>=3), reusing the phev rank
+    thresholds from classify_on_river. Returns a key in _LENS_MADE_PHRASE, or
+    'high_card', or None on bad input."""
+    if len(hole) != 2 or len(board) < 3:
+        return None
+    try:
+        rank = evaluate_cards(*hole, *board)
+    except Exception:
+        return None
+    if rank < 167: return 'monster'
+    if rank < 322: return 'full_house'
+    if rank < 1600: return 'flush'
+    if rank < 1610: return 'straight'
+    if rank < 2468: return 'set'
+    if rank < 3326: return 'two_pair'
+    if rank < 6186:
+        board_ranks = [RANK_VAL[c[0]] for c in board]
+        if hole[0][0] == hole[1][0]:
+            hr = RANK_VAL[hole[0][0]]
+            return 'overpair' if hr > max(board_ranks) else 'underpair'
+        paired = None
+        for hr in [RANK_VAL[c[0]] for c in hole]:
+            if hr in board_ranks:
+                paired = hr
+                break
+        if paired is None:
+            # The single pair is ON THE BOARD — Hero contributed no pair card,
+            # so Hero is playing the board (high card), not a made pair. Let the
+            # caller fall through to draw/air on Hero's own equity.
+            return 'high_card'
+        if paired == max(board_ranks): return 'top_pair'
+        if len(board_ranks) >= 2 and paired == sorted(board_ranks)[-2]: return 'second_pair'
+        return 'weak_pair'
+    return 'high_card'
+
+
+_LENS_DRAW_PHRASE = {
+    'nut_fd': 'the nut flush draw', 'fd': 'a flush draw',
+    'oesd': 'an open-ended straight draw', 'gutshot': 'a gutshot',
+    'bdfd': 'a backdoor flush draw', 'overcards': 'two overcards',
+}
+_LENS_STRONG_DRAWS = ('nut_fd', 'fd', 'oesd', 'gutshot')
+
+
+def postflop_hand_buckets(hole, board):
+    """Hero's postflop bucket, or None. Returns
+    {'bucket': 'made'|'draw'|'air', 'made': key|None, 'draw': raw|None,
+     'made_phrase': str|None, 'draw_phrase': str|None, 'hero_class': key}.
+    Pure (phevaluator + gem_parser.classify_draw). A made hand wins over a draw
+    (it may still hold a redraw). classify_draw only flags 4-flush / open-enders
+    / gutshots, so a MADE flush/straight is never mislabelled a 'draw'."""
+    made = _lens_made_class(hole, board)
+    if made is None:
+        return None
+    river = len(board) >= 5      # no more cards: draws are DEAD on the river
+    raw_draw = None
+    try:
+        from gem_parser import classify_draw
+        raw_draw = classify_draw(hole, board)
+        if raw_draw == 'none':
+            raw_draw = None
+    except Exception:
+        raw_draw = None
+    if made != 'high_card':
+        bucket = 'made'
+    elif (not river) and raw_draw in _LENS_STRONG_DRAWS:
+        bucket = 'draw'
+    else:
+        bucket = 'air'          # high card + (river / overcards / backdoor / nothing)
+    # On the river a 4-flush / open-ender is a MISSED draw, not a live one.
+    if river and raw_draw in ('nut_fd', 'fd'):
+        draw_phrase = 'a missed flush draw'
+    elif river and raw_draw in ('oesd', 'gutshot'):
+        draw_phrase = 'a missed straight draw'
+    else:
+        draw_phrase = _LENS_DRAW_PHRASE.get(raw_draw)
+    return {
+        'bucket': bucket,
+        'made': (None if made == 'high_card' else made),
+        'draw': raw_draw,
+        'live_draw': (None if river else raw_draw),
+        'made_phrase': _LENS_MADE_PHRASE.get(made),
+        'draw_phrase': draw_phrase,
+        'hero_class': made,
+    }
+
+
+def _lens_board_structure(board):
+    """Qualitative board-texture value/draw framing, derived ONLY from the board
+    cards (no villain combos, no solver %). Returns (texture, value_str,
+    draw_str) or None."""
+    if len(board) < 3:
+        return None
+    rank_list = [RANK_VAL[c[0]] for c in board]
+    suit_counts = {}
+    for c in board:
+        suit_counts[c[1]] = suit_counts.get(c[1], 0) + 1
+    paired = len(set(rank_list)) < len(rank_list)
+    max_suit = max(suit_counts.values())
+    monotone = max_suit >= 3
+    two_tone = max_suit == 2
+    rs = sorted(set(rank_list))
+    connected = any(rs[i + 1] - rs[i] <= 2 for i in range(len(rs) - 1))
+    # 3rd element is a complete CLAUSE about draws/bluffs (so the caller can drop
+    # it in verbatim after the value clause without doubling "draws =").
+    if paired and monotone:
+        return ('a paired, flush-possible board',
+                'full houses and quads, then flushes',
+                'lower flushes and trips are now bluff-catchers, not the nuts')
+    if paired:
+        return ('a paired board',
+                'trips, full houses and overpairs',
+                'draws lose fold equity, so a bluff needs real blockers or equity, '
+                'not just "deny equity"')
+    if monotone:
+        return ('a monotone board (a flush is already possible)',
+                'made flushes and sets',
+                'the live draws are higher flush draws; a bluff without a card of '
+                'the suit rarely gets folds')
+    if two_tone and connected:
+        return ('a wet two-tone, connected board',
+                'sets, two pair and overpairs',
+                'draws = flush draws, open-enders and combo draws')
+    if two_tone:
+        return ('a two-tone board',
+                'sets, two pair and top pair',
+                'draws = flush draws plus a few straight draws')
+    if connected:
+        return ('a connected rainbow board',
+                'sets, two pair and straights',
+                'draws = open-enders, gutshots and overcards')
+    return ('a dry, disconnected board',
+            'overpairs and top pair',
+            'few real draws here — mostly backdoors and overcards')
+
+
+def postflop_range_lens(hole, board, street=None):
+    """Source-safe postflop 'Range lens:' line for flop/turn/river, or None.
+    States Hero's bucket (made / draw / air) plus the board's value/draw
+    structure (board-texture derived). Pure; no villain combos, no solver %.
+    Returns None when Hero's hand cannot be classified (e.g. no board)."""
+    b = postflop_hand_buckets(hole, board)
+    if not b:
+        return None
+    tex = _lens_board_structure(board)
+    if not tex:
+        return None
+    texture, value_str, draw_clause = tex
+    if b['bucket'] == 'made':
+        # Only surface a meaningful LIVE REDRAW (flush/straight draw), not 'two
+        # overcards'/backdoor — those read oddly next to a made hand. live_draw
+        # is None on the river, so a made river hand never claims a dead redraw.
+        extra = (f" plus {b['draw_phrase']}"
+                 if b.get('live_draw') in ('nut_fd', 'fd', 'oesd', 'gutshot') else '')
+        hero_phrase = f"Hero has {b['made_phrase']}{extra} (a made hand)"
+    elif b['bucket'] == 'draw':
+        hero_phrase = f"Hero has {b['draw_phrase']} (a drawing hand, not made)"
+    else:
+        hero_phrase = (f"Hero has {b['draw_phrase']} (no made hand)"
+                       if b['draw_phrase']
+                       else 'Hero has no made hand or strong draw (air)')
+    return (f"Range lens: {hero_phrase}. On {texture}, value = {value_str}; "
+            f"{draw_clause}.")
+
+
+# ============================================================
 # CLI — self-test
 # ============================================================
 if __name__ == '__main__':

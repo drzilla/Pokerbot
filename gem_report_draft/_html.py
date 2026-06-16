@@ -5476,6 +5476,19 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     font-weight: 700; }}
   div.analyst-notes {{ background: #fffbe8; border-left: 4px solid #f5d75e;
     padding: 0.7em 1em 0.7em 1em; margin: 0.5em 0 1.2em 0; border-radius: 4px; }}
+  /* v8.17 Epic A §9 — the visible DECISION CAPSULE: a register-classified, scannable
+     LEAD block, visually distinct from the routed detail notes below it. */
+  div.analyst-notes.pb-capsule {{ background: #f1f5ff; border-left-width: 5px;
+    border-left-color: #6366f1; box-shadow: 0 1px 2px rgba(15,23,42,.06);
+    font-size: 0.98em; margin-bottom: 0.6em; }}
+  div.analyst-notes.pb-capsule strong {{ color: #1e1b4b; }}
+  div.analyst-notes.pb-cap-coaching {{ background: #fef6f1; border-left-color: #ea7c3c; }}
+  div.analyst-notes.pb-cap-factual {{ background: #f0faf3; border-left-color: #3aa564; }}
+  div.analyst-notes.pb-cap-no_clear_lesson {{ background: #f6f7f9; border-left-color: #94a3b8; }}
+  html.dark div.analyst-notes.pb-capsule {{ background: #1e1b3a !important; border-left-color: #818cf8 !important; }}
+  html.dark div.analyst-notes.pb-cap-coaching {{ background: #3a1f12 !important; border-left-color: #f59e6b !important; }}
+  html.dark div.analyst-notes.pb-cap-factual {{ background: #0f2a1b !important; border-left-color: #4ade80 !important; }}
+  html.dark div.analyst-notes.pb-cap-no_clear_lesson {{ background: #20242b !important; border-left-color: #94a3b8 !important; }}
   div.analyst-notes .note-num {{ display: inline-block; background: #f5d75e;
     color: #1a1a2e; font-weight: 700; padding: 0 0.5em; border-radius: 10px;
     margin-right: 0.4em; font-size: 0.85em;

@@ -120,6 +120,97 @@ def build_capsule(street, roles, *, register, evidence_tier):
     }
 
 
+_REGISTER_BADGE = {
+    'factual': 'Read', 'coaching': 'Coach', 'no_clear_lesson': 'Unclear',
+}
+
+# verdict words that mean a scored coaching spot vs a neutral/correct factual one.
+_COACH_VERDICT = ('mistake', 'over-jam', 'overjam', 'too wide', 'too loose', 'punt',
+                  'spew', 'leak', 'missed', 'thin', 'loose', 'bluff-catch', 'review',
+                  'compounded', 'over-fold', 'overfold')
+_FACTUAL_VERDICT = ('standard', 'correct', 'fine', 'good', 'justified', 'value',
+                    'snap', 'clear call', 'clear fold', 'baseline')
+
+
+def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
+                                  analyst_why='', required_eq_pct=None,
+                                  multiway_suppressed=False, range_line='',
+                                  exploit_line='', caveat_line='', consequence_line='',
+                                  pko_how_changes='', evidence_tier='chart_sourced',
+                                  result_only=False, gradeable=True):
+    """v8.17 §9 — build the smallest useful DECISION capsule for a street from the
+    canonical signals already computed by the renderer (no recompute, invents nothing).
+    Picks the register from the verdict wording, fills only non-blank roles, keeps a
+    visible evidence anchor (Math/Range/Exploit). Returns a build_capsule() dict or
+    None. The PKO how-changes line is folded into Why (it IS the decision driver)."""
+    vh = (verdict_hint or '').strip()
+    why = (analyst_why or '').strip() or vh
+    vc = (vh + ' ' + why).lower()
+    # a result-derived hint ("…vs shown", "realized", "rivered") must NEVER become a
+    # graded coaching verdict (§9 hard rule / L6 / L13): drop it as the Verdict and
+    # let the range/price evidence carry a FACTUAL capsule instead.
+    vh_is_result = any(w in vc for w in ('vs shown', 'shown', 'realized', 'rivered',
+                                         'at showdown'))
+    if not vh_is_result and any(k in vc for k in _COACH_VERDICT) or ('-ev' in vc and not vh_is_result):
+        verdict_class = 'mistake'
+    elif any(k in vc for k in _FACTUAL_VERDICT) or '+ev' in vc:
+        verdict_class = 'correct'
+    else:
+        verdict_class = ''
+    register = classify_register(verdict_class=verdict_class, gradeable=gradeable,
+                                 result_only=result_only)
+    roles = {}
+    if decision_label:
+        roles['Decision'] = decision_label
+    if vh and not vh_is_result:
+        roles['Verdict'] = vh
+    # Why: prefer the PKO how-changes driver, else the analyst why (never a result hint).
+    drv = (pko_how_changes or '').replace('How the bounty changes it: ', '').strip()
+    if drv:
+        roles['Why'] = drv
+    elif analyst_why and analyst_why != vh:
+        roles['Why'] = analyst_why
+    if required_eq_pct not in (None, '', 0, '0') and not multiway_suppressed:
+        roles['Math'] = 'need %s%% to continue' % required_eq_pct
+    if range_line:
+        roles['Range'] = range_line
+    if exploit_line:
+        roles['Exploit'] = exploit_line
+    if caveat_line or multiway_suppressed:
+        roles['Caveat'] = caveat_line or 'multiway — compare equity to the field, not one villain'
+    if consequence_line:
+        roles['Consequence'] = consequence_line
+    # Anchor-aware fallback: an ungraded but evidenced decision (decision + price/range
+    # anchor) is a FACTUAL capsule (neutral facts, no verdict) — NOT "can't infer".
+    # no_clear_lesson is reserved for the genuinely un-evidenced / un-gradeable spot.
+    _has_anchor = any(r in roles for r in ('Math', 'Range', 'Exploit'))
+    _unprovable = ('unavailable' in (decision_label + ' ' + vh).lower()
+                   or 'unprovable' in vc or 'node type' in vc)
+    if register == 'no_clear_lesson' and gradeable and not result_only \
+            and _has_anchor and decision_label and not _unprovable:
+        register = 'factual'
+    # no_clear_lesson must not carry a scored verdict (hard rule §9)
+    if register == 'no_clear_lesson':
+        roles.pop('Verdict', None)
+        roles.setdefault('Caveat', 'evidence is thin here — check the price and the '
+                         'opponent range before grading')
+    return build_capsule(street, roles, register=register, evidence_tier=evidence_tier)
+
+
+def render_capsule_md(capsule):
+    """Render a §9 capsule to a compact, visually-distinct markdown block for the
+    Commentary cell: a register badge + the prioritized role lines (Consequence is
+    visually subordinate). Returns '' for an empty capsule. The caller wraps this in a
+    `.analyst-notes pb-capsule pb-cap-<register>` div so the router places it and the
+    CSS styles it distinctly. Never echoes a role twice."""
+    if not capsule:
+        return ''
+    reg = capsule['register']
+    badge = _REGISTER_BADGE.get(reg, '')
+    # rebuild from order so Consequence renders last + subordinate
+    return '🧭 **%s** · %s' % (badge, capsule['md'])
+
+
 def capsule_content_lints(text, *, register=None, evidence_tier=None,
                           has_anchor=None, range_outside=False,
                           verdict_approves=False, has_takeaway=None):

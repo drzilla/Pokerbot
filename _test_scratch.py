@@ -9559,6 +9559,34 @@ check('T-CAP817-09 (anti): a clean chart-sourced coaching capsule with anchor + 
 check('T-CAP817-10: lint summary gates the build (fail>0 -> gate_ok False)',
       _CAP.capsule_lint_summary([[('L6', 'FAIL', 'x')], []])['gate_ok'] is False
       and _CAP.capsule_lint_summary([[('L7c', 'WARN', 'x')]])['gate_ok'] is True, '')
+# v8.17 §9 visible capsule: decision_capsule_from_signals + render + live render-path
+_dc_coach = _CAP.decision_capsule_from_signals('preflop', decision_label='Open-shove',
+    verdict_hint='Over-jam turns a made hand into a bluff', required_eq_pct=0)
+check('T-CAP817-11: signals->coaching capsule (mistake verdict) with Decision+Verdict roles',
+      _dc_coach['register'] == 'coaching' and 'Decision' in _dc_coach['roles']
+      and 'Verdict' in _dc_coach['roles'], _dc_coach['register'])
+_dc_fact = _CAP.decision_capsule_from_signals('preflop', decision_label='Call vs jam',
+    verdict_hint='Standard 12BB defend', required_eq_pct=38)
+check('T-CAP817-12: signals->factual capsule (standard verdict) keeps a Math anchor',
+      _dc_fact['register'] == 'factual' and 'Math' in _dc_fact['roles']
+      and _dc_fact['has_anchor'] is True, _dc_fact['register'])
+_dc_nc = _CAP.decision_capsule_from_signals('preflop', decision_label='All-in decision (exact node type unavailable)',
+    verdict_hint='node unprovable', required_eq_pct=40)
+check('T-CAP817-13: no_clear_lesson drops the scored Verdict + states what is missing',
+      _dc_nc['register'] == 'no_clear_lesson' and 'Verdict' not in _dc_nc['roles']
+      and 'Caveat' in _dc_nc['roles'], _dc_nc['roles'])
+check('T-CAP817-14: render_capsule_md emits a register badge + the role md',
+      '🧭' in _CAP.render_capsule_md(_dc_coach) and 'Coach' in _CAP.render_capsule_md(_dc_coach)
+      and 'Decision:' in _CAP.render_capsule_md(_dc_coach), '')
+# live render-path: both XIV.A + XIV.B emit the .analyst-notes pb-capsule lead + CSS present
+check('T-CAP817-15: XIV.A + XIV.B emit the visible pb-capsule (decision_capsule_from_signals wired both paths)',
+      'decision_capsule_from_signals as _dcs_a' in _xivb
+      and 'decision_capsule_from_signals as _dcs_b' in _xivb
+      and "pb-capsule pb-cap-" in _xivb, 'capsule not wired both paths')
+_html817cap = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-CAP817-16: register-variant capsule CSS present (coaching/factual/no_clear_lesson + dark)',
+      'div.analyst-notes.pb-capsule' in _html817cap and 'pb-cap-coaching' in _html817cap
+      and 'pb-cap-factual' in _html817cap and 'pb-cap-no_clear_lesson' in _html817cap, '')
 
 # ============================================================
 # SUMMARY

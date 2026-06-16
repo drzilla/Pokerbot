@@ -2919,6 +2919,35 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             except Exception:
                 _mw_plan = {'suppress_hu_required_equity': False,
                             'pot_odds_uncertain': False, 'label': ''}
+            # v8.17 Epic A \u00a79: the VISIBLE DECISION CAPSULE \u2014 the prioritized,
+            # register-classified LEAD of this street's commentary. Built from the
+            # SAME canonical signals (decision-kind, verdict_hint, analyst why,
+            # required-equity, multiway suppression \u2014 no recompute); the existing
+            # detailed notes follow it (preserved = zero-drop). Routed via
+            # .analyst-notes[data-street]; styled distinctly by .pb-capsule.
+            try:
+                from gem_commentary_capsule import (
+                    decision_capsule_from_signals as _dcs_a, render_capsule_md as _rcm_a)
+                _capdec_a = ''
+                if h.get('pf_allin'):
+                    _kc_a = _cpa_a(h)[0]
+                    if _kc_a != 'not_allin':
+                        _capdec_a = _akl_a(_kc_a)
+                _cap_a = _dcs_a(
+                    _po.get('street') or 'preflop', decision_label=_capdec_a,
+                    verdict_hint=_po.get('verdict_hint', ''),
+                    analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
+                    required_eq_pct=_po.get('required_eq_pct'),
+                    multiway_suppressed=bool(_mw_plan.get('suppress_hu_required_equity')))
+                if _cap_a:
+                    _cst_a = _street_attr(_po.get('street'))
+                    _cds_a = f" data-street='{_cst_a}'" if _cst_a else ''
+                    doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_a['register']}'{_cds_a}>")
+                    doc.w(_rcm_a(_cap_a))
+                    doc.w("</div>")
+                    doc.w("")
+            except Exception:
+                pass
             if not _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
                 # v8.12.8 QA3: side-pot-aware price carries its basis
@@ -3613,6 +3642,32 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                  'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
                     _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
+                    # v8.17 Epic A §9: the VISIBLE DECISION CAPSULE on the compact
+                    # path too (C2 parity) — register-classified lead, same signals,
+                    # no recompute; detailed lines below are preserved (zero-drop).
+                    try:
+                        from gem_commentary_capsule import (
+                            decision_capsule_from_signals as _dcs_b, render_capsule_md as _rcm_b)
+                        _capdec_b = ''
+                        if h.get('pf_allin'):
+                            _kc_b = _cpa_b(h)[0]
+                            if _kc_b != 'not_allin':
+                                _capdec_b = _akl_b(_kc_b)
+                        _cap_b = _dcs_b(
+                            _po_b.get('street') or 'preflop', decision_label=_capdec_b,
+                            verdict_hint=_po_b.get('verdict_hint', ''),
+                            analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
+                            required_eq_pct=_req_b, multiway_suppressed=_mw_sup_b)
+                        if _cap_b:
+                            _cst_b = _street_attr(_po_b.get('street'))
+                            _cds_b = f" data-street='{_cst_b}'" if _cst_b else ''
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_b['register']}'{_cds_b}>")
+                            doc.w(_rcm_b(_cap_b))
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                    except Exception:
+                        pass
                     if _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
                     elif _mw_sup_b:

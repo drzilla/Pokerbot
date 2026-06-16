@@ -74,6 +74,20 @@ def main():
     ck('29/30 debate hand preserved (Justified verdict, not forced to a Mistake)',
        bool(c80) and 'Justified' in c80 and 'Key mistake' not in c80,
        'verdict=%s' % ('Justified' if 'Justified' in c80 else '?'))
+    # visible §9 capsules: factual / coaching / no_clear_lesson all render with badges
+    def capof(hid):
+        b = c(hid)
+        import re as _r
+        m = _r.search(r'pb-capsule[^>]*>(.*?)</div>', b, _r.S)
+        return _r.sub(r'<[^>]+>', ' ', m.group(0)) if m else ''
+    ck('A-capsule coaching register renders (mistake hand -> 🧭 Coach + Decision/Verdict)',
+       'pb-cap-coaching' in c('TM9700051') and '🧭' in capof('TM9700051')
+       and 'Coach' in capof('TM9700051'))
+    ck('A-capsule factual register renders (standard PKO Good -> 🧭 Read + Math anchor)',
+       'pb-cap-factual' in c('TM9700060') and 'Read' in capof('TM9700060')
+       and 'need 31%' in capof('TM9700060'))
+    ck('A-capsule no_clear_lesson renders (unprovable -> 🧭 Unclear, no scored verdict)',
+       'pb-cap-no_clear_lesson' in c('TM9700053') and 'Unclear' in capof('TM9700053'))
     # 31 capsule layer / content lints clean on this synthetic report
     import re as _re
     bodies = {}

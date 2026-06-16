@@ -10,7 +10,7 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.17.0-rc1"   # v8.17.0-rc1 Decision Coach (Final Commentary capsules + Complete PKO coaching) on the v8.16.4 (Review Precision & Decision-Trust hotfix: reviewed-row layout, sticky nav re-measure, NEW gem_review_trust pure helpers [why-review/verdict-reconcile/allin-math/multiway/bounty-provenance/attribution], gem_ranges range-highlight + Range Lens pruning)
+VERSION = "v8.17.0-rc2"   # v8.17.0-rc2 MAJOR product release (four epics): Final Commentary capsules + Complete PKO coaching (rc1) + Villain Exploitation Step 3 (profile_label / available_before / gradable+non_gradable_reason / explicit 7-part lesson / cue-family aggregate count-of-one) + Unified Tournament Results (single primary sortable table + per-event drilldown absorbing P&L/Deep-Runs/Stack-Trajectories, canonical financials, no recompute)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
@@ -42,22 +42,22 @@ MANIFEST = {
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("6f2052a557d0ad966da0f666445f196379d69a22420b5a1072597fd8405eeab3", 65127, "v8.16.1 hotfix: call-vs-check wording + auto_verdict_needs_review (Bug 2a/2b)"),
-    "gem_report_draft/_html.py": ("41b9a9b0a05db9e207e54bb18b0262b68a45039feada495a97db12d70f70a34c", 390477, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
+    "gem_report_draft/_html.py": ("1ca4e41844274dfc8cb64c54abd34504b9eb2836a78f8589697ff8acd55e4bb2", 398317, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
     "gem_report_draft/draft.py": ("a3b6172e186d88f4fca4939dd2100d9e9d916104e00a32020209c494525823f8", 35268, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
-    "gem_report_draft/sections_financial.py": ("742454bb03cd349eef3c639ecf3076be68bdf8292ad7b97828dd87cf7f6801b7", 131012, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
+    "gem_report_draft/sections_financial.py": ("1ea8cac1629604c0a3694cf2330df2b17a0fa21d7abe942581129666b6bc6530", 131841, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
     "gem_report_draft/sections_iv_xii.py": ("80520701383157257ee6d46e83fa35bb6f5033f3ea0c45dc8d037372ee5432ae", 225848, "v8.16.0 villain: matrix Teaching Signals wording"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
-    "gem_report_draft/sections_tournaments.py": ("15c0e301521a6a4d64372cb6bf3fb36021451793a3adf46d348190196c0068d6", 8812, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
+    "gem_report_draft/sections_tournaments.py": ("a69b9c2e3f953a59da37271ea101e5fbc7ba4002d242c8643c8d693df44e1feb", 17623, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
     "gem_report_draft/sections_xiv.py": ("e93226f483f433fc1f41268741815fdfe3fdeb1af7a0fc0e832425976add6687", 224421, "v8.17 B6/B7: how-PKO-changes-the-decision coaching + 4-state provenance on BOTH XIV.A + XIV.B PKO pills"),
     "gem_report_draft/tldr.py": ("0b4f29698f408f8dac5b707b14e4a28dcd772a24028fb7b8e6f0a3256e49b157", 148637, "v8.16.4 DTI Blocker 1: build_review_queue routes through aggregate_review_queue (bounded + aggregated + internal-QA)"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
-    "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
-    "gem_villain_teaching.py": ("4c2f93996d8cf9bcc2a55aafcf11d9cb66e60b6822782f98c109aca76b3f0eda", 38644, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("4ae532c8f734f25113347d614a4c179a30561ce73677df9ef8023f35e837ec13", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_villain_intel.py": ("0309570b4a26518334db9e7c0051bbd20f76a4ef16c037fab90f0ca23c1aff30", 122465, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
+    "gem_villain_teaching.py": ("5ca67b09268af894933c2a9cfef54e4bbb54be947072bdbc797a22b3800e6579", 42569, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
+    "gem_version.py": ("1307d0e740dfb4399a1f1daa387e6cb0d84a130f4e1fc842898ddca0aea19288", 884, "v8.16.4: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -963,8 +963,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc1'",
-     "v8.17.0-rc1: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0-rc2'",
+     "v8.17.0-rc2: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),
@@ -1208,6 +1208,40 @@ CANARIES = [
      "v8.17 A1/C2: visible capsule leads the XIV.B compact decision street"),
     ("gem_report_draft/_html.py", "div.analyst-notes.pb-capsule",
      "v8.17 A1: register-variant capsule CSS makes the Commentary column visibly distinct"),
+    # ── v8.17 Epic 3: Villain Exploitation Step 3 (producer completeness + lesson) ──
+    ("gem_villain_intel.py", "def _derive_profile_label(",
+     "v8.17 Epic 3: aggregate profile_label (consistent/split/mixed) from dimension coherence"),
+    ("gem_villain_intel.py", "'profile_label': _derive_profile_label(dims)",
+     "v8.17 Epic 3: read_state emits profile_label (Q3 read/archetype completeness)"),
+    ("gem_villain_intel.py", "def _gradable_exploit(",
+     "v8.17 Epic 3: producer-side gradable predicate + non_gradable_reason enum"),
+    ("gem_villain_intel.py", "exp['non_gradable_reason'] = _reason",
+     "v8.17 Epic 3: every exploit dict carries gradable + non_gradable_reason"),
+    ("gem_villain_intel.py", "exp['available_before_action_index'] = available_before",
+     "v8.17 Epic 3: decision-timing (available_before_action_index) stamped on exploits"),
+    ("gem_villain_teaching.py", "def lesson_7part(",
+     "v8.17 Epic 3: explicit Q1-Q7 teaching lesson contract object"),
+    ("gem_villain_teaching.py", "def _aggregate_profile_override(",
+     "v8.17 Epic 3: split/mixed aggregate dominates; consistent keeps node-specific cue"),
+    ("gem_report_draft/_html.py", "_revFiltered.length===1",
+     "v8.17 Epic 3: villain aggregate count-of-one opens the lone example directly"),
+    # ── v8.17 Epic 4: Unified Tournament Results (primary table + drilldown) ──
+    ("gem_report_draft/sections_tournaments.py", "id='tt-unified-table'",
+     "v8.17 Epic 4: single primary unified sortable Tournament Results table"),
+    ("gem_report_draft/sections_tournaments.py", "def _tt_status(",
+     "v8.17 Epic 4: canonical deep-run/Day2/ITM status from finish fields"),
+    ("gem_report_draft/sections_tournaments.py", "openTournamentDetail(",
+     "v8.17 Epic 4: per-event row drilldown affordance"),
+    ("gem_report_draft/sections_tournaments.py", "included in Cash return",
+     "v8.17 Epic 4: PKO/bounty return reconciliation (bounty folded into cash, never inferred)"),
+    ("gem_report_draft/_html.py", "function openTournamentDetail(",
+     "v8.17 Epic 4: tournament-event drilldown modal (canonical event detail)"),
+    ("gem_report_draft/_html.py", "function initTournamentResultsTable(",
+     "v8.17 Epic 4: sortable widget on the unified Tournament Results table"),
+    ("gem_report_draft/_html.py", "id=\"tournament-detail-modal\"",
+     "v8.17 Epic 4: tournament-detail modal scaffold"),
+    ("gem_report_draft/sections_financial.py", "Cross-check detail",
+     "v8.17 Epic 4: S1.1 P&L demoted to cross-check; unified table is primary"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

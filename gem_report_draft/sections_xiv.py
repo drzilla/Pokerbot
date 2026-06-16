@@ -1663,6 +1663,59 @@ def _build_villain_badges(hid, s):
     return badges if badges else None
 
 
+def _emit_range_lens(doc, h, hid_short):
+    """v8.16.3 Commentary & Range Explanation Upgrade v1 — append a compact,
+    SOURCE-SAFE 'Range lens' line per street as its OWN ``<div class='analyst-notes'
+    data-street='X'>`` block. The V25 modal harvests .analyst-notes by data-street
+    and APPENDS clones in order, so this NEVER overwrites or drops existing
+    commentary; it just adds a teaching line into the correct street card. Every
+    line is skipped when its source is missing (no chart / no board / Hero did not
+    act that street), so nothing is invented. All notation/buckets come from
+    gem_ranges (chart hand-sets + phevaluator classifiers); no solver %, no
+    per-combo villain claims."""
+    try:
+        import gem_ranges as _grl
+        from gem_report_draft._helpers import (hand_range_evidence as _hre,
+                                               get_ranges_cached as _grc)
+    except Exception:
+        return
+
+    def _emit(street, text):
+        if not text:
+            return
+        doc.w(f"<div class='analyst-notes' data-street='{street}'>")
+        doc.w("")
+        doc.w("\U0001F4D0 " + text)   # 📐 range-lens marker
+        doc.w("")
+        doc.w("</div>")
+        doc.w("")
+
+    # preflop: chart-backed; reuse the canonical evidence object so the lens can
+    # never contradict the Range-evidence block's in/out wording.
+    try:
+        _ranges = _grc()
+    except Exception:
+        _ranges = None
+    try:
+        _ev = _hre(h, _ranges)
+        if _ev:
+            _emit('preflop', _grl.preflop_range_lens(_ev, _ranges))
+    except Exception:
+        pass
+
+    # postflop: per street Hero actually acted on, with a long-enough board.
+    _board = h.get('board') or []
+    _cards = h.get('cards') or []
+    _hsa = h.get('hero_street_actions') or {}
+    if len(_cards) == 2:
+        for _street, _n in (('flop', 3), ('turn', 4), ('river', 5)):
+            if len(_board) >= _n and _hsa.get(_street):
+                try:
+                    _emit(_street, _grl.postflop_range_lens(_cards, _board[:_n], _street))
+                except Exception:
+                    pass
+
+
 def _emit_section_xiv_appendix(doc, s, rd, hands):
     """Appendix with readable full-hand details for hands the analyst flagged
     for review or judgment. Cross-linked from XIII.4.5 (Analyst-Reviewed
@@ -3057,6 +3110,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                   "Review manually.")
             doc.w("</div>")
             doc.w("")
+
+        # v8.16.3 Range Lens v1: source-safe per-street range/commentary lines,
+        # appended AFTER all existing commentary (preserves it; V25 routes by
+        # data-street into each street card).
+        _emit_range_lens(doc, h, hid_short)
 
         # B168 (Ron 2026-05-24): inline audit review row after the hand.
         # Bug C fix: use hero hole cards, not the last street's board cards

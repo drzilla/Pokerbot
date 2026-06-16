@@ -5318,10 +5318,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.16.2 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.16.2'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.2'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.2', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.16.3 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.16.3'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.16.3'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.16.3', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -8959,6 +8959,196 @@ check('T-E-RQ-4: open rows compacted + 20+ list scroll-capped',
       'rq-list scroll cap / compact rows missing')
 check('T-E-RQ-5: cheerful completion card copy',
       'Review list cleared' in _tl_code, 'completion card copy not updated')
+
+print('\n--- v8.16.3 Commentary & Range Explanation Upgrade v1 (Range Lens) ---')
+import gem_ranges as _grl3
+
+# ---- Phase D: compact preflop notation (suited != offsuit, +/run) ----
+_cr = _grl3.compress_range
+check('T-RL-D1: all pairs compress to 22+',
+      _cr(['22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA']) == 'pairs 22+',
+      _cr(['22','AA']))
+check('T-RL-D2: AJs+ stays suited (s preserved, run reaches top)',
+      _cr(['AJs','AQs','AKs']) == 'suited AJs+', _cr(['AJs','AQs','AKs']))
+check('T-RL-D3: AJo+ stays offsuit',
+      _cr(['AJo','AQo','AKo']) == 'offsuit AJo+', _cr(['AJo','AQo','AKo']))
+check('T-RL-D4: bounded suited run renders hi-lo (KJs-KTs, not collapsed)',
+      _cr(['KJs','KTs']) == 'suited KJs-KTs', _cr(['KJs','KTs']))
+check('T-RL-D5: 77+ pairs render compactly',
+      _cr(['77','88','99','TT','JJ','QQ','KK','AA']) == 'pairs 77+', _cr(['77','AA']))
+_t9 = _cr(['T9s','T9o'])
+check('T-RL-D6: T9s+ is NOT confused with T9o+ (suited/offsuit kept separate)',
+      'suited T9s+' in _t9 and 'offsuit T9o+' in _t9 and _t9.index('suited') < _t9.index('offsuit'),
+      _t9)
+check('T-RL-D7: mixed range preserves all three groups (matches _compact_range "+"-at-top convention)',
+      _cr(['AA','KK','AKs','AQs','AKo']) == 'pairs KK+; suited AQs+; offsuit AKo+',
+      _cr(['AA','KK','AKs','AQs','AKo']))
+# anti-tests
+check('T-RL-D8 (anti): no suit-stripped "AJ+" when suitedness matters',
+      'AJ+' not in _cr(['AJs','AQs','AKs']) and 'AJ+' not in _cr(['AJo','AQo','AKo']), '')
+check('T-RL-D9 (anti): canonical case preserved (A8o, not lowercase a8o)',
+      'A8o' in _cr(['A8o']) and 'a8o' not in _cr(['A8o']), _cr(['A8o']))
+check('T-RL-D10 (anti): suited and offsuit never merged into one token',
+      '; ' in _cr(['AJs','AJo']) and 'suited AJs' in _cr(['AJs','AJo'])
+      and 'offsuit AJo' in _cr(['AJs','AJo']), _cr(['AJs','AJo']))
+
+# ---- Phase E: postflop made / draw / bluff buckets ----
+def _bk(h, b): return _grl3.postflop_hand_buckets(h, b)
+check('T-RL-E1: made hand only -> bucket made (top pair)',
+      _bk(['Ah','Kd'], ['Ks','7d','2c'])['bucket'] == 'made'
+      and _bk(['Ah','Kd'], ['Ks','7d','2c'])['made'] == 'top_pair', '')
+check('T-RL-E2: draw only -> bucket draw (flush draw, no pair)',
+      _bk(['Ah','5h'], ['Kh','8h','2c'])['bucket'] == 'draw', _bk(['Ah','5h'], ['Kh','8h','2c']))
+check('T-RL-E3: combo draw (FD+OESD) -> bucket draw',
+      _bk(['Jh','Th'], ['9h','8s','2h'])['bucket'] == 'draw', _bk(['Jh','Th'], ['9h','8s','2h']))
+check('T-RL-E4: pair + flush draw -> made with redraw surfaced',
+      (lambda x: x['bucket'] == 'made' and x['draw'] in ('fd','nut_fd'))(_bk(['Kh','Qh'], ['Ks','7h','2h'])),
+      _bk(['Kh','Qh'], ['Ks','7h','2h']))
+check('T-RL-E5: air / overcards -> bucket air',
+      _bk(['Ah','Qc'], ['9d','7s','2c'])['bucket'] == 'air', _bk(['Ah','Qc'], ['9d','7s','2c']))
+check('T-RL-E6: nut flush draw labelled',
+      _bk(['Ah','5h'], ['Kh','8h','2c'])['draw'] == 'nut_fd', _bk(['Ah','5h'], ['Kh','8h','2c']))
+check('T-RL-E7: paired board, board-pair only -> Hero is the DRAW, not a made pair (78024888 turn)',
+      (lambda x: x['bucket'] == 'draw' and x['made'] is None and x['draw'] == 'nut_fd')(
+          _bk(['Ah','Qh'], ['9h','Td','2s','2h'])), _bk(['Ah','Qh'], ['9h','Td','2s','2h']))
+check('T-RL-E8: monotone board texture detected',
+      'monotone' in _grl3.postflop_range_lens(['Ah','Kd'], ['9h','7h','2h'], 'flop'),
+      _grl3.postflop_range_lens(['Ah','Kd'], ['9h','7h','2h'], 'flop'))
+check('T-RL-E9: connected board texture detected',
+      'connected' in _grl3.postflop_range_lens(['Ah','Kc'], ['9d','8s','7c'], 'flop'),
+      _grl3.postflop_range_lens(['Ah','Kc'], ['9d','8s','7c'], 'flop'))
+check('T-RL-E10: river missed draw -> air',
+      _bk(['Ah','5h'], ['Kh','8h','2c','9d','3s'])['bucket'] == 'air',
+      _bk(['Ah','5h'], ['Kh','8h','2c','9d','3s']))
+
+# ---- lens lines: source-safe, no fake combos/% ----
+_pre_ev = {'chart_key':'OPEN_100BB_BTN','coverage':'exact','membership':'inside',
+           'hero_hand':'AJs','spot_label':'first-in open (BTN)','boundary':False}
+_pre_rng = {'OPEN_100BB_BTN': {h:1 for h in
+            ['22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+             'AJs','AQs','AKs','AJo','AKo','KQs','KQo']}}
+_pre = _grl3.preflop_range_lens(_pre_ev, _pre_rng)
+check('T-RL-P1: preflop lens compresses chart set + states membership',
+      _pre and 'Range lens' in _pre and '22+' in _pre and 'AJs+' in _pre and 'inside' in _pre, _pre)
+check('T-RL-P2: preflop lens None when no chart / unknown membership (no hallucination)',
+      _grl3.preflop_range_lens({'chart_key':'X','coverage':'none','membership':'unknown'}, {}) is None
+      and _grl3.preflop_range_lens({'chart_key':'OPEN_100BB_BTN','coverage':'exact','membership':'inside'}, {}) is None,
+      'lens should be None without a chart hand-set')
+_post = _grl3.postflop_range_lens(['Ah','Qh'], ['9h','Td','2s'], 'flop')
+check('T-RL-P3 (anti): lens carries no fake % or solver combo-count',
+      _post and '%' not in _post and 'combos' not in _post.lower(), _post)
+check('T-RL-P4: render wires _emit_range_lens into the hand-detail card',
+      'def _emit_range_lens(' in open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+      and '_emit_range_lens(doc, h, hid_short)' in open('gem_report_draft/sections_xiv.py', encoding='utf-8').read(),
+      'Range lens not wired into sections_xiv')
+
+print('\n--- v8.16.3 Commentary Column v3.4 (router-aware zero-drop migration) ---')
+import gem_commentary_migration as _CM
+import json as _cm_json
+from gem_report_draft._helpers import pb_payload_js as _cm_pb
+_cm_decode = _CM.decode_lazy_bodies   # self-contained (bundle ships no _qa decoder)
+
+# faithful V25 router port (BuildSpec §7 — proves where a capsule lands)
+check('T-CM-01: route_street_attr ports the V25 headerless rule',
+      _CM.route_street_attr('turn') == 'turn'
+      and _CM.route_street_attr('TURN') == 'turn'
+      and _CM.route_street_attr('pre-flop') == 'preflop'
+      and _CM.route_street_attr('') == 'general'
+      and _CM.route_street_attr('flopx') == 'general', '')
+check('T-CM-02: note-street header path splits multi-street',
+      _CM.route_note_streets(True, '', ['Preflop', 'Turn']) == ['preflop', 'turn'], '')
+
+# body enumeration over an inline per-hand <article> body
+_cm_body = ("<article class='hand-detail-card' data-hand-id='12345678'>"
+   "<div class='analyst-notes' data-street='turn'>\U0001F4D0 Range lens: Hero has a flush.</div>"
+   "<div class='analyst-notes' data-street='preflop'>standard open</div>"
+   "<div class='analyst-notes'>headerless general note</div>"
+   "<blockquote class='flag-note'>Range evidence: AJs INSIDE</blockquote>"
+   "<div class='villain-street-notes'>villain pivot</div>"
+   "<details>provenance drilldown</details>"
+   "<div class='source-raw'>raw provenance</div>"
+   "<p>⚠️ <strong>Analyst:</strong> bare fallback prose</p>"
+   "<div class='mh-verdict'>Mistake</div>"
+   "</article>")
+_cm_rows, _cm_by = _CM.enumerate_report_sources(_cm_body)
+_cm_types = {r['source_type'] for r in _cm_rows}
+check('T-CM-03: enumerator captures all in-body source families (not .analyst-notes only)',
+      {'range_lens', 'analyst_notes_street', 'analyst_notes_headerless', 'flag_note',
+       'villain_street_notes', 'nested_details', 'source_raw', 'analyst_fallback_bare',
+       'mh_verdict'} <= _cm_types,
+      sorted(_cm_types))
+_cm_lens = [r for r in _cm_rows if r['source_type'] == 'range_lens'][0]
+check('T-CM-04: Range Lens (\U0001F4D0) routes to its street cell, NOT General (L23 misbucket=0)',
+      _cm_lens['street'] == 'turn' and _cm_lens['migration_status'] == 'visible_capsule', _cm_lens)
+check('T-CM-05: headerless note preserved (legacy), never dropped',
+      [r for r in _cm_rows if r['source_type'] == 'analyst_notes_headerless'][0]['migration_status']
+      == 'preserved_legacy', '')
+check('T-CM-06: bare _emit_analyst_fallback captured -> review_needed (highest drop-risk surfaced)',
+      [r for r in _cm_rows if r['source_type'] == 'analyst_fallback_bare'][0]['migration_status']
+      == 'review_needed', '')
+check('T-CM-07: nested details/source-raw -> preserved_legacy',
+      [r for r in _cm_rows if r['source_type'] == 'source_raw'][0]['migration_status']
+      == 'preserved_legacy', '')
+
+# opponent contexts via the REAL deflate-raw+base64 codec (firewall split)
+_cm_hoc = {'12345678': [
+    {'bucket': 'villain_evidence', 'same_hand_actionable': True, 'street': 'flop'},
+    {'bucket': 'villain_evidence', 'timing': 'cross_hand', 'street': 'turn'},
+    {'bucket': 'passive_read', 'street': 'river'}]}
+_cm_cc = {'12345678': [{'street': 'flop', 'learn': 'x'}, {'street': 'turn', 'learn': 'y'}]}
+_cm_html = ("<body><article class='hand-detail-card' data-hand-id='12345678'>"
+            "<div class='analyst-notes' data-street='flop'>n</div></article><script>"
+            + _cm_pb('handOpponentContexts', _cm_json.dumps(_cm_hoc), len(_cm_hoc))
+            + ';window.coachingCards=' + _cm_json.dumps(_cm_cc) + ';</script></body>')
+_cm_r2, _ = _CM.enumerate_report_sources(_cm_html)
+check('T-CM-08: handOpponentContexts decoded + firewall split (in-cell vs bottom vs passive)',
+      sum(r['source_type'] == 'opp_context_incell' for r in _cm_r2) == 1
+      and sum(r['source_type'] == 'opp_context_bottom' for r in _cm_r2) == 1
+      and sum(r['source_type'] == 'passive_read' for r in _cm_r2) == 1,
+      sorted(r['source_type'] for r in _cm_r2))
+check('T-CM-09: bottom/passive/mh-verdict NEVER point at the Commentary cell (L24=0)',
+      all(r['migration_destination'] != 'commentary_cell'
+          for r in _cm_r2 if r['source_type'] in _CM._BOTTOM_ONLY), '')
+check('T-CM-10: window.coachingCards inventoried per street',
+      sum(r['source_type'] == 'coaching_card' for r in _cm_r2) == 2, '')
+
+# zero-drop balance + must-all-be-zero failure fields (BuildSpec §16)
+_cm_summ = _CM.build_migration_summary(_cm_rows)
+check('T-CM-11: zero-drop balance — inventoried == sum of the six destinations',
+      _cm_summ['balances'] is True
+      and _cm_summ['source_items_inventoried']
+      == (_cm_summ['visible_capsule'] + _cm_summ['more_payload']
+          + _cm_summ['preserved_legacy'] + _cm_summ['review_needed']
+          + _cm_summ['left_untouched_out_of_scope'] + _cm_summ['intentionally_removed']),
+      _cm_summ)
+check('T-CM-12: migration summary failure fields all zero + lints CLEAN',
+      _cm_summ['silent_drops'] == 0 and _cm_summ['source_items_without_destination'] == 0
+      and _cm_summ['router_misbucket'] == 0 and _cm_summ['bottom_context_contamination'] == 0
+      and _CM.migration_lints(_cm_summ) == [], _CM.migration_lints(_cm_summ))
+
+# lazy on/off parity (BuildSpec §6 / L25) — through the real codec
+_cm_a1 = ("<article class='hand-detail-card' data-hand-id='11111111'>"
+          "<div class='analyst-notes' data-street='turn'>\U0001F4D0 lens</div>"
+          "<blockquote class='flag-note'>ev</blockquote></article>")
+_cm_a2 = ("<article class='hand-detail-card' data-hand-id='22222222'>"
+          "<div class='analyst-notes'>headerless</div>"
+          "<p>⚠️ <strong>Analyst:</strong> bare</p></article>")
+_cm_inline, _ = _CM.enumerate_report_sources('<body>' + _cm_a1 + _cm_a2 + '</body>')
+_cm_payload = {'11111111': _cm_a1, '22222222': _cm_a2}
+_cm_stub = ('<body><script>' + _cm_pb('lazyHands', _cm_json.dumps(_cm_payload),
+            len(_cm_payload)) + ';</script></body>')
+_cm_dec = _cm_decode(_cm_stub)
+_cm_recon, _ = _CM.enumerate_report_sources(
+    '<body>' + ''.join(_cm_dec[k] for k in ('11111111', '22222222')) + '</body>')
+check('T-CM-13: lazy parity — inline source count == decoded-lazyHands source count',
+      len(_cm_inline) == len(_cm_recon) and len(_cm_inline) > 0,
+      (len(_cm_inline), len(_cm_recon)))
+check('T-CM-14 (anti): a post-lazy STUB body has NO inline notes — enumeration MUST decode, not grep',
+      len(_CM.enumerate_report_sources(_cm_stub.replace('<body>', '<body>'
+          "<article class='hand-detail-card pb-lazy' data-hand-id='11111111'></article>"))[0]) == 0,
+      'stub html should yield 0 in-body sources without decoding')
+check('T-CM-15 (anti): no out-of-scope source is ever classified visible_capsule',
+      all(_CM._STATUS[k] == 'leave_untouched_out_of_scope' for k in _CM._BOTTOM_ONLY), '')
 
 # ============================================================
 # SUMMARY

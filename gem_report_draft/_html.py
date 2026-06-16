@@ -312,6 +312,19 @@ def _maybe_lazyfy_hands(html):
     import os
     import re as _re
     import json as _json
+    # v8.16.3 Commentary Column v3.4 (router-aware zero-drop migration audit):
+    # enumerate every commentary-like source while the per-hand <article> bodies
+    # are still INLINE here (compression happens just below) -> source counts are
+    # identical with GEM_LAZY_HANDS on or off (lazy parity by construction). The
+    # handOpponentContexts payload is decoded and window.coachingCards parsed;
+    # NEVER a raw post-lazy HTML grep. Read-only; never blocks the render.
+    try:
+        from gem_commentary_migration import run_migration_audit as _mig_audit
+        _mig_audit(html)
+    except Exception as _mig_e:           # pragma: no cover - defensive only
+        import sys as _mig_sys
+        print('  COMMENTARY-MIGRATION: audit skipped (%s)' % _mig_e,
+              file=_mig_sys.stderr)
     # v8.12.2 R4: DEFAULT ON (browser-QA'd: 649/649 materialize, modal
     # + popup + hash-jump + expand-all verified). Opt out with
     # --no-lazy-hand-details / GEM_LAZY_HANDS=0.

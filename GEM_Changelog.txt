@@ -1,3 +1,62 @@
+v8.16.3 (2026-06-16) -- Delivery: Commentary & Range Explanation v1
+                        + Commentary Column v3.4 (router-aware zero-drop migration foundation)
+================================================================================
+Two reconciled pieces. (1) The Commentary & Range Explanation upgrade: a
+source-safe "Range lens" added INSIDE existing street commentary, never
+replacing it. (2) Mid-flight, the v3.4 Router-Aware FINAL package superseded the
+prior commentary-column spec; this release folds the Range Lens IN as the §12
+notation engine and builds the mandatory zero-drop migration FOUNDATION around
+it. No analyst-copy / capsule-register rewrite yet (that is the separate
+"improved analyst" package) -- this layer protects and inventories existing
+commentary and proves the router/firewall contracts.
+
+RANGE LENS (gem_ranges.py -- the §12 notation engine, invents nothing):
+  - compress_range(): compact preflop notation that keeps suited != offsuit
+    (22+, AJs+, KQo, T9s+; bounded runs KJs-KTs) -- same convention as the
+    existing _compact_range renderer; derived from the chart hand-SET.
+  - preflop_range_lens(): "the {spot} range is roughly {notation}. Hero is
+    inside/outside this region." Returns None with no chart / unknown membership
+    (no hallucination). Reuses the canonical Range-evidence object so the lens
+    can never contradict the in/out wording.
+  - postflop_range_lens()/postflop_hand_buckets(): Hero's made / draw / air
+    bucket + board texture, via phevaluator classifiers. Hero plays the board
+    (a board pair is NOT Hero's pair); on the RIVER draws are DEAD (a 4-flush is
+    a missed draw -> air, never "the nut flush draw"); a made hand only shows a
+    LIVE redraw. No solver %, no per-combo villain claims.
+  - Emitted by sections_xiv._emit_range_lens as its OWN
+    <div class='analyst-notes' data-street='X'> per street -> the V25 router
+    harvests it into the correct street cell and APPENDS (never overwrites or
+    drops existing commentary). Skipped when the source is missing.
+
+COMMENTARY COLUMN v3.4 MIGRATION FOUNDATION (new gem_commentary_migration.py):
+  - Router-aware: the visible Commentary cell is assembled by buildModalHandV25()
+    (JS), not a Python template. route_street_attr() / route_note_streets() are
+    FAITHFUL ports of that street rule, so a capsule's destination cell is proven
+    and a misbucket detected without a browser. The Range Lens uses the §7
+    "acceptable path" (router-compatible .analyst-notes[data-street]).
+  - Source enumerator: reads the PRE-COMPRESSION per-hand <article> bodies (and
+    the DECODED handOpponentContexts payload + window.coachingCards) -- NEVER a
+    raw post-lazy HTML grep. Hooked at the top of _maybe_lazyfy_hands (before the
+    GEM_LAZY_HANDS gate), so source counts are identical with lazy on or off
+    (parity by construction). Catches the bare _emit_analyst_fallback (the
+    highest silent-drop risk -- it bypasses .analyst-notes routing).
+  - Zero-drop contract: every source maps to exactly ONE of six destinations
+    (visible_capsule / more_payload / preserved_legacy / review_needed /
+    leave_untouched_out_of_scope / intentionally_removed); the migration summary
+    balances (inventoried == sum) and emits to a dedicated stderr channel
+    (W-POT-style). Bottom-context firewall: bottomContexts / passive_read /
+    .mh-verdict are classified leave_untouched and can never land in the cell.
+  - Read-only / additive: invents no analyst content, rewrites no copy, mutates
+    no out-of-scope UI. +T-CM-01..15 and +T-RL-* tests.
+
+  DEFERRED to the separate analyst package (documented, not silently dropped):
+  capsule copy-mapping + registers (factual/coaching/no_clear_lesson), content
+  lints L1-L13, sanitizer/result-stripper, the preferred-path NEW router class,
+  and a jsdom harness (routing is proven here via the Python router port).
+
+  Release guards honoured: not merged to main, not tagged, Chat runtime not
+  updated, villain Step 3 not enabled, no analyst writing run.
+
 v8.16.2 (2026-06-16) -- Delivery: Report Reliability + Sticky Review UX v1
 ================================================================================
 Phase B - Appendix double-render fix. On large multi-day sessions ~2040 hands

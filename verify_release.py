@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.16.2"   # v8.16.2 (Report Reliability + Sticky Review UX v1: appendix double-render dedup; sticky hand context; Tournament Results polish; review-queue polish)
+VERSION = "v8.16.3"   # v8.16.3 (Commentary & Range Explanation v1 + Commentary Column v3.4 router-aware zero-drop migration foundation: gem_ranges Range Lens notation engine; gem_commentary_migration enumerator/manifest/summary; _html.py audit hook)
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("00a0bba2d83c1fbd9c8cf3337fc1618bceb1e1c80eb1b3d9fd0062ab606101d1", 108931, "v8.16.2 Report Reliability + Sticky Review UX v1 entry"),
+    "GEM_Changelog.txt": ("bf24513abeb28e92f920fcc4b2ca214855cc2b518ca4fff9d02ef8450c85089c", 112975, "v8.16.3 Commentary & Range Explanation v1 + Commentary Column v3.4 entry"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("070f63056c06a0acd87f7dfd8441bf5552b1d4c0cf5e7bae69f78aa6f75fd58a", 4167, "v8.16.2: 42 files, 382 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("ad2cb9afbdde1d4c9554126972b5e66d4b49ad9b7e372c3291e9e1b682ada349", 4167, "v8.16.3: 42 files, 389 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("a290fe2dd97d42e1f451e7cd9bf63a05190001ed529ee283cf2b9999aee792fa", 482424, "v8.16.2 Report Reliability + Sticky Review UX v1: +T-B/C/D/E tests"),
+    "_test_scratch.py": ("f127f377f74f23d651dd4e025285fb90d8684187c60c5fd779b01dcec559e2ee", 494745, "v8.16.3: +T-RL-* Range Lens + T-CM-* commentary-migration tests"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("3bbf14366f180fb5c5a040015a23b2b7ce6e0b29f6fc2cab3747631a627a540c", 48333, "v8.14.1 hotfix: worklist runtime from RUNTIME_VERSION"),
@@ -41,7 +41,7 @@ MANIFEST = {
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
     "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
     "gem_report_draft/_helpers.py": ("6f2052a557d0ad966da0f666445f196379d69a22420b5a1072597fd8405eeab3", 65127, "v8.16.1 hotfix: call-vs-check wording + auto_verdict_needs_review (Bug 2a/2b)"),
-    "gem_report_draft/_html.py": ("fb8a5cc23359d3344fc94f8da2accda5ab9596c67cb344242703a0110b35ac66", 385534, "v8.16.2 Phase C sticky hand context + Phase E queue icon/row polish"),
+    "gem_report_draft/_html.py": ("f4ae2faf4c71a84028efbc3afbe44f377792bee8b5c50d33c4256a430dea830c", 386338, "v8.16.3 v3.4: commentary migration audit hook in _maybe_lazyfy_hands"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
     "gem_report_draft/draft.py": ("a3b6172e186d88f4fca4939dd2100d9e9d916104e00a32020209c494525823f8", 35268, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
     "gem_report_draft/sections_financial.py": ("742454bb03cd349eef3c639ecf3076be68bdf8292ad7b97828dd87cf7f6801b7", 131012, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
@@ -50,13 +50,13 @@ MANIFEST = {
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
     "gem_report_draft/sections_tournaments.py": ("15c0e301521a6a4d64372cb6bf3fb36021451793a3adf46d348190196c0068d6", 8812, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
-    "gem_report_draft/sections_xiv.py": ("acf022d67e06ee8691119f2d38f4d8b95345729c10d6bd4637a322ac234e5068", 207728, "v8.16.2 Phase B: full-card tracking + XIV.C stub exclusion"),
+    "gem_report_draft/sections_xiv.py": ("b5efbd048b6b78c96ebdc923387fce38f1081e94a3c40a1679aa028d62b5a925", 210102, "v8.16.3: _emit_range_lens (router-compatible .analyst-notes[data-street])"),
     "gem_report_draft/tldr.py": ("ffa7a2a0688e3b32bc649ad4e0444a15fc20785c45362a694a81b5343da4c695", 146910, "v8.16.2 Phase E: completion-card copy"),
     "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("eb45c5eef2fb710270ea0559d1b68712bec1b0055460355b2fc847cb7532fa63", 117987, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("4c2f93996d8cf9bcc2a55aafcf11d9cb66e60b6822782f98c109aca76b3f0eda", 38644, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("3571e34ef670f0f19c1086792a55541c196e2366cf0fc7514ef642ceab345a2c", 880, "v8.16.2: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("6b7dea5edca9c44b8cc171d9e7ef9cd14caece3cd6a4f48c689c5355ac2ee65e", 880, "v8.16.3: RUNTIME_VERSION single source of truth"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -962,8 +962,23 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.16.2'",
-     "v8.16.2: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.16.3'",
+     "v8.16.3: runtime/release version single source of truth"),
+    # ── v8.16.3: Commentary & Range Explanation v1 + Commentary Column v3.4 ──
+    ("gem_ranges.py", "def postflop_range_lens(",
+     "v8.16.3: source-safe postflop Range Lens (made/draw/air, board texture)"),
+    ("gem_ranges.py", "def compress_range(",
+     "v8.16.3: compact preflop range notation (suited != offsuit)"),
+    ("gem_commentary_migration.py", "def run_migration_audit(",
+     "v8.16.3 v3.4: router-aware zero-drop commentary migration audit"),
+    ("gem_commentary_migration.py", "def route_street_attr(",
+     "v8.16.3 v3.4: faithful V25 router street-rule port (misbucket proof)"),
+    ("gem_commentary_migration.py", "def opp_context_is_in_cell(",
+     "v8.16.3 v3.4: in-cell vs bottom firewall predicate (no bottom in cell)"),
+    ("gem_report_draft/_html.py", "from gem_commentary_migration import run_migration_audit",
+     "v8.16.3 v3.4: migration audit hook (pre-compression, lazy-parity safe)"),
+    ("gem_report_draft/sections_xiv.py", "def _emit_range_lens(",
+     "v8.16.3: Range Lens emitted as router-compatible .analyst-notes[data-street]"),
     ("gem_villain_intel.py", "def build_hand_chronology(",
      "v8.16.0 villain: cross-hand chronology by parsed timestamp (Step 1)"),
     ("gem_villain_intel.py", "score = _prior_dims.get('loose', 0) + _prior_dims.get('passive', 0)",

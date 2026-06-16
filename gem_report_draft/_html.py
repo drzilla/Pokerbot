@@ -3582,6 +3582,17 @@ _MODAL_HTML = r"""
       });
     }
     if(!filtered.length){return;}
+    /* v8.17 Epic 3: count-of-one opens the single hand directly (0 muted /
+       1 direct open / >1 popup), mirroring the PKO aggregate behavior. A lone
+       reviewable example needs no intermediate one-row table. */
+    var _revFiltered=filtered.filter(function(e){
+      return _isReviewable(window.normalizeHandId?window.normalizeHandId(e.hand_id):e.hand_id);
+    });
+    if(_revFiltered.length===1){
+      var _solo=window.normalizeHandId?window.normalizeHandId(_revFiltered[0].hand_id):_revFiltered[0].hand_id;
+      openHandFromExploitDrilldown(_solo,readLabel,filterType,filtered);
+      return;
+    }
     var body=document.getElementById('ve-modal-body');
     body.innerHTML='';
     var title=filterType==='missed'

@@ -8196,6 +8196,103 @@ check('T-VC-22: high-confidence aggregate read + off-axis cue -> "read is from o
       and 'still forming' not in _vc_hi_read, _vc_hi_read)
 
 # ============================================================
+# v8.17 Epic 3 — Villain Step 3 producer completeness (T-VS3-*)
+# ============================================================
+# T-VS3-01: _build_read_states emits profile_label (consistent/split/mixed) from dims
+check('T-VS3-01: _build_read_states emits profile_label from dimension coherence',
+      _gvi_vc._derive_profile_label({'sticky': 10}) == 'consistent'
+      and _gvi_vc._derive_profile_label({'sticky': 6, 'aggressive': 6}) == 'split'
+      and _gvi_vc._derive_profile_label({'sticky': 6, 'aggressive': 6, 'tight': 6}) == 'mixed'
+      and _gvi_vc._derive_profile_label({}) == 'consistent', '')
+_vs3_rs = _gvi_vc._build_read_states(
+    {'T|v': {'display': 'Rocky'}},
+    {'T|v': [{'dimension': 'tight', 'strength': 2, 'hand_id': 'P%d' % i, 'badge': 'note',
+              'signal': 'repeated_blind_overfold', 'hero_involved': True} for i in range(5)]})
+check('T-VS3-01b: a real read_state carries a profile_label key',
+      'profile_label' in _vs3_rs['T|v']
+      and _vs3_rs['T|v']['profile_label'] in ('consistent', 'split', 'mixed'), str(_vs3_rs))
+
+# T-VS3-02: _stamp_exploit_read stamps timing fields + gradable predicate
+_vs3_e = {}
+_gvi_vc._stamp_exploit_read(_vs3_e, 'missed_steal_vs_nit', 'prior_atoms_mapped',
+                            outcome='missed', confidence='medium', n_atoms=4, action_index=3)
+check('T-VS3-02: cross-hand trusted exploit -> available_before=0, action_index stamped, gradable',
+      _vs3_e['available_before_action_index'] == 0 and _vs3_e['action_index'] == 3
+      and _vs3_e['gradable'] is True and _vs3_e['non_gradable_reason'] == '', str(_vs3_e))
+
+# T-VS3-03: gradable predicate gates — trusted+conf+avail+outcome only
+check('T-VS3-03a: non-trusted detector is never gradable (no_trusted_baseline)',
+      _gvi_vc._gradable_exploit('bluffed_sticky', 'prior_atoms_mapped', 'high', 'missed', 0, 5)
+      == (False, 'no_trusted_baseline'), '')
+check('T-VS3-03b: trusted but low confidence -> low_confidence',
+      _gvi_vc._gradable_exploit('good_steal_vs_nit', 'prior_atoms_mapped', 'low', 'good', 0, 4)
+      == (False, 'low_confidence'), '')
+check('T-VS3-03c: trusted med/high but no availability -> read_not_available_before_decision',
+      _gvi_vc._gradable_exploit('missed_steal_vs_nit', 'same_hand_pivot', 'high', 'missed', None, 4)
+      == (False, 'read_not_available_before_decision'), '')
+check('T-VS3-03d: trusted + ungraded outcome (downgraded thin) -> no_graded_outcome',
+      _gvi_vc._gradable_exploit('missed_steal_vs_nit', 'prior_atoms_mapped', 'medium', '', 0, 4)
+      == (False, 'no_graded_outcome'), '')
+
+# T-VS3-04: lesson_7part — all 7 parts always present; graded vs thin behave differently
+_vs3_graded = _vt.teaching_from_exploit(
+    _vt_exp(exploit_read_label='Nit / Rock', exploit_read_display='Nit / Rock',
+            exploit_detector='missed_steal_vs_nit', exploit_outcome='missed',
+            auto_verdict='missed_exploit', read_source='prior_atoms_mapped',
+            available_before_action_index=0, gradable=True, non_gradable_reason='',
+            suggests='Villain overfolds blinds; wide steal spot.',
+            so_what='Open wider from steal seats.', recommended_exploit='Steal wider in blinds.',
+            hero_decision_street='preflop'),
+    {_vt_vk: {'villain_alias': 'Rocky', 'primary_read': 'Nit / Rock', 'profile_label': 'consistent',
+              'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['P1', 'P2', 'P3']}},
+    {_vt_vk: [{'dimension': 'tight'} for _ in range(9)]})
+_l7 = _vs3_graded['lesson_7part']
+check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason',
+      {'q1_villain_did', 'q2_cue', 'q3_read', 'q4_confidence', 'q5_exploit_now',
+       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} == set(_l7), str(_l7))
+check('T-VS3-04b: graded trusted exploit -> gradable True, q5/q6/q7 present, reason empty',
+      _l7['gradable'] is True and _l7['q5_exploit_now'] and _l7['q6_exploit_future']
+      and _l7['q7_do_not_overadjust'] and _l7['non_gradable_reason'] == '', str(_l7))
+check('T-VS3-04c: thin/fallback object -> q1 is the fixed fallback, q2..q7 None, not gradable',
+      _thin['lesson_7part']['q1_villain_did'] == _vt.FALLBACK_LINE
+      and _thin['lesson_7part']['q5_exploit_now'] is None
+      and _thin['lesson_7part']['gradable'] is False, str(_thin['lesson_7part']))
+
+# T-VS3-05: aggregate profile_label override — 'mixed'/'split' dominates; 'consistent' does NOT
+#           suppress the per-hand node-specific caveat.
+_vs3_mixed = _vt.teaching_from_atom(
+    dict(_vc_split_atom, villain_key='T1|mx'),
+    {'T1|mx': {'primary_read': 'Sticky Passive', 'confidence': 'high', 'n_evidence': 9,
+               'evidence_hand_ids': ['H9', 'H7', 'H5'], 'profile_label': 'mixed'}},
+    {'T1|mx': [{'dimension': 'loose_passive'}] * 9}, signal_coaching={})
+_vs3_cons = _vt.teaching_from_atom(
+    dict(_vc_split_atom, villain_key='T1|cn'),
+    {'T1|cn': {'primary_read': 'Aggressive', 'confidence': 'low', 'n_evidence': 3,
+               'evidence_hand_ids': ['H9', 'H7'], 'profile_label': 'consistent'}},
+    {'T1|cn': [{'dimension': 'loose_passive'}] * 3}, signal_coaching={})
+check('T-VS3-05: mixed aggregate -> Mixed-profile prefix; consistent aggregate keeps node-specific cue',
+      _vs3_mixed['profile_label'] == 'mixed'
+      and any('Mixed profile' in l for l in _vs3_mixed['teach_lines'])
+      and _vs3_cons['profile_label'] == 'split'
+      and any('node-specific' in l.lower() for l in _vs3_cons['teach_lines']),
+      str((_vs3_mixed['profile_label'], _vs3_cons['profile_label'])))
+
+# T-VS3-06: a non-trusted detector exploit surfaces its non_gradable_reason on the object
+_vs3_ng = _vt.teaching_from_exploit(
+    _vt_exp(exploit_detector='bluffed_sticky', exploit_outcome='missed',
+            gradable=False, non_gradable_reason='no_trusted_baseline'),
+    _vt_rs(), _vt_sticky)
+check('T-VS3-06: non-trusted exploit is non-graded + carries the producer reason',
+      _vs3_ng['teaching_status'] not in _vt._GRADED_STATUSES
+      and _vs3_ng['non_gradable_reason'] == 'no_trusted_baseline', str(_vs3_ng.get('non_gradable_reason')))
+
+# T-VS3-07: villain aggregate drilldown opens a lone example directly (count-of-one)
+_vs3_html = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-VS3-07: openExploitDrilldown short-circuits a single reviewable example to a direct open',
+      '_revFiltered' in _vs3_html and 'openHandFromExploitDrilldown(_solo' in _vs3_html
+      and '_revFiltered.length===1' in _vs3_html, '')
+
+# ============================================================
 # v8.13.1 — Analyst Coverage + Verdict-Contradiction Trust (T-CT-*)
 # ============================================================
 import gem_report_data as _ctrd

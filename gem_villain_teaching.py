@@ -254,6 +254,16 @@ def derive_profile(cue_axis, cue_node, archetype, explicit=None, read_conf='low'
     return 'consistent', None
 
 
+def _aggregate_profile_override(read_state):
+    """The AGGREGATE profile_label (from gem_villain_intel._build_read_states)
+    that should OVERRIDE the per-hand cue/read derivation. A genuine multi-axis
+    aggregate ('split'/'mixed') dominates and stamps a profile caveat; a
+    'consistent' aggregate (or none) returns None so this hand's node-specific
+    cue can still be flagged by derive_profile's per-hand branch."""
+    pl = (read_state or {}).get('profile_label')
+    return pl if pl in ('split', 'mixed') else None
+
+
 # ── Natural8 client tag taxonomy (Slice D) ──────────────────────────────────
 # Ron's Natural8 colour-tag scheme. We map a DERIVED read family -> a candidate
 # client tag. This is a projection, not a new classifier: the read itself comes
@@ -520,7 +530,64 @@ def _finalize(obj):
         obj.get('baseline_source', 'none'), obj.get('confidence', 'low'),
         nh2, obj.pop('_detector_outcome', ''))
     obj['teach_lines'] = _teach_lines(obj)
+    # v8.17 Step-3: the explicit 7-part lesson contract, attached to every
+    # object so the Commentary capsule can read it without re-deriving.
+    obj['lesson_7part'] = lesson_7part(obj)
     return obj
+
+
+def lesson_7part(obj):
+    """The explicit 7-part Villain Step-3 teaching lesson (spec §Epic3).
+
+    A PURE PROJECTION of an already-built teaching object — invents nothing.
+    All seven keys always exist (None when the source field is absent) so the
+    capsule/renderer may combine parts concisely while the contract stays whole:
+
+        q1_villain_did    — the specific observed action
+        q2_cue            — what that action suggests
+        q3_read           — read/archetype (+ split/mixed profile prefix)
+        q4_confidence     — confidence tier + cue count
+        q5_exploit_now    — what Hero should do in THIS decision (None if hindsight-gated)
+        q6_exploit_future — how to adjust against this villain/profile later
+        q7_do_not_overadjust — derived guardrail (where the read stops being reliable)
+
+    Plus ``gradable`` (True only when the object reached a graded missed/good)
+    and ``non_gradable_reason`` (the factual-moment reason otherwise). A thin /
+    hindsight-gated object returns the fixed fallback line in q1 and None
+    elsewhere — never a fabricated lesson."""
+    if obj.get('fallback'):
+        return {
+            'q1_villain_did': obj.get('villain_did') or FALLBACK_LINE,
+            'q2_cue': None, 'q3_read': None, 'q4_confidence': None,
+            'q5_exploit_now': None, 'q6_exploit_future': None,
+            'q7_do_not_overadjust': None,
+            'gradable': False,
+            'non_gradable_reason': obj.get('non_gradable_reason') or 'thin_read',
+        }
+    # Read line carries the same mixed/split profile prefix _teach_lines uses.
+    read = _candidate_archetype(obj.get('archetype'), obj.get('confidence'))
+    cav = obj.get('profile_caveat')
+    prof = (obj.get('profile_label') or '').lower()
+    if cav:
+        read = cav + ' — ' + read
+    elif prof in ('mixed', 'split'):
+        read = prof.capitalize() + ' profile — ' + read
+    conf = obj.get('confidence')
+    ec = obj.get('evidence_count')
+    if conf and isinstance(ec, int):
+        conf = '%s · %d cue%s' % (conf, ec, '' if ec == 1 else 's')
+    graded = obj.get('teaching_status') in _GRADED_STATUSES
+    return {
+        'q1_villain_did': obj.get('villain_did'),
+        'q2_cue': obj.get('cue'),
+        'q3_read': read,
+        'q4_confidence': conf,
+        'q5_exploit_now': obj.get('exploit_now'),
+        'q6_exploit_future': obj.get('future_exploit'),
+        'q7_do_not_overadjust': obj.get('do_not_overadjust'),
+        'gradable': graded,
+        'non_gradable_reason': '' if graded else (obj.get('non_gradable_reason') or ''),
+    }
 
 
 def _read_state_for(read_states, villain_key):
@@ -580,9 +647,12 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
     if icm:
         warnings.append('icm_pressure_unknown')
     # Cross-axis cue/read split -> compact node-specific caveat (confidence-tiered).
+    # A genuine multi-axis AGGREGATE profile (split/mixed, emitted by
+    # _build_read_states) dominates; a 'consistent' aggregate is NOT passed as an
+    # override, so this hand's node-specific cue can still be flagged.
     prof_label, prof_caveat = derive_profile(
-        _AXIS_BY_DETECTOR.get(detector), None, archetype, rs.get('profile_label'),
-        read_conf=conf)
+        _AXIS_BY_DETECTOR.get(detector), None, archetype,
+        _aggregate_profile_override(rs), read_conf=conf)
 
     street = (exp.get('hero_decision_street') or '').strip() or 'preflop'
     _pko = _pko_subobject(pko_by_hand, hand_id)
@@ -605,6 +675,10 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
         'profile_caveat': prof_caveat,
         'icm_guardrail': icm,
         'source_warnings': warnings,
+        # v8.17 Step-3: the producer's gradable predicate reason (factual-moment
+        # copy when a graded missed/good is not warranted). '' when gradable.
+        'non_gradable_reason': exp.get('non_gradable_reason', '')
+        if not exp.get('gradable') else '',
         '_detector_outcome': exp.get('exploit_outcome') or exp.get('auto_verdict') or '',
         'source_truth': {
             'evidence_atoms': ev_atoms,
@@ -662,7 +736,8 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
     # aggregate read) -> node-specific "Mixed profile" caveat before the read.
     _prof_label, _prof_caveat = derive_profile(
         _AXIS_BY_SIGNAL.get(signal), _CUE_NODE_BY_SIGNAL.get(signal),
-        _archetype, rs.get('profile_label'), read_conf=rs.get('confidence', 'low'))
+        _archetype, _aggregate_profile_override(rs),
+        read_conf=rs.get('confidence', 'low'))
     obj = {
         'villain_id': vk,
         'villain_alias': rs.get('villain_alias') or atom.get('villain_alias', ''),
@@ -682,6 +757,7 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
         'profile_caveat': _prof_caveat,
         'icm_guardrail': _icm,
         'source_warnings': _warnings,
+        'non_gradable_reason': 'evidence_note',  # cues are never graded outcomes
         '_detector_outcome': '',
         'source_truth': {
             'evidence_atoms': [hand_id],

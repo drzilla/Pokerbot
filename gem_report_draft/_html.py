@@ -3860,6 +3860,99 @@ _MODAL_HTML = r"""
     ch.addEventListener('focusin',show);ch.addEventListener('focusout',hide);
   }
   window.initTtChart=initTtChart;
+  // v8.17.1 P4 surfaces 1+2: filters + sticky summary — ONE filtered event set
+  // (from window.ttModel) re-aggregates the sticky bar, grouped active pane, chart,
+  // detail-table rows and the drivers rollup. Mirrors the Python aggregation.
+  function _ttMoney(v,plus){if(v==null)return '—';var n=Math.round(v*100)/100;return (n<0?'-':(plus?'+':''))+'$'+Math.abs(n);}
+  function _ttPct(v){return (v==null)?'—':((v>=0?'+':'')+v.toFixed(1)+'%');}
+  function _ttAggregate(evs){
+    var bul=0,cc=0,cr=0,covc=0,covn=0,nset=0,est=false,itm=0,t5=0,t1=0,hnd=0,bbw=0,hasbb=false;
+    for(var i=0;i<evs.length;i++){var e=evs[i];bul+=(e.bullets||0);cc+=(e.cost||0);
+      if(e.ret!=null){cr+=e.ret;covc+=(e.cost||0);covn++;if(e.ret_exact===false)est=true;}
+      var st=e.fin&&e.fin.state;if(st==='exact'||st==='no_cash'){nset++;
+        if(e.fin.itm)itm++;if(e.fin.top!=null&&e.fin.top<=5)t5++;if(e.fin.top!=null&&e.fin.top<=1)t1++;}
+      if(e.hands!=null){hnd+=e.hands;if(e.bb100!=null){bbw+=e.bb100*e.hands;hasbb=true;}}}
+    var net=covn?(cr-covc):null;var roi=(covc>0)?(net/covc*100):null;
+    return {events:evs.length,bullets:bul,committed_cost:cc,covered_return:cr,net:net,roi_pct:roi,
+      results_covered:covn,n_settled:nset,estimated:est,
+      itm_pct:nset?(itm/nset*100):null,top5_pct:nset?(t5/nset*100):null,top1_pct:nset?(t1/nset*100):null,
+      hands:hnd,bb100:(hasbb&&hnd)?(bbw/hnd):null};
+  }
+  var _TT_TABDIM={buyin:'buyin_band',prize_type:'prize_type',speed:'speed',
+    entry_pattern:'entry_pattern',entry_timing:'entry_timing',phase_reached:'fin_label',by_day:'event_day'};
+  function _ttEvKey(e,tab){var v=e[_TT_TABDIM[tab]||'buyin_band'];
+    return (v==null)?'__none__':(v==='unknown'?'__unknown__':v);}
+  function _ttDist(aggByCat,metric,cats){var out={},k,tot=0,pos=0,neg=0;
+    if(metric==='cost'||metric==='return'){k=(metric==='cost')?'committed_cost':'covered_return';
+      cats.forEach(function(c){tot+=Math.max(0,aggByCat[c.key][k]||0);});tot=tot||1;
+      cats.forEach(function(c){var v=aggByCat[c.key][k]||0;out[c.key]={value:Math.round(v*100)/100,share:v/tot*100,sign:1};});}
+    else{cats.forEach(function(c){var n=aggByCat[c.key].net;if(n>0)pos+=n;else if(n<0)neg+=-n;});pos=pos||1;neg=neg||1;
+      cats.forEach(function(c){var n=aggByCat[c.key].net;
+        if(n==null)out[c.key]={value:null,share:0,sign:0};
+        else if(n>=0)out[c.key]={value:Math.round(n*100)/100,share:n/pos*100,sign:1};
+        else out[c.key]={value:Math.round(n*100)/100,share:-n/neg*100,sign:-1};});}
+    return out;}
+  window.initTtFilters=function(){
+    if(!window.ttModel)return;var model=window.ttModel;
+    var sticky=document.querySelector('[data-tt-sticky]');
+    var filters=document.querySelector('[data-tt-filters]');
+    var state={};
+    function filtered(){return model.filter(function(e){
+      for(var dim in state){if(state[dim]&&state[dim].length&&state[dim].indexOf(String(e[dim]))<0)return false;}return true;});}
+    function setC(b,t){if(b)b.textContent=t;}
+    function renderSticky(evs){if(!sticky)return;var a=_ttAggregate(evs);
+      setC(sticky.querySelector('[data-ss=events]'),a.events);
+      setC(sticky.querySelector('[data-ss=bullets]'),a.bullets);
+      setC(sticky.querySelector('[data-ss=cost]'),_ttMoney(a.committed_cost));
+      setC(sticky.querySelector('[data-ss=return]'),_ttMoney(a.covered_return));
+      setC(sticky.querySelector('[data-ss=net]'),(a.net==null?'—':_ttMoney(a.net,true)));
+      setC(sticky.querySelector('[data-ss=roi]'),(a.roi_pct==null?'—':_ttPct(a.roi_pct)));
+      setC(sticky.querySelector('[data-ss=coverage]'),'Results available for '+a.n_settled+' of '+a.events+' events');}
+    function renderRows(ids){['#tt-unified-table','#tt-performance-table'].forEach(function(sel){
+      var t=document.querySelector(sel);if(!t)return;
+      Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+        r.style.display=(ids[r.getAttribute('data-event-id')]?'':'none');});});
+      var roll=document.querySelector('[data-tt-rollup]');
+      if(roll)Array.prototype.forEach.call(roll.querySelectorAll('li[data-event-id]'),function(li){
+        li.style.display=(ids[li.getAttribute('data-event-id')]?'':'none');});}
+    function renderGrouped(evs){var g=document.querySelector('.tt-grouped');if(!g)return;
+      var tab=g.getAttribute('data-tab')||'buyin';
+      var pane=g.querySelector(".tt-tabpane[data-tabpane='"+tab+"']");if(!pane)return;
+      Array.prototype.forEach.call(pane.querySelectorAll('tbody tr[data-cat-key]'),function(r){
+        var key=r.getAttribute('data-cat-key');var c=r.children;if(c.length<13)return;
+        var a=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===key;}));var ap=a.estimated?'≈':'';
+        c[1].textContent=a.events;c[2].textContent=a.bullets;c[3].textContent=a.results_covered+'/'+a.events;
+        c[4].textContent=_ttMoney(a.committed_cost);c[5].textContent=ap+_ttMoney(a.covered_return);
+        c[6].textContent=(a.net==null?'—':ap+_ttMoney(a.net,true));
+        c[7].textContent=(a.roi_pct==null?'—':ap+_ttPct(a.roi_pct));
+        c[8].textContent=(a.itm_pct==null?'—':Math.round(a.itm_pct)+'%');
+        c[9].textContent=(a.top5_pct==null?'—':Math.round(a.top5_pct)+'%');
+        c[10].textContent=(a.top1_pct==null?'—':Math.round(a.top1_pct)+'%');
+        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});}
+    function renderChart(evs){var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
+      var tab=ch.getAttribute('data-tab')||'buyin';var metric=ch.getAttribute('data-metric')||'net';
+      var cats=(window.ttChart[tab]||{}).cats||[];var body=ch.querySelector('.tt-chart-body');if(!body)return;
+      var aggByCat={};cats.forEach(function(c){aggByCat[c.key]=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===c.key;}));});
+      var shares=_ttDist(aggByCat,metric,cats);var h='';
+      cats.forEach(function(c){h+=_ttChartBar(c,shares[c.key],metric);});
+      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';}
+    function render(){var evs=filtered();var ids={};evs.forEach(function(e){ids[e.id]=1;});
+      renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);
+      var clr=filters&&filters.querySelector('[data-tt-clear]');
+      var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
+      if(clr)clr.hidden=!any;}
+    window.ttApplyFilters=render;
+    if(filters){
+      Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+        b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
+          state[dim]=state[dim]||[];var i=state[dim].indexOf(val);
+          if(i<0){state[dim].push(val);b.classList.add('active');}else{state[dim].splice(i,1);b.classList.remove('active');}
+          render();});});
+      var clr=filters.querySelector('[data-tt-clear]');
+      if(clr)clr.addEventListener('click',function(){state={};
+        Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
+        render();});}
+  };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
     var e=null;for(var i=0;i<evs.length;i++){if(evs[i].event_id===eventId){e=evs[i];break;}}
@@ -5756,6 +5849,30 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   html.dark .tt-rollup-evt {{ color: #93c5fd; }}
   html.dark .tt-chart-metrics .tt-metric {{ background: #16181d; color: #94a3b8;
     border-color: #2a2f3a; }}
+  /* v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered summary */
+  .tt-sticky-summary {{ position: sticky; top: 0; z-index: 20; display: flex;
+    flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 7px 12px;
+    margin: 0 0 8px 0; background: #eff4ff; border: 1px solid #c7d2fe;
+    border-radius: 10px; font-size: 0.85em; }}
+  .tt-ss-cell {{ color: #475467; }}
+  .tt-ss-cell b {{ color: #0f172a; font-weight: 800; margin-left: 3px; }}
+  .tt-ss-cov {{ margin-left: auto; color: #1e3a8a; font-weight: 600; }}
+  .tt-filters {{ display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+    margin: 0 0 10px 0; }}
+  .tt-filter-group {{ display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }}
+  .tt-filter-label {{ font-size: 0.78em; font-weight: 700; color: #667085;
+    margin-right: 2px; }}
+  .tt-filter-chip {{ font: inherit; font-size: 0.8em; padding: 2px 9px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff;
+    color: #475467; cursor: pointer; }}
+  .tt-filter-chip.active {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
+  .tt-filter-clear {{ font: inherit; font-size: 0.8em; padding: 2px 10px;
+    border: 1px solid #fca5a5; border-radius: 999px; background: #fef2f2;
+    color: #b91c1c; cursor: pointer; }}
+  html.dark .tt-sticky-summary {{ background: #16181d; border-color: #2a2f3a; }}
+  html.dark .tt-ss-cell b {{ color: #e5e7eb; }}
+  html.dark .tt-ss-cov {{ color: #93c5fd; }}
+  html.dark .tt-filter-chip {{ background: #16181d; color: #94a3b8; border-color: #2a2f3a; }}
   #tournament-detail-modal .ttd-grid {{ display: grid;
     grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
   #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}

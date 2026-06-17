@@ -185,10 +185,12 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
         _t1 = ('%.0f%%' % ag['top1_pct']) if ag['top1_pct'] is not None else EMDASH
         _bb = ('%+.1f' % ag['bb100']) if ag['bb100'] is not None else EMDASH
         _cev = ('%+.1f' % ag['cev100']) if ag['cev100'] is not None else EMDASH
-        doc.w("<tr data-cat='%s'><td>%s<b>%s</b></td><td>%d</td><td>%d</td>"
-              "<td>%d/%d</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td>"
+        _ckey = ('__none__' if cat is None else ('__unknown__' if cat == 'unknown' else cat))
+        doc.w("<tr data-cat='%s' data-cat-key='%s'><td>%s<b>%s</b></td><td>%d</td>"
+              "<td>%d</td><td>%d/%d</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td>"
               "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-                  _esc_tt(str(_lbl)), sq, _esc_tt(str(_lbl)), ag['events'], ag['bullets'],
+                  _esc_tt(str(_lbl)), _esc_tt(str(_ckey)),
+                  sq, _esc_tt(str(_lbl)), ag['events'], ag['bullets'],
                   ag['results_covered'], ag['events'],
                   _fmt_usd(ag['committed_cost']), approx, _fmt_usd(ag['covered_return']),
                   _net, _roi, _itm, _t5, _t1, _bb, _cev))
@@ -375,13 +377,14 @@ def _emit_performance(doc, events, hids_by_tid):
         _exit_cell = (("<a href='#' class='hand-ref xref' data-hid='%s'>%s</a>"
                        % (_esc_tt(str(_exit)[-8:]), _esc_tt(str(_exit)[-8:])))
                       if _exit else EMDASH)
-        doc.w("<tr><td data-label='Tournament'>%s</td>"
+        doc.w("<tr data-event-id='%s'><td data-label='Tournament'>%s</td>"
               "<td data-label='Bullets' data-sort-value='%d'>%d</td>"
               "<td data-label='Hands' data-sort-value='%s'>%s</td>"
               "<td data-label='BB/100' data-sort-value='%s'>%s</td>%s"
               "<td data-label='Drivers'>%s</td>"
               "<td data-label='Reviewed'>%s</td>"
               "<td data-label='Exit hand'>%s</td></tr>" % (
+                  _esc_tt(e.get('event_id') or ''),
                   _esc_tt(name), e.get('bullets', 1), e.get('bullets', 1),
                   (hd if hd is not None else ''), hd_t,
                   (bb if bb is not None else ''), bb_t, _cevc,
@@ -395,7 +398,7 @@ def _emit_drivers_rollup(doc, events):
     """v8.17.1 P4 surface 7: Drivers-in-view rollup — the detector-backed driver
     descriptions across the current event set (human descriptions only; never
     internal keys / debug provenance / raw detector labels)."""
-    rows = [(e.get('name') or EMDASH, d)
+    rows = [(e.get('event_id') or '', e.get('name') or EMDASH, d)
             for e in events for d in (e.get('drivers') or [])]
     if not rows:
         return
@@ -403,10 +406,64 @@ def _emit_drivers_rollup(doc, events):
     doc.w("<p class='tt-rollup-head'><strong>Drivers in view</strong> — what moved "
           "the deep runs and collapses across these events.</p>")
     doc.w("<ul class='tt-rollup-list'>")
-    for nm, d in rows:
-        doc.w("<li><span class='tt-rollup-evt'>%s</span> — %s</li>" % (
-            _esc_tt(str(nm).replace('|', '/')), _esc_tt(str(d))))
+    for eid, nm, d in rows:
+        doc.w("<li data-event-id='%s'><span class='tt-rollup-evt'>%s</span> — %s</li>"
+              % (_esc_tt(str(eid)), _esc_tt(str(nm).replace('|', '/')), _esc_tt(str(d))))
     doc.w("</ul></div>")
+    doc.w("")
+
+
+_TT_FILTER_DIMS = (
+    ('buyin_band', 'Buy-in'), ('prize_type', 'Prize'), ('entry_pattern', 'Entry'),
+    ('speed', 'Speed'), ('entry_timing', 'Timing'),
+)
+
+
+def _emit_filters_and_sticky(doc, events):
+    """v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered-summary bar. Server-
+    renders the default (unfiltered) state; the TTF JS controller (_html.py) derives
+    ONE filtered event set and updates every surface (grouped pane, chart, sticky
+    bar, detail-table rows, drivers rollup) from it. Filter counts are EVENTS, not
+    bullets. Coverage language: 'Results available for X of Y events'."""
+    import gem_tournament_model as _TM
+    chips = []
+    for dim, label in _TT_FILTER_DIMS:
+        vals, seen = [], set()
+        for e in events:
+            v = e.get(dim)
+            if v in (None, 'unknown') or v in seen:
+                continue
+            seen.add(v)
+            vals.append(v)
+        if len(vals) < 2:
+            continue                       # nothing meaningful to filter on this dim
+        vals = (sorted(vals, key=_TM.buyin_band_sort_key) if dim == 'buyin_band'
+                else sorted(vals, key=lambda x: str(x)))
+        _c = ''.join(
+            "<button type='button' class='tt-filter-chip' data-dim='%s' data-val='%s'>%s</button>"
+            % (_esc_tt(dim), _esc_tt(str(v)), _esc_tt(str(_TT_CAT_LABEL.get(v, v))))
+            for v in vals)
+        chips.append("<div class='tt-filter-group'><span class='tt-filter-label'>%s</span>%s</div>"
+                     % (_esc_tt(label), _c))
+    _ag = _TM.aggregate_group(events)
+    doc.w("<div class='tt-sticky-summary' data-tt-sticky>"
+          "<span class='tt-ss-cell'>Events <b data-ss='events'>%d</b></span>"
+          "<span class='tt-ss-cell'>Bullets <b data-ss='bullets'>%d</b></span>"
+          "<span class='tt-ss-cell'>Cost <b data-ss='cost'>%s</b></span>"
+          "<span class='tt-ss-cell'>Return <b data-ss='return'>%s</b></span>"
+          "<span class='tt-ss-cell'>Net <b data-ss='net'>%s</b></span>"
+          "<span class='tt-ss-cell'>ROI <b data-ss='roi'>%s</b></span>"
+          "<span class='tt-ss-cov' data-ss='coverage'>Results available for %d of %d events</span>"
+          "</div>" % (
+              _ag['events'], _ag['bullets'], _fmt_usd(_ag['committed_cost']),
+              _fmt_usd(_ag['covered_return']),
+              (_fmt_usd(_ag['net'], plus=True) if _ag['net'] is not None else EMDASH),
+              (_pct_or_dash(_ag['roi_pct']) if _ag['roi_pct'] is not None else EMDASH),
+              _ag['n_settled'], len(events)))
+    if chips:
+        doc.w("<div class='tt-filters' data-tt-filters>" + ''.join(chips)
+              + "<button type='button' class='tt-filter-clear' data-tt-clear hidden>"
+              "Clear filters</button></div>")
     doc.w("")
 
 
@@ -512,6 +569,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
           'to the canonical session total (cash + ticket).*')
     doc.w('')
 
+    # ---- v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered-summary bar ----
+    _emit_filters_and_sticky(doc, events)
+
     # ---- v8.17.1 P4 surface 3: grouped AGGREGATE table (aggregate-first) ----
     # Where did the buy-ins go / which bands are profitable — pooled ROI, settled
     # denominators, legend-square colours. Rendered ABOVE the per-event detail.
@@ -574,7 +634,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
                        % (_esc_tt(str(_exit)[-8:]), _esc_tt(str(_exit)[-8:])))
                       if _exit else EMDASH)
         _uni_rows.append(
-            "<tr>"
+            "<tr data-event-id='%s'>"
             "<td data-label='Date' data-sort-value='%s'>%s</td>"
             "<td data-label='Tournament'>%s</td>"
             "<td data-label='Type'>%s</td>"
@@ -588,6 +648,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
             "<td data-label='' class='tt-details-cell'>"
             "<a href='#' onclick=\"openTournamentDetail('%s');return false;\">Details ▸</a></td>"
             "</tr>" % (
+                _esc_tt(_eid),
                 _esc_tt(e.get('event_day') or ''), _esc_tt(e.get('event_day') or EMDASH),
                 _esc_tt(name), _esc_tt(pt),
                 e.get('bullets', 1), e.get('bullets', 1),
@@ -676,9 +737,37 @@ def _emit_tournament_tables(doc, s, rd, hands):
         import gem_tournament_model as _TM_chart
         doc._extra_js.append('window.ttChart=%s;' % _json_tt.dumps(
             _tt_chart_data(_TM_chart, events), ensure_ascii=False, default=str))
+        # v8.17.1 P4 surfaces 1+2: per-event model so the filter controller derives
+        # ONE filtered set and re-aggregates every surface from it.
+        _model_payload = [{
+            'id': e.get('event_id'),
+            'buyin_band': e.get('buyin_band'),
+            'prize_type': e.get('prize_type'),
+            'entry_pattern': e.get('entry_pattern'),
+            'speed': e.get('speed'),
+            'entry_timing': e.get('entry_timing'),
+            'event_day': e.get('event_day'),
+            'fin_label': (e.get('finish') or {}).get('label'),
+            'bullets': e.get('bullets', 1),
+            'cost': e.get('cost', 0),
+            'ret': (e.get('return') or {}).get('value'),
+            'ret_exact': (e.get('return') or {}).get('exact', True),
+            'net': e.get('net'),
+            'roi': e.get('roi_pct'),
+            'fin': {'state': (e.get('finish') or {}).get('state'),
+                    'itm': bool((e.get('finish') or {}).get('itm')),
+                    'top': (e.get('finish') or {}).get('top_percent'),
+                    'sort': (e.get('finish') or {}).get('sort_key')},
+            'hands': (e.get('performance') or {}).get('hands'),
+            'bb100': (e.get('performance') or {}).get('bb100'),
+            'cev100': (e.get('performance') or {}).get('cev100'),
+        } for e in events]
+        doc._extra_js.append('window.ttModel=%s;' % _json_tt.dumps(
+            _model_payload, ensure_ascii=False, default=str))
         doc._extra_js.append('if(window.initTournamentResultsTable)'
                              'window.initTournamentResultsTable();'
-                             'if(window.initTtChart)window.initTtChart();')
+                             'if(window.initTtChart)window.initTtChart();'
+                             'if(window.initTtFilters)window.initTtFilters();')
         # v8.17.1 P4: grouped-aggregate tab switching — show the matching tabpane,
         # mark the active button, and (if wired) re-render the distribution chart.
         doc._extra_js.append(
@@ -690,7 +779,8 @@ def _emit_tournament_tables(doc, s, rd, hands):
             "b.classList.toggle('active',b===btn);});"
             "g.querySelectorAll('.tt-tabpane').forEach(function(p){"
             "p.style.display=(p.getAttribute('data-tabpane')===tab)?'':'none';});"
-            "if(window.ttRenderChart)window.ttRenderChart(g,tab);});});});})();")
+            "if(window.ttRenderChart)window.ttRenderChart(g,tab);"
+            "if(window.ttApplyFilters)window.ttApplyFilters();});});});})();")
     except Exception:
         pass
 

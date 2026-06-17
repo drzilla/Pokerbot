@@ -9706,6 +9706,24 @@ check('T-P4UI-09: Finance & Finish is the canonical per-event surface; duplicate
       and "<th>Exit hand</th>" in _md_p4s
       and 'hand-ref xref' in _md_p4s
       and 'Per-event financial detail' not in _md_p4s, '')
+check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
+      'tt-sticky-summary' in _md_p4s and 'Results available for' in _md_p4s
+      and "data-ss='events'" in _md_p4s
+      and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
+      and "data-dim='prize_type'" in _md_p4s
+      and 'data-event-id=' in _md_p4s and 'data-cat-key=' in _md_p4s
+      and 'window.ttModel=' in _js_p4s
+      and 'window.initTtFilters=' in _html_p4src
+      and 'function _ttAggregate(' in _html_p4src, '')
+check('T-P4UI-11: ALL SEVEN Tournament Tables surfaces present in one render',
+      'tt-filters' in _md_p4s              # 1 filters
+      and 'tt-sticky-summary' in _md_p4s   # 2 sticky filtered summary
+      and 'tt-aggregate' in _md_p4s        # 3 grouped aggregate (all tabs)
+      and 'tt-chart' in _md_p4s            # 4 distribution chart
+      and 'tt-finance' in _md_p4s          # 5 Finance & Finish
+      and 'tt-performance' in _md_p4s      # 6 Tournament Performance
+      and 'tt-drivers-rollup' in _md_p4s,  # 7 Drivers-in-view rollup
+      '')
 
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',

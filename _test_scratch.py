@@ -9825,7 +9825,7 @@ check('T-CAP817-14: render_capsule_md emits a register badge + the role md',
       and 'Decision:' in _CAP.render_capsule_md(_dc_coach), '')
 # live render-path: both XIV.A + XIV.B emit the .analyst-notes pb-capsule lead + CSS present
 check('T-CAP817-15: XIV.A + XIV.B emit the visible pb-capsule (decision_capsule_from_signals wired both paths)',
-      'decision_capsule_from_signals as _dcs_a' in _xivb
+      'decision_capsule_from_signals as _dcs_lead' in _xivb   # v8.17.1 P1: path A de-gated lead
       and 'decision_capsule_from_signals as _dcs_b' in _xivb
       and "pb-capsule pb-cap-" in _xivb, 'capsule not wired both paths')
 _html817cap = open('gem_report_draft/_html.py', encoding='utf-8').read()

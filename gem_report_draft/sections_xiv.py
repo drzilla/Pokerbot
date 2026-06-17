@@ -2787,6 +2787,73 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if not locals().get('_agg_conflict'):
             _emit_agg_gate_block(doc, h.get('id') or hid_short, rd, hand=h)
 
+        # v8.17.1 P1 (§9 capsule de-gate): the register-classified DECISION
+        # capsule is the LEAD of this hand's commentary and is built for EVERY
+        # scored/evidenced hand — NOT only hands that carry a pot-odds object
+        # (the v8.17.0 regression: capsule lived inside `if _po:` → ~1% coverage).
+        # _po (pot odds) is now ONE optional Math anchor. A capsule emits only
+        # when it has a visible anchor (Range / Math / Exploit) OR a gradable
+        # decision label (so no_clear_lesson can name the gap); otherwise it falls
+        # through to the existing notes (zero-drop). The detailed notes (range
+        # block, _po lines, villain notes) all still render BELOW this lead.
+        try:
+            from gem_commentary_capsule import (
+                decision_capsule_from_signals as _dcs_lead,
+                render_capsule_md as _rcm_lead)
+            from gem_review_trust import (classify_preflop_allin as _cpa_lead,
+                                          allin_kind_label as _akl_lead,
+                                          multiway_render_plan as _mwp_lead)
+            _po_lead = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                        or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+            _rev_lead = locals().get('_rev_xiva') or {}
+            _capdec_lead = ''
+            if h.get('pf_allin'):
+                _kc_lead = _cpa_lead(h)[0]
+                if _kc_lead != 'not_allin':
+                    _capdec_lead = _akl_lead(_kc_lead)
+            # Range line: the canonical membership (single source of truth; the
+            # full proxy/closest coverage is disclosed by the range block below).
+            _rng_lead = ''
+            if (_rev_lead.get('hero_hand')
+                    and _rev_lead.get('membership') in ('inside', 'outside')):
+                _ck_lead = (_rev_lead.get('chart_key')
+                            or _rev_lead.get('spot_label') or 'range')
+                _rng_lead = '%s %s %s' % (
+                    _rev_lead['hero_hand'],
+                    'inside' if _rev_lead['membership'] == 'inside' else 'outside',
+                    _ck_lead)
+            _mwp_l = {'suppress_hu_required_equity': False}
+            if _po_lead:
+                try:
+                    _mwp_l = _mwp_lead(
+                        n_live_opponents=max(0, (_po_lead.get('n_players_at_showdown') or 0) - 1),
+                        players_still_to_act=_po_lead.get('players_still_to_act', 0) or 0)
+                except Exception:
+                    pass
+            _why_lead = ((rd.get('analyst_commentary') or {}).get(hid, {})
+                         or {}).get('hand_strength', '')
+            _cap_lead = _dcs_lead(
+                (_po_lead.get('street') if _po_lead else None)
+                    or (h.get('hero_decision_street') or '').lower() or 'preflop',
+                decision_label=_capdec_lead,
+                verdict_hint=_po_lead.get('verdict_hint', '') if _po_lead else '',
+                analyst_why=_why_lead,
+                required_eq_pct=_po_lead.get('required_eq_pct') if _po_lead else None,
+                multiway_suppressed=bool(_mwp_l.get('suppress_hu_required_equity')),
+                range_line=_rng_lead)
+            # Emit only with a real anchor OR a gradable decision (no_clear_lesson
+            # names the gap). Never a bare no-anchor capsule on a non-decision hand.
+            if _cap_lead and (_cap_lead.get('has_anchor') or _capdec_lead):
+                _cs_lead = _street_attr(_cap_lead.get('street'))
+                _ds_lead = f" data-street='{_cs_lead}'" if _cs_lead else ''
+                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}>")
+                doc.w(_rcm_lead(_cap_lead))
+                doc.w("</div>")
+                doc.w("")
+                h['_pb_capsule_emitted'] = True
+        except Exception:
+            pass
+
         # v8.14.1 P0-2: chart-backed Range evidence block. Any preflop range
         # claim (RFI / open-shove / call-jam / re-jam) gets a visible block whose
         # IN/OUTSIDE line is the SINGLE SOURCE OF TRUTH (real chart cells; proxy
@@ -2919,35 +2986,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             except Exception:
                 _mw_plan = {'suppress_hu_required_equity': False,
                             'pot_odds_uncertain': False, 'label': ''}
-            # v8.17 Epic A \u00a79: the VISIBLE DECISION CAPSULE \u2014 the prioritized,
-            # register-classified LEAD of this street's commentary. Built from the
-            # SAME canonical signals (decision-kind, verdict_hint, analyst why,
-            # required-equity, multiway suppression \u2014 no recompute); the existing
-            # detailed notes follow it (preserved = zero-drop). Routed via
-            # .analyst-notes[data-street]; styled distinctly by .pb-capsule.
-            try:
-                from gem_commentary_capsule import (
-                    decision_capsule_from_signals as _dcs_a, render_capsule_md as _rcm_a)
-                _capdec_a = ''
-                if h.get('pf_allin'):
-                    _kc_a = _cpa_a(h)[0]
-                    if _kc_a != 'not_allin':
-                        _capdec_a = _akl_a(_kc_a)
-                _cap_a = _dcs_a(
-                    _po.get('street') or 'preflop', decision_label=_capdec_a,
-                    verdict_hint=_po.get('verdict_hint', ''),
-                    analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
-                    required_eq_pct=_po.get('required_eq_pct'),
-                    multiway_suppressed=bool(_mw_plan.get('suppress_hu_required_equity')))
-                if _cap_a:
-                    _cst_a = _street_attr(_po.get('street'))
-                    _cds_a = f" data-street='{_cst_a}'" if _cst_a else ''
-                    doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_a['register']}'{_cds_a}>")
-                    doc.w(_rcm_a(_cap_a))
-                    doc.w("</div>")
-                    doc.w("")
-            except Exception:
-                pass
+            # v8.17.1 P1: the \u00a79 decision-capsule LEAD now renders ABOVE this
+            # block (de-gated from `if _po:` so it covers every scored/evidenced
+            # hand, not only pot-odds hands). Here _po only contributes the
+            # detailed Math notes below; the capsule was already emitted as the lead.
             if not _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
                 # v8.12.8 QA3: side-pot-aware price carries its basis
@@ -3599,6 +3641,71 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         doc.w("")
                     _has_notes_b = True
 
+                # v8.17.1 P1 (§9 capsule de-gate, compact/lazy path): the
+                # register-classified DECISION capsule LEAD is built for EVERY
+                # scored/evidenced hand on the compact path too (C2 parity) — not
+                # only hands with a pot-odds object. _po_b is ONE optional Math
+                # anchor. Emits only with a visible anchor OR a gradable decision;
+                # the detailed notes (range block, _po_b lines, villain notes) all
+                # render BELOW this lead (zero-drop).
+                if h:
+                    try:
+                        from gem_commentary_capsule import (
+                            decision_capsule_from_signals as _dcs_b,
+                            render_capsule_md as _rcm_b)
+                        from gem_review_trust import (
+                            classify_preflop_allin as _cpa_bl,
+                            allin_kind_label as _akl_bl,
+                            multiway_render_plan as _mwp_bl)
+                        from gem_report_draft._helpers import hand_range_evidence as _hre_bl
+                        _po_bl = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                                  or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+                        _rev_bl = _hre_bl(h) or {}
+                        _capdec_bl = ''
+                        if h.get('pf_allin'):
+                            _kc_bl = _cpa_bl(h)[0]
+                            if _kc_bl != 'not_allin':
+                                _capdec_bl = _akl_bl(_kc_bl)
+                        _rng_bl = ''
+                        if (_rev_bl.get('hero_hand')
+                                and _rev_bl.get('membership') in ('inside', 'outside')):
+                            _ck_bl = (_rev_bl.get('chart_key')
+                                      or _rev_bl.get('spot_label') or 'range')
+                            _rng_bl = '%s %s %s' % (
+                                _rev_bl['hero_hand'],
+                                'inside' if _rev_bl['membership'] == 'inside' else 'outside',
+                                _ck_bl)
+                        _mwp_bp = {'suppress_hu_required_equity': False}
+                        if _po_bl:
+                            try:
+                                _mwp_bp = _mwp_bl(
+                                    n_live_opponents=max(0, (_po_bl.get('n_players_at_showdown') or 0) - 1),
+                                    players_still_to_act=_po_bl.get('players_still_to_act', 0) or 0)
+                            except Exception:
+                                pass
+                        _why_bl = ((rd.get('analyst_commentary') or {}).get(hid, {})
+                                   or {}).get('hand_strength', '')
+                        _cap_bl = _dcs_b(
+                            (_po_bl.get('street') if _po_bl else None)
+                                or (h.get('hero_decision_street') or '').lower() or 'preflop',
+                            decision_label=_capdec_bl,
+                            verdict_hint=_po_bl.get('verdict_hint', '') if _po_bl else '',
+                            analyst_why=_why_bl,
+                            required_eq_pct=_po_bl.get('required_eq_pct') if _po_bl else None,
+                            multiway_suppressed=bool(_mwp_bp.get('suppress_hu_required_equity')),
+                            range_line=_rng_bl)
+                        if _cap_bl and (_cap_bl.get('has_anchor') or _capdec_bl):
+                            _cs_bl = _street_attr(_cap_bl.get('street'))
+                            _ds_bl = f" data-street='{_cs_bl}'" if _cs_bl else ''
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}>")
+                            doc.w(_rcm_b(_cap_bl))
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                            h['_pb_capsule_emitted'] = True
+                    except Exception:
+                        pass
+
                 # v8.14.1 P0-2: chart-backed Range evidence block on XIV.B stubs
                 # too (same shared builder as XIV.A) so referenced preflop range
                 # decisions also carry visible evidence.
@@ -3642,32 +3749,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                  'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
                     _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
-                    # v8.17 Epic A §9: the VISIBLE DECISION CAPSULE on the compact
-                    # path too (C2 parity) — register-classified lead, same signals,
-                    # no recompute; detailed lines below are preserved (zero-drop).
-                    try:
-                        from gem_commentary_capsule import (
-                            decision_capsule_from_signals as _dcs_b, render_capsule_md as _rcm_b)
-                        _capdec_b = ''
-                        if h.get('pf_allin'):
-                            _kc_b = _cpa_b(h)[0]
-                            if _kc_b != 'not_allin':
-                                _capdec_b = _akl_b(_kc_b)
-                        _cap_b = _dcs_b(
-                            _po_b.get('street') or 'preflop', decision_label=_capdec_b,
-                            verdict_hint=_po_b.get('verdict_hint', ''),
-                            analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
-                            required_eq_pct=_req_b, multiway_suppressed=_mw_sup_b)
-                        if _cap_b:
-                            _cst_b = _street_attr(_po_b.get('street'))
-                            _cds_b = f" data-street='{_cst_b}'" if _cst_b else ''
-                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_b['register']}'{_cds_b}>")
-                            doc.w(_rcm_b(_cap_b))
-                            doc.w("</div>")
-                            doc.w("")
-                            _has_notes_b = True
-                    except Exception:
-                        pass
+                    # v8.17.1 P1: the §9 decision-capsule LEAD now renders ABOVE
+                    # (de-gated from `if _po_b:` so it covers every scored/evidenced
+                    # compact-path hand). Here _po_b only emits the detailed lines.
                     if _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
                     elif _mw_sup_b:

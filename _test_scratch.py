@@ -6932,8 +6932,11 @@ check('T-RE-23c: sections_xiii shows true seat + proxy chart label, threads hand
 # "no rejam chart" existence-denial for a matchup the canonical block resolves.
 check('T-RE-24: coverage-builder re-jam key strips "+" and is not stack-gated',
       'REJAM_{_pos.replace("+", "")}vs{_opener.replace("+", "")}' in _cb_1230
-      and "_hero_role(h) == 'threebet_jam':" in _cb_1230
-      and "_hero_role(h) == 'threebet_jam' and _stack <= 30" not in _cb_1230, '')
+      and "_hero_role(h) == 'threebet_jam'" in _cb_1230
+      and "_hero_role(h) == 'threebet_jam' and _stack <= 30" not in _cb_1230
+      # v8.17.1 Iter-1: rejam citation also gated on canonical action kind (a
+      # call-off over an already-all-in villain is NOT a re-jam).
+      and "_canon_akind not in ('call_vs_jam', 'call_off')" in _cb_1230, '')
 # the REJAM key the fix builds resolves in the real chart file, AA inside
 if _RE_OK:
     check('T-RE-24a: REJAM_MPvsUTG1 resolves (AA inside) — matches canonical selector',
@@ -10644,6 +10647,52 @@ check('T-DS-13a: board_at_decision preflop == []',
       _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'preflop') == [], '')
 check('T-DS-13b: board_at_decision flop == first 3',
       _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'flop') == ['Ah', 'Qh', '2h'], '')
+
+# ============================================================
+# v8.17.1 Iteration 1 — canonical action kind routed into the PRODUCT surfaces
+# (report decision label / range role + worklist deviation-bucketed call-of-jam).
+# These lock the 83915520-class fix: a HU covering re-jam over a single jam is a
+# CALL everywhere, never a "re-jam"; and a genuine over-jam keeps the re-jam role.
+# ============================================================
+# the 83915520 ledger pattern: Hero raises all-in (22) over a shorter all-in jam (V=8).
+_i1_call_h = _hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
+                  _led('preflop', 'Hero', 'raises', 20.0, True, to=20.0)],
+                 hstack=22, stacks={'Hero': 22, 'V': 8})
+_i1_call_h.update({'pf_allin': True, 'pf_action': '3bet', 'first_in': False,
+                   'villain_jammed': True, 'jammer_position': 'HJ', 'jammer_stack_bb': 8.0})
+# a genuine re-jam over a LIVE (non-all-in) raise.
+_i1_rejam_h = _hk([_led('preflop', 'V', 'raises', 3.0, to=3.0),
+                   _led('preflop', 'Hero', 'raises', 25.0, True, to=25.0)], hstack=25)
+_i1_rejam_h.update({'pf_allin': True, 'pf_action': '3bet', 'first_in': False})
+try:
+    from gem_report_draft.sections_xiv import _canon_allin_kind as _i1_cak
+    from gem_report_draft._helpers import _hand_preflop_range_role as _i1_role
+    check('T-I1RT-01: _canon_allin_kind overrides legacy rejam->call_vs_jam for a covering call',
+          _i1_cak(_i1_call_h, 'rejam') == 'call_vs_jam', _i1_cak(_i1_call_h, 'rejam'))
+    check('T-I1RT-02: _canon_allin_kind keeps the fallback for a genuine re-jam',
+          _i1_cak(_i1_rejam_h, 'rejam') == 'rejam', _i1_cak(_i1_rejam_h, 'rejam'))
+    check('T-I1RT-03: range role for a canonical call_vs_jam is call_jam (no re-jam lens)',
+          _i1_role(_i1_call_h) == 'call_jam', _i1_role(_i1_call_h))
+    check('T-I1RT-04: range role for a genuine re-jam stays rejam',
+          _i1_role(_i1_rejam_h) == 'rejam', _i1_role(_i1_rejam_h))
+except Exception as _e_i1:
+    check('T-I1RT-01..04: report canonical helpers importable', False, str(_e_i1))
+# worklist: a DEVIATION-bucketed call-of-jam uses the snapshot's decision-effective
+# stack (min vs the jammer ~8BB), NOT Hero's clean full stack (22BB), and the kind
+# is call_vs_jam with a real (non-unavailable) capped price.
+_i1_wl_hand = dict(_i1_call_h); _i1_wl_hand['id'] = 'TM_I1DEV'; _i1_wl_hand['hero'] = 'Hero'
+_i1_wl_cand = _mk_cand(id='TM_I1DEV', cards='Ah8d', position='BTN', pf_allin=True,
+    first_in=False, jammer_position='HJ', jammer_stack_bb=8.0,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_i1_wl_dev = [{'id': 'TM_I1DEV', 'type': 'Wide CVJ (Call Villain Jam)', 'cards': 'A8o',
+               'pos': 'BTN', 'chart': 'PUSH_10BB_BTN', 'confidence': 'CLEAR', 'stack_bb': 22}]
+_i1_wl = _awl.build_analyst_worklist({'bestplay_screening': [_i1_wl_cand]},
+    {'preflop_deviations': _i1_wl_dev}, {}, [_i1_wl_hand], '20260101')
+_i1_dn = _i1_wl['items']['TM_I1DEV']['decision_node']
+check('T-I1RT-05: deviation-bucketed call-of-jam -> call_vs_jam + snapshot eff (~8, not clean 22)',
+      _i1_dn.get('hero_action_kind') == 'call_vs_jam'
+      and (_i1_dn.get('effective_bb_vs_relevant_villain') or 99) <= 10
+      and _i1_dn.get('price_source') != 'unavailable', str(_i1_dn))
 
 # ---- coaching integration: blocker temporal + multiway from contesting + pko preflop ----
 _cc_pf_flush = _cc_hand(pf_action='raise', pf_allin=True, cards=['As', 'Kd'],

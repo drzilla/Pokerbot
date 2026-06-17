@@ -527,6 +527,32 @@ def _canon_supersede(h):
     return (False, None, None, None)
 
 
+def _canon_allin_kind(h, fallback):
+    """Iteration-1 root fix: the rendered "Decision:" label (and capsule lead /
+    all-in-math caveat) for ANY preflop all-in must derive from the ONE canonical
+    action kind, not the legacy ``classify_preflop_allin`` — which keys a Hero
+    re-jam off ``first_in`` and so mislabels "Hero opens, faces a raise, re-jams"
+    as ``open_shove`` (83578445, 84107187), contradicting the range-evidence that
+    already reads "re-jam". It also calls a HU covering re-jam over a single jam a
+    "re-jam" when canonically it is a CALL (83915520). Map the full canonical
+    all-in taxonomy onto the review_trust label kinds so the Decision label always
+    matches the canonical kind AND the range lens. Non-all-in / unknown canonical
+    kinds keep the legacy ``fallback`` (e.g. a non-all-in 3-bet)."""
+    _MAP = {
+        'open_shove': 'open_shove',
+        'call_vs_jam': 'call_vs_jam', 'call_off': 'call_vs_jam',
+        'rejam_over_live_raise': 'rejam', 'overjam_with_side_pot': 'rejam',
+    }
+    try:
+        from gem_decision_snapshot import hero_action_kind as _ds_akind
+        _ck = _ds_akind(h)
+        if _ck in _MAP:
+            return _MAP[_ck]
+    except Exception:
+        pass
+    return fallback
+
+
 def _deviation_range_text(hid, s, h=None):
     """Look up the correct range for a hand's preflop deviation from
     s['preflop_deviations']. For punts/mistakes promoted from deviations,
@@ -2849,7 +2875,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _rev_lead = locals().get('_rev_xiva') or {}
             _capdec_lead = ''
             if h.get('pf_allin'):
-                _kc_lead = _cpa_lead(h)[0]
+                _kc_lead = _canon_allin_kind(h, _cpa_lead(h)[0])
                 if _kc_lead != 'not_allin':
                     _capdec_lead = _akl_lead(_kc_lead)
             # Range line: the canonical membership (single source of truth; the
@@ -3016,7 +3042,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 from gem_review_trust import (classify_preflop_allin as _cpa_a,
                                               allin_kind_label as _akl_a)
                 if h.get('pf_allin'):
-                    _k_a = _cpa_a(h)[0]
+                    _k_a = _canon_allin_kind(h, _cpa_a(h)[0])
                     if _k_a != 'not_allin':
                         _po_lines.append("**Decision:** " + _akl_a(_k_a))
             except Exception:
@@ -3232,7 +3258,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             try:
                 from gem_review_trust import (classify_preflop_allin as _cpa_ac,
                                               allin_completeness_note as _acn)
-                _ak_ac = _cpa_ac(h)[0]
+                _ak_ac = _canon_allin_kind(h, _cpa_ac(h)[0])
                 _note_ac = _acn(_ak_ac, _po, h, h.get('_pb_capsule_register'))
                 if _note_ac:
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
@@ -3342,7 +3368,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # precisely rather than implying the HH export is missing data.
             from gem_decision_snapshot import contesting_count as _ds_cc
             doc.w("<div class='analyst-notes' data-street='preflop'>")
-            if _ds_cc(h, 'preflop') <= 1:
+            if _ds_cc(h) <= 1:
                 doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
                       "Hero's jam took it down uncontested, so no bounty was at stake "
                       "this hand.")
@@ -3525,7 +3551,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # programmatic (format was unknowable for ~499/507 linked hands).
                 _va_fmt = _html_escape(h.get('format', '') or '')
                 _va_ph = _html_escape(h.get('tournament_phase', '') or '')
-                _va_eff = h.get('eff_stack_bb') or h.get('stack_bb') or 0
+                # v8.17.1 Iter-1 corrective: decision-effective depth from the ONE
+                # canonical field (eff_stack_bb_at_decision, snapshot-derived) — NOT
+                # the flop-context eff_stack_bb that collapsed 84990829 to 0.8.
+                _va_eff = (h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb')
+                           or h.get('stack_bb') or 0)
                 _va_t = _html_escape(str(h.get('tournament', '') or ''))
                 _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
@@ -3744,7 +3774,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _rev_bl = _hre_bl(h) or {}
                         _capdec_bl = ''
                         if h.get('pf_allin'):
-                            _kc_bl = _cpa_bl(h)[0]
+                            _kc_bl = _canon_allin_kind(h, _cpa_bl(h)[0])
                             if _kc_bl != 'not_allin':
                                 _capdec_bl = _akl_bl(_kc_bl)
                         _rng_bl = ''
@@ -3829,7 +3859,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             n_live_opponents=max(0, (_po_b.get('n_players_at_showdown') or 0) - 1),
                             players_still_to_act=_po_b.get('players_still_to_act', 0) or 0)
                         if h.get('pf_allin'):
-                            _k_b = _cpa_b(h)[0]
+                            _k_b = _canon_allin_kind(h, _cpa_b(h)[0])
                             if _k_b != 'not_allin':
                                 _po_lines_b.append("**Decision:** " + _akl_b(_k_b))
                     except Exception:
@@ -3947,7 +3977,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _po_b_g = ((rd.get('pot_odds_by_hand') or {}).get(hid)
                                    or (rd.get('pot_odds_by_hand') or {}).get(
                                        hid[-8:] if len(hid) > 8 else hid))
-                        _ak_acb = _cpa_acb(h)[0]
+                        _ak_acb = _canon_allin_kind(h, _cpa_acb(h)[0])
                         _note_acb = _acnb(_ak_acb, _po_b_g, h,
                                           h.get('_pb_capsule_register'))
                         if _note_acb:
@@ -4274,7 +4304,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     # confrontation, not a data gap. Canonical contesting count owns it.
                     from gem_decision_snapshot import contesting_count as _ds_cc
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
-                    if _ds_cc(h, 'preflop') <= 1:
+                    if _ds_cc(h) <= 1:
                         doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
                               "— Hero's jam took it down uncontested, so no bounty "
                               "was at stake this hand.")

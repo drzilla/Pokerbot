@@ -657,7 +657,7 @@ def _tmpl_multiway_caution(facts, gates):
     # => "8-way pot — equity less reliable" on a jam that folded out (83506399), and
     # a 0.8BB dead-short all-in inflated 84990829 to "3-way". The canonical snapshot
     # owns the contesting count.
-    n = _ds.contesting_count(h, _key_street(h))
+    n = _ds.contesting_count(h)
     if n <= 2:
         return None
 

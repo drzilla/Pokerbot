@@ -1327,7 +1327,14 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         # None` -> "no rejam chart for this matchup", contradicting the canonical
         # Range-evidence block (which resolved REJAM_MPvsUTG1, AA INSIDE). The
         # _hero_role == 'threebet_jam' check already restricts this to re-jams.
-        if pf_allin and _hero_role(h) == 'threebet_jam':
+        # v8.17.1 Iteration 1 corrective: a "raise" over a villain who is ALREADY
+        # all-in is a CALL-OFF of that jam (call_vs_jam), never a re-jam — the
+        # canonical action kind owns this, so a call-off (83915520) never cites a
+        # re-jam chart / renders a re-jam verdict.
+        from gem_decision_snapshot import hero_action_kind as _ds_canon_akind
+        _canon_akind = _ds_canon_akind(h)
+        if (pf_allin and _hero_role(h) == 'threebet_jam'
+                and _canon_akind not in ('call_vs_jam', 'call_off')):
             _opener = h.get('opener_position', '')
             if _opener and _pos:
                 # v8.14.1 REV5: strip '+' to match gem_ranges.build_range_evidence

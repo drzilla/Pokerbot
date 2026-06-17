@@ -1476,13 +1476,34 @@ def check_preflop_deviations(hands, ranges):
                     # framing is kept only when Hero does NOT cover.
                     _hero_covers = (stack or 0) >= (jammer_bb or 0)
                     _n_behind = len(h.get('stacks_behind') or {})
-                    if _hero_covers:
+                    # Iteration-1 root fix (83915520): the legacy detector
+                    # labelled EVERY covering re-jam "re-jam over jam", but the
+                    # canonical decision model treats a HU covering re-jam as a
+                    # call vs the jammer (the excess is returned \u2014 exactly the
+                    # B176 reasoning above). Only keep the "re-jam over jam"
+                    # framing when the canonical action kind is a genuine
+                    # side-pot over-jam that isolates a live opponent. A
+                    # canonical call_vs_jam renders as a plain CVJ call so the
+                    # report/worklist never show "re-jam over jam" for a call.
+                    try:
+                        from gem_decision_snapshot import hero_action_kind as _ds_akind
+                        _canon_kind = _ds_akind(h)
+                    except Exception:
+                        _canon_kind = None
+                    _genuine_rejam = _canon_kind == 'overjam_with_side_pot'
+                    if _hero_covers and _genuine_rejam:
                         flag_type = 'Wide CVJ \u2014 re-jam over jam (covers)'
                         flag_note = (f'Re-jam over {jammer_pos_raw} jam '
                                      f'({round(jammer_bb)}BB) with {hs} \u2014 '
                                      f'Hero covers, so vs the jammer this is a '
                                      f'call; the raise isolates {_n_behind} '
                                      f'player(s) behind')
+                    elif _hero_covers:
+                        # Canonical call_vs_jam \u2014 HU covering re-jam == a call
+                        # vs the jammer. No "re-jam over jam" framing.
+                        flag_type = 'Wide CVJ (Call Villain Jam)'
+                        flag_note = (f'Called {jammer_pos_raw} jam '
+                                     f'({round(jammer_bb)}BB) with {hs}')
                     else:
                         # Defensive fallback - effectively unreachable: to
                         # RAISE over a jam Hero must out-chip it, so every

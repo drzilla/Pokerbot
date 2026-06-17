@@ -373,29 +373,86 @@ def effective_stack_safety(hero_total_bb, eff_vs_opponents_bb, overjam_bb=None):
             'warn': warn}
 
 
+# v8.17.1 Iteration 1 (corrective): every worklist item resolves the SAME canonical
+# decision snapshot — at the action this item REVIEWS — so its street/effective
+# stack/action kind/bounty come from the one canonical model, never a separate algo.
+def _reviewed_action_index(hand, kind):
+    hero = (hand or {}).get('hero', 'Hero')
+    led = (hand or {}).get('action_ledger') or []
+    if not led:
+        return None
+    pf = [i for i, a in enumerate(led)
+          if a.get('street') == 'preflop' and a.get('player') == hero and a.get('action') != 'posts']
+    if kind == 'preflop_deviation':
+        return pf[0] if pf else None         # the open / first voluntary action
+    if kind == 'preflop_allin':
+        return pf[-1] if pf else None        # the jam / call-off
+    allh = [i for i, a in enumerate(led)
+            if a.get('player') == hero and a.get('action') != 'posts']
+    return allh[-1] if allh else None        # postflop: Hero's last action
+
+
+def _canonical_snapshot(hand, kind):
+    idx = _reviewed_action_index(hand, kind)
+    if hand is None or idx is None:
+        return None
+    try:
+        from gem_decision_snapshot import build_decision_snapshot
+        return build_decision_snapshot(hand, idx)
+    except Exception:
+        return None
+
+
 def _decision_node(c, kind=None, dev=None, hand=None):
     dm = c.get('decision_math') or {}
     preflop = _is_preflop_kind(kind)
-    # GPT review #2: a preflop-kind item anchors to preflop, NOT the hand's
-    # key_decision_street (which may be a later street the item is not about).
+    _csnap = _canonical_snapshot(hand, kind)   # ONE canonical snapshot for this item
+    _cakind = _csnap.get('hero_action_kind') if _csnap else None
+    # GPT review #2: a preflop-kind item anchors to preflop. Postflop items take the
+    # canonical decision street (Hero's reviewed-action street) so a flop commitment
+    # is never mislabelled a later street (the "River decision" flop-fixture bug).
     if preflop:
         street = 'preflop'
+    elif _csnap and _csnap.get('street'):
+        street = _csnap['street']
     else:
         street = dm.get('key_decision_street') or (
             'preflop' if c.get('pf_allin') else 'flop')
     stblock = (dm.get('streets') or {}).get(street, {}) or {}
     pos = c.get('position') or ''
     closing = bool(pos == 'BB' and not c.get('hero_3bet'))
-    # effective stack: preflop deviations use the clean preflop stack (the
-    # K6s first-in-open bug had eff_stack_at_decision_bb overwritten to 12BB).
-    eff = _preflop_effective_bb(c, dev) if kind == 'preflop_deviation' \
-        else _decision_effective_bb(c)
+    # v8.17.1 Iteration 1: a preflop chart deviation that is ALSO an all-in
+    # confrontation (Hero calls / re-jams / over-jams / faces a jam off-chart)
+    # must use the canonical DECISION-EFFECTIVE stack vs the faced aggressor,
+    # NOT the clean full preflop stack — otherwise the worklist contradicts the
+    # snapshot AND the report (83915520: A8o BTN calling a 9.6BB HJ open-jam is
+    # a 9.6BB call-off, not a 22BB deviation). The snapshot's eff formula is the
+    # SAME one the parser stamps into eff_stack_bb_at_decision, so worklist ==
+    # report == snapshot. Only a genuine NON-all-in deviation (open / fold /
+    # non-all-in 3-bet off-chart) keeps the clean preflop stack.
+    _CANON_ALLIN_KINDS = ('call_vs_jam', 'call_off', 'open_shove',
+                          'rejam_over_live_raise', 'overjam_with_side_pot')
+    _allin_confront = (kind == 'preflop_allin') or (
+        preflop and _cakind in _CANON_ALLIN_KINDS)
+    # effective stack: preflop deviations keep the clean preflop stack; every other
+    # kind takes the canonical snapshot's effective stack vs the faced aggressor
+    # (84990829: 17.5BB vs the real raiser, NOT the 0.8BB dead-short side pot).
+    if kind == 'preflop_deviation' and not _allin_confront:
+        eff = _preflop_effective_bb(c, dev)
+    else:
+        _ceff = ((_csnap.get('effective_stack_vs_faced_aggressor')
+                  or _csnap.get('max_effective_stack_among_active_opponents'))
+                 if _csnap else None)
+        eff = _ceff if _ceff is not None else _decision_effective_bb(c)
 
     # ===== preflop ALL-IN: anchor to Hero's reviewed event (GPT review #4) ===
     # The reviewed event is Hero's LAST preflop action — the jam or the
     # call-off — NOT the first open. A jam (Hero aggressor) carries no call
-    # price; a call-off carries the actual capped call amount.
-    if kind == 'preflop_allin':
+    # price; a call-off carries the actual capped call amount. v8.17.1 Iteration
+    # 1: this runs for ANY canonical all-in confrontation (incl. a deviation-
+    # bucketed call-of-jam like 83915520), so the node carries the capped call
+    # price + decision-effective stack the snapshot/report use, not a 22BB price.
+    if _allin_confront:
         evt, faced, limped = _preflop_allin_event(hand)
         if evt is not None:
             # v8.17.1 Iteration 1 (action kind from the ledger): a "raise" over a
@@ -405,8 +462,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
             # reviewed event reads "call vs jam", carries the real capped call price,
             # and never implies fold equity that does not exist (83915520: A8o BTN
             # "raises 12.7 all-in" over a 9.6BB all-in jam == a call-off, not a rejam).
-            from gem_decision_snapshot import hero_action_kind as _ds_action_kind
-            akind = _ds_action_kind(hand)
+            akind = _cakind or 'open_shove'   # canonical, future-blind, at the reviewed index
             is_call = (evt.get('action') == 'calls') or (akind in ('call_vs_jam', 'call_off'))
             faced_amt = _f(faced.get('amount_bb')) if faced else 0.0
             faced_allin = bool(faced.get('is_all_in')) if faced else False
@@ -417,18 +473,62 @@ def _decision_node(c, kind=None, dev=None, hand=None):
                 facing = (f"{fp} {fword} {faced_amt:.1f}BB" if faced_amt
                           else f"{fp} {fword}")
             else:
-                facing = 'vs limper(s)' if limped else 'first-in'
+                # Preserve the established deviation-path wording for a first-in
+                # open-shove that is now routed through the unified all-in block.
+                facing = ('vs limper(s)' if limped
+                          else ('first-in (folds to Hero)'
+                                if kind == 'preflop_deviation' else 'first-in'))
             # GPT review #5: split the raw ledger size from the decision-
             # effective stack; never show a price above the effective stack
             # without an overjam/side-pot explanation.
             call_bb, price_unavailable, price_fail, szf = _allin_sizing(
                 is_call, _f(evt.get('amount_bb')), eff, faced_amt,
                 faced_allin, hero_allin)
+            # v8.17.1 Iteration 1: the canonical snapshot is authoritative for
+            # the DISPLAYED effective stack and a call/call-off's price — the
+            # jammer's TOTAL stack and Hero's to-call, NOT the jam INCREMENT
+            # _allin_sizing reconciles against. 83915520: snapshot effective vs
+            # the 9.6BB jammer == 9.6BB, to-call 9.3BB; _allin_sizing's
+            # min(raw, jam-increment) reads 8.5BB / no price. Using the snapshot
+            # here keeps worklist == report == snapshot (the parser stamps the
+            # SAME eff). szf still owns the overjam / action-size split.
+            _snap_eff = ((_csnap.get('effective_stack_vs_faced_aggressor')
+                          or _csnap.get('max_effective_stack_among_active_opponents'))
+                         if _csnap else None)
+            _disp_eff = (round(_f(_snap_eff), 1) if _snap_eff
+                         else (szf.get('decision_effective_bb') or eff))
+            _snap_tocall = _csnap.get('to_call_bb') if _csnap else None
+            # The 83915520 pattern: HEADS-UP, Hero RAISES ALL-IN over a SHORTER
+            # all-in jam he COVERS (the canonical kind is call_vs_jam — vs the
+            # jammer it is a call, the excess is returned). _allin_sizing
+            # reconciles against the jam INCREMENT, so it reads a spurious
+            # overjam and an unavailable price; the canonical snapshot owns the
+            # real to-call and effective stack here. This narrow gate leaves a
+            # SHORTER-stack call-off (Hero can't cover -> the villain's uncalled
+            # excess IS a real overjam) and multiway side-pots on the existing
+            # conservative _allin_sizing path untouched.
+            _raw_amt = _f(evt.get('amount_bb'))
+            _covering_call = bool(
+                is_call and hero_allin and faced_allin and _raw_amt and faced_amt
+                and _raw_amt >= faced_amt - 0.05 and not _pot_is_multiway(c))
+            _px_from_snap = False
+            if _covering_call and _snap_tocall and (call_bb is None or price_unavailable):
+                call_bb = round(_f(_snap_tocall), 1)
+                price_unavailable = False
+                price_fail = None
+                _px_from_snap = True
+            if _covering_call:
+                # Hero matches the jam and his raise excess is returned — no
+                # overjam, no eff-stack warning on what is really a call.
+                szf['overjam_bb'] = None
+                szf['decision_effective_bb'] = _disp_eff
             # v8.12.12 Obj-C: price_engine provenance. A jam has no call price
             # (not_applicable); an unreconcilable price is unavailable; a capped
             # overjam call-off is sidepot_reconciled; otherwise the ledger.
             if not is_call:
                 price_source = 'not_applicable'
+            elif _px_from_snap:
+                price_source = 'canonical_snapshot'
             elif price_unavailable:
                 price_source = 'unavailable'
             elif szf.get('overjam_bb'):
@@ -445,7 +545,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
                 'price_not_applicable': (not is_call),
                 'price_failure_reason': price_fail,
                 'price_source': price_source,
-                'effective_bb_vs_relevant_villain': szf.get('decision_effective_bb') or eff,
+                'effective_bb_vs_relevant_villain': _disp_eff,
                 'players_behind': None, 'closing_action': closing,
             }
             node.update(szf)
@@ -455,7 +555,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
             # depth (the total-vs-effective confusion that mislabelled Q8s).
             _ess = effective_stack_safety(
                 c.get('stack_bb'),
-                szf.get('decision_effective_bb') or eff,
+                _disp_eff,
                 szf.get('overjam_bb'))
             node['hero_total_bb'] = _ess['hero_total_bb']
             node['effective_vs_opponents_bb'] = _ess['effective_vs_opponents_bb']
@@ -528,6 +628,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
     return {
         'street': street,
         'decision_kind': kind,
+        'hero_action_kind': _cakind,
         'hero_action_facing': facing or 'unknown',
         'hero_actual_action': hero_act,
         'call_amount_bb': round(call_bb, 1) if call_bb else None,
@@ -840,8 +941,8 @@ def _classify(c, dn, rng, bnt, dm_block, sources, src_truth, action_line):
     if c.get('went_to_sd') and not c.get('pf_allin') and _f(c.get('net_bb')) < -8:
         return ('review_if_time', 'Review required', 'low', 'analyst_required',
                 ['villain may value-bet worse', 'blocker effects'],
-                f"River decision with {cards}: does villain's line have "
-                "enough bluffs to justify the call/bet?",
+                f"{(dn.get('street') or 'postflop').title()} decision with {cards}: "
+                "does villain's line have enough bluffs to justify the call/bet?",
                 "Large postflop calldown/showdown loss.",
                 'postflop_calldown', 44)
 
@@ -901,6 +1002,32 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         dn = _decision_node(c, kind, dev, hand)
         rng = _range_membership(c, dev, dev_charts)
         bnt = _bounty_context(c, pko)
+        # v8.17.1 Iter-1 corrective: reconcile range label + bounty coverage to the
+        # ONE canonical snapshot (FORMAT canonical values; never recompute). A
+        # call-off must never carry a "re-jam over jam" range label (83915520), and
+        # a known all-in confrontation must report typed coverage, not generic unknown.
+        _akind_c = dn.get('hero_action_kind')
+        if rng and _akind_c == 'call_vs_jam':
+            _dt = rng.get('dev_type') or ''
+            if 're-jam' in _dt.lower() or 'rejam' in _dt.lower():
+                rng['dev_type'] = (_dt.replace('re-jam over jam', 'call vs jam')
+                                   .replace('Re-jam', 'Call-vs-jam')
+                                   .replace('re-jam', 'call vs jam')
+                                   .replace('rejam', 'call vs jam'))
+        if hand is not None and bnt.get('is_pko'):
+            from gem_decision_snapshot import (bounty_aggregate as _bagg,
+                                               bounty_reason as _brsn)
+            _bidx = _reviewed_action_index(hand, kind)
+            _agg = _bagg(hand, _bidx)
+            bnt['coverage_aggregate'] = _agg
+            bnt['reason'] = _brsn(hand, _bidx)
+            if _agg in ('all', 'none', 'mixed'):
+                bnt['collectibility_known'] = True
+                bnt['hero_covers_relevant_villain'] = (_agg == 'all')
+                bnt['coverage_mixed'] = (_agg == 'mixed')
+            else:
+                bnt['collectibility_known'] = False
+                bnt['hero_covers_relevant_villain'] = None
         action_line = _canonical_action_line(c, hand, kind)
         src_truth = _source_truth(c, pko, dev)
         # v8.12.12 Obj-C: the decision node owns the price provenance. price_engine

@@ -755,6 +755,20 @@ def _hand_preflop_range_role(h):
     pa = (h.get('pf_action') or '').lower()
     first_in = bool(h.get('first_in'))
     pf_allin = bool(h.get('pf_allin'))
+    # Iteration-1 root fix (83915520): when the canonical decision model
+    # classifies the all-in as a CALL (a HU covering re-jam vs a single jam
+    # commits exactly a call vs the jammer), use the call-jam chart role, not
+    # the rejam role — so the report never shows a re-jam range lens for a
+    # call. Genuine side-pot over-jams (e.g. 73559949) are classified
+    # overjam_with_side_pot by the canonical model and keep the rejam role.
+    if pf_allin:
+        try:
+            from gem_decision_snapshot import hero_action_kind as _ds_akind
+            _ck = _ds_akind(h)
+            if _ck in ('call_vs_jam', 'call_off'):
+                return 'call_jam'
+        except Exception:
+            pass
     # A 3-bet/4-bet jam is a re-jam/over-jam, NOT a first-in open-shove, even
     # when the record marks first_in (e.g. 73559949 ATs 4bet+ overjam over a
     # short jam). Route those to rejam so the open-shove chart is not misapplied.

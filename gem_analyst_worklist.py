@@ -407,7 +407,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
             # "raises 12.7 all-in" over a 9.6BB all-in jam == a call-off, not a rejam).
             from gem_decision_snapshot import hero_action_kind as _ds_action_kind
             akind = _ds_action_kind(hand)
-            is_call = (evt.get('action') == 'calls') or (akind == 'call_vs_jam')
+            is_call = (evt.get('action') == 'calls') or (akind in ('call_vs_jam', 'call_off'))
             faced_amt = _f(faced.get('amount_bb')) if faced else 0.0
             faced_allin = bool(faced.get('is_all_in')) if faced else False
             hero_allin = bool(evt.get('is_all_in'))

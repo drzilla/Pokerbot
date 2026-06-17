@@ -8137,7 +8137,10 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     # ---- BATCH 5 (ACE-4): ICM/BOUNTY RED-FLAG APPROXIMATION ----
     # Rough flags per hand — not full ICM math, just practical warnings.
     from gem_bounty import bounty_collectibility as _bounty_collectibility
-    from gem_decision_snapshot import bounty_coverage as _ds_bounty_coverage
+    from gem_decision_snapshot import (bounty_coverage as _ds_bounty_coverage,
+                                       bounty_coverage_by_opponent as _ds_cover_by_opp,
+                                       bounty_aggregate as _ds_bounty_agg,
+                                       hero_in_allin_confrontation as _ds_confront)
     for h in hands:
         _phase = h.get('tournament_phase', '')
         _fmt = h.get('format', '')
@@ -8164,13 +8167,14 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         # "cover/collectibility unresolved" when coverage was plainly knowable. We
         # gate on Hero actually being all-in; if the contesting set is unresolvable
         # we fall back to the legacy jammer read (which never fabricates a cover).
-        _hero_nm = h.get('hero', 'Hero')
-        _hero_ai_streets = [a.get('street', 'preflop')
-                            for a in (h.get('action_ledger') or [])
-                            if a.get('player') == _hero_nm and a.get('is_all_in')]
-        if _is_bnt and (h.get('pf_allin') or _hero_ai_streets):
-            _dstreet = _hero_ai_streets[-1] if _hero_ai_streets else 'preflop'
-            _collect = _ds_bounty_coverage(h, _dstreet)
+        if _is_bnt and _ds_confront(h):
+            # v8.17.1 Iter-1 rev: per-opponent coverage over the REALIZED contest,
+            # with a typed aggregate that supports 'mixed' (Hero covers some all-in
+            # opponents but not others) — never collapsed to not_collectible. Stamp
+            # the per-opponent detail + aggregate alongside the scalar.
+            h['bounty_coverage_by_opponent'] = _ds_cover_by_opp(h)
+            h['bounty_aggregate'] = _ds_bounty_agg(h)
+            _collect = _ds_bounty_coverage(h)
             if _collect == 'unknown':
                 _opp_stk = h.get('jammer_stack_bb')
                 _collect = _bounty_collectibility(

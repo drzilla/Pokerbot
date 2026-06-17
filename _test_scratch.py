@@ -10458,11 +10458,13 @@ check('T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (sur
       str([r[0] for r in _ws_rows]))
 
 # ============================================================
-# v8.17.1 ITERATION 1 — canonical decision-time snapshot
-# (gem_decision_snapshot) + downstream trust wiring.
-# Fixtures mirror the exact June-16 hands named in the handover.
+# v8.17.1 ITERATION 1 (corrective) — action-indexed canonical
+# DecisionSnapshot + RealizedContest. Adversarial production-path
+# tests for the GPT acceptance review (I1-B1..B6 + 13 mandatory).
+# NO real hand IDs drive production behaviour; synthetic ledgers
+# exercise the REAL functions, plus a real parse_one_hand replay.
 # ============================================================
-print('\n=== v8.17.1 Iteration 1: canonical decision snapshot ===')
+print('\n=== v8.17.1 Iteration 1 (corrective): canonical decision snapshot ===')
 import gem_decision_snapshot as _ds
 from gem_coaching_cards import _tmpl_multiway_caution as _ds_mw_tmpl
 from gem_coaching_cards import _tmpl_pko_pressure as _ds_pko_tmpl
@@ -10470,151 +10472,201 @@ import importlib as _il_ds, gem_parser as _gp_ds
 _il_ds.reload(_gp_ds)
 
 
-def _led(street, player, action, amt=0.0, allin=False):
+def _led(street, player, action, added=0.0, allin=False, to=None):
     return {'street': street, 'player': player, 'action': action,
-            'amount_bb': amt, 'is_all_in': allin}
+            'amount_bb': added, 'added_bb': added, 'to_bb': to, 'is_all_in': allin}
 
 
-# ---- T-DS-01: board_at_decision is temporal (no future runout) ----
-_ds_board = ['Ah', 'Qh', '2h', 'Js', '6s']
-check('T-DS-01a: board_at_decision preflop == [] (no board seen)',
-      _ds.board_at_decision(_ds_board, 'preflop') == [], '')
-check('T-DS-01b: board_at_decision flop == first 3',
-      _ds.board_at_decision(_ds_board, 'flop') == ['Ah', 'Qh', '2h'], '')
-check('T-DS-01c: board_at_decision turn == first 4',
-      _ds.board_at_decision(_ds_board, 'turn') == ['Ah', 'Qh', '2h', 'Js'], '')
-check('T-DS-01d: board_at_decision river == all 5',
-      _ds.board_at_decision(_ds_board, 'river') == _ds_board, '')
+# ---- I1-B1 / mandatory #1: HU vs ONLY a 1BB all-in (no absolute threshold) ----
+_h_hu1 = {'id': 'HU1', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'V': 1.0},
+          'action_ledger': [_led('preflop', 'V', 'raises', 1.0, True, to=1.0),
+                            _led('preflop', 'Hero', 'calls', 1.0)]}
+check('T-DS-01a: HU vs 1BB all-in — contesting_count == 2 (short IS a participant)',
+      _ds.contesting_count(_h_hu1) == 2, _ds.contesting_count(_h_hu1))
+check('T-DS-01b: HU vs 1BB all-in — effective stack of the confrontation == 1BB',
+      _ds.relevant_effective_stack_bb(_h_hu1) == 1.0, _ds.relevant_effective_stack_bb(_h_hu1))
+check('T-DS-01c: HU vs 1BB all-in — Hero (20) covers -> collectible',
+      _ds.bounty_coverage(_h_hu1) == 'collectible', _ds.bounty_coverage(_h_hu1))
 
-# ---- 84990829 fixture: BB jams 17.9, V2 17.5 calls, V1 0.8 dead-short all-in ----
-_ds_h_deadshort = {
-    'id': 'TM6084990829', 'hero': 'Hero', 'stack_bb': 17.95, 'pf_allin': True,
-    'board': _ds_board, 'format': 'BOUNTY', 'bounty_value_bb': 4.0,
-    'villains': {'V1': {'stack_bb': 0.8}, 'V2': {'stack_bb': 17.5}, 'V3': {'stack_bb': 24.5}},
-    'action_ledger': [
-        _led('preflop', 'V1', 'calls', 0.67, True),     # dead short all-in
-        _led('preflop', 'V3', 'folds'),
-        _led('preflop', 'V2', 'raises', 2.0),
-        _led('preflop', 'Hero', 'raises', 14.79, True),
-        _led('preflop', 'V2', 'calls', 14.31, True),
-    ],
-}
-_ds_opps = _ds.relevant_opponents(_ds_h_deadshort, 'preflop')
-_ds_dead = [o for o in _ds_opps if o['is_dead_short']]
-check('T-DS-02: relevant_opponents flags the 0.8BB all-in as dead-short, excludes the folder',
-      len(_ds_opps) == 2 and len(_ds_dead) == 1 and _ds_dead[0]['stack_bb'] == 0.8
-      and all(o['player'] != 'V3' for o in _ds_opps), str(_ds_opps))
-check('T-DS-03: contesting_count excludes the dead short (3 in pot -> 2-way real contest)',
-      _ds.contesting_count(_ds_h_deadshort, 'preflop') == 2,
-      _ds.contesting_count(_ds_h_deadshort, 'preflop'))
-check('T-DS-04: relevant_effective_stack excludes dead short (17.5, NOT 0.8)',
-      _ds.relevant_effective_stack_bb(_ds_h_deadshort, 'preflop') == 17.5,
-      _ds.relevant_effective_stack_bb(_ds_h_deadshort, 'preflop'))
-check('T-DS-05a: bounty_coverage collectible when Hero covers all live villains',
-      _ds.bounty_coverage(_ds_h_deadshort, 'preflop') == 'collectible', '')
+# ---- mandatory #2: dead short + one real caller (short still counted) ----
+_h_ds1 = {'id': 'DS1', 'hero': 'Hero', 'stack_bb': 25.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 25.0, 'Short': 0.8, 'Real': 20.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 25.0, True, to=25.0),
+                            _led('preflop', 'Short', 'calls', 0.8, True),
+                            _led('preflop', 'Real', 'calls', 20.0, True)]}
+check('T-DS-02: dead short + one real caller -> 3 participants (short NOT excluded)',
+      _ds.contesting_count(_h_ds1) == 3, _ds.contesting_count(_h_ds1))
 
-# ---- not-collectible: Hero 11 jams, villain 33 re-jams (covers Hero) ----
-_ds_h_notcover = {
-    'id': 'X', 'hero': 'Hero', 'stack_bb': 11.0, 'pf_allin': True, 'board': [],
-    'format': 'BOUNTY', 'villains': {'V1': {'stack_bb': 33.2}},
-    'action_ledger': [_led('preflop', 'Hero', 'raises', 9.9, True),
-                      _led('preflop', 'V1', 'raises', 22.1, True)]}
-check('T-DS-05b: bounty_coverage not_collectible when a live villain covers Hero',
-      _ds.bounty_coverage(_ds_h_notcover, 'preflop') == 'not_collectible', '')
+# ---- mandatory #3: dead short + two real callers ----
+_h_ds2 = {'id': 'DS2', 'hero': 'Hero', 'stack_bb': 30.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'Short': 0.5, 'R1': 25.0, 'R2': 28.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 30.0, True, to=30.0),
+                            _led('preflop', 'Short', 'calls', 0.5, True),
+                            _led('preflop', 'R1', 'calls', 25.0, True),
+                            _led('preflop', 'R2', 'calls', 28.0, True)]}
+check('T-DS-03: dead short + two real callers -> 4 participants',
+      _ds.contesting_count(_h_ds2) == 4, _ds.contesting_count(_h_ds2))
 
-# ---- uncontested first-in jam (everyone folds) -> coverage genuinely unknown ----
-_ds_h_foldout = {
-    'id': 'Y', 'hero': 'Hero', 'stack_bb': 23.9, 'pf_allin': True, 'board': [],
-    'format': 'BOUNTY', 'villains': {'V1': {'stack_bb': 60.0}, 'V2': {'stack_bb': 18.0}},
-    'action_ledger': [_led('preflop', 'V2', 'raises', 1.2),
-                      _led('preflop', 'Hero', 'raises', 21.5, True),
-                      _led('preflop', 'V1', 'folds'), _led('preflop', 'V2', 'folds')]}
-check('T-DS-05c: uncontested jam (all fold) -> contesting_count 1, coverage unknown',
-      _ds.contesting_count(_ds_h_foldout, 'preflop') == 1
-      and _ds.bounty_coverage(_ds_h_foldout, 'preflop') == 'unknown', '')
+# ---- I1-B2 / mandatory #4: same decision state, future fold vs future call ----
+_base = [_led('preflop', 'Hero', 'raises', 12.0, True, to=12.0)]
+_hA = {'id': 'A', 'hero': 'Hero', 'stack_bb': 12.0, 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 12.0, 'V': 30.0},
+       'action_ledger': _base + [_led('preflop', 'V', 'folds')]}
+_hB = {'id': 'B', 'hero': 'Hero', 'stack_bb': 12.0, 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 12.0, 'V': 30.0},
+       'action_ledger': _base + [_led('preflop', 'V', 'calls', 12.0, True)]}
+def _cmp(s):
+    return {k: s[k] for k in s if k != 'hand_id'}
+check('T-DS-04a: DecisionSnapshot identical regardless of future fold/call',
+      _cmp(_ds.build_decision_snapshot(_hA)) == _cmp(_ds.build_decision_snapshot(_hB)), '')
+check('T-DS-04b: RealizedContest differs (fold=1 vs call=2 participants)',
+      (_ds.build_realized_contest(_hA)['realized_participant_count'],
+       _ds.build_realized_contest(_hB)['realized_participant_count']) == (1, 2),
+      (_ds.build_realized_contest(_hA)['realized_participant_count'],
+       _ds.build_realized_contest(_hB)['realized_participant_count']))
 
-# ---- T-DS-06: hero_action_kind — call-off vs rejam (83915520) ----
-_ds_h_calloff = {  # Hero "raises" all-in OVER a villain already all-in == call-off
-    'hero': 'Hero', 'action_ledger': [
-        _led('preflop', 'V1', 'raises', 8.49, True),
-        _led('preflop', 'Hero', 'raises', 12.68, True)]}
-check('T-DS-06a: raise over an already-all-in villain == call_vs_jam (NOT rejam)',
-      _ds.hero_action_kind(_ds_h_calloff) == 'call_vs_jam',
-      _ds.hero_action_kind(_ds_h_calloff))
-_ds_h_rejam = {  # Hero re-jams over a LIVE (non-all-in) raise == genuine rejam
-    'hero': 'Hero', 'action_ledger': [
-        _led('preflop', 'V1', 'raises', 2.5, False),
-        _led('preflop', 'Hero', 'raises', 20.0, True)]}
-check('T-DS-06b: re-jam over a live (non-all-in) raise == rejam',
-      _ds.hero_action_kind(_ds_h_rejam) == 'rejam', _ds.hero_action_kind(_ds_h_rejam))
-_ds_h_openshove = {'hero': 'Hero', 'action_ledger': [
-    _led('preflop', 'Hero', 'raises', 12.0, True)]}
-check('T-DS-06c: first-in all-in == open_shove',
-      _ds.hero_action_kind(_ds_h_openshove) == 'open_shove', '')
+# ---- I1-B3 / mandatory #5: mixed bounty coverage ----
+_h_mix = {'id': 'MIX', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'A': 8.0, 'B': 40.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 20.0, True, to=20.0),
+                            _led('preflop', 'A', 'calls', 8.0, True),
+                            _led('preflop', 'B', 'calls', 20.0, True)]}
+_mixcov = _ds.bounty_coverage_by_opponent(_h_mix)
+check('T-DS-05a: mixed — short villain A collectible', _mixcov.get('A') == 'collectible', _mixcov)
+check('T-DS-05b: mixed — deep villain B not_collectible', _mixcov.get('B') == 'not_collectible', _mixcov)
+check('T-DS-05c: mixed — aggregate == mixed', _ds.bounty_aggregate(_h_mix) == 'mixed', _ds.bounty_aggregate(_h_mix))
+check('T-DS-05d: mixed — scalar NOT collapsed to not_collectible',
+      _ds.bounty_coverage(_h_mix) == 'mixed', _ds.bounty_coverage(_h_mix))
+# equal-stack boundary
+_h_eq = {'id': 'EQ', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 20.0},
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 20.0, True, to=20.0),
+                           _led('preflop', 'V', 'calls', 20.0, True)]}
+check('T-DS-05e: equal stacks -> equal_stack_boundary',
+      _ds.bounty_coverage_by_opponent(_h_eq).get('V') == 'equal_stack_boundary',
+      _ds.bounty_coverage_by_opponent(_h_eq))
 
-# ---- T-DS-07: coaching blocker is temporal — preflop all-in sees no board ----
+# ---- mandatory #6: postflop all-in uses remaining stacks, not starting ----
+_h_pf = {'id': 'PF', 'hero': 'Hero', 'stack_bb': 100.0, 'pf_allin': False,
+         'seat_stack_by_player': {'Hero': 100.0, 'V': 60.0},
+         'board': ['2c', '7d', 'Js', '4h', '9c'],
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 3.0, to=3.0),
+                           _led('preflop', 'V', 'calls', 3.0),
+                           _led('flop', 'Hero', 'bets', 97.0, True),
+                           _led('flop', 'V', 'calls', 57.0, True)]}
+check('T-DS-06: postflop eff = min REMAINING (57, not starting 60)',
+      _ds.relevant_effective_stack_bb(_h_pf) == 57.0, _ds.relevant_effective_stack_bb(_h_pf))
+
+# ---- mandatory #7: multiway main pot + side pot layers represented ----
+_rc_ds2 = _ds.build_realized_contest(_h_ds2)
+check('T-DS-07: side-pot layers represented (>=2 layers, short caps the first)',
+      len(_rc_ds2['side_pot_layers']) >= 2
+      and abs(_rc_ds2['side_pot_layers'][0]['to_bb'] - 0.5) < 0.05,
+      _rc_ds2['side_pot_layers'])
+
+# ---- mandatory #8: player yet to act at Hero's decision (open shove) ----
+_h_yta = {'id': 'YTA', 'hero': 'Hero', 'stack_bb': 12.0,
+          'seat_stack_by_player': {'Hero': 12.0, 'SB': 20.0, 'BB': 25.0},
+          'action_ledger': [_led('preflop', 'SB', 'posts', 0.5), _led('preflop', 'BB', 'posts', 1.0),
+                            _led('preflop', 'Hero', 'raises', 12.0, True, to=12.0),
+                            _led('preflop', 'BB', 'folds')]}
+_snap_yta = _ds.build_decision_snapshot(_h_yta)
+check('T-DS-08: player yet-to-act at Hero open shove is captured (BB not yet folded at decision)',
+      any(o['player'] == 'BB' for o in _snap_yta['players_yet_to_act']),
+      [o['player'] for o in _snap_yta['players_yet_to_act']])
+
+# ---- mandatory #9: player committed earlier but folded BEFORE Hero's decision ----
+_h_fold = {'id': 'FB', 'hero': 'Hero', 'stack_bb': 40.0,
+           'seat_stack_by_player': {'Hero': 40.0, 'EarlyFolder': 30.0, 'Raiser': 35.0},
+           'action_ledger': [_led('preflop', 'EarlyFolder', 'calls', 1.0),
+                             _led('preflop', 'Raiser', 'raises', 4.0, to=4.0),
+                             _led('preflop', 'EarlyFolder', 'folds'),
+                             _led('preflop', 'Hero', 'raises', 12.0, to=12.0)]}
+_snap_fb = _ds.build_decision_snapshot(_h_fold)
+check('T-DS-09: a player who committed then folded before Hero is folded, not active',
+      'EarlyFolder' in _snap_fb['players_folded_before_action']
+      and all(o['player'] != 'EarlyFolder' for o in _snap_fb['players_active_before_action']),
+      _snap_fb['players_folded_before_action'])
+
+# ---- mandatory #10: 3-bet / 4-bet / 5-bet classification ----
+def _hk(ledger, hstack=50.0, stacks=None):
+    return {'id': 'x', 'hero': 'Hero', 'stack_bb': hstack,
+            'seat_stack_by_player': stacks or {'Hero': hstack, 'V': 50, 'W': 50, 'X': 50},
+            'action_ledger': ledger}
+check('T-DS-10a: 3bet', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'Hero', 'raises', 6.0, to=6.0)])) == '3bet', '')
+check('T-DS-10b: 4bet', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'W', 'raises', 6.0, to=6.0),
+     _led('preflop', 'Hero', 'raises', 14.0, to=14.0)])) == '4bet', '')
+check('T-DS-10c: 5bet_plus', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'W', 'raises', 6.0, to=6.0),
+     _led('preflop', 'X', 'raises', 14.0, to=14.0), _led('preflop', 'Hero', 'raises', 30.0, to=30.0)])) == '5bet_plus', '')
+check('T-DS-10d: call_vs_jam (call a short jam)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 9.0, True, to=9.0), _led('preflop', 'Hero', 'calls', 9.0)], hstack=20)) == 'call_vs_jam', '')
+check('T-DS-10e: call_off (call all-in vs a live raise)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 12.0, to=12.0), _led('preflop', 'Hero', 'calls', 10.0, True)],
+    hstack=10, stacks={'Hero': 10, 'V': 50})) == 'call_off', '')
+check('T-DS-10f: raise over already-all-in, NO other live -> call_vs_jam (call-off)',
+      _ds.hero_action_kind(_hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
+                                _led('preflop', 'Hero', 'raises', 20.0, True, to=20.0)],
+                               hstack=22, stacks={'Hero': 22, 'V': 8})) == 'call_vs_jam', '')
+check('T-DS-10g: rejam over a LIVE raise', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 3.0, to=3.0), _led('preflop', 'Hero', 'raises', 25.0, True, to=25.0)], hstack=25)) == 'rejam_over_live_raise', '')
+check('T-DS-10h: open_shove', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'Hero', 'raises', 12.0, True, to=12.0)])) == 'open_shove', '')
+check('T-DS-10i: first_in_open (non-all-in open)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'Hero', 'raises', 2.2, to=2.2)])) == 'first_in_open', '')
+
+# ---- mandatory #11: overjam creating a side pot (short all-in + a LIVE opponent) ----
+check('T-DS-11: overjam_with_side_pot (jam over a short all-in with a live opponent behind)',
+      _ds.hero_action_kind(_hk([_led('preflop', 'V', 'raises', 3.0, True, to=3.0),
+                                _led('preflop', 'W', 'calls', 3.0),
+                                _led('preflop', 'Hero', 'raises', 40.0, True, to=40.0)],
+                               hstack=40, stacks={'Hero': 40, 'V': 3, 'W': 50})) == 'overjam_with_side_pot', '')
+
+# ---- DecisionSnapshot required shape (I1-B4) ----
+_req_keys = ['hand_id', 'street', 'hero_action_index', 'hero_action_kind', 'board_at_decision',
+             'pot_before_action_bb', 'to_call_bb', 'hero_stack_before_action_bb',
+             'hero_committed_before_action_bb', 'players_active_before_action',
+             'players_folded_before_action', 'players_all_in_before_action', 'players_yet_to_act',
+             'effective_stack_by_opponent', 'relevant_opponent_keys', 'pot_layers',
+             'bounty_coverage_by_opponent', 'source_warnings']
+_snap_shape = _ds.build_decision_snapshot(_h_mix)
+check('T-DS-12a: DecisionSnapshot has the full required typed shape',
+      all(k in _snap_shape for k in _req_keys),
+      [k for k in _req_keys if k not in _snap_shape])
+check('T-DS-12b: snapshot is action-indexed (hero_action_index is an int)',
+      isinstance(_snap_shape['hero_action_index'], int), _snap_shape['hero_action_index'])
+
+# ---- board_at_decision temporal (preserve June-16 fix) ----
+check('T-DS-13a: board_at_decision preflop == []',
+      _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'preflop') == [], '')
+check('T-DS-13b: board_at_decision flop == first 3',
+      _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'flop') == ['Ah', 'Qh', '2h'], '')
+
+# ---- coaching integration: blocker temporal + multiway from contesting + pko preflop ----
 _cc_pf_flush = _cc_hand(pf_action='raise', pf_allin=True, cards=['As', 'Kd'],
-                        board=['7h', '9h', '4h', '2c', '3s'])  # 3-flush RUNOUT only
+                        board=['7h', '9h', '4h', '2c', '3s'])
 _cc_f_pf = _build_decision_facts(_cc_pf_flush, _cc_stats, _cc_rd)
 _compute_blocker_facts(_cc_f_pf)
-check('T-DS-07: preflop all-in -> blocker_facts stays disabled (no future-board read)',
+check('T-DS-14: preflop all-in -> blocker_facts disabled (no future-board read)',
       not _cc_f_pf['blocker_facts']['enabled'], str(_cc_f_pf['blocker_facts']))
-
-# ---- T-DS-08: blocker still fires when the flush is present AT the flop decision ----
-_cc_flop_flush = _cc_hand(pf_action='call', pf_allin=False, cards=['As', 'Kd'],
-                          board=['7h', '9h', '4h', '2c', '3s'],
-                          action_ledger=[_led('preflop', 'Hero', 'calls', 2.0),
-                                         _led('flop', 'Hero', 'bets', 5.0)])
-_cc_f_flop = _build_decision_facts(_cc_flop_flush, _cc_stats, _cc_rd)
-_compute_blocker_facts(_cc_f_flop)
-check('T-DS-08: flop-decision flush board -> blocker_facts enabled (real board seen)',
-      _cc_f_flop['blocker_facts']['enabled'], str(_cc_f_flop['blocker_facts']))
-
-# ---- T-DS-09: multiway uses contesting count (dead short -> not multiway) ----
-_cc_mw_dead = _cc_hand(pf_allin=True, first_in=False, stack_bb=17.95,
-                       villains={'V1': {'stack_bb': 0.8}, 'V2': {'stack_bb': 17.5}},
-                       action_ledger=_ds_h_deadshort['action_ledger'])
-_cc_f_mwd = _build_decision_facts(_cc_mw_dead, _cc_stats, _cc_rd)
-check('T-DS-09: dead-short 3-in-pot is NOT a multiway card (real contest is 2-way)',
-      _ds_mw_tmpl(_cc_f_mwd, derive_quality_gates(_cc_f_mwd)[0]) is None, '')
-
-# ---- T-DS-10: fold-out jam is NOT a multiway card (table-size bug) ----
-_cc_mw_fold = _cc_hand(pf_allin=True, first_in=False, stack_bb=23.9, players_at_flop=0,
-                       villains={'V1': {'stack_bb': 60}, 'V2': {'stack_bb': 18}},
-                       action_ledger=_ds_h_foldout['action_ledger'])
-_cc_f_mwf = _build_decision_facts(_cc_mw_fold, _cc_stats, _cc_rd)
-check('T-DS-10: jam everyone folds to is NOT an N-way multiway card',
-      _ds_mw_tmpl(_cc_f_mwf, derive_quality_gates(_cc_f_mwf)[0]) is None, '')
-
-# ---- T-DS-11: genuine 3-way contested pot DOES warn, with the real count ----
-_cc_mw_real = _cc_hand(pf_allin=False, first_in=False, stack_bb=24.5,
-                       villains={'V1': {'stack_bb': 46.8}, 'V2': {'stack_bb': 41.9}},
-                       action_ledger=[_led('preflop', 'V1', 'calls', 2.0),
-                                      _led('preflop', 'V2', 'calls', 2.0),
-                                      _led('preflop', 'Hero', 'calls', 2.0)])
-_cc_f_mwr = _build_decision_facts(_cc_mw_real, _cc_stats, _cc_rd)
-_cc_mw_card = _ds_mw_tmpl(_cc_f_mwr, derive_quality_gates(_cc_f_mwr)[0])
-check('T-DS-11: genuine 3-way contested pot warns with the real entrant count (3-way)',
-      _cc_mw_card is not None and _cc_mw_card['headline'].startswith('3-way'),
-      str(_cc_mw_card.get('headline') if _cc_mw_card else None))
-
-# ---- T-DS-12: pko_pressure card is pinned to preflop (never a later street) ----
 _cc_pko = _cc_hand(pf_allin=False, cards=['Ad', 'Kd'], board=['2h', '3c', 'Kc'],
-                   action_ledger=[_led('preflop', 'Hero', 'calls', 1.2),
-                                  _led('flop', 'Hero', 'folds')])
-_cc_pko['pko_context'] = {'enabled': True, 'classification': 'Review',
-                          'confidence': 'medium', 'delta_range_pp': [2.0, 4.0],
-                          'spot': 'BB defend', 'depth_bucket': '20-25bb'}
+                   action_ledger=[_led('preflop', 'Hero', 'calls', 1.2), _led('flop', 'Hero', 'folds')])
+_cc_pko['pko_context'] = {'enabled': True, 'classification': 'Review', 'confidence': 'medium',
+                          'delta_range_pp': [2.0, 4.0], 'spot': 'BB defend', 'depth_bucket': '20-25bb'}
 _cc_f_pko = _build_decision_facts(_cc_pko, _cc_stats, _cc_rd)
 _cc_pko_card = _ds_pko_tmpl(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0])
 _cc_pko_disp = _build_display_card(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0], _cc_pko_card, 'medium') if _cc_pko_card else None
-check('T-DS-12: pko_pressure display card street is pinned to preflop',
+check('T-DS-15: pko_pressure card pinned to preflop',
       _cc_pko_disp is not None and _cc_pko_disp.get('street') == 'preflop',
       str(_cc_pko_disp.get('street') if _cc_pko_disp else None))
 
-# ---- T-DS-13: PARSER (production path) — eff_stack_bb_at_decision excludes a
-#       dead-short all-in. Hero 17.9 jams, RealVill 17.5 calls, DeadShort 0.8 all-in.
-_hh_ds = """Poker Hand #TM9000000777: Tournament #777, T Hold'em No Limit - Level10(500/1,000) - 2026/06/16 19:00:00
+# ---- mandatory #12: real hand 84990829 stays at the ~17.5BB contest (parse_one_hand) ----
+# and mandatory #13 + parser single-source: a dead-short all-in does NOT collapse
+# eff_stack_bb_at_decision; the field is derived from the ONE canonical snapshot.
+_hh_ds_eff = """Poker Hand #TM9000000888: Tournament #888, T Hold'em No Limit - Level10(500/1,000) - 2026/06/16 19:00:00
 Table '1' 6-max Seat #1 is the button
 Seat 1: villBTN (50,000 in chips)
 Seat 2: DeadShort (800 in chips)
@@ -10645,12 +10697,20 @@ Seat 2: DeadShort (small blind) showed [Kh Kd] and lost
 Seat 3: Hero (big blind) showed [Ac 8d] and won (36,200)
 Seat 4: RealVill showed [Qs Qd] and lost
 """
-_h_ds = _gp_ds.parse_one_hand(_hh_ds)
-check('T-DS-13: parser eff_stack_bb_at_decision excludes the 0.8BB dead-short all-in '
-      '(reads the real ~17.5BB contest, not 0.8)',
-      _h_ds is not None and _h_ds.get('eff_stack_bb_at_decision') is not None
-      and _h_ds['eff_stack_bb_at_decision'] > 10.0,
-      str(_h_ds.get('eff_stack_bb_at_decision') if _h_ds else None))
+_h_ds_eff = _gp_ds.parse_one_hand(_hh_ds_eff)
+check('T-DS-16: dead-short all-in does NOT collapse eff_stack_bb_at_decision '
+      '(reads the ~17.5BB main contest vs the raiser, not 0.8)',
+      _h_ds_eff is not None and _h_ds_eff.get('eff_stack_bb_at_decision') is not None
+      and _h_ds_eff['eff_stack_bb_at_decision'] > 15.0,
+      str(_h_ds_eff.get('eff_stack_bb_at_decision') if _h_ds_eff else None))
+check('T-DS-17: parser stamps the canonical decision_snapshot (single source)',
+      _h_ds_eff is not None and isinstance(_h_ds_eff.get('decision_snapshot'), dict)
+      and _h_ds_eff['decision_snapshot'].get('hero_action_index') is not None, '')
+# the dead short is still a participant in the realized contest (not excluded)
+_rc_eff = _ds.build_realized_contest(_h_ds_eff)
+check('T-DS-18: dead short remains a realized participant (Hero + RealVill + DeadShort = 3)',
+      _rc_eff['realized_participant_count'] == 3, _rc_eff['realized_participant_count'])
+
 
 # ============================================================
 # SUMMARY

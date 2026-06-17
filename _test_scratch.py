@@ -9748,6 +9748,22 @@ check('T-V-FULL-01: complete all-sections synthetic report renders (fixture gap 
       and "class='data-table tt-aggregate'" in _full_html_vf
       and 'no canonical committed-cost financial overlay' not in _full_html_vf, '')
 
+# v8.17.1 verify(3): the capsule Range role must NOT leak a raw chart id
+# (June-2 decoded QA found 'KQo inside PUSH_8BB_HJ'). The chart key is now
+# humanized via gem_chart_labels.chart_display_label at both capsule range-line
+# sites; the humanizer strips the raw token, and the full synthetic report shows
+# no raw PUSH_/REJAM_/CALLJAM_ chart id in any visible text node.
+from gem_chart_labels import chart_display_label as _cdl_v
+_sx_src_v = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+import re as _re_leak
+_vis_tok_vf = _re_leak.findall(r'>[^<]*(?:PUSH_[0-9]|REJAM_[0-9]|CALLJAM_)[^<]*<', _full_html_vf)
+check('T-V-LEAK-01: chart-id humanized in capsule range-line; no raw PUSH_/REJAM_/CALLJAM_ in visible text',
+      'PUSH_' not in _cdl_v('PUSH_8BB_HJ')
+      and 'CALLJAM_' not in _cdl_v('CALLJAM_15BB_vsCO')
+      and 'REJAM_' not in _cdl_v('REJAM_12BB_vsBTN')
+      and '_cdl(_ck_raw_l)' in _sx_src_v and '_cdl(_ck_raw_bl)' in _sx_src_v
+      and len(_vis_tok_vf) == 0, str(_vis_tok_vf[:3]))
+
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
       _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'

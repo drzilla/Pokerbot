@@ -2857,8 +2857,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _rng_lead = ''
             if (_rev_lead.get('hero_hand')
                     and _rev_lead.get('membership') in ('inside', 'outside')):
-                _ck_lead = (_rev_lead.get('chart_key')
-                            or _rev_lead.get('spot_label') or 'range')
+                # v8.17.1 verify: humanize the chart key (PUSH_8BB_HJ ->
+                # readable) so the capsule Range role never leaks a raw chart id.
+                _ck_raw_l = _rev_lead.get('chart_key')
+                _ck_lead = (_cdl(_ck_raw_l) if _ck_raw_l
+                            else (_rev_lead.get('spot_label') or 'range'))
                 _rng_lead = '%s %s %s' % (
                     _rev_lead['hero_hand'],
                     'inside' if _rev_lead['membership'] == 'inside' else 'outside',
@@ -3736,8 +3739,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _rng_bl = ''
                         if (_rev_bl.get('hero_hand')
                                 and _rev_bl.get('membership') in ('inside', 'outside')):
-                            _ck_bl = (_rev_bl.get('chart_key')
-                                      or _rev_bl.get('spot_label') or 'range')
+                            # v8.17.1 verify: humanize the chart key (no raw id leak).
+                            _ck_raw_bl = _rev_bl.get('chart_key')
+                            _ck_bl = (_cdl(_ck_raw_bl) if _ck_raw_bl
+                                      else (_rev_bl.get('spot_label') or 'range'))
                             _rng_bl = '%s %s %s' % (
                                 _rev_bl['hero_hand'],
                                 'inside' if _rev_bl['membership'] == 'inside' else 'outside',

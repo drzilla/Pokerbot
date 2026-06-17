@@ -9430,6 +9430,27 @@ check('T-RPDT-07: actionable_reason_ok validates a full why-contract',
       and not _RT.actionable_reason_ok({'street': 'turn', 'action': '',
             'reason': 'x', 'category': 'candidate'}), '')
 
+# ---- v8.17.1 P0C: internal-token UI translation + visible-copy lint helper ----
+_ISC_SRC = open(os.path.join(os.path.dirname(__file__), 'gem_issue_collector.py'),
+                encoding='utf-8').read()
+check('T-P0C-01: translate_ui_token maps internal tokens to user copy (longest-first), leaves clean text',
+      _RT.translate_ui_token('Potential detector blind spot')
+        == 'Losing hands not explained by current detectors — spot-check sample'
+      and _RT.translate_ui_token('known_leak') == 'Known leak'
+      and _RT.translate_ui_token('plain concrete reason') == 'plain concrete reason'
+      and _RT.translate_ui_token('') == ''
+      and 'detector blind spot' not in _RT.translate_ui_token('Potential detector blind spot'), '')
+check('T-P0C-02: ui_copy_violations flags banned VISIBLE tokens, allows spaced English, empty on clean',
+      _RT.ui_copy_violations('clean concrete text') == []
+      and _RT.ui_copy_violations('x known_leak y [DEV] z decision_kind')
+            == sorted(['known_leak', '[DEV]', 'decision_kind'])
+      and _RT.ui_copy_violations('Known leak is fine as a human label') == [], '')
+check('T-P0C-03: issue-collector display names carry no internal jargon (ids stay stable)',
+      ('Potential detector blind spot' not in _ISC_SRC)
+      and ('spots cleared / monitored' not in _ISC_SRC)
+      and ("'id': 'blindspot_audit'" in _ISC_SRC)
+      and ("'id': 'cleared_batch'" in _ISC_SRC), '')
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'

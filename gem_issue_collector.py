@@ -846,9 +846,9 @@ def collect_issues(stats, rd, hands):
         _uf_ids = [h['id'] for h in sorted(_unflagged_vpip, key=lambda x: x.get('net_bb', 0))[:15]]
         issues.append({
             'id': 'blindspot_audit',
-            # v8.17.1 P0C: user-facing copy (the internal id 'blindspot_audit'
-            # stays stable for routing/joins); was the dev term 'Potential
-            # detector blind spot' which read as jargon in the Leak/Issue Explorer.
+            # v8.17.1 P0C: user-facing copy (internal id 'blindspot_audit' stays
+            # stable for routing/joins); the prior label was internal detector
+            # jargon that read as meaningless in the Leak/Issue Explorer.
             'name': 'Losing hands not explained by current detectors — spot-check sample',
             'tier': 'shadow',
             'severity': 'low',
@@ -919,7 +919,7 @@ def collect_issues(stats, rd, hands):
         issues.append({
             'id': 'cleared_batch',
             # v8.17.1 P0C: user-facing copy (id 'cleared_batch' stays stable);
-            # was the dev term 'N spots cleared / monitored'.
+            # the prior label was internal review-bucket jargon.
             'name': f'{len(_cleared_ids)} hands reviewed and cleared',
             'tier': 'cleared',
             'severity': 'info',

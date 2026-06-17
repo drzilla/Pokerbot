@@ -53,6 +53,75 @@ _CATEGORY_LABEL = {
 _VALID_STREETS = ('preflop', 'flop', 'turn', 'river')
 
 
+# ============================================================
+# v8.17.1 P0C — internal-token UI-boundary translation + visible-copy lint
+# ============================================================
+# Internal bucket/detector/snake_case keys → plain user copy. The INTERNAL IDs
+# stay stable for routing/joins; only the DISPLAY string changes. Translate at
+# the UI emit boundary so a raw key can never reach a visible text node. Reused
+# by the commentary sanitizer (P1), villain copy (P3) and the all-in/verdict
+# surfaces (P5). Order-independent values; substitution tries longest keys first.
+UI_TOKEN_TRANSLATION = {
+    'Potential detector blind spot': 'Losing hands not explained by current detectors — spot-check sample',
+    'spots cleared / monitored': 'hands reviewed and cleared',
+    'spots cleared or monitored': 'hands reviewed and cleared',
+    'detector blind spot': 'losing hands with no detector flag',
+    'known_leak': 'Known leak',
+    'auto_cleared': 'reviewed and cleared',
+    'auto_clear': 'reviewed and cleared',
+    'auto-clear': 'reviewed and cleared',
+    'blindspot_audit': 'Losing hands not explained by current detectors',
+    'cleared_batch': 'Hands reviewed and cleared',
+    'source_truth': 'source',
+    'price_engine': 'price source',
+    'decision_kind': 'decision type',
+}
+
+
+def translate_ui_token(text):
+    """Replace any internal token in ``text`` with its plain-language display
+    form. Pure string substitution at the UI boundary — callers must NOT run it
+    over data-* attributes, <script> JSON payloads, or internal ids. Returns the
+    text unchanged when it carries no known internal token. Longest keys first so
+    'Potential detector blind spot' wins over the 'detector blind spot' substring.
+    """
+    if not text:
+        return text
+    out = str(text)
+    for k in sorted(UI_TOKEN_TRANSLATION, key=len, reverse=True):
+        if k in out:
+            out = out.replace(k, UI_TOKEN_TRANSLATION[k])
+    return out
+
+
+# Tokens that must NEVER appear in VISIBLE user copy. The W-UICOPY build lint
+# scans extracted visible text ONLY — never data-* attrs or <script> JSON, where
+# internal ids are legitimate. Snake_case / bracketed / raw-chart-prefix forms
+# only; legitimate spaced English like "Known leak" is allowed.
+UICOPY_BANNED_VISIBLE = (
+    '[DEV]',
+    'known_leak', 'auto_clear', 'auto_cleared',
+    'PUSH_', 'REJAM_', 'CALLJAM_',
+    'detector blind spot', 'Potential detector blind spot',
+    'spots cleared / monitored', 'spots cleared or monitored',
+    'source_truth', 'price_engine', 'decision_kind',
+)
+
+
+def ui_copy_violations(visible_text):
+    """Return the sorted list of UICOPY_BANNED_VISIBLE tokens present in
+    ``visible_text`` (the caller has already stripped tags / excluded attrs and
+    <script> JSON). Empty list == clean. Pure; the verify/report W-UICOPY gate
+    consumes this."""
+    if not visible_text:
+        return []
+    found = set()
+    for tok in UICOPY_BANNED_VISIBLE:
+        if tok in visible_text:
+            found.add(tok)
+    return sorted(found)
+
+
 def is_generic_reason(text):
     """True when ``text`` is empty or is ONLY a banned generic phrase (i.e. it
     carries no concrete content). A reason that merely CONTAINS a generic word

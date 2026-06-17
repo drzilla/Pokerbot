@@ -657,7 +657,24 @@ def range_evidence_md(ev):
         f"> {hero}: **{mtag} the {label} range{bnd}.**",
     ]
     if tops:
-        lines.append(f"> Includes (top hand classes): {tops}.")
+        # v8.17.1 P2b/P2c: colour the range expression by ACTION-vs-chart agreement
+        # and pinpoint Hero's exact combo inside it — same membership/coverage as
+        # the line above (single source of truth). Renders via the whitelisted
+        # rng-hl / rng-combo-hero spans; a combo not literally in the list (e.g. an
+        # OUTSIDE hand) simply isn't bolded — the OUTSIDE line above states it.
+        _lens_html = ''
+        try:
+            from gem_ranges import highlight_range_expression as _hre_md
+            _hl = _hre_md(tops, ev.get('membership'), cov, role=ev.get('role'),
+                          hero_combo=ev.get('hero_combo') or hero,
+                          action=ev.get('hero_action'))
+            _lens_html = _hl.get('html', '')
+        except Exception:
+            _lens_html = ''
+        if _lens_html:
+            lines.append(f"> Includes (top hand classes): {_lens_html}")
+        else:
+            lines.append(f"> Includes (top hand classes): {tops}.")
     if bex:
         lines.append(f"> Boundary hand classes: {bex}.")
     return '\n'.join(lines)
@@ -717,10 +734,17 @@ def hand_range_evidence(h, ranges=None):
     except Exception:
         return None
     _eff = h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb') or h.get('stack_bb') or 0
-    return _bre(role, h.get('position', '?'), h.get('cards', []),
-                h.get('stack_bb') or 0, _eff, ranges,
-                jammer_pos=(h.get('jammer_position') or h.get('opener_position') or ''),
-                opener_pos=(h.get('opener_position') or ''))
+    ev = _bre(role, h.get('position', '?'), h.get('cards', []),
+              h.get('stack_bb') or 0, _eff, ranges,
+              jammer_pos=(h.get('jammer_position') or h.get('opener_position') or ''),
+              opener_pos=(h.get('opener_position') or ''))
+    # v8.17.1 P2: carry Hero's role + action + exact combo so the range block can
+    # colour by action-vs-chart agreement and pinpoint the combo (no recompute).
+    if isinstance(ev, dict):
+        ev.setdefault('role', role)
+        ev.setdefault('hero_action', (h.get('pf_action') or '').lower())
+        ev.setdefault('hero_combo', ev.get('hero_hand'))
+    return ev
 
 
 def _agg_commentary(c):

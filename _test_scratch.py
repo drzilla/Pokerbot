@@ -9470,6 +9470,15 @@ check('T-P2-04: highlight_range_expression bolds combo + colours by action + fla
       (lambda r: 'rng-combo-hero' in r['html'] and r['color'] == 'red' and r['combo_highlighted'])(
           _GR2.highlight_range_expression('22+, A6o, KQo', 'outside', 'exact',
                                           role='first_in_open', hero_combo='A6o', action='open')), '')
+from gem_report_draft._helpers import range_evidence_md as _REM2
+from gem_report_draft._html import _md_inline as _MDI2
+_p2ev = {'hero_hand': 'A6o', 'hero_combo': 'A6o', 'position': 'HJ', 'depth_bb': 25,
+         'depth_basis': 'open', 'spot_label': 'HJ RFI', 'coverage': 'exact',
+         'chart_key': 'RFI_HJ', 'membership': 'inside', 'role': 'rfi',
+         'hero_action': 'raise', 'top_examples': ['AA', 'KK', 'AKs', 'A6o', 'KQo']}
+_p2md = _MDI2(_REM2(_p2ev))
+check('T-P2-05: range_evidence_md emits action-coloured + combo-bolded rng-hl that survives _html_escape',
+      'rng-hl' in _p2md and "rng-combo-hero'>A6o" in _p2md and '&lt;span' not in _p2md, '')
 
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',

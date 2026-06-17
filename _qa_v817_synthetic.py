@@ -182,6 +182,10 @@ def build():
                                               'sample. Hero blocks the nut value with the Ace.')}
 
     all_ids = [h['id'] for h in hands]
+    # v8.17.1 verify: tag a few hands to the overlay tournament ids so the
+    # Tournament Performance table (per-event hands/BB-100) populates and renders.
+    for _h, _tid in zip(hands[:4], ('SYN1', 'SYN1', 'SYN2', 'SYN3')):
+        _h['tournament_id'] = _tid
     stats = {
         'volume': {'hands': len(hands), 'tournaments': 2, 'bullets': len(hands), 'date': '2026-06-16'},
         'core': {'bb_per_100': -2.0, 'ev_bb_per_100': 1.0},
@@ -189,6 +193,11 @@ def build():
         'card_quality': {'premiums_pct': 14.0},
         'villain_intel': {'villain_aliases': {}, 'read_states': {}, 'exploit_opportunities': []},
         'eai': {'hands': []}, 'mistakes': mistakes,
+        # per-tournament stack arcs → detector-backed drivers (Drivers-in-view rollup).
+        'stack_trajectories': {
+            'SYN1': {'start_bb': 50, 'peak_bb': 120, 'valley_bb': 8, 'end_bb': 60, 'n_hands': 2},
+            'SYN2': {'start_bb': 50, 'peak_bb': 70, 'valley_bb': 0, 'end_bb': 0, 'n_hands': 1},
+            'SYN3': {'start_bb': 50, 'peak_bb': 55, 'valley_bb': 0, 'end_bb': 0, 'n_hands': 1}},
     }
     rd = {
         'player_name': 'SynthHero', 'buyin_breakdown': [], 'avg_buyin': 25.0,

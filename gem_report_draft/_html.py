@@ -5662,6 +5662,23 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   table.tt-unified th[data-tt-sort] {{ cursor: pointer; white-space: nowrap; }}
   table.tt-unified th[data-tt-sort]:hover {{ background: #eef2ff; }}
   table.tt-unified td.tt-details-cell a {{ font-weight: 600; white-space: nowrap; }}
+  /* v8.17.1 P4: grouped aggregate surface (aggregate-first) + legend squares */
+  .tt-grouped {{ margin: 6px 0 14px 0; }}
+  .tt-grouped-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 6px 0; }}
+  .tt-grouped-tabs .tt-tab {{ font: inherit; font-size: 0.85em; padding: 3px 10px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff;
+    color: #475467; cursor: pointer; }}
+  .tt-grouped-tabs .tt-tab.active {{ background: #2563eb; color: #fff;
+    border-color: #2563eb; }}
+  table.tt-aggregate th, table.tt-aggregate td {{ text-align: right;
+    white-space: nowrap; }}
+  table.tt-aggregate th:first-child, table.tt-aggregate td:first-child {{ text-align: left; }}
+  .legend-square {{ display: inline-block; width: 10px; height: 10px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle; }}
+  .tt-coverage-note {{ font-size: 0.82em; color: #667085; margin: 4px 0 0 0; }}
+  html.dark .tt-grouped-tabs .tt-tab {{ background: #16181d; color: #94a3b8;
+    border-color: #2a2f3a; }}
+  html.dark .tt-coverage-note {{ color: #94a3b8; }}
   #tournament-detail-modal .ttd-grid {{ display: grid;
     grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
   #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}

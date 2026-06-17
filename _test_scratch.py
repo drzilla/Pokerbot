@@ -9542,6 +9542,22 @@ check('T-P4D-04: distribution Net is diverging (neg share of |neg|, pos share of
       (lambda ds: ds['a']['sign'] == 1 and ds['b']['sign'] == -1
        and ds['a']['share'] == 100.0 and ds['b']['share'] == 100.0)(
           _TM4.distribution_shares({'a': {'net': 10}, 'b': {'net': -10}}, 'net')), '')
+import gem_report_draft.sections_tournaments as _STT4
+class _FakeDocP4:
+    def __init__(self):
+        self.out = []
+    def w(self, s):
+        self.out.append(s)
+_fd_p4 = _FakeDocP4()
+_STT4._emit_grouped_aggregate(_fd_p4, [
+    {'buyin_band': '$11-$22', 'cost': 15, 'bullets': 1, 'return': {'value': 45, 'exact': True}, 'finish': {'state': 'exact', 'itm': True, 'top_percent': 4}, 'performance': {}},
+    {'buyin_band': '$11-$22', 'cost': 15, 'bullets': 1, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 70}, 'performance': {}},
+    {'buyin_band': '$55-$110', 'cost': 60, 'bullets': 2, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 90}, 'performance': {}}])
+_g_p4 = '\n'.join(_fd_p4.out)
+check('T-P4UI-01: grouped aggregate surface renders (tabs + legend squares + pooled ROI + settled coverage)',
+      'tt-aggregate' in _g_p4 and 'legend-square' in _g_p4 and "data-tab='buyin'" in _g_p4
+      and 'Results available for' in _g_p4 and '$11-$22' in _g_p4
+      and _g_p4.index('$11-$22') < _g_p4.index('$55-$110'), '')
 
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',

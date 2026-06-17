@@ -95,6 +95,59 @@ def _tt_hand_ids_by_tid(hands):
     return out
 
 
+def _emit_grouped_aggregate(doc, events):
+    """v8.17.1 P4 surface 3: grouped AGGREGATE table (Buy-in default tab) built
+    from the pure aggregation helpers — pooled ROI on the covered subset,
+    settled-only ITM/Top5/Top1 denominators, hand-weighted BB/100·cEV/100, and a
+    deterministic legend-square colour per group (the table IS the chart legend).
+    Server-rendered; the grouped view is the FIRST Results table (aggregate-first),
+    above the per-event detail. cEV/100 is raw chip-EV (no %); blank until a
+    canonical per-event source is wired."""
+    import gem_tournament_model as _TM
+    groups = _TM.group_events(events, 'buyin')
+    if not groups:
+        return
+    cats = sorted([c for c in groups if c], key=_TM.buyin_band_sort_key)
+    if None in groups:
+        cats.append(None)
+    doc.w("<div class='tt-grouped' data-tab='buyin'>")
+    doc.w("<div class='tt-grouped-tabs'><button class='tt-tab active' "
+          "data-tab='buyin'>Buy-in</button></div>")
+    doc.w("<div class='table-shell'><div class='table-scroll'>")
+    doc.w("<table class='data-table tt-aggregate'>")
+    doc.w("<thead><tr><th>Group</th><th>Events</th><th>Bullets</th>"
+          "<th title='Final financial results available for X of Y events; the "
+          "rest are estimated or still running'>Results</th><th>Cost</th>"
+          "<th>Return</th><th>Net</th><th>ROI</th><th>ITM</th><th>Top 5%</th>"
+          "<th>Top 1%</th><th>BB/100</th><th>cEV/100</th></tr></thead><tbody>")
+    _settled_total = 0
+    for cat in cats:
+        ag = _TM.aggregate_group(groups[cat])
+        _settled_total += ag['n_settled']
+        approx = '≈' if ag['estimated'] else ''
+        sq = ("<span class='legend-square' style='background:%s'></span>"
+              % _TM.color_for('buyin', cat))
+        _net = (approx + _fmt_usd(ag['net'], plus=True)) if ag['net'] is not None else EMDASH
+        _roi = (approx + _pct_or_dash(ag['roi_pct'])) if ag['roi_pct'] is not None else EMDASH
+        _itm = ('%.0f%%' % ag['itm_pct']) if ag['itm_pct'] is not None else EMDASH
+        _t5 = ('%.0f%%' % ag['top5_pct']) if ag['top5_pct'] is not None else EMDASH
+        _t1 = ('%.0f%%' % ag['top1_pct']) if ag['top1_pct'] is not None else EMDASH
+        _bb = ('%+.1f' % ag['bb100']) if ag['bb100'] is not None else EMDASH
+        _cev = ('%+.1f' % ag['cev100']) if ag['cev100'] is not None else EMDASH
+        doc.w("<tr><td>%s<b>%s</b></td><td>%d</td><td>%d</td><td>%d/%d</td>"
+              "<td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%s</td>"
+              "<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+                  sq, _esc_tt(cat or EMDASH), ag['events'], ag['bullets'],
+                  ag['results_covered'], ag['events'],
+                  _fmt_usd(ag['committed_cost']), approx, _fmt_usd(ag['covered_return']),
+                  _net, _roi, _itm, _t5, _t1, _bb, _cev))
+    doc.w("</tbody></table></div></div>")
+    doc.w("<p class='tt-coverage-note'>Results available for %d of %d events; the "
+          "rest are estimated or still running.</p>" % (_settled_total, len(events)))
+    doc.w("</div>")
+    doc.w("")
+
+
 def _emit_tournament_tables(doc, s, rd, hands):
     """Additive S-section: render the event-level Tournament Tables from the
     SP-1 model. Fail-soft: with no canonical overlay it emits a diagnostic line
@@ -187,6 +240,11 @@ def _emit_tournament_tables(doc, s, rd, hands):
           '$ line is never split out or inferred. Prize + bounty + ticket reconcile '
           'to the canonical session total (cash + ticket).*')
     doc.w('')
+
+    # ---- v8.17.1 P4 surface 3: grouped AGGREGATE table (aggregate-first) ----
+    # Where did the buy-ins go / which bands are profitable — pooled ROI, settled
+    # denominators, legend-square colours. Rendered ABOVE the per-event detail.
+    _emit_grouped_aggregate(doc, events)
 
     # ---- v8.17 Epic 4: PRIMARY unified sortable table + per-event drilldown ----
     # Built ONCE from the canonical events; the per-event payload feeds the

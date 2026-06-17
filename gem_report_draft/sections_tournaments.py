@@ -235,6 +235,181 @@ def _emit_grouped_aggregate(doc, events):
     doc.w("")
 
 
+def _tt_chart_bars_html(_TM, key, groups, ordered, metric):
+    """Div-based distribution bars for one (tab, metric): Cost/Return = share of
+    total; Net = diverging around zero. Colours from color_for (== legend squares).
+    Viewport-safe tooltip via data-tip (the JS positions a clamped tooltip)."""
+    agg_map = {cat: _TM.aggregate_group(groups[cat]) for cat in ordered}
+    shares = _TM.distribution_shares(agg_map, metric)
+    rows = []
+    for cat in ordered:
+        sh = shares.get(cat) or {}
+        share = float(sh.get('share') or 0)
+        sign = sh.get('sign', 0)
+        col = _TM.color_for(key, cat)
+        lbl = _TT_CAT_LABEL.get(cat, cat) if cat not in (None, 'unknown') else EMDASH
+        val = sh.get('value')
+        vtxt = (_fmt_usd(val, plus=(metric == 'net')) if val is not None else EMDASH)
+        sq = "<span class='legend-square' style='background:%s'></span>" % col
+        if metric == 'net':
+            w = min(50.0, share / 2.0)
+            ml = 50.0 if sign >= 0 else max(0.0, 50.0 - w)
+            bar = ("<span class='tt-bar-track tt-diverge'><span class='tt-bar' "
+                   "style='margin-left:%.1f%%;width:%.1f%%;background:%s'></span></span>"
+                   % (ml, w, col))
+        else:
+            bar = ("<span class='tt-bar-track'><span class='tt-bar' "
+                   "style='width:%.1f%%;background:%s'></span></span>"
+                   % (min(100.0, share), col))
+        rows.append("<div class='tt-bar-row' data-cat='%s' tabindex='0' data-tip='%s: %s'>"
+                    "<span class='tt-bar-label'>%s%s</span>%s"
+                    "<span class='tt-bar-val'>%s</span></div>" % (
+                        _esc_tt(str(lbl)), _esc_tt(str(lbl)), _esc_tt(vtxt),
+                        sq, _esc_tt(str(lbl)), bar, _esc_tt(vtxt)))
+    return ''.join(rows) or "<p class='tt-coverage-note'>No data for this metric.</p>"
+
+
+def _tt_chart_data(_TM, events):
+    """Precompute the distribution dataset for EVERY visible tab × metric so the JS
+    re-renders the chart on tab/metric change from canonical numbers (no JS
+    re-aggregation, no drift). {tab:{cats:[{key,label,color}], metrics:{m:{cat:{value,share,sign}}}}}."""
+    tabs = list(_TT_TABS)
+    _days = set(e.get('event_day') for e in events if e.get('event_day'))
+    if len(_days) > 1:
+        tabs.append(('by_day', 'By day'))
+    out = {}
+    for key, _label in tabs:
+        groups = _TM.group_events(events, key) or {}
+        ordered = _tt_ordered_cats(_TM, key, groups)
+        if not ordered:
+            continue
+        agg_map = {cat: _TM.aggregate_group(groups[cat]) for cat in ordered}
+        cats = [{'key': ('__none__' if c is None else ('__unknown__' if c == 'unknown' else c)),
+                 'label': (_TT_CAT_LABEL.get(c, c) if c not in (None, 'unknown') else EMDASH),
+                 'color': _TM.color_for(key, c)} for c in ordered]
+        metrics = {}
+        for m in ('net', 'cost', 'return'):
+            sh = _TM.distribution_shares(agg_map, m)
+            metrics[m] = {('__none__' if c is None else ('__unknown__' if c == 'unknown' else c)):
+                          sh.get(c) for c in ordered}
+        out[key] = {'cats': cats, 'metrics': metrics}
+    return out
+
+
+def _emit_distribution_chart(doc, events):
+    """v8.17.1 P4 surface 4: distribution chart directly BELOW the grouped table.
+    Cost/Return share + diverging Net; bars share the table's category colours (the
+    legend squares ARE the legend — no separate legend). Server-rendered for the
+    default Buy-in tab + Net metric; the JS controller re-renders on tab / metric
+    change. Safe empty / partial-coverage states."""
+    import gem_tournament_model as _TM
+    groups = _TM.group_events(events, 'buyin') or {}
+    ordered = _tt_ordered_cats(_TM, 'buyin', groups)
+    doc.w("<div class='tt-chart' data-tab='buyin' data-metric='net'>")
+    doc.w("<div class='tt-chart-head'><span class='tt-chart-title' data-tt-chart-title>"
+          "Distribution — Buy-in · Net</span>"
+          "<div class='tt-chart-metrics'>"
+          "<button type='button' class='tt-metric active' data-metric='net'>Net</button>"
+          "<button type='button' class='tt-metric' data-metric='cost'>Cost</button>"
+          "<button type='button' class='tt-metric' data-metric='return'>Return</button>"
+          "</div></div>")
+    doc.w("<div class='tt-chart-body'>")
+    if ordered:
+        doc.w(_tt_chart_bars_html(_TM, 'buyin', groups, ordered, 'net'))
+    else:
+        doc.w("<p class='tt-coverage-note'>No grouped data to chart.</p>")
+    doc.w("</div>")
+    doc.w("<div class='tt-tooltip' role='status' aria-live='polite' hidden></div>")
+    doc.w("</div>")
+    doc.w("")
+
+
+def _emit_performance(doc, events, hids_by_tid):
+    """v8.17.1 P4 surface 6: Tournament Performance — per-event Hands / BB-100 /
+    cEV-100 (ONLY where canonical; column hidden cleanly otherwise) / Drivers /
+    Reviewed (the canonical review store + the existing hand-list popup) / Exit hand.
+    Collapsed behind a disclosure at 30+ events; open below 30."""
+    has_cev = any(((e.get('performance') or {}).get('cev100')) is not None for e in events)
+    has_hands = any(((e.get('performance') or {}).get('hands')) is not None for e in events)
+    if not (has_cev or has_hands):
+        return
+    n = len(events)
+    _open = '' if n >= 30 else ' open'
+    doc.w("<details class='tt-perf-detail'%s><summary><strong>Tournament Performance</strong>"
+          " — hands · BB/100%s · drivers · reviewed (%d events)</summary>" % (
+              _open, (' · cEV/100' if has_cev else ''), n))
+    doc.w("<div class='table-shell' data-mobile-mode='scroll'><div class='table-scroll'>")
+    _cevh = "<th data-tt-sort='4' data-tt-num='1'>cEV/100</th>" if has_cev else ''
+    doc.w("<table class='data-table tt-performance' id='tt-performance-table'><thead><tr>"
+          "<th data-tt-sort='0'>Tournament</th>"
+          "<th data-tt-sort='1' data-tt-num='1'>Bullets</th>"
+          "<th data-tt-sort='2' data-tt-num='1'>Hands</th>"
+          "<th data-tt-sort='3' data-tt-num='1'>BB/100</th>" + _cevh +
+          "<th>Drivers</th><th>Reviewed</th><th>Exit hand</th></tr></thead><tbody>")
+    for e in events:
+        perf = e.get('performance') or {}
+        name = (e.get('name') or EMDASH).replace('|', '/')
+        tid = str(e.get('tournament_id') or '')
+        hd = perf.get('hands')
+        bb = perf.get('bb100')
+        cv = perf.get('cev100')
+        rev = e.get('reviewed') or {}
+        hd_t = ('%d' % hd) if hd is not None else EMDASH
+        bb_t = ('%+.1f' % bb) if bb is not None else EMDASH
+        _cevc = ''
+        if has_cev:
+            _cevc = ("<td data-sort-value='%s'>%s</td>"
+                     % ((cv if cv is not None else ''), (('%.2f' % cv) if cv is not None else EMDASH)))
+        drv = '; '.join(e.get('drivers') or []) or EMDASH
+        _hids = (hids_by_tid.get(tid) or [])[:60]
+        rv_n = rev.get('reviewed', 0) or 0
+        rv_m = rev.get('total', hd or 0) or 0
+        if _hids:
+            _rev_cell = ("<a href='#' class='hand-list-trigger' data-title='%s — hands' "
+                         "data-hids='%s'>%d/%d reviewed</a>" % (
+                             _esc_tt(name), _esc_tt(','.join(str(x)[-8:] for x in _hids)),
+                             rv_n, rv_m))
+        else:
+            _rev_cell = '%d/%d reviewed' % (rv_n, rv_m)
+        _exit = e.get('exit_hand')
+        _exit_cell = (("<a href='#' class='hand-ref xref' data-hid='%s'>%s</a>"
+                       % (_esc_tt(str(_exit)[-8:]), _esc_tt(str(_exit)[-8:])))
+                      if _exit else EMDASH)
+        doc.w("<tr><td data-label='Tournament'>%s</td>"
+              "<td data-label='Bullets' data-sort-value='%d'>%d</td>"
+              "<td data-label='Hands' data-sort-value='%s'>%s</td>"
+              "<td data-label='BB/100' data-sort-value='%s'>%s</td>%s"
+              "<td data-label='Drivers'>%s</td>"
+              "<td data-label='Reviewed'>%s</td>"
+              "<td data-label='Exit hand'>%s</td></tr>" % (
+                  _esc_tt(name), e.get('bullets', 1), e.get('bullets', 1),
+                  (hd if hd is not None else ''), hd_t,
+                  (bb if bb is not None else ''), bb_t, _cevc,
+                  _esc_tt(drv), _rev_cell, _exit_cell))
+    doc.w("</tbody></table></div></div>")
+    doc.w("</details>")
+    doc.w("")
+
+
+def _emit_drivers_rollup(doc, events):
+    """v8.17.1 P4 surface 7: Drivers-in-view rollup — the detector-backed driver
+    descriptions across the current event set (human descriptions only; never
+    internal keys / debug provenance / raw detector labels)."""
+    rows = [(e.get('name') or EMDASH, d)
+            for e in events for d in (e.get('drivers') or [])]
+    if not rows:
+        return
+    doc.w("<div class='tt-drivers-rollup' data-tt-rollup>")
+    doc.w("<p class='tt-rollup-head'><strong>Drivers in view</strong> — what moved "
+          "the deep runs and collapses across these events.</p>")
+    doc.w("<ul class='tt-rollup-list'>")
+    for nm, d in rows:
+        doc.w("<li><span class='tt-rollup-evt'>%s</span> — %s</li>" % (
+            _esc_tt(str(nm).replace('|', '/')), _esc_tt(str(d))))
+    doc.w("</ul></div>")
+    doc.w("")
+
+
 def _emit_tournament_tables(doc, s, rd, hands):
     """Additive S-section: render the event-level Tournament Tables from the
     SP-1 model. Fail-soft: with no canonical overlay it emits a diagnostic line
@@ -340,6 +515,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # Where did the buy-ins go / which bands are profitable — pooled ROI, settled
     # denominators, legend-square colours. Rendered ABOVE the per-event detail.
     _emit_grouped_aggregate(doc, events)
+
+    # ---- v8.17.1 P4 surface 4: distribution chart directly below the grouped table ----
+    _emit_distribution_chart(doc, events)
 
     # ---- v8.17 Epic 4: PRIMARY unified sortable table + per-event drilldown ----
     # Built ONCE from the canonical events; the per-event payload feeds the
@@ -482,11 +660,23 @@ def _emit_tournament_tables(doc, s, rd, hands):
           "<thead><tr>" + _uhdr + "</tr></thead><tbody>"
           + ''.join(_uni_rows) + "</tbody></table></div></div>")
     doc.w('')
+
+    # ---- v8.17.1 P4 surface 6: Tournament Performance (separate detail table) ----
+    _emit_performance(doc, events, _hids_by_tid)
+    # ---- v8.17.1 P4 surface 7: Drivers-in-view rollup ----
+    _emit_drivers_rollup(doc, events)
+
     try:
         doc._extra_js.append('window.tournamentEvents=%s;'
                              % _json_tt.dumps(_payload, ensure_ascii=False, default=str))
+        # v8.17.1 P4: precomputed distribution dataset (every visible tab × metric)
+        # so the chart re-renders on tab/metric change from canonical numbers.
+        import gem_tournament_model as _TM_chart
+        doc._extra_js.append('window.ttChart=%s;' % _json_tt.dumps(
+            _tt_chart_data(_TM_chart, events), ensure_ascii=False, default=str))
         doc._extra_js.append('if(window.initTournamentResultsTable)'
-                             'window.initTournamentResultsTable();')
+                             'window.initTournamentResultsTable();'
+                             'if(window.initTtChart)window.initTtChart();')
         # v8.17.1 P4: grouped-aggregate tab switching — show the matching tabpane,
         # mark the active button, and (if wired) re-render the distribution chart.
         doc._extra_js.append(

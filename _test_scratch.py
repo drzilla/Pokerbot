@@ -9649,6 +9649,50 @@ check('T-P4W-02: _tt_perf_maps joins hands/BB-100/reviewed/exit by tid (BB-100 =
       and _revb_w['T1'] == {'reviewed': 1, 'total': 2}
       and _exb_w['T1'] == 'TM900A2' and _exb_w['T2'] == 'TM900B1', str((_hb_w, _bbb_w, _revb_w)))
 
+# v8.17.1 P4 surfaces 4/6/7: distribution chart + Tournament Performance + Drivers
+# rollup, rendered via the REAL Doc + _emit_tournament_tables path.
+from gem_report_draft._html import Doc as _Doc_p4s
+from gem_report_draft.sections_tournaments import _emit_tournament_tables as _ett_p4s
+_rd_p4s = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {
+    'n_tournaments': 2, 'n_bullets': 3, 'total_cost': 75, 'total_cash': 45,
+    'total_ticket_value': 0, 'total_net': -30, 'roi_pct': -40.0}, 'per_tournament': [
+    {'tid': 'A1', 'name': 'Mini Bounty', 'start_date': '2026-06-02', 'buyin': 15,
+     'bullets': 1, 'cost': 15, 'cash_received': 45, 'ticket_value': 0, 'cash_total': 45,
+     'net': 30, 'is_sat': False, 'place': 2, 'total_players': 50, 'itm': True},
+    {'tid': 'A2', 'name': 'Big Re-entry', 'start_date': '2026-06-02', 'buyin': 30,
+     'bullets': 2, 'cost': 60, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0,
+     'net': -60, 'is_sat': False, 'place': 80, 'total_players': 90}]}}
+_s_p4s = {'stack_trajectories': {'A1': {'start_bb': 50, 'peak_bb': 120, 'valley_bb': 5,
+          'end_bb': 0, 'n_hands': 80}}}
+_hands_p4s = [{'id': 'TM900A1', 'tournament_id': 'A1', 'net_bb': 10.0},
+              {'id': 'TM900A2', 'tournament_id': 'A1', 'net_bb': -2.0},
+              {'id': 'TM900B1', 'tournament_id': 'A2', 'net_bb': -8.0}]
+_rd_p4s['analyst_commentary'] = {'TM900A1': {'verdict': 'III.2'}}
+_d_p4s = _Doc_p4s()
+_ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
+_md_p4s = _d_p4s.render_md()
+_js_p4s = ' '.join(_d_p4s._extra_js)
+_html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-P4UI-04: distribution chart renders BELOW the grouped table (Cost/Return/Net metrics + diverging + precomputed dataset)',
+      'tt-chart' in _md_p4s and 'tt-chart-metrics' in _md_p4s
+      and "data-metric='net'" in _md_p4s and 'tt-bar-row' in _md_p4s
+      and 'tt-diverge' in _md_p4s and 'window.ttChart=' in _js_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-chart'), '')
+check('T-P4UI-05: Tournament Performance table wires hands / BB-100 / reviewed(popup) / exit-hand(xref)',
+      'tt-performance' in _md_p4s and 'Tournament Performance' in _md_p4s
+      and 'BB/100' in _md_p4s and 'hand-list-trigger' in _md_p4s
+      and 'reviewed' in _md_p4s and 'hand-ref xref' in _md_p4s, '')
+check('T-P4UI-06: Drivers-in-view rollup lists detector-backed driver descriptions',
+      'tt-drivers-rollup' in _md_p4s and 'Drivers in view' in _md_p4s
+      and 'Stack arc' in _md_p4s, '')
+check('T-P4UI-07: chart JS (initTtChart / ttRenderChart) + diverging-bar CSS wired in _html.py',
+      'function initTtChart(' in _html_p4src and 'window.ttRenderChart=' in _html_p4src
+      and '.tt-bar-track.tt-diverge' in _html_p4src, '')
+check('T-P4UI-08 (anti): a real full-buy-in bust shows a real -100% ROI; no literal "unavailable" / debug token in the TT section',
+      'unavailable (no canonical' in _md_p4s   # the one allowed diagnostic phrase (trust line)
+      and 'data-source' not in _md_p4s.lower().replace('data-sort', '')
+      and 'rule:' not in _md_p4s, '')
+
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
       _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'

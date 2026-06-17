@@ -3817,6 +3817,49 @@ _MODAL_HTML = r"""
   }
   window.initTournamentResultsTable=initTournamentResultsTable;
   function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  // v8.17.1 P4: distribution chart — re-renders from the precomputed window.ttChart
+  // dataset (every tab x metric) so tab/metric changes use canonical numbers.
+  function _ttChartBar(cat,sh,metric){
+    var share=(sh&&sh.share)||0,sign=(sh&&sh.sign)||0,val=(sh?sh.value:null);
+    var vtxt=(val==null)?'—':((metric==='net'&&val>=0?'+':'')+'$'+(Math.round(val*100)/100));
+    var sq='<span class="legend-square" style="background:'+cat.color+'"></span>';
+    var bar;
+    if(metric==='net'){var w=Math.min(50,share/2);var ml=(sign>=0?50:Math.max(0,50-w));
+      bar='<span class="tt-bar-track tt-diverge"><span class="tt-bar" style="margin-left:'+ml.toFixed(1)+'%;width:'+w.toFixed(1)+'%;background:'+cat.color+'"></span></span>';}
+    else{bar='<span class="tt-bar-track"><span class="tt-bar" style="width:'+Math.min(100,share).toFixed(1)+'%;background:'+cat.color+'"></span></span>';}
+    return '<div class="tt-bar-row" tabindex="0" data-tip="'+_ttEsc(cat.label+': '+vtxt)+'"><span class="tt-bar-label">'+sq+_ttEsc(cat.label)+'</span>'+bar+'<span class="tt-bar-val">'+_ttEsc(vtxt)+'</span></div>';
+  }
+  window.ttRenderChart=function(_g,tab){
+    var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
+    var data=window.ttChart[tab];var metric=ch.getAttribute('data-metric')||'net';
+    var body=ch.querySelector('.tt-chart-body');var title=ch.querySelector('[data-tt-chart-title]');
+    ch.setAttribute('data-tab',tab);
+    var tabLabel=String(tab).charAt(0).toUpperCase()+String(tab).slice(1).replace(/_/g,' ');
+    var mLabel=metric.charAt(0).toUpperCase()+metric.slice(1);
+    if(title)title.textContent='Distribution — '+tabLabel+' · '+mLabel;
+    if(!data||!data.cats||!data.cats.length){if(body)body.innerHTML='<p class="tt-coverage-note">No grouped data to chart.</p>';return;}
+    var h='';for(var i=0;i<data.cats.length;i++){var c=data.cats[i];var sh=(data.metrics[metric]||{})[c.key];h+=_ttChartBar(c,sh,metric);}
+    if(body)body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';
+  };
+  function initTtChart(){
+    var ch=document.querySelector('.tt-chart');if(!ch||ch._ttChartWired)return;ch._ttChartWired=true;
+    Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(b){
+      b.addEventListener('click',function(){
+        ch.setAttribute('data-metric',b.getAttribute('data-metric'));
+        Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(x){x.classList.toggle('active',x===b);});
+        window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
+    var tip=ch.querySelector('.tt-tooltip');
+    function show(ev){var row=ev.target.closest?ev.target.closest('.tt-bar-row'):null;if(!row||!tip)return;
+      tip.textContent=row.getAttribute('data-tip')||'';tip.hidden=false;
+      var cr=ch.getBoundingClientRect();var r=row.getBoundingClientRect();
+      var x=((ev.clientX||r.left)-cr.left);
+      x=Math.min(Math.max(8,x),Math.max(8,cr.width-tip.offsetWidth-8));
+      tip.style.left=x+'px';tip.style.top=(r.bottom-cr.top+4)+'px';}
+    function hide(){if(tip)tip.hidden=true;}
+    ch.addEventListener('mousemove',show);ch.addEventListener('mouseleave',hide);
+    ch.addEventListener('focusin',show);ch.addEventListener('focusout',hide);
+  }
+  window.initTtChart=initTtChart;
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
     var e=null;for(var i=0;i<evs.length;i++){if(evs[i].event_id===eventId){e=evs[i];break;}}
@@ -5679,6 +5722,40 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   html.dark .tt-grouped-tabs .tt-tab {{ background: #16181d; color: #94a3b8;
     border-color: #2a2f3a; }}
   html.dark .tt-coverage-note {{ color: #94a3b8; }}
+  /* v8.17.1 P4: distribution chart + drivers rollup + performance detail */
+  .tt-chart {{ position: relative; margin: 4px 0 14px 0; }}
+  .tt-chart-head {{ display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; flex-wrap: wrap; margin: 0 0 6px 0; }}
+  .tt-chart-title {{ font-size: 0.9em; font-weight: 700; color: #1e3a8a; }}
+  .tt-chart-metrics {{ display: flex; gap: 6px; }}
+  .tt-chart-metrics .tt-metric {{ font: inherit; font-size: 0.8em; padding: 2px 9px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff; color: #475467;
+    cursor: pointer; }}
+  .tt-chart-metrics .tt-metric.active {{ background: #0f172a; color: #fff;
+    border-color: #0f172a; }}
+  .tt-bar-row {{ display: flex; align-items: center; gap: 8px; padding: 2px 0; }}
+  .tt-bar-label {{ flex: 0 0 34%; max-width: 34%; font-size: 0.82em; color: #344054;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+  .tt-bar-track {{ flex: 1 1 auto; min-width: 0; height: 14px; background: #f1f5f9;
+    border-radius: 3px; overflow: hidden; }}
+  .tt-bar-track.tt-diverge {{ background: linear-gradient(90deg,#fef2f2 0 50%,#f0fdf4 50% 100%); }}
+  .tt-bar {{ display: block; height: 100%; border-radius: 3px; }}
+  .tt-bar-val {{ flex: 0 0 84px; text-align: right; font-size: 0.8em; color: #475467;
+    white-space: nowrap; }}
+  .tt-tooltip {{ position: absolute; z-index: 30; background: #0f172a; color: #fff;
+    font-size: 0.78em; padding: 4px 8px; border-radius: 6px; pointer-events: none;
+    max-width: 240px; }}
+  .tt-drivers-rollup {{ margin: 8px 0 14px 0; }}
+  .tt-rollup-head {{ margin: 0 0 4px 0; font-size: 0.88em; }}
+  .tt-rollup-list {{ margin: 0 0 0 1.1em; padding: 0; font-size: 0.84em; color: #344054; }}
+  .tt-rollup-evt {{ font-weight: 600; color: #1e3a8a; }}
+  .tt-perf-detail > summary {{ cursor: pointer; font-size: 0.92em; }}
+  html.dark .tt-chart-title {{ color: #93c5fd; }}
+  html.dark .tt-bar-track {{ background: #1f2430; }}
+  html.dark .tt-bar-track.tt-diverge {{ background: linear-gradient(90deg,#3b1d1d 0 50%,#16301f 50% 100%); }}
+  html.dark .tt-rollup-evt {{ color: #93c5fd; }}
+  html.dark .tt-chart-metrics .tt-metric {{ background: #16181d; color: #94a3b8;
+    border-color: #2a2f3a; }}
   #tournament-detail-modal .ttd-grid {{ display: grid;
     grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
   #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}

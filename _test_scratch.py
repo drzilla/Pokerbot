@@ -6648,6 +6648,32 @@ check('T-1228-PO-6: worksheet carries mode/is_overbet/per_street',
       "'per_street': po.get('per_street_summary')" in
       open('gem_coverage_builder.py', encoding='utf-8').read(), '')
 
+# v8.17.1 P5 sub-task 5: decision-time pot odds must EXCLUDE chips from a player
+# who acts AFTER Hero on the same street. Synthetic 3-handed fixture (firewall:
+# synthetic names/ids only). On the flop Villain bets 300, Hero calls 300, THEN
+# LatePlayer raises to 900: Hero's price is the pot at his call (900 before + 300
+# call = 1200 = 6.0BB, need 25.0%), NOT the street-final pot that includes the
+# later 900 (which would read 10.5BB / 14.3%).
+_RAW_FUTCALL = (
+    "Poker Hand #SYNTH-FUT-1: Tournament #SYN, Hold'em No Limit - Level5(100/200)\n"
+    "Seat 1: Hero (10000 in chips)\nSeat 2: Villain (10000 in chips)\n"
+    "Seat 3: LatePlayer (10000 in chips)\n"
+    "Villain: posts small blind 100\nHero: posts big blind 200\n"
+    "*** HOLE CARDS ***\nDealt to Hero [Ah Kd]\n"
+    "LatePlayer: calls 200\nVillain: calls 100\nHero: checks\n"
+    "*** FLOP *** [2h 7c Ks]\n"
+    "Villain: bets 300\nHero: calls 300\nLatePlayer: raises 600 to 900\n"
+    "Villain: folds\nHero: folds\n")
+_po_fut = _cnapo({}, _RAW_FUTCALL)
+check('T-V8171-PO-FUT-1: decision-time pot odds price on the pot at Hero’s call',
+      _po_fut is not None and _po_fut['street'] == 'flop'
+      and _po_fut['pot_before_call_bb'] == 4.5 and _po_fut['call_bb'] == 1.5
+      and _po_fut['pot_bb'] == 6.0 and _po_fut['required_eq_pct'] == 25.0
+      and _po_fut['per_street_calls'][0]['total_pot_bb'] == 6.0, str(_po_fut))
+check('T-V8171-PO-FUT-2 (anti): a later caller’s chips never enter Hero’s displayed pot',
+      _po_fut is not None and _po_fut['required_eq_pct'] != 14.3
+      and _po_fut['pot_bb'] < 7.0, str(_po_fut))
+
 # E: EAI degradation is loud + stamped (handover Issue 2)
 _ga_1228 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-1228-EAI-1: missing phevaluator warns loudly at startup',

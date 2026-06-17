@@ -556,7 +556,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
         tot.get('n_bullets', EMDASH),
         tot.get('n_tournaments', len(events))))
     doc.write_block(financial_table_block(
-        'tt-summary', 'financial_summary', s_hdr, s_sep, [s_row]))
+        'tt-summary', 'tt_session_summary', s_hdr, s_sep, [s_row]))
     doc.w('')
     # v8.17 Epic 4: PKO/bounty return reconciliation (prize + bounty + total).
     # GG summaries fold bounty winnings into cash_received and never expose a

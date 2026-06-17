@@ -5320,10 +5320,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.17.0 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.17.0'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.0'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.0', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.17.1 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.17.1'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.1'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.1', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -9207,6 +9207,11 @@ check('T-D-TT-2: section title + canonical Finance & Finish surface (duplicate c
 check('T-D-TT-3: summary strip uses Invested/Cash return/Ticket return labels',
       'Invested | Cash return | Ticket return | Net | ROI | Bullets | Events' in _tt_code,
       'summary strip not relabelled to spec')
+check('T-D-TT-6: session-totals strip typed tt_session_summary (own 7-col grammar, not 12-col daily financial_summary)',
+      "'tt-summary', 'tt_session_summary'" in _tt_code
+      and __import__('gem_report_lint').TABLE_GRAMMAR.get('tt_session_summary', {}).get('columns')
+          == ['Invested', 'Cash return', 'Ticket return', 'Net', 'ROI', 'Bullets', 'Events'],
+      'tt-summary not re-typed to its own grammar key (would mis-trip the 12-col daily financial_summary E1/E2)')
 check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard in Performance table)',
       'has_cev = any(' in _tt_code
       and "if has_cev else ''" in _tt_code,
@@ -9513,6 +9518,52 @@ _p2ev = {'hero_hand': 'A6o', 'hero_combo': 'A6o', 'position': 'HJ', 'depth_bb': 
 _p2md = _MDI2(_REM2(_p2ev))
 check('T-P2-05: range_evidence_md emits action-coloured + combo-bolded rng-hl that survives _html_escape',
       'rng-hl' in _p2md and "rng-combo-hero'>A6o" in _p2md and '&lt;span' not in _p2md, '')
+
+# ---- v8.17.1 rev: Range Lens Hero-combo coverage (Hero NOT among the top-5) ----
+# Root cause fixed: _bold_combo_in_expr could only mark Hero when the combo was
+# literally in the truncated top_examples (~3% of lenses). Every valid lens must
+# now visibly emphasize Hero's normalized combo without a false membership claim.
+_hc_base = dict(position='HJ', depth_bb=25, depth_basis='open', spot_label='HJ RFI',
+                coverage='exact', chart_key='RFI_HJ', role='rfi',
+                top_examples=['AA', 'KK', 'QQ', 'AKs', 'AKo'])  # A2s deliberately absent
+_hc_inside = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='inside', hero_action='raise')))
+_hc_out = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='outside', hero_action='open')))
+_hc_fold = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='outside', hero_action='fold')))
+check('T-P2HC-01: inside lens marks Hero even when not in top-5 (rng-combo-hero + Includes label)',
+      'rng-combo-hero' in _hc_inside and 'Hero: A2s' in _hc_inside
+      and 'Includes (top hand classes)' in _hc_inside, '')
+check('T-P2HC-02: outside lens marks Hero WITHOUT implying inclusion (Reference classes, not Includes)',
+      'rng-combo-hero' in _hc_out and 'Hero: A2s' in _hc_out
+      and 'Reference classes' in _hc_out and 'Includes (top hand classes)' not in _hc_out, '')
+check('T-P2HC-03: fold-outside correct -> green lens, Hero still emphasized (no false negative marker)',
+      'rng-hl-green' in _hc_fold and 'rng-combo-hero' in _hc_fold, '')
+check('T-P2HC-04: exact Hero combo normalized correctly (Ah2h->A2s, AdKc->AKo, TsTc->TT)',
+      _GR2.normalize_hand_class(['Ah', '2h']) == 'A2s'
+      and _GR2.normalize_hand_class(['Ad', 'Kc']) == 'AKo'
+      and _GR2.normalize_hand_class(['Ts', 'Tc']) == 'TT', '')
+check('T-P2HC-05: escaped markup remains zero across inside/outside/fold lenses',
+      '&lt;span' not in _hc_inside and '&lt;span' not in _hc_out and '&lt;span' not in _hc_fold, '')
+check('T-P2HC-06: highlight_range_expression appends Hero token when combo not in expr',
+      (lambda r: r['combo_highlighted'] and r['combo_appended'] and not r['combo_in_expr']
+                 and 'rng-combo-hero' in r['html'] and 'Hero: A2s' in r['html'])(
+          _GR2.highlight_range_expression('AA, KK, QQ, AKs, AKo', 'outside', 'exact',
+                                          role='first_in_open', hero_combo='A2s', action='open')), '')
+# rendered acceptance gate: every Range Lens span is matched 1:1 by a Hero-combo span
+from _qa_v817_synthetic import build as _bld_hc
+from gem_report_draft import render_html as _RH_hc
+from _qa_decode_lazy import decode_lazy_hands as _dlh_hc
+_st_hc, _rd_hc, _hh_hc = _bld_hc()
+_html_hc = _RH_hc(_st_hc, _rd_hc, _hh_hc, sections=['XIV'])
+_dec_hc = _dlh_hc(_html_hc)
+_txt_hc = _html_hc + ' ' + (' '.join(str(v) for v in _dec_hc.values())
+                            if isinstance(_dec_hc, dict) else str(_dec_hc or ''))
+_n_lens_hc = _txt_hc.count("class='rng-hl ")
+# count the Hero span as a CLASS ATTRIBUTE so the .rng-combo-hero CSS rule
+# definition in the <style> block is not miscounted as a rendered span.
+_n_hero_hc = _txt_hc.count("class='rng-combo-hero'")
+check('T-P2HC-07: rendered gate — #Range-Lens spans == #Hero-combo spans (100% coverage, 1:1)',
+      _n_lens_hc >= 1 and _n_hero_hc == _n_lens_hc,
+      'lens=%d hero=%d' % (_n_lens_hc, _n_hero_hc))
 
 # ---- v8.17.1 P3a: villain read-impact +N scrub (plain words, never a raw weight) ----
 import re as _re_p3t

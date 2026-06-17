@@ -11,3 +11,9 @@
 # Hand-evaluation library used by gem_solver.py for postflop
 # equity/EV calculations. Required by test_solver.py.
 phevaluator>=0.5.3
+
+# Browser-QA reproduction (v8171_acceptance/browser_qa_v8171.py): drives an
+# already-installed system Chrome/Edge via Playwright's channel= launch. Package
+# only — no bundled browser engine download is required for the documented run.
+playwright>=1.40
+

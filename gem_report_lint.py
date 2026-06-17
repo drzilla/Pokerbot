@@ -67,6 +67,18 @@ TABLE_GRAMMAR = {
                      'ROI', 'ITM/B', 'Top1/B', 'Top5/B', 'FT/B', 'Avg BI'],
         'strict_order': True,
     },
+    'tt_session_summary': {
+        # #30 (v8.17.1 P4): the unified Tournament Results session-totals strip
+        # (gem_report_draft.sections_tournaments, block 'tt-summary') presents the
+        # canonical usd_overlay totals under user-facing labels. It is NOT the
+        # 12-col daily 'financial_summary' table (Date/.../Avg BI) — it has its own
+        # 7-col schema (locked by T-D-TT-3). Previously mis-typed as
+        # 'financial_summary', which tripped E1/E2 against the daily grammar; now
+        # graded against its own columns so the lint validates rather than misfires.
+        'columns': ['Invested', 'Cash return', 'Ticket return', 'Net',
+                     'ROI', 'Bullets', 'Events'],
+        'strict_order': True,
+    },
     'tournament_pnl': {
         'columns': ['Tourney', 'BI', 'Stack', 'Place', '$Prize', 'ROI', 'Time'],
         'strict_order': True,

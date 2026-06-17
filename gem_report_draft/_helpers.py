@@ -731,10 +731,16 @@ def range_evidence_md(ev):
             _lens_html = _hl.get('html', '')
         except Exception:
             _lens_html = ''
+        # INSIDE -> "Includes …" (Hero is a member). OUTSIDE -> "Reference classes …"
+        # so an appended 'Hero: <combo>' token never reads as a membership claim.
+        _lbl = 'Includes (top hand classes)' if inside else 'Reference classes'
         if _lens_html:
-            lines.append(f"> Includes (top hand classes): {_lens_html}")
+            lines.append(f"> {_lbl}: {_lens_html}")
         else:
-            lines.append(f"> Includes (top hand classes): {tops}.")
+            # Defensive fallback (highlighter unavailable): still emphasize Hero so
+            # every rendered lens carries a rng-combo-hero span (coverage gate).
+            lines.append(f"> {_lbl}: {tops} · "
+                         f"<span class='rng-combo-hero'>Hero: {hero}</span>.")
     if bex:
         lines.append(f"> Boundary hand classes: {bex}.")
     return '\n'.join(lines)

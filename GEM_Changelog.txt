@@ -1,3 +1,52 @@
+v8.17.1 (2026-06-17) -- REAL-REPORT STABILIZATION (completes the v8.17.0 epics)
+================================================================================
+v8.17.0 shipped the four Decision-Coach epics, but a pass over a real V2 report
+found several of them under-delivered on the actual render. v8.17.1 finishes the
+job and adds a trust layer that makes the verdicts internally consistent. Five
+production phases, all synthetic-fixture-validated and browser-QA'd:
+
+  P1  COMMENTARY CAPSULE DEPLOYMENT -- the register-classified capsule
+      (factual / coaching / no_clear_lesson) now actually leads each street in
+      the MVP v3.4 section-17 order on both XIV.A and XIV.B; empty roles drop,
+      no empty capsule renders.
+  P2  RANGE-LENS + ACTION-GRADE SYNC -- range membership is derived from ONE
+      shared chart selector (gem_ranges.build_range_evidence). The grid push/
+      call-jam footer, the evidence block, and the action grade can no longer
+      disagree; raw chart ids (PUSH_/CALLJAM_/REJAM_) are humanized everywhere
+      they surface, including the capsule Range role (_rng_lead/_rng_bl).
+  P3  VILLAIN EXPLOITATION STEP 3 -- the 7-part lesson is delivered VISIBLY in
+      the commentary modal from the explicit lesson_7part object; missed/good
+      grading stays gated (else factual); wrong-player / wrong-action / claims-
+      a-row parity atoms gate the build.
+  P4  TOURNAMENT TABLES v3 -- one unified Tournament Results block with SEVEN
+      typed surfaces from the event-level model: grouped aggregates (multi-tab,
+      By-day auto-hidden on single-day data), distribution chart (metric switch
+      + hover tooltip), filters + sticky summary, Finance & Finish detail,
+      Performance detail, and a drivers rollup. No recompute -- canonical
+      financials only; legacy P&L / Deep Runs / Stack Trajectories stay collapsed
+      in the secondary reconciliation <details>.
+  P5  DECISION-TRUST LAYER -- a single canonical verdict resolver
+      (active-queue > analyst > usable-auto > neutral Review) stamps the topbar,
+      the article, the capsule and the review-queue row from ONE source, so the
+      four can never contradict. A marker/commentary parity build gate and a
+      scored all-in completeness gate (complete math OR an explicit
+      no_clear_lesson) run in the analyzer's Check-15 validator; bounty value
+      carries provenance; pot odds are evaluated at the decision node.
+
+Additive only; re-grades NO real decisions. NO rule, test or fixture is keyed to
+any real hand / tournament / player / session id -- all behavior and tests use
+synthetic ids (SYN1/2/3, TM900*, 9000000x). Analyst Expansion was NOT started.
+Nothing merged, tagged or pushed. Runtime v8.17.0 -> v8.17.1.
+
+Acceptance: verify_release clean v8.17.1 (49/49 files [+6 modules promoted from
+canary-only to hashed: gem_ranges, gem_review_trust, gem_commentary_migration,
+gem_made_hands, gem_opponent_profiler, _qa_v817_rc3_acceptance], 450 canaries,
+11 anti); _test_scratch 1487/1487; full-render acceptance fixture (synthetic,
+ANALYST_COMPLETE + AUTO_ONLY, lazy and non-lazy) renders clean; browser QA 32/32
+on real Chromium (JS enabled) at 1440x900 / 1024x768 / 390x844. T-H141-01 SoT pin
+-> v8.17.1.
+
+================================================================================
 v8.17.0 (2026-06-17) -- DECISION COACH: four-epic MAJOR PRODUCT RELEASE (FINAL)
 ================================================================================
 First materially-significant product release in the v8.17 sequence. Ships FOUR

@@ -10,21 +10,21 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.17.0"   # v8.17.0 FINAL (Decision Coach major product release): four epics — Final Commentary capsules + Complete PKO decision coaching + Villain Exploitation Step-3 (7-part lesson) + Unified Tournament Results. Released from the GPT-audited rc3 tip (0b9f11d); the rc1/rc2/rc3 correction passes are folded in. Tournament Results GENUINELY unified (STT primary before S1; legacy P&L/Deep-Runs/Stack-Trajectories collapsed into one closed secondary reconciliation <details>; ancestor-expand on hash-nav); Villain Step-3 VISIBLE delivery wired from lesson_7part; integrated four-epic acceptance via the real renderer; bundled QA harnesses (reproducible self-verify)
+VERSION = "v8.17.1"   # v8.17.1 Real-Report Stabilization: completes the four v8.17.0 Decision-Coach epics against a real V2 report. P1 Commentary capsule deployment (MVP v3.4 §17 order); P2 range-lens + action-grade synchronization; P3 Villain Exploitation Step-3 VISIBLE delivery (lesson_7part); P4 Tournament Tables v3 (7 typed surfaces: grouped aggregates + distribution chart + filters/sticky + Finance&Finish + Performance + drivers rollup, unified into one Tournament Results block); P5 trust layer — canonical verdict resolver (active-queue>analyst>auto>neutral) wired into topbar/article/capsule, marker/commentary parity build gate, scored all-in completeness (complete math OR no_clear_lesson), bounty-value provenance, decision-time pot odds. Synthetic-only fixtures (no real IDs drive behavior/tests); Analyst Expansion NOT started; not merged/tagged/pushed
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("3639e546c95a1e98fef2eb181c126f9e015c9d2365dc5989f45c72594403f9b5", 132526, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("27b25a231e06e05b8e76e4b4aad0cd5817833b055eaa13cb99ffdea8404487bc", 135837, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("96e1a5bccdc3a207137bd730739ba1efdd2d9e3029ac126a541b03aa78f88d70", 4167, "v8.16.4: 42 files, 412 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("332feb1150d358f42b0e9f46907e30a34782ed49e152ba85bdeddcb4d418a9ce", 545169, "v8.17 B6/B7/B8 + capsule: +T-PKO817-01..12 + T-CAP817-01..10 (registers/tiers/capsule/content-lints)"),
+    "_test_scratch.py": ("923f0cc293ec85755ac39566a45159204ae6d4d089d4313a0f3b5270e11120c9", 586287, "v8.17.1: +P2 range-lens, P3 villain step-3, P4 TT-v3 (7 surfaces), P5 trust layer (canonical verdict / marker parity / all-in completeness / bounty provenance / pot odds) + full-render fixture"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("f056e11bcf6175277c42cd9ce15748e3d15ff981a7dce82a064440f74c9e02b1", 49450, "v8.16.4 DTI Obj4: additive why_contract (street+action+category) in worklist"),
-    "gem_analyzer.py": ("b409e6afa1f97f16cf7a685748838034051686b84e19f934eb128f85e6d6ac69", 584897, "v8.16.4 DTI Obj5: validator Check 14 calls verdict_validation_issue"),
+    "gem_analyzer.py": ("b4cb81062d1c4aaa12ede81234a3c1079ad6977fa680b3a02ec7ab91605d8f02", 589876, "v8.17.1 P5: Check-15 validator runs marker_parity + all-in completeness into _val_issues; bounty_value_provenance stamp"),
     "gem_chart_labels.py": ("888e5f961efcb47197e5ee3eaee3cd2bba7fab0a9eea4681a04a508784decdf2", 5554, "v8.14.4: + find_raw_chart_ids_in_user_text / humanize_raw_chart_ids (centralized raw-chart-ID guard)"),
     "gem_coaching_cards.py": ("9327a09b5edb2e1d7e384f592c2f4d4d61ed5c10f67c239aa4be09365901efa3", 47332, "v8.14.1 rev-3: not-collectible card reads canonical collectibility"),
     "gem_commentary_capsule.py": ("6cb7935a06fcd25b9d182c0a122449ca8863ff9d0f4c3014beca62abf6d308d4", 14997, "v8.17 Epic A: commentary capsule layer (registers + evidence tiers + capsule builder + content lints L1-L13)"),
@@ -36,28 +36,34 @@ MANIFEST = {
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
     "gem_parser.py": ("81a255eddf4b5065c9b38d92c3e255571e455bf220d0171a1cb79485362a7735", 103111, "v8.12.0a B150: table_size = dealt players (+table_capacity)"),
     "gem_pko_research.py": ("6c56e998ab6c032739cfba79233ad65bd8ace933a3a41527433e7879ae0f7a9d", 55172, "v8.17 B6/B7: how_pko_changes_decision() + pko_trust_render exposes how_changes_md + reconciled facts"),
-    "gem_pot_odds.py": ("52a01bccb5478f46cdbd253ca6b581f733fba2e551daef4e48d7cb17cceab5f0", 49529, "v8.12.8 QA3: folded-reveal exclusion + main-pot price"),
-    "gem_tournament_model.py": ("c0cd004fbaddc981fe6e86b1e59f65a48589fb1b005084b40ac3d97739959c1e", 11955, "v8.15.0: typed event-level Tournament Tables model (SP-1)"),
+    "gem_pot_odds.py": ("3bde4518f4306256bc2067d30d9758c003ea16fc4466b0b5868319de2e678bc1", 49955, "v8.17.1 P5: decision-time pot odds (eval at the decision node)"),
+    "gem_tournament_model.py": ("a52c75bf3b3ccc43b3e1852020918bc3114dcc2ec4c2af51f1cdc5d1626fd629", 21818, "v8.17.1 P4: event performance(hands/bb100) + reviewed + exit_hand fields for Tournament Tables v3"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
     "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
-    "gem_report_draft/_hand_grid.py": ("d847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865", 80499, "v8.14.1 rev-3: human chart labels + call-jam reconciled vs analyst + depth caveat"),
-    "gem_report_draft/_helpers.py": ("6f2052a557d0ad966da0f666445f196379d69a22420b5a1072597fd8405eeab3", 65127, "v8.16.1 hotfix: call-vs-check wording + auto_verdict_needs_review (Bug 2a/2b)"),
-    "gem_report_draft/_html.py": ("0629f5be1450cacaf1bf2a17bd7026d08afd6d5931dccd75b315a0fae74b4972", 402046, "v8.17 B8: openHandListPopup single-id short-circuits to a direct openHand (count 1 opens the hand)"),
+    "gem_report_draft/_hand_grid.py": ("ea3df6caae9ec0acc22d7f2c4dead0cbbb993f50ea9862d08c04cab3b951051f", 84670, "v8.17.1 P2: range membership derives from the ONE shared chart selector / range-evidence (SHA-sentinel pin)"),
+    "gem_report_draft/_helpers.py": ("14cdd7fc69644ce24cb6060ebf506bc5537d1ad056777835d94f313716c1bea7", 70062, "v8.17.1 P5: build_canonical_verdicts (active_queue>analyst>auto[usable]>neutral Review)"),
+    "gem_report_draft/_html.py": ("c53cc79ecea6eeaec12ad69e59b1cb2e7289b32c7d9039b7b383202abc47b9df", 420193, "v8.17.1 P4: TT distribution-chart + filter/sticky-summary JS and CSS; reviewed-state green init"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
-    "gem_report_draft/draft.py": ("9fa0b8b7ee101c9995f7ad3b854f5cec1a6be90851c818af688072c6989bc533", 35569, "v8.16.2 Phase D: STT nav label -> Tournament Results"),
+    "gem_report_draft/draft.py": ("0afedd12e540ce0c1d408c85022930eb426b3f7fc47f85da108b863d7c463405", 36186, "v8.17.1 P5: _build stamps rd[canonical_verdicts] before sections render"),
     "gem_report_draft/sections_financial.py": ("823479baef66eef5de4df8cdf37ef733784e2fdac685fe5f76bc6c55209f21e7", 132271, "v8.14.3 Issue 1+2: cash+ticket basis footnote + large-loss verdict relabel when ANALYST_COMPLETE"),
     "gem_report_draft/sections_issue_explorer.py": ("677fc0b4c14e91373e8eb8f6d31a64feedc3269e85205663c56a77a41b006393", 50058, "v8.14.1 rev-4: humanize chart ids in rep-example deviation notes"),
     "gem_report_draft/sections_iv_xii.py": ("80520701383157257ee6d46e83fa35bb6f5033f3ea0c45dc8d037372ee5432ae", 225848, "v8.16.0 villain: matrix Teaching Signals wording"),
     "gem_report_draft/sections_mistakes.py": ("f50c6f85bdda88c506abe019aa323ec1ea0eb80068d2d5ba3b835c475e5a21ce", 123884, "v8.14.0 Slice E rev-2: PKO opportunity table rename (Opportunity/Wrong/Missed)"),
-    "gem_report_draft/sections_tournaments.py": ("149f5b66ce8b74062557639f088c76d942145f6bcb301d51c77fc8c12d6a15e0", 17707, "v8.16.2 Phase D: Tournament Results title/strip/cEV polish"),
+    "gem_report_draft/sections_tournaments.py": ("c66f6456335f717c5a79765b74b9e2f3479d3b43ff039761a05003366f894710", 41303, "v8.17.1 P4: Tournament Tables v3 -- 7 surfaces (grouped aggregates, distribution chart, filters/sticky, Finance&Finish, Performance, drivers rollup) unified into one Tournament Results block"),
     "gem_report_draft/sections_xiii.py": ("553a2cda24c42d263a179289d3db66a892e27c3e03455163fbab96f33c7371eb", 68332, "v8.14.1 REV4: body shows true seat + labels short-table proxy chart (72807590)"),
-    "gem_report_draft/sections_xiv.py": ("e93226f483f433fc1f41268741815fdfe3fdeb1af7a0fc0e832425976add6687", 224421, "v8.17 B6/B7: how-PKO-changes-the-decision coaching + 4-state provenance on BOTH XIV.A + XIV.B PKO pills"),
-    "gem_report_draft/tldr.py": ("0b4f29698f408f8dac5b707b14e4a28dcd772a24028fb7b8e6f0a3256e49b157", 148637, "v8.16.4 DTI Blocker 1: build_review_queue routes through aggregate_review_queue (bounded + aggregated + internal-QA)"),
-    "gem_report_lint.py": ("7f2f6c15a89f13b8f2e8cccfb868fbb7b480b27d82bb9a6b7d70c2a6fca3c5d8", 28188, "v8.9.8: P2-D lint finding visibility"),
+    "gem_report_draft/sections_xiv.py": ("0dfbea81ffc7e9ee391f9ffc6a8e98e8055220a3a43ff21a4acd7e505b0a9e85", 237062, "v8.17.1 P5: canonical verdict on topbar/article/capsule + scored all-in completeness gate + humanized chart-id leak fix (_rng_lead/_rng_bl)"),
+    "gem_report_draft/tldr.py": ("01327483156adf168f408cbaf7d9cb31479a304213086990d112b9545ee0f43b", 149064, "v8.17.1 P5: review-queue stamps canonical_verdict; rq-row carries data-canonical-verdict"),
+    "gem_report_lint.py": ("4e9ba353d786199c93c87f6efca852d399aa7329b42e4974616e0f284379fbd0", 28938, "v8.9.8: P2-D lint finding visibility"),
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("0309570b4a26518334db9e7c0051bbd20f76a4ef16c037fab90f0ca23c1aff30", 122465, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("5ca67b09268af894933c2a9cfef54e4bbb54be947072bdbc797a22b3800e6579", 42569, "v8.16.0 villain: status-safe cards + grade gate + calibrated node-specific mixed/split caveat + ICM caution"),
-    "gem_version.py": ("8c7130810f0d56022b6171fec21ad90e44438e7e19a2537eefa543c028b2c1f4", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("59a1bd9fe8871a381280ffabd8b81c778c362d5614a535f10e127af8cbd29d1b", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_ranges.py": ("dc1dfec57a827e581ce3df61cd66038ad6b261f712a8bd5249edf77910cdefcd", 52248, "v8.17.1 P2: build_range_evidence + shared open/jam chart selector (range-lens single source of truth)"),
+    "gem_review_trust.py": ("55def088b92cf8247e9ac06959748f6867b235563a427e256be1a74e7d6c9043", 33550, "v8.17.1 P5: resolve_canonical_verdict + marker_parity_issues(atoms) + all-in completeness helpers"),
+    "gem_commentary_migration.py": ("82875a5fcb1177d138bac6597a5fbd129bd4f770d461dfca899a5927f1ea8106", 26773, "v8.17 commentary zero-drop migration audit (source enumerator + classifier + lints)"),
+    "gem_made_hands.py": ("a85b43ddf5e33fcf549071b52890d55a2c4b0a3b5c8b3089027c934bcd4715cb", 24701, "v8.17 made/draw/bluff hand classification feeding the commentary range lens"),
+    "gem_opponent_profiler.py": ("723ce314d3d0362e450dd4f1d18237ef6f5ecf3522cfdb37ecb62d7690bf955f", 26445, "v8.17 opponent archetype profiler (villain-teaching inputs)"),
+    "_qa_v817_rc3_acceptance.py": ("58ddb30323666ded3bdc3878da2063d09dc3a181d6c008642550695c7a5aa0ba", 12406, "v8.17 four-epic integrated acceptance harness (reproducible self-verify)"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -963,8 +969,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.0'",
-     "v8.17.0 FINAL: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.1'",
+     "v8.17.1 Real-Report Stabilization: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),
@@ -1202,7 +1208,7 @@ CANARIES = [
      "v8.17 A1: build the visible decision capsule from canonical signals"),
     ("gem_commentary_capsule.py", "def render_capsule_md(",
      "v8.17 A1: render the register-badged capsule markdown"),
-    ("gem_report_draft/sections_xiv.py", "decision_capsule_from_signals as _dcs_a",
+    ("gem_report_draft/sections_xiv.py", "decision_capsule_from_signals as _dcs_lead",
      "v8.17 A1: visible capsule leads the XIV.A decision street"),
     ("gem_report_draft/sections_xiv.py", "decision_capsule_from_signals as _dcs_b",
      "v8.17 A1/C2: visible capsule leads the XIV.B compact decision street"),

@@ -8833,10 +8833,11 @@ def _render_tt(rd):
     return d.render_md()
 _ttr_md = _render_tt(_tt_rd)   # reuse the SP-1 canonical fixture
 
-check('T-TT-R-01: new section renders from build_tournament_model (header + event table)',
+check('T-TT-R-01: new section renders from build_tournament_model (Finance & Finish surface)',
       'Tournament Results' in _ttr_md          # v8.16.2 Phase D: renamed from "Tournament Tables (event-level)"
-      and 'retained for cross-check' in _ttr_md
-      and '| Date | Tournament | Type |' in _ttr_md
+      and 'Finance & Finish' in _ttr_md        # v8.17.1 P4: canonical per-event surface (cross-check removed)
+      and "<th data-tt-sort='2'>Type</th>" in _ttr_md
+      and "<th>Exit hand</th>" in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
 # v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface -> STT
 # is now wired BEFORE S1 (the nav order derives from this list). S1 still renders
@@ -8856,7 +8857,7 @@ _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
     {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
 check('T-TT-R-03: repeated tournament names render as separate event rows',
-      _render_tt(_rep_rd).count('| GGMasters Bounty') == 2, '')
+      _render_tt(_rep_rd).count("<td data-label='Tournament'>GGMasters Bounty</td>") == 2, '')
 # multi-bullet => one row with bullet count
 _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8864,7 +8865,9 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
-      _mb_md.count('| Big Re-entry ') == 1 and '| Big Re-entry | Standard* | $50 | 3 |' in _mb_md, '')
+      _mb_md.count("<td data-label='Tournament'>Big Re-entry</td>") == 1
+      and "<td data-label='Type'>Standard*</td>" in _mb_md
+      and "<td data-label='Bullets' data-sort-value='3'>3</td>" in _mb_md, '')
 # summary totals match canonical usd_overlay.totals
 check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
       # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
@@ -8874,8 +8877,8 @@ check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket sp
 check('T-TT-R-06: return basis "cash + ticket" stays on the trust line',
       'return basis: **cash + ticket**' in _ttr_md, '')
 # cash + ticket displayed consistently (satellite row: Cash $0 + Ticket $470 = Return $470)
-check('T-TT-R-07: per-row cash + ticket = return (satellite: $0 + $470 = $470)',
-      '| $0 | $470 | $470 |' in _ttr_md, '')
+check('T-TT-R-07: per-event return is canonical in Finance & Finish (satellite cash $0 + ticket $470 = return $470)',
+      "<td data-label='Return' data-sort-value='470.0'>$470</td>" in _ttr_md, '')
 # unknown provenance => em dash
 _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8883,20 +8886,20 @@ _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 5, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -5, 'is_sat': False}]}}
 _unk_md = _render_tt(_unk_rd)
 check('T-TT-R-08: unknown prize provenance renders an em dash (not a fabricated label)',
-      '| — | $5 |' in _unk_md, _unk_md[_unk_md.find('| 2026'):][:120])
+      "<td data-label='Type'>—</td>" in _unk_md, _unk_md[_unk_md.find('tt-finance'):][:200])
 # inferred prize type marked
 check('T-TT-R-09: inferred prize type marked with * + footnote present',
       'Bounty*' in _ttr_md and 'Prize type inferred from the tournament name' in _ttr_md, '')
 # bounty dollars not inferred
-check('T-TT-R-10: bounty dollars not inferred (audit footnote present; no $ on the bounty Type cell)',
+check('T-TT-R-10: bounty dollars not inferred (audit footnote present; Type shows Bounty*, no fabricated $)',
       'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
-      and '| Bounty* | $30 |' in _ttr_md, '')
+      and "<td data-label='Type'>Bounty*</td>" in _ttr_md, '')
 # v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
 # of em-dashes) when no canonical per-tournament cEV source exists.
-check('T-TT-R-11: per-event cEV/100 COLUMN hidden when no canonical source',
-      '| cEV/100 |' not in _ttr_md            # header cell absent (column dropped)
-      and '12/500 | — |' in _ttr_md           # Mini Knockout row now ends at Adv (—)
-      and '3/40 | seat |' in _ttr_md          # Daily Sat row now ends at Adv (seat)
+check('T-TT-R-11: Finance & Finish shows typed finish labels; no per-event markdown cEV column; trust line states unavailable',
+      "<td data-label='Finish' data-sort-value='2.4'>Top 2.4%</td>" in _ttr_md  # exact-place typed label
+      and "<td data-label='Finish' data-sort-value='101'>Ticket</td>" in _ttr_md  # satellite seat
+      and '| cEV/100 |' not in _ttr_md            # no markdown per-event cEV column
       and 'per-event cEV/100: unavailable' in _ttr_md, '')  # trust line still states why
 # read-only: emitter does not mutate rd (no unrelated state changes)
 _pre = _copy_ttr.deepcopy(_tt_rd)
@@ -8933,9 +8936,12 @@ _tr_md = _tr_doc.render_md()
 _tr_js = [j for j in _tr_doc._extra_js if j.startswith('window.tournamentEvents=')]
 _tr_payload = _json_tr.loads(_tr_js[0][len('window.tournamentEvents='):-1]) if _tr_js else []
 
-check('T-TR817-01: primary unified sortable table is emitted (id + sortable headers + Format/Status cols)',
+check('T-TR817-01: primary Finance & Finish sortable table emitted (id + sortable headers + Type/Finish/Cost/Exit-hand cols)',
       "id='tt-unified-table'" in _tr_md and "data-tt-sort='0'" in _tr_md
-      and '>Format<' in _tr_md and '>Status<' in _tr_md and '>Invested<' in _tr_md, '')
+      and "<th data-tt-sort='2'>Type</th>" in _tr_md
+      and "<th data-tt-sort='4' data-tt-num='1'>Finish</th>" in _tr_md
+      and "<th data-tt-sort='5' data-tt-num='1'>Cost</th>" in _tr_md
+      and "<th>Exit hand</th>" in _tr_md, '')
 check('T-TR817-02: every event row has a Details drilldown affordance',
       _tr_md.count('openTournamentDetail(') == 2
       and "if(window.initTournamentResultsTable)" in ''.join(_tr_doc._extra_js), '')
@@ -9193,15 +9199,17 @@ check('T-C-STICKY-4: sticky context sits BELOW the street header (lower z-index)
 # ---- Phase D: Tournament Results polish ----
 check('T-D-TT-1: STT nav label is "Tournament Results"',
       "'STT': 'Tournament Results'" in _df_code, 'STT label not set')
-check('T-D-TT-2: section title renamed + explanatory note present',
+check('T-D-TT-2: section title + canonical Finance & Finish surface (duplicate cross-check removed)',
       "'sec-tournaments', 'Tournament Results'" in _tt_code
-      and 'retained for cross-check' in _tt_code,
-      'title/explanatory note missing')
+      and 'Finance & Finish' in _tt_code
+      and 'Per-event financial detail' not in _tt_code,
+      'F&F surface / cross-check-removal not in place')
 check('T-D-TT-3: summary strip uses Invested/Cash return/Ticket return labels',
       'Invested | Cash return | Ticket return | Net | ROI | Bullets | Events' in _tt_code,
       'summary strip not relabelled to spec')
-check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard)',
-      'has_cev = any(' in _tt_code and "_cev_h = ' cEV/100 |' if has_cev else ''" in _tt_code,
+check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard in Performance table)',
+      'has_cev = any(' in _tt_code
+      and "if has_cev else ''" in _tt_code,
       'cEV column not conditionally hidden')
 check('T-D-TT-5: legacy S1 financial tables NOT removed',
       'S1.1 Per-Tournament P&L' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(),
@@ -9692,6 +9700,12 @@ check('T-P4UI-08 (anti): a real full-buy-in bust shows a real -100% ROI; no lite
       'unavailable (no canonical' in _md_p4s   # the one allowed diagnostic phrase (trust line)
       and 'data-source' not in _md_p4s.lower().replace('data-sort', '')
       and 'rule:' not in _md_p4s, '')
+check('T-P4UI-09: Finance & Finish is the canonical per-event surface; duplicate cross-check removed; exit-hand xref',
+      'Finance & Finish' in _md_p4s
+      and "<th data-tt-sort='2'>Type</th>" in _md_p4s
+      and "<th>Exit hand</th>" in _md_p4s
+      and 'hand-ref xref' in _md_p4s
+      and 'Per-event financial detail' not in _md_p4s, '')
 
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',

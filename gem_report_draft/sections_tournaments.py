@@ -465,14 +465,15 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # P&L / Deep Runs / Stack Trajectories in S1 are demoted to collapsed
     # cross-check detail; the canonical per-event financial table is retained
     # below this primary table for cross-check.
-    doc.w('*Single primary **Tournament Results** — the first Results surface, one '
-          'sortable row per event. Click any column header to sort; click '
-          '**Details ▸** for the per-event drilldown (bullets, finish/field, prize '
-          '+ bounty breakdown, deep-run status + stack arc, and the event’s hands). '
-          'The legacy per-tournament P&L / Deep Runs / Stack Trajectories now render '
-          'only inside ONE collapsed secondary reconciliation disclosure in S1 '
-          '(below); the canonical per-event financial table is '
-          'retained for cross-check below.*')
+    doc.w('*Single primary **Tournament Results** — the first Results surface. The '
+          'grouped aggregate + distribution chart sit on top; **Finance & Finish** '
+          'is the canonical per-event financial + finish table (sortable; click '
+          '**Details ▸** for the per-event drilldown — bullets, finish/field, prize '
+          '+ bounty breakdown, deep-run status + stack arc, and the event’s hands), '
+          'and **Tournament Performance** carries hands / BB-100 / cEV / drivers / '
+          'reviewed. The legacy per-tournament P&L / Deep Runs / Stack Trajectories '
+          'render only inside ONE collapsed secondary reconciliation disclosure in '
+          'S1 (below).*')
     doc.w('')
 
     # ---- Summary strip (canonical session totals) ----
@@ -561,46 +562,41 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _net = _fmt_usd(e.get('net', 0), plus=True)
         _roi = _pct_or_dash(e.get('roi_pct'))
 
-        # --- markdown cross-check row (UNCHANGED columns: financial-correctness) ---
-        _row = '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % (
-            e.get('event_day') or EMDASH, name, pt,
-            _buy, e.get('bullets', 1), _cost,
-            _fmt_usd(ret.get('cash_received', 0)),
-            (_fmt_usd(tick) if tick else EMDASH),
-            _retv, _net, _roi, finish_txt, adv)
-        if has_cev:
-            _row += ' %s |' % cev_txt
-        _md_rows.append(_row)
-
-        # --- primary unified HTML row (Format + Status + Details drilldown) ---
+        # --- v8.17.1 P4 surface 5: Finance & Finish row (the split of the former
+        # unified table — financial + typed-finish + exit-hand; the duplicate
+        # markdown cross-check table is removed, this is the canonical surface) ---
         _eid = e.get('event_id') or ('%s|%s' % (tid, e.get('event_day') or ''))
+        _fin_lbl = fin.get('label') or finish_txt
+        _fin_sort = fin.get('sort_key')
+        _fin_sort = _fin_sort if _fin_sort is not None else 999
+        _exit = e.get('exit_hand')
+        _exit_cell = (("<a href='#' class='hand-ref xref' data-hid='%s'>%s</a>"
+                       % (_esc_tt(str(_exit)[-8:]), _esc_tt(str(_exit)[-8:])))
+                      if _exit else EMDASH)
         _uni_rows.append(
             "<tr>"
             "<td data-label='Date' data-sort-value='%s'>%s</td>"
             "<td data-label='Tournament'>%s</td>"
-            "<td data-label='Format'>%s</td>"
+            "<td data-label='Type'>%s</td>"
             "<td data-label='Bullets' data-sort-value='%s'>%s</td>"
-            "<td data-label='Buy-in' data-sort-value='%s'>%s</td>"
-            "<td data-label='Invested' data-sort-value='%s'>%s</td>"
             "<td data-label='Finish' data-sort-value='%s'>%s</td>"
+            "<td data-label='Cost' data-sort-value='%s'>%s</td>"
             "<td data-label='Return' data-sort-value='%s'>%s</td>"
             "<td data-label='Net' data-sort-value='%s'>%s</td>"
             "<td data-label='ROI' data-sort-value='%s'>%s</td>"
-            "<td data-label='Status' data-sort-value='%s'>%s</td>"
+            "<td data-label='Exit hand'>%s</td>"
             "<td data-label='' class='tt-details-cell'>"
             "<a href='#' onclick=\"openTournamentDetail('%s');return false;\">Details ▸</a></td>"
             "</tr>" % (
                 _esc_tt(e.get('event_day') or ''), _esc_tt(e.get('event_day') or EMDASH),
                 _esc_tt(name), _esc_tt(pt),
                 e.get('bullets', 1), e.get('bullets', 1),
-                (e.get('buy_in') if e.get('buy_in') is not None else ''), _esc_tt(_buy),
+                _fin_sort, _esc_tt(_fin_lbl),
                 e.get('cost', 0), _esc_tt(_cost),
-                place_sort, _esc_tt(finish_txt),
                 (ret.get('value', 0) or 0), _esc_tt(_retv),
                 (e.get('net', 0) or 0), _esc_tt(_net),
                 (e.get('roi_pct') if e.get('roi_pct') is not None else ''), _esc_tt(_roi),
-                status_rank, _esc_tt(status_label),
-                _esc_tt(_eid)))
+                _exit_cell, _esc_tt(_eid)))
 
         # --- per-event drilldown payload (canonical only; no recompute) ---
         _rb = []
@@ -640,23 +636,29 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'hand_ids': _hids_by_tid.get(tid, [])[:60],
         })
 
-    # Primary unified sortable table (raw HTML so headers sort + rows drill down).
+    # v8.17.1 P4 surface 5: Finance & Finish — the canonical per-event financial +
+    # typed-finish surface (the split of the former unified table; the duplicate
+    # markdown cross-check below it is removed). Sortable (Finish sorts on the typed
+    # domain sort_key: exact Top% best, then Ticket/Day 2/Est. ITM/Pending/No cash;
+    # blanks last). Keeps the per-event Details drilldown. id retained so the
+    # existing sort JS (initTournamentResultsTable/_ttSort) binds unchanged.
+    doc.w('#### Finance & Finish')
+    doc.w('')
     _uhdr = (
         "<th data-tt-sort='0'>Date</th>"
         "<th data-tt-sort='1'>Tournament</th>"
-        "<th data-tt-sort='2'>Format</th>"
+        "<th data-tt-sort='2'>Type</th>"
         "<th data-tt-sort='3' data-tt-num='1'>Bullets</th>"
-        "<th data-tt-sort='4' data-tt-num='1'>Buy-in</th>"
-        "<th data-tt-sort='5' data-tt-num='1'>Invested</th>"
-        "<th data-tt-sort='6' data-tt-num='1'>Finish</th>"
-        "<th data-tt-sort='7' data-tt-num='1'>Return</th>"
-        "<th data-tt-sort='8' data-tt-num='1'>Net</th>"
-        "<th data-tt-sort='9' data-tt-num='1'>ROI</th>"
-        "<th data-tt-sort='10' data-tt-num='1'>Status</th>"
+        "<th data-tt-sort='4' data-tt-num='1'>Finish</th>"
+        "<th data-tt-sort='5' data-tt-num='1'>Cost</th>"
+        "<th data-tt-sort='6' data-tt-num='1'>Return</th>"
+        "<th data-tt-sort='7' data-tt-num='1'>Net</th>"
+        "<th data-tt-sort='8' data-tt-num='1'>ROI</th>"
+        "<th>Exit hand</th>"
         "<th>Details</th>")
     doc.w("<div class='table-shell' data-mobile-mode='scroll' "
-          "style='--mobile-table-min-width:960px'><div class='table-scroll'>"
-          "<table class='data-table tt-unified' id='tt-unified-table'>"
+          "style='--mobile-table-min-width:920px'><div class='table-scroll'>"
+          "<table class='data-table tt-unified tt-finance' id='tt-unified-table'>"
           "<thead><tr>" + _uhdr + "</tr></thead><tbody>"
           + ''.join(_uni_rows) + "</tbody></table></div></div>")
     doc.w('')
@@ -692,28 +694,17 @@ def _emit_tournament_tables(doc, s, rd, hands):
     except Exception:
         pass
 
-    # ---- Canonical per-event financial table (collapsed cross-check) ----
-    # v8.16.2 Phase D: cEV/100 column hidden unless a canonical source is passed.
-    _cev_h = ' cEV/100 |' if has_cev else ''
-    _cev_s = '---:|' if has_cev else ''
-    hdr = ('| Date | Tournament | Type | Buy-in | Bullets | Cost | Cash | Ticket | '
-           'Return | Net | ROI | Finish | Adv/Seat |' + _cev_h)
-    sep = '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|' + _cev_s
-    doc.w('<details><summary><strong>Per-event financial detail</strong> '
-          '(cross-check — same canonical numbers as the primary table above)'
-          '</summary>')
-    doc.w('')
-    doc.write_block(financial_table_block(
-        'tt-events', 'tournament_pnl', hdr, sep, _md_rows))
-    doc.w('')
-    doc.w('</details>')
-    doc.w('')
+    # v8.17.1 P4: the duplicate per-event financial cross-check table is REMOVED —
+    # Finance & Finish (above) is the single canonical per-event financial surface,
+    # and Tournament Performance carries hands/BB-100/cEV/drivers/reviewed. The
+    # legacy P&L / Deep Runs / Stack Trajectories remain only inside the ONE closed
+    # S1 reconciliation disclosure (sections_financial s1-recon-detail).
 
     # ---- Footnotes (auditability) ----
     if has_inferred:
         doc.w('*\\* Prize type inferred from the tournament name '
               '(provenance: inferred).*')
-    if has_cev:                           # v8.16.2 Phase D: only when the column is shown
+    if has_cev:                           # only when the Performance cEV column shows
         doc.w('*cEV/100 is raw chip-EV per 100 hands. Session/aggregate cEV '
               'remains where it already appears.*')
     doc.w('*Bounty dollar amounts are shown only when safely sourced (never '

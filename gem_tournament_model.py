@@ -147,7 +147,9 @@ def _finish_state(finish, ret):
 
 
 def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
-                           session_financials_covers_session=None, config=None):
+                           session_financials_covers_session=None, config=None,
+                           hands_by_tid=None, bb100_by_tid=None,
+                           reviewed_by_tid=None, exit_by_tid=None):
     """Build the typed event-level Tournament Tables model from the canonical
     overlay. Pure (no render). Returns a dict:
 
@@ -164,6 +166,15 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
     config = config or {}
     cev_by_tid = cev_by_tid or {}
     drivers_by_tid = drivers_by_tid or {}
+    # v8.17.1 P4: canonical per-event performance maps (derived from the session
+    # hands + analyst commentary, joined by tournament id). cEV/100 stays in
+    # cev_by_tid (blank unless a canonical per-tid source exists); hands / BB-100 /
+    # reviewed-count / exit-hand are canonically derivable and feed the Performance
+    # table + the hand-weighted grouped BB/100.
+    hands_by_tid = hands_by_tid or {}
+    bb100_by_tid = bb100_by_tid or {}
+    reviewed_by_tid = reviewed_by_tid or {}
+    exit_by_tid = exit_by_tid or {}
     rd = rd or {}
 
     ov = rd.get('usd_overlay') or {}
@@ -248,7 +259,13 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
             'return': ret,
             'net': net,
             'roi_pct': roi_pct,
-            'performance': {'cev100': cev, 'cev100_unit': 'raw_chip_ev'},
+            'performance': {
+                'cev100': cev, 'cev100_unit': 'raw_chip_ev',
+                'hands': hands_by_tid.get(tid),     # canonical per-event hand count
+                'bb100': bb100_by_tid.get(tid),     # canonical per-event BB/100
+            },
+            'reviewed': reviewed_by_tid.get(tid),   # {'reviewed':n,'total':m} or None
+            'exit_hand': exit_by_tid.get(tid),      # canonical exit-hand id or None
             'drivers': drivers,
             'field_provenance': {
                 'prize_type': prize_prov,
@@ -256,6 +273,8 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
                 'bounty_amount': 'unknown',        # not parsed; blank
                 'return_basis': ret['basis'],
                 'cev100': cev_prov,
+                'hands': ('exact' if hands_by_tid.get(tid) is not None else 'unknown'),
+                'bb100': ('exact' if bb100_by_tid.get(tid) is not None else 'unknown'),
                 'speed': 'unknown',
                 'entry_timing': 'unknown',
                 'event_day_tz_source': tz_source,

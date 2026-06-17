@@ -95,24 +95,74 @@ def _tt_hand_ids_by_tid(hands):
     return out
 
 
-def _emit_grouped_aggregate(doc, events):
-    """v8.17.1 P4 surface 3: grouped AGGREGATE table (Buy-in default tab) built
-    from the pure aggregation helpers — pooled ROI on the covered subset,
-    settled-only ITM/Top5/Top1 denominators, hand-weighted BB/100·cEV/100, and a
-    deterministic legend-square colour per group (the table IS the chart legend).
-    Server-rendered; the grouped view is the FIRST Results table (aggregate-first),
-    above the per-event detail. cEV/100 is raw chip-EV (no %); blank until a
-    canonical per-event source is wired."""
-    import gem_tournament_model as _TM
-    groups = _TM.group_events(events, 'buyin')
-    if not groups:
-        return
-    cats = sorted([c for c in groups if c], key=_TM.buyin_band_sort_key)
+def _tt_perf_maps(hands, rd):
+    """v8.17.1 P4: canonical per-event performance maps joined by tournament id,
+    derived ONLY from the session hands + analyst commentary (no recompute, no
+    synthesis): hand count, BB/100 (sum net_bb / hands * 100), reviewed count
+    ({reviewed,total}), and the exit-hand id (last hand of the event). Returns
+    (hands_by_tid, bb100_by_tid, reviewed_by_tid, exit_by_tid)."""
+    ac = (rd or {}).get('analyst_commentary') or {}
+    _ac_keys = set()
+    for _k in ac:
+        _ac_keys.add(str(_k))
+        _ac_keys.add(str(_k)[-8:])
+    n_by, net_by, rev_by, exit_by = {}, {}, {}, {}
+    for h in (hands or []):
+        tid = str(h.get('tournament_id') or h.get('tournament') or '')
+        hid = h.get('id')
+        if not tid or not hid:
+            continue
+        n_by[tid] = n_by.get(tid, 0) + 1
+        net_by[tid] = net_by.get(tid, 0.0) + float(h.get('net_bb') or 0)
+        _hs = str(hid)[-8:]
+        if str(hid) in _ac_keys or _hs in _ac_keys:
+            r = rev_by.setdefault(tid, {'reviewed': 0, 'total': 0})
+            r['reviewed'] += 1
+        exit_by[tid] = hid                       # last hand seen = exit hand
+    hands_by_tid, bb100_by_tid, reviewed_by_tid = {}, {}, {}
+    for tid, n in n_by.items():
+        hands_by_tid[tid] = n
+        bb100_by_tid[tid] = round(net_by.get(tid, 0.0) / n * 100, 1) if n else None
+        reviewed_by_tid[tid] = {'reviewed': rev_by.get(tid, {}).get('reviewed', 0),
+                                'total': n}
+    return hands_by_tid, bb100_by_tid, reviewed_by_tid, exit_by
+
+
+_TT_TABS = (
+    ('buyin', 'Buy-in'), ('prize_type', 'Prize type'), ('speed', 'Speed'),
+    ('entry_pattern', 'Entry pattern'), ('entry_timing', 'Entry timing'),
+    ('phase_reached', 'Phase reached'),
+)
+_TT_CAT_LABEL = {'single': 'Single', 'multi_bullet': 'Multi-bullet',
+                 'bounty': 'Bounty', 'standard': 'Standard',
+                 'satellite': 'Satellite'}
+
+
+def _tt_ordered_cats(_TM, key, groups):
+    """Ordered category list for a tab, with the unknown/None bucket last; returns
+    [] when the tab has NO meaningful (non-unknown) category so the caller can
+    auto-hide it (e.g. speed / entry-timing when every event is 'unknown')."""
+    meaningful = [c for c in groups if c not in (None, 'unknown')]
+    if key == 'buyin':
+        meaningful = sorted(meaningful, key=_TM.buyin_band_sort_key)
+    elif key == 'by_day':
+        meaningful = sorted(meaningful)
+    else:
+        meaningful = sorted(meaningful, key=lambda c: str(c))
+    if not meaningful:
+        return []
+    tail = []
     if None in groups:
-        cats.append(None)
-    doc.w("<div class='tt-grouped' data-tab='buyin'>")
-    doc.w("<div class='tt-grouped-tabs'><button class='tt-tab active' "
-          "data-tab='buyin'>Buy-in</button></div>")
+        tail.append(None)
+    if 'unknown' in groups:
+        tail.append('unknown')
+    return meaningful + tail
+
+
+def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
+    """Render ONE grouped-aggregate table for a tab: pooled ROI on the covered
+    subset, settled-only ITM/Top denominators, hand-weighted BB/100·cEV/100, and a
+    deterministic legend-square colour per group (the table IS the chart legend)."""
     doc.w("<div class='table-shell'><div class='table-scroll'>")
     doc.w("<table class='data-table tt-aggregate'>")
     doc.w("<thead><tr><th>Group</th><th>Events</th><th>Bullets</th>"
@@ -121,12 +171,13 @@ def _emit_grouped_aggregate(doc, events):
           "<th>Return</th><th>Net</th><th>ROI</th><th>ITM</th><th>Top 5%</th>"
           "<th>Top 1%</th><th>BB/100</th><th>cEV/100</th></tr></thead><tbody>")
     _settled_total = 0
-    for cat in cats:
+    for cat in ordered:
         ag = _TM.aggregate_group(groups[cat])
         _settled_total += ag['n_settled']
         approx = '≈' if ag['estimated'] else ''
         sq = ("<span class='legend-square' style='background:%s'></span>"
-              % _TM.color_for('buyin', cat))
+              % _TM.color_for(key, cat))
+        _lbl = _TT_CAT_LABEL.get(cat, cat) if cat not in (None, 'unknown') else EMDASH
         _net = (approx + _fmt_usd(ag['net'], plus=True)) if ag['net'] is not None else EMDASH
         _roi = (approx + _pct_or_dash(ag['roi_pct'])) if ag['roi_pct'] is not None else EMDASH
         _itm = ('%.0f%%' % ag['itm_pct']) if ag['itm_pct'] is not None else EMDASH
@@ -134,16 +185,52 @@ def _emit_grouped_aggregate(doc, events):
         _t1 = ('%.0f%%' % ag['top1_pct']) if ag['top1_pct'] is not None else EMDASH
         _bb = ('%+.1f' % ag['bb100']) if ag['bb100'] is not None else EMDASH
         _cev = ('%+.1f' % ag['cev100']) if ag['cev100'] is not None else EMDASH
-        doc.w("<tr><td>%s<b>%s</b></td><td>%d</td><td>%d</td><td>%d/%d</td>"
-              "<td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%s</td>"
-              "<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-                  sq, _esc_tt(cat or EMDASH), ag['events'], ag['bullets'],
+        doc.w("<tr data-cat='%s'><td>%s<b>%s</b></td><td>%d</td><td>%d</td>"
+              "<td>%d/%d</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td>"
+              "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+                  _esc_tt(str(_lbl)), sq, _esc_tt(str(_lbl)), ag['events'], ag['bullets'],
                   ag['results_covered'], ag['events'],
                   _fmt_usd(ag['committed_cost']), approx, _fmt_usd(ag['covered_return']),
                   _net, _roi, _itm, _t5, _t1, _bb, _cev))
     doc.w("</tbody></table></div></div>")
     doc.w("<p class='tt-coverage-note'>Results available for %d of %d events; the "
-          "rest are estimated or still running.</p>" % (_settled_total, len(events)))
+          "rest are estimated or still running.</p>" % (_settled_total, n_events))
+
+
+def _emit_grouped_aggregate(doc, events):
+    """v8.17.1 P4 surface 3: grouped AGGREGATE table with ALL tabs (Buy-in default;
+    Prize type / Speed / Entry pattern / Entry timing / Phase reached; By-day only
+    for multi-day reports). A tab whose every event is unknown is auto-hidden.
+    Built from the pure aggregation helpers — pooled ROI on the covered subset,
+    settled-only denominators, hand-weighted BB/100. The grouped view is the FIRST
+    Results table (aggregate-first), above the per-event detail; the legend squares
+    ARE the chart legend (stable colours via color_for(tab, category))."""
+    import gem_tournament_model as _TM
+    tabs = list(_TT_TABS)
+    _days = set(e.get('event_day') for e in events if e.get('event_day'))
+    if len(_days) > 1:                       # By-day only for multi-day reports
+        tabs.append(('by_day', 'By day'))
+    visible = []
+    for key, label in tabs:
+        groups = _TM.group_events(events, key) or {}
+        ordered = _tt_ordered_cats(_TM, key, groups)
+        if not ordered:                      # auto-hide all-unknown / empty tab
+            continue
+        visible.append((key, label, groups, ordered))
+    if not visible:
+        return
+    default_key = visible[0][0]              # Buy-in by default (first visible)
+    doc.w("<div class='tt-grouped' data-tab='%s'>" % default_key)
+    _btns = ''.join(
+        "<button class='tt-tab%s' data-tab='%s'>%s</button>" % (
+            ' active' if k == default_key else '', k, _esc_tt(lbl))
+        for k, lbl, _g, _o in visible)
+    doc.w("<div class='tt-grouped-tabs'>%s</div>" % _btns)
+    for key, label, groups, ordered in visible:
+        _hidden = '' if key == default_key else " style='display:none'"
+        doc.w("<div class='tt-tabpane' data-tabpane='%s'%s>" % (key, _hidden))
+        _emit_one_aggregate_table(doc, _TM, key, groups, ordered, len(events))
+        doc.w("</div>")
     doc.w("</div>")
     doc.w("")
 
@@ -156,7 +243,15 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # product decision) → per-event cEV stays blank.
     # v8.17 Epic 4: fold the canonical per-tournament stack trajectory (already
     # computed, detector-backed) into event['drivers'] for the row drilldown.
-    model = build_tournament_model(rd, drivers_by_tid=_tt_drivers_by_tid(s))
+    # v8.17.1 P4: wire the canonical per-event performance maps (hands / BB-100 /
+    # reviewed / exit-hand, joined by tid) so the Tournament Performance table and
+    # the hand-weighted grouped BB/100 populate. cEV/100 stays blank (no canonical
+    # per-tid source — hidden cleanly).
+    _hb, _bbb, _revb, _exb = _tt_perf_maps(hands, rd)
+    model = build_tournament_model(
+        rd, drivers_by_tid=_tt_drivers_by_tid(s),
+        hands_by_tid=_hb, bb100_by_tid=_bbb,
+        reviewed_by_tid=_revb, exit_by_tid=_exb)
     events = model.get('events') or []
     tot = model.get('totals') or {}
     diag = model.get('diagnostics') or {}
@@ -392,6 +487,18 @@ def _emit_tournament_tables(doc, s, rd, hands):
                              % _json_tt.dumps(_payload, ensure_ascii=False, default=str))
         doc._extra_js.append('if(window.initTournamentResultsTable)'
                              'window.initTournamentResultsTable();')
+        # v8.17.1 P4: grouped-aggregate tab switching — show the matching tabpane,
+        # mark the active button, and (if wired) re-render the distribution chart.
+        doc._extra_js.append(
+            "(function(){var gs=document.querySelectorAll('.tt-grouped');"
+            "gs.forEach(function(g){g.querySelectorAll('.tt-tab').forEach("
+            "function(btn){btn.addEventListener('click',function(){"
+            "var tab=btn.getAttribute('data-tab');g.setAttribute('data-tab',tab);"
+            "g.querySelectorAll('.tt-tab').forEach(function(b){"
+            "b.classList.toggle('active',b===btn);});"
+            "g.querySelectorAll('.tt-tabpane').forEach(function(p){"
+            "p.style.display=(p.getAttribute('data-tabpane')===tab)?'':'none';});"
+            "if(window.ttRenderChart)window.ttRenderChart(g,tab);});});});})();")
     except Exception:
         pass
 

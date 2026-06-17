@@ -9585,6 +9585,70 @@ check('T-P4UI-01: grouped aggregate surface renders (tabs + legend squares + poo
       and 'Results available for' in _g_p4 and '$11-$22' in _g_p4
       and _g_p4.index('$11-$22') < _g_p4.index('$55-$110'), '')
 
+# v8.17.1 P4: grouped aggregate multi-tab — Buy-in default + meaningful tabs;
+# speed/entry_timing auto-hidden when every event is unknown; By-day only multi-day.
+import re as _re_p4t
+_fd_p4t = _FakeDocP4()
+_evs_p4t = [
+    {'buyin_band': '$11-$22', 'prize_type': 'bounty', 'speed': 'unknown',
+     'entry_pattern': 'single', 'entry_timing': 'unknown', 'event_day': '2026-06-02',
+     'cost': 15, 'bullets': 1, 'return': {'value': 45, 'exact': True},
+     'finish': {'state': 'exact', 'label': 'Top 4%', 'itm': True, 'top_percent': 4},
+     'performance': {'hands': 100, 'bb100': 5.0}},
+    {'buyin_band': '$11-$22', 'prize_type': 'standard', 'speed': 'unknown',
+     'entry_pattern': 'multi_bullet', 'entry_timing': 'unknown', 'event_day': '2026-06-02',
+     'cost': 30, 'bullets': 2, 'return': {'value': 0, 'exact': True},
+     'finish': {'state': 'no_cash', 'label': 'No cash', 'top_percent': 70},
+     'performance': {'hands': 50, 'bb100': -3.0}},
+]
+_STT4._emit_grouped_aggregate(_fd_p4t, _evs_p4t)
+_g_p4t = '\n'.join(_fd_p4t.out)
+_tabs_p4t = _re_p4t.findall(r"<button class='tt-tab[^']*' data-tab='([^']+)'", _g_p4t)
+check('T-P4UI-02: multi-tab grouped aggregate — Buy-in default + prize_type/entry_pattern/phase_reached; speed/entry_timing auto-hidden; single-day hides By-day',
+      _tabs_p4t[0] == 'buyin' and 'prize_type' in _tabs_p4t
+      and 'entry_pattern' in _tabs_p4t and 'phase_reached' in _tabs_p4t
+      and 'speed' not in _tabs_p4t and 'entry_timing' not in _tabs_p4t
+      and 'by_day' not in _tabs_p4t and 'Bounty' in _g_p4t and 'Standard' in _g_p4t
+      and _g_p4t.count("data-tabpane=") == len(_tabs_p4t), str(_tabs_p4t))
+# By-day tab appears for a multi-day report.
+_fd_p4d = _FakeDocP4()
+_STT4._emit_grouped_aggregate(_fd_p4d, [
+    dict(_evs_p4t[0]),
+    dict(_evs_p4t[1], event_day='2026-06-03')])
+_g_p4d = '\n'.join(_fd_p4d.out)
+check('T-P4UI-03: By-day tab appears only for a multi-day report',
+      "data-tab='by_day'" in _g_p4d and 'by_day' in _re_p4t.findall(
+          r"<button class='tt-tab[^']*' data-tab='([^']+)'", _g_p4d), '')
+# Data wiring: build_tournament_model carries per-event hands / bb100 / reviewed / exit-hand.
+import gem_tournament_model as _TMW
+_rd_w = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'per_tournament': [
+    {'tid': 'T1', 'name': 'Synthetic A', 'start_date': '2026-06-02', 'buyin': 10.0,
+     'bullets': 1, 'cost': 10.0, 'cash_received': 25.0, 'ticket_value': 0.0,
+     'cash_total': 25.0, 'net': 15.0, 'is_sat': False, 'itm': True, 'place': 2,
+     'total_players': 50}], 'totals': {'n_tournaments': 1, 'n_bullets': 1,
+     'total_cost': 10.0, 'total_cash': 25.0, 'total_ticket_value': 0.0,
+     'total_net': 15.0, 'roi_pct': 150.0}}}
+_mw = _TMW.build_tournament_model(_rd_w, hands_by_tid={'T1': 120},
+                                  bb100_by_tid={'T1': 7.5},
+                                  reviewed_by_tid={'T1': {'reviewed': 3, 'total': 120}},
+                                  exit_by_tid={'T1': 'TM90000901'})
+_ev_w = _mw['events'][0]
+check('T-P4W-01: model carries canonical per-event hands / BB-100 / reviewed / exit-hand',
+      _ev_w['performance']['hands'] == 120 and _ev_w['performance']['bb100'] == 7.5
+      and _ev_w['reviewed'] == {'reviewed': 3, 'total': 120}
+      and _ev_w['exit_hand'] == 'TM90000901'
+      and _ev_w['field_provenance']['hands'] == 'exact', str(_ev_w.get('performance')))
+# _tt_perf_maps derives the maps from hands + analyst commentary, joined by tid.
+_hb_w, _bbb_w, _revb_w, _exb_w = _STT4._tt_perf_maps(
+    [{'id': 'TM900A1', 'tournament_id': 'T1', 'net_bb': 10.0},
+     {'id': 'TM900A2', 'tournament_id': 'T1', 'net_bb': -4.0},
+     {'id': 'TM900B1', 'tournament_id': 'T2', 'net_bb': 2.0}],
+    {'analyst_commentary': {'TM900A1': {'verdict': 'III.2'}}})
+check('T-P4W-02: _tt_perf_maps joins hands/BB-100/reviewed/exit by tid (BB-100 = sum net_bb / hands * 100)',
+      _hb_w == {'T1': 2, 'T2': 1} and _bbb_w['T1'] == 300.0 and _bbb_w['T2'] == 200.0
+      and _revb_w['T1'] == {'reviewed': 1, 'total': 2}
+      and _exb_w['T1'] == 'TM900A2' and _exb_w['T2'] == 'TM900B1', str((_hb_w, _bbb_w, _revb_w)))
+
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
       _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'

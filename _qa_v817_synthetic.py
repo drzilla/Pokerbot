@@ -198,15 +198,45 @@ def build():
         'skill_band': {'emoji': '⚪', 'label': 'Synthetic sample'}, 'hero_classification': {},
         'results_attribution': {'implied_true_ev_extended_per_100': 1.0,
                                 'made_hands_var_per_100': 0.5, 'eai_variance_per_100': 0.5,
-                                'cooler_var_per_100': 0.0, 'card_quality_var_per_100': 0.0},
+                                'cooler_var_per_100': 0.0, 'card_quality_var_per_100': 0.0,
+                                # canonical S1.1a summary fields (real analyzer always
+                                # supplies these; the S1.1a render reads them directly
+                                # — the fixture must carry the full canonical set).
+                                'surface_cev_per_100': -0.10,
+                                'implied_true_ev_cev_per_100': -0.05,
+                                'surface_bb_per_100': -1.20,
+                                'surface_bb_total': -12.0,
+                                'n_hands': 120,
+                                'eai_variance_bb': 4.0,
+                                'mistake_row_count': 2,
+                                'non_tail_mistake_per_100': -0.8,
+                                'tail_fold_per_100': -0.4},
         'skill_context': {'verdict_line': 'Synthetic acceptance sample'},
         'roi_forecast': {'verdict_line': 'n/a (synthetic)'},
         'issue_explorer_issues': [{'name': leak, 'all_hand_ids': issue_ids}],
         'issue_explorer_coverage': [],
         'appendix_hand_details': {hid: {} for hid in all_ids},
         'pot_odds_by_hand': pob,
-        'usd_overlay': {'hh_intersect_totals': {}, 'totals': {},
-                        'per_tournament': [{'name': 'Synthetic MTT B (PKO)', 'bounty_usd': 12.5}]},
+        # Parsed canonical overlay so the FULL synthetic report renders the real
+        # Tournament Tables surfaces (grouped/chart/Finance&Finish/filters/sticky/
+        # rollup) rather than the no-overlay diagnostic. Synthetic events only.
+        'usd_overlay': {'status': 'parsed', 'hh_intersect_totals': {},
+            'totals': {'n_tournaments': 3, 'n_bullets': 4, 'total_cost': 105.0,
+                       'total_cash': 60.0, 'total_ticket_value': 0.0,
+                       'total_net': -45.0, 'roi_pct': -42.9},
+            'per_tournament': [
+                {'tid': 'SYN1', 'name': 'Synthetic MTT A', 'start_date': '2026-06-16',
+                 'buyin': 15, 'bullets': 1, 'cost': 15, 'cash_received': 60,
+                 'ticket_value': 0, 'cash_total': 60, 'net': 45, 'is_sat': False,
+                 'place': 2, 'total_players': 50, 'itm': True},
+                {'tid': 'SYN2', 'name': 'Synthetic MTT B (PKO)', 'start_date': '2026-06-16',
+                 'buyin': 30, 'bullets': 2, 'cost': 60, 'cash_received': 0,
+                 'ticket_value': 0, 'cash_total': 0, 'net': -60, 'is_sat': False,
+                 'place': 40, 'total_players': 80, 'bounty_usd': 12.5},
+                {'tid': 'SYN3', 'name': 'Synthetic Sat', 'start_date': '2026-06-16',
+                 'buyin': 30, 'bullets': 1, 'cost': 30, 'cash_received': 0,
+                 'ticket_value': 0, 'cash_total': 0, 'net': -30, 'is_sat': True,
+                 'place': 25, 'total_players': 60}]},
         'pko_research': {'by_hand': pko_by_hand},
     }
     return stats, rd, hands

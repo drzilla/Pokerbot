@@ -9725,6 +9725,29 @@ check('T-P4UI-11: ALL SEVEN Tournament Tables surfaces present in one render',
       and 'tt-drivers-rollup' in _md_p4s,  # 7 Drivers-in-view rollup
       '')
 
+# v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
+# (The earlier full-render gap — missing canonical results_attribution fields like
+# surface_bb_per_100 — is fixed by supplying the canonical fields in the fixture +
+# a parsed usd_overlay so the real Tournament Tables surfaces render.)
+import os as _os_vf
+_prev_lz_vf = _os_vf.environ.get('GEM_LAZY_HANDS')
+_os_vf.environ['GEM_LAZY_HANDS'] = '0'
+import _qa_v817_synthetic as _SYN_vf
+from gem_report_draft import render_html as _rh_vf
+_stv, _rdv, _hdv = _SYN_vf.build()
+_full_html_vf = _rh_vf(_stv, _rdv, _hdv)          # FULL all-sections render
+if _prev_lz_vf is None:
+    _os_vf.environ.pop('GEM_LAZY_HANDS', None)
+else:
+    _os_vf.environ['GEM_LAZY_HANDS'] = _prev_lz_vf
+check('T-V-FULL-01: complete all-sections synthetic report renders (fixture gap fixed; canonical results_attribution + parsed overlay)',
+      len(_full_html_vf) > 200000
+      and 'S1.1a Full Result Attribution' in _full_html_vf
+      and 'Tournament Results' in _full_html_vf
+      and "class='data-table tt-unified tt-finance'" in _full_html_vf
+      and "class='data-table tt-aggregate'" in _full_html_vf
+      and 'no canonical committed-cost financial overlay' not in _full_html_vf, '')
+
 # ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
 check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
       _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'

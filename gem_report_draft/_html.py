@@ -717,9 +717,17 @@ def _md_inline(text):
         r'villain-card|made-hand|board-match|pot-pct|note-num|note-tag|'
         r'ann(?:\s+ann-(?:positive|emoji))?(?:\s+ann-emoji)?|'
         r'cards|label|hero-pos|hero-nick|pot|sd-block|net-pos|net-neg|grid-action[^\'"]*|'
+        # v8.17.1 P2: range-lens spans must survive _html_escape — they were
+        # leaking as literal &lt;span class='rng-hl…&gt; on ~14 hands — plus the
+        # new Hero-combo bold (rng-combo-hero).
+        r'rng-hl[^\'"]*|rng-combo-hero[^\'"]*|'
         r'cond-pass|cond-fail|ci-tip|new-badge|verdict-pill|context-pill[^\'"]*)[\'"]'
         r'[^>]*>[^<]*</span>',
         re.IGNORECASE)
+    text = inner_span_pat.sub(_stash, text)
+    # v8.17.1 P2: second pass stashes an OUTER rng-hl wrapper once its nested
+    # rng-combo-hero (Hero-combo bold) has been replaced by a placeholder (so the
+    # outer content has no '<' until </span>) — a combo-highlighted lens survives.
     text = inner_span_pat.sub(_stash, text)
     # B-datatip (Phase 4.8): stash <span data-tip="...">text</span> tooltips.
     # These appear in pipe-table header cells (S1.6) and body cells (S1.5,
@@ -6191,6 +6199,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .rng-hl-amber {{ background: #fff3d7; color: #a15c00; }}
   .rng-hl-red {{ background: #feeceb; color: #b42318; }}
   .rng-hl-neutral {{ background: #eef1f5; color: #53606f; }}
+  /* v8.17.1 P2b: Hero's exact combo pinpointed INSIDE the coloured range
+     notation — underlined + boxed so the reader sees where the hand sits. */
+  .rng-combo-hero {{ font-weight: 900; text-decoration: underline;
+    text-underline-offset: 2px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.25);
+    padding: 0 1px; border-radius: 3px; }}
   @media(max-width:620px){{
     .rq-rev-row {{ grid-template-columns: 22px auto auto minmax(0,1fr) auto;
       padding: 8px 10px; gap: 6px; }}

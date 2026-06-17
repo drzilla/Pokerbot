@@ -9451,6 +9451,26 @@ check('T-P0C-03: issue-collector display names carry no internal jargon (ids sta
       and ("'id': 'blindspot_audit'" in _ISC_SRC)
       and ("'id': 'cleared_batch'" in _ISC_SRC), '')
 
+# ---- v8.17.1 P2: range lens — exact-combo bold + action-vs-chart colour ----
+import gem_ranges as _GR2
+check('T-P2-01: _bold_combo_in_expr wraps the exact combo token only (no-op on prefix/miss)',
+      "<span class='rng-combo-hero'>A6o</span>" in _GR2._bold_combo_in_expr('22+, A6o, KQo', 'A6o')
+      and _GR2._bold_combo_in_expr('A6o+, K8o+', 'A6o') == 'A6o+, K8o+'
+      and _GR2._bold_combo_in_expr('A2s+, K2s+', 'A6o') == 'A2s+, K2s+', '')
+check('T-P2-02: range_membership_color by action-vs-chart (fold-outside=green, open-outside=red, fold-inside=red)',
+      _GR2.range_membership_color('outside', 'exact', action='fold') == 'green'
+      and _GR2.range_membership_color('outside', 'exact', action='open') == 'red'
+      and _GR2.range_membership_color('inside', 'exact', action='fold') == 'red'
+      and _GR2.range_membership_color('inside', 'exact', action='open') == 'green'
+      and _GR2.range_membership_color('outside', 'proxy', action='open') == 'neutral', '')
+check('T-P2-03: range_membership_color action=None stays legacy membership-only (backward compatible)',
+      _GR2.range_membership_color('inside', 'exact') == _GR2._RH_COLOR.get('inside', 'neutral')
+      and _GR2.range_membership_color('outside', 'exact') == _GR2._RH_COLOR.get('outside', 'neutral'), '')
+check('T-P2-04: highlight_range_expression bolds combo + colours by action + flags combo_highlighted',
+      (lambda r: 'rng-combo-hero' in r['html'] and r['color'] == 'red' and r['combo_highlighted'])(
+          _GR2.highlight_range_expression('22+, A6o, KQo', 'outside', 'exact',
+                                          role='first_in_open', hero_combo='A6o', action='open')), '')
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'

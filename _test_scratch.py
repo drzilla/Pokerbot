@@ -9637,6 +9637,22 @@ check('T-RPDT-17: bounty provenance labels distinguish exact/estimated/flat/effe
       and not _RT.bounty_is_dynamic('starting_bb_flat')
       and _RT.bounty_is_dynamic('effective_bb'), '')
 
+# ---- v8.17.1 P5 sub-task 4: analyzer stamps a single canonical bounty
+# provenance so the flat model estimate (the recurring "~3.2BB") is never
+# consumed as exact or per-hand-dynamic by any downstream surface. ----
+check('T-V8171-BP1: analyzer stamps bounty_value_provenance ladder (exact>effective>flat>unavailable)',
+      "h['bounty_value_provenance']" in _ana_src
+      and "'effective_bb' if _bc.get('method') == 'ratio_model'" in _ana_src
+      and "else 'starting_bb_flat'" in _ana_src
+      and "h['bounty_value_provenance'] = 'unavailable'" in _ana_src,
+      'bounty provenance stamp missing from analyzer')
+check('T-V8171-BP2 (anti): a flat/unavailable provenance never renders as exact or dynamic',
+      not _RT.bounty_is_dynamic('starting_bb_flat')
+      and not _RT.bounty_is_dynamic('unavailable')
+      and 'exact' not in _RT.bounty_provenance_label('starting_bb_flat', value_bb=3.2)
+      and _RT.bounty_provenance_label('unavailable') == 'Bounty value unavailable',
+      'flat/unavailable provenance must not be exact/dynamic')
+
 # ---- Objective 10: Range Lens pruning + no postflop lens after preflop all-in ----
 _pl = _RR.postflop_range_lens(['Ah', 'Kd'], ['Ks', '7d', '2c'], 'flop')
 check('T-RPDT-18 (anti): postflop lens does NOT restate Hero made hand by default',

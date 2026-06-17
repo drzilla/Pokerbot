@@ -1995,12 +1995,23 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             h['bounty_discount_pp'] = _bc.get('discount_pp', 0)
             h['bounty_value_bb'] = _bc.get('value_bb', 0)
             h['bounty_label'] = _bc.get('label', '')
+            # v8.17.1 P5 (sub-task 4): stamp provenance so the renderer NEVER
+            # presents the flat model estimate as exact or per-hand-dynamic (the
+            # recurring "≈3.2BB" leak). Hierarchy: exact (recorded $) > effective_bb
+            # (ratio-model) > starting_bb_flat (flat-table estimate, explicitly
+            # labelled) > unavailable. No bounty_ratio is threaded here (GG HH lack
+            # buy-in structure), so a real bounty stays a LABELLED flat estimate.
+            h['bounty_value_provenance'] = (
+                'unavailable' if h['bounty_type'] in ('none', 'unknown')
+                else 'effective_bb' if _bc.get('method') == 'ratio_model'
+                else 'starting_bb_flat')
     except Exception:
         for h in hands:
             h['bounty_type'] = 'unknown'
             h['bounty_discount_pp'] = 0
             h['bounty_value_bb'] = 0
             h['bounty_label'] = ''
+            h['bounty_value_provenance'] = 'unavailable'
 
     # --- VOLUME ---
     fmt_counts = defaultdict(int)

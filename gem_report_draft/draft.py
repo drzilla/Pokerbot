@@ -113,6 +113,17 @@ def _build(stats, report_data, hands, sections=None):
     rd = report_data
     doc = Doc()
 
+    # v8.17.1 P5(1): build the ONE canonical decision-quality verdict map BEFORE
+    # any section renders. Every verdict surface (topbar / .mh-verdict / capsule /
+    # action markers / push & call-jam footer / evidence + review queue / hand
+    # list) reads rd['canonical_verdicts'][id] so they can never disagree. Built
+    # here because the dashboard review queue renders before the XIV hand details.
+    try:
+        from gem_report_draft._helpers import build_canonical_verdicts as _bcv
+        rd['canonical_verdicts'] = _bcv(rd, hands)
+    except Exception:
+        rd.setdefault('canonical_verdicts', {})
+
     # Compute per-tournament P&L from hands (analyzer doesn't carry it)
     s['_per_tourney_pnl'] = _compute_per_tourney_pnl(hands, rd.get('buyin_breakdown', []))
     # Table-size breakdown from hands

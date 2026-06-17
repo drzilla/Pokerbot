@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'afc36a7e2a9ec049cc6d195f39d1a374894d66c979d0bfd09d3573acd160a9e8',
+      _hg_hash == 'ea3df6caae9ec0acc22d7f2c4dead0cbbb993f50ea9862d08c04cab3b951051f',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -9604,6 +9604,185 @@ check('T-P5-03: allin_completeness — empty math FAILs unless no_clear_lesson; 
       and _RT.allin_completeness_issue('not_allin', []) is None
       and _RT.allin_completeness_issue('call_vs_jam', ['to_call']) is not None
       and _RT.allin_completeness_issue('call_vs_jam', _RT.required_allin_fields('call_vs_jam')) is None, '')
+
+# ============================================================
+# v8.17.1 P5 PRODUCTION WIRING — resolver into every surface, marker/commentary
+# parity build gate, scored all-in completeness render + build gate.
+# (Synthetic ids only; no real hand/tournament/player ids.)
+# ============================================================
+from gem_report_draft._helpers import build_canonical_verdicts as _bcv_p5w
+
+
+def _rd_p5w(analyst=None, auto=None, queue=None):
+    return {'analyst_commentary': analyst or {}, 'auto_verdicts': auto or {},
+            'queue_decisions': queue or {}, 'mistakes_review': {}}
+
+
+# ---- Sub-task 1: canonical verdict resolver wired into the data layer ----
+_cv1 = _bcv_p5w(_rd_p5w(analyst={'h1': {'verdict': 'III.2 Mistake', 'argument': 'x'}}),
+                [{'id': 'h1', 'net_bb': 50.0}])['h1']
+check('T-P5W-01: a positive chip RESULT never overrides a bad decision (stays graded)',
+      _cv1['verdict'] == 'III.2 Mistake' and _cv1['source'] == 'analyst_reviewed', str(_cv1))
+_cv2 = _bcv_p5w(_rd_p5w(analyst={'h2': {'verdict': 'III.3 Cleared', 'argument': 'x'}}),
+                [{'id': 'h2', 'net_bb': -40.0}])['h2']
+check('T-P5W-02: a negative chip RESULT never overrides a correct decision',
+      'III.3' in _cv2['verdict'] and _cv2['source'] == 'analyst_reviewed', str(_cv2))
+_cv3 = _bcv_p5w(_rd_p5w(), [{'id': 'h3', 'eai_suckout': 'hero_got_sucked_out',
+                            'net_bb': -30.0}])['h3']
+_cv3f = _bcv_p5w(_rd_p5w(), [{'id': 'h3f', 'net_bb': 0.0}])['h3f']
+check('T-P5W-03: cooler (no strategic error) surfaces as a decision class; a bare flip -> neutral Review',
+      _cv3['source'] == 'outcome_only' and 'cooler' in _cv3['verdict'].lower()
+      and _cv3f['source'] == 'neutral_review', str((_cv3, _cv3f)))
+_cv4 = _bcv_p5w(_rd_p5w(analyst={'h4': {'verdict': 'III.3 Cleared', 'argument': 'x'}},
+                        queue={'h4': 'III.1 Punt'}), [{'id': 'h4'}])['h4']
+check('T-P5W-04: an active-queue decision overrides the analyst/hand summary',
+      _cv4['source'] == 'active_queue' and 'III.1' in _cv4['verdict'], str(_cv4))
+_cv5 = _bcv_p5w(_rd_p5w(analyst={'h5': {'verdict': 'III.2 Mistake', 'argument': 'x'}},
+                        auto={'h5': {'verdict': 'III.3 Cleared'}}), [{'id': 'h5'}])['h5']
+check('T-P5W-05: the analyst verdict overrides the auto verdict',
+      _cv5['source'] == 'analyst_reviewed' and 'III.2' in _cv5['verdict'], str(_cv5))
+_cv6 = _bcv_p5w(_rd_p5w(), [{'id': 'h6', 'net_bb': 20.0}])['h6']
+check('T-P5W-06: a hand with only a chip result (no decision signal) -> neutral Review',
+      _cv6['verdict'] == _RT.REVIEW_FALLBACK and _cv6['source'] == 'neutral_review', str(_cv6))
+
+# ---- Sub-task 1: RENDERED cross-surface — identical canonical verdict on the
+# topbar, action-row grid, capsule (rendered HTML) AND the review-queue context ----
+_p5w_dcv, _p5w_cv, _p5w_qv, _p5w_err = [], '', None, ''
+try:
+    import os as _os_p5w
+    import re as _re_p5w
+    import _qa_v817_synthetic as _SYN_p5w
+    from gem_report_draft import render_html as _rh_p5w
+    from gem_report_draft.tldr import build_review_queue as _brq_p5w
+    _prev_lazy_p5w = _os_p5w.environ.get('GEM_LAZY_HANDS')
+    _os_p5w.environ['GEM_LAZY_HANDS'] = '0'   # non-lazy: hand bodies inline
+    _st_p5w, _rdr_p5w, _hd_p5w = _SYN_p5w.build()
+    _hh_p5w = _SYN_p5w._hand('TM90000701', ['Ah', 'Kh'], pf_allin=True,
+                             villain_jammed=True, hero_faced_raise=True,
+                             pf_action='call', position='BB', stack_bb=12.0, net_bb=-12.0)
+    _hd_p5w.append(_hh_p5w)
+    _rdr_p5w['appendix_hand_ids_all'].append('TM90000701')
+    _rdr_p5w['appendix_hand_details']['TM90000701'] = {}
+    _rdr_p5w['analyst_commentary']['TM90000701'] = {
+        'verdict': 'III.2 Mistake', 'argument': 'Called off too light vs the jam.'}
+    _st_p5w['volume']['hands'] = len(_hd_p5w)
+    _html_p5w = _rh_p5w(_st_p5w, _rdr_p5w, _hd_p5w, sections=['XIV'])
+    _p5w_cv = ((_rdr_p5w.get('canonical_verdicts') or {}).get('TM90000701') or {}).get('verdict', '')
+    # data-canonical-verdict instances belonging to JUST this hand's <article> card
+    # (topbar article + action-row grid + capsule), precisely bounded so adjacent
+    # cards never leak in.
+    _card_p5w = ''
+    _a0_p5w = _html_p5w.find("data-hand-id='90000701'")
+    if _a0_p5w >= 0:
+        _as_p5w = _html_p5w.rfind("<article", 0, _a0_p5w)
+        _ae_p5w = _html_p5w.find("</article>", _a0_p5w)
+        if _as_p5w >= 0 and _ae_p5w >= 0:
+            _card_p5w = _html_p5w[_as_p5w:_ae_p5w]
+    _p5w_dcv = _re_p5w.findall(r"data-canonical-verdict=['\"]([^'\"]*)['\"]", _card_p5w)
+    # queue context surface reads the SAME canonical map for every row.
+    _q_p5w = _brq_p5w(_st_p5w, _rdr_p5w, _rdr_p5w['analyst_commentary'],
+                      {h['id']: h for h in _hd_p5w})
+    _cvm_q_p5w = _rdr_p5w.get('canonical_verdicts') or {}
+    # Single-hand queue rows carry the canonical verdict and must match the map;
+    # aggregated leak-group rows (many hands, no single verdict) are exempt.
+    _qrows_cv_p5w = [it for it in _q_p5w if 'canonical_verdict' in it and it.get('id')]
+    _p5w_qv = ('OK' if (_qrows_cv_p5w and all(
+        it.get('canonical_verdict', '') == (_cvm_q_p5w.get(it['id']) or {}).get('verdict', '')
+        for it in _qrows_cv_p5w)) else None)
+    if _prev_lazy_p5w is None:
+        _os_p5w.environ.pop('GEM_LAZY_HANDS', None)
+    else:
+        _os_p5w.environ['GEM_LAZY_HANDS'] = _prev_lazy_p5w
+except Exception as _e_p5w:
+    _p5w_err = repr(_e_p5w)
+check('T-P5W-07: identical canonical verdict across topbar/action-row/capsule (rendered) + queue context',
+      not _p5w_err and _p5w_cv == 'III.2 Mistake'
+      and len(_p5w_dcv) >= 2 and all(v == _p5w_cv for v in _p5w_dcv)
+      and _p5w_qv == 'OK',
+      str((_p5w_err, _p5w_cv, _p5w_dcv, _p5w_qv)))
+
+# ---- Sub-task 2: marker/commentary parity build gate (structured identities) ----
+_atoms_p5w = {'v1': {'player': 'CO', 'street': 'flop', 'action_index': 3}}
+check('T-P5W-08: valid marker/commentary pairs pass (thumbs needs none)',
+      _RT.marker_parity_issues(
+          [{'kind': 'thumbs', 'ref': None}, {'kind': 'mistake', 'ref': 'n1'},
+           {'kind': 'villain_evidence', 'ref': 'v1', 'player': 'CO',
+            'street': 'flop', 'action_index': 3}],
+          notes={'n1'}, villain_evidence={'v1'}, atoms=_atoms_p5w) == [], '')
+check('T-P5W-09: each orphan class (mistake / trigger / villain-evidence) fails the build',
+      len(_RT.marker_parity_issues(
+          [{'kind': 'mistake', 'ref': None}, {'kind': 'trigger', 'ref': 'no'},
+           {'kind': 'villain_evidence', 'ref': 'no'}],
+          notes=set(), villain_evidence=set())) == 3, '')
+_wp_p5w = _RT.marker_parity_issues(
+    [{'kind': 'villain_evidence', 'ref': 'v1', 'player': 'BTN',
+      'street': 'flop', 'action_index': 3}],
+    notes=set(), villain_evidence={'v1'}, atoms=_atoms_p5w)
+_wa_p5w = _RT.marker_parity_issues(
+    [{'kind': 'villain_evidence', 'ref': 'v1', 'player': 'CO',
+      'street': 'turn', 'action_index': 9}],
+    notes=set(), villain_evidence={'v1'}, atoms=_atoms_p5w)
+check('T-P5W-10: wrong-player and wrong-street/action marker mappings fail',
+      any('wrong player' in x for x in _wp_p5w)
+      and any('wrong street/action' in x for x in _wa_p5w), str((_wp_p5w, _wa_p5w)))
+check('T-P5W-11: marker claiming a row cue with no resolvable row fails; non-row thumbs passes',
+      any('no resolvable row' in x for x in _RT.marker_parity_issues(
+          [{'kind': 'mistake', 'ref': 'n1', 'claims_row': True, 'action_index': None}],
+          notes={'n1'}))
+      and _RT.marker_parity_issues([{'kind': 'thumbs', 'ref': None}], notes=set()) == [], '')
+
+# ---- Sub-task 3: scored all-in completeness — render fallback + build gate ----
+check('T-P5W-12: complete non-PKO call_vs_jam (all fields) -> no issue, no fallback note',
+      _RT.allin_completeness_note('call_vs_jam',
+          {'call_bb': 10, 'pot_before_call_bb': 25, 'required_eq_pct': 28.6,
+           'hero_equity_pct': 45.0, 'ev_call_bb': 3.2},
+          {'pf_allin': True, 'format': 'NLHE'}) == '', '')
+check('T-P5W-13: complete PKO call-all-in (bounty present) -> no issue',
+      _RT.allin_completeness_note('call_vs_jam',
+          {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+           'hero_equity_pct': 50.0, 'ev_call_bb': 2.0, 'bounty': {'value_bb': 5}},
+          {'pf_allin': True, 'format': 'BOUNTY', 'bounty_value_bb': 5}) == '', '')
+_n_eq_p5w = _RT.allin_completeness_note('call_vs_jam',
+    {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+     'ev_call_bb': 2.0, 'bounty': {'value_bb': 5}},
+    {'pf_allin': True, 'format': 'BOUNTY', 'bounty_value_bb': 5})
+check('T-P5W-14: unavailable equity -> explicit no_clear_lesson naming equity',
+      _n_eq_p5w and 'equity vs range' in _n_eq_p5w
+      and 'no clear lesson' in _n_eq_p5w.lower(), _n_eq_p5w)
+_n_pot_p5w = _RT.allin_completeness_note('open_shove', {},
+    {'pf_allin': True, 'stack_bb': 12.0, 'format': 'NLHE'})
+check('T-P5W-15: open-shove missing pot / fold-equity -> no_clear_lesson naming the gap',
+      _n_pot_p5w and ('pot available' in _n_pot_p5w or 'fold-equity' in _n_pot_p5w), _n_pot_p5w)
+_n_bty_p5w = _RT.allin_completeness_note('call_vs_jam',
+    {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+     'hero_equity_pct': 50.0, 'ev_call_bb': 2.0},
+    {'pf_allin': True, 'format': 'BOUNTY'})
+check('T-P5W-16: a bounty hand with no bounty input -> no_clear_lesson naming bounty',
+      _n_bty_p5w and 'bounty' in _n_bty_p5w.lower(), _n_bty_p5w)
+check('T-P5W-17: call_vs_jam priced on the decision-time (side-pot) _po maps to_call/pot/required',
+      {'to_call', 'pot_before_call', 'required_equity'} <= _RT.allin_rendered_fields(
+          {'call_bb': 5, 'pot_before_call_bb': 12, 'required_eq_pct': 29.4,
+           'hero_equity_pct': 40.0, 'ev_call_bb': 1.0},
+          {'pf_allin': True, 'format': 'NLHE'}, 'call_vs_jam'), '')
+check('T-P5W-18: build FAILs when neither complete math nor a no_clear_lesson exists',
+      _RT.allin_completeness_issue('open_shove', ['hero_risk'], register='factual') is not None
+      and _RT.allin_completeness_issue('open_shove', ['hero_risk'],
+                                       register='no_clear_lesson') is None, '')
+_eq_hands_p5w = [
+    ('call_vs_jam', {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+                     'hero_equity_pct': 50.0, 'ev_call_bb': 2.0},
+     {'pf_allin': True, 'format': 'NLHE'}),
+    ('open_shove', {}, {'pf_allin': True, 'stack_bb': 10.0, 'format': 'NLHE'}),
+    ('rejam', {}, {'pf_allin': True, 'stack_bb': 14.0, 'format': 'BOUNTY',
+                   'bounty_value_bb': 4}),
+]
+_complete_p5w = sum(1 for k, po, h in _eq_hands_p5w
+                    if _RT.allin_completeness_note(k, po, h) == '')
+_ncl_p5w = sum(1 for k, po, h in _eq_hands_p5w
+               if _RT.allin_completeness_note(k, po, h) != '')
+check('T-P5W-19: completeness equation — scored all-ins == complete + no_clear_lesson, zero remainder',
+      _complete_p5w + _ncl_p5w == len(_eq_hands_p5w)
+      and _complete_p5w >= 1 and _ncl_p5w >= 1, str((_complete_p5w, _ncl_p5w)))
 
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',

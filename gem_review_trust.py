@@ -270,16 +270,25 @@ def resolve_canonical_verdict(active_queue=None, analyst=None, auto=None, outcom
             'marker': 'neutral', 'scrub_negative': False, 'data_verdict': None}
 
 
-def marker_parity_issues(markers, notes, villain_evidence=None):
+def marker_parity_issues(markers, notes, villain_evidence=None, atoms=None):
     """Every visible action marker must reference a commentary item tied to the
     same decision/evidence atom. Returns a list of orphan findings (build FAILs on
     any). Pure; inputs are caller-derived:
       markers = [{'kind':'thumbs'|'mistake'|'trigger'|'villain_evidence', 'ref':id|None}]
       notes   = ids of existing commentary items; villain_evidence = villain atom ids.
     A mistake/trigger marker needs a bound note; a villain-evidence marker needs a
-    bound note OR villain atom; a thumbs (positive confirmation) needs none."""
+    bound note OR villain atom; a thumbs (positive confirmation) needs none.
+
+    v8.17.1 P5(2): when `atoms` is supplied — a {ref: {'player','street',
+    'action_index'}} map of the canonical decision/evidence atoms — a marker that
+    also carries those keys is additionally checked for IDENTITY parity (structured
+    identities only, never text proximity): a marker bound to a ref whose atom is a
+    DIFFERENT player is flagged (wrong-player); a different street/action is flagged
+    (wrong-action); a marker that claims an action cue ('claims_row') with no
+    resolvable row (action_index None) is flagged. atoms=None keeps legacy behaviour."""
     note_ids = set(notes or [])
     ve_ids = set(villain_evidence or [])
+    atoms = atoms or {}
     issues = []
     for m in markers or []:
         kind = (m.get('kind') or '').lower()
@@ -290,6 +299,22 @@ def marker_parity_issues(markers, notes, villain_evidence=None):
         elif kind in ('villain_evidence', 'evid'):
             if not ref or ref not in (note_ids | ve_ids):
                 issues.append('orphan villain-evidence marker (no bound note: %r)' % ref)
+        # Identity parity — only when the caller supplies the canonical atoms.
+        atom = atoms.get(ref) if ref is not None else None
+        if atom is not None:
+            if (m.get('player') is not None and atom.get('player') is not None
+                    and m.get('player') != atom.get('player')):
+                issues.append('marker %s bound to the wrong player (marker=%r atom=%r)'
+                              % (kind, m.get('player'), atom.get('player')))
+            _ms, _mi = m.get('street'), m.get('action_index')
+            _as, _ai = atom.get('street'), atom.get('action_index')
+            if (_ms is not None and _as is not None and _ms != _as) or \
+               (_mi is not None and _ai is not None and _mi != _ai):
+                issues.append('marker %s bound to the wrong street/action '
+                              '(marker=%r atom=%r)' % (kind, (_ms, _mi), (_as, _ai)))
+        # Commentary claiming an action cue with no resolvable row.
+        if m.get('claims_row') and m.get('action_index') is None:
+            issues.append('marker %s claims an action cue with no resolvable row' % kind)
     return issues
 
 
@@ -351,6 +376,95 @@ def allin_completeness_issue(kind, rendered_fields, register=None):
         return ('all-in (%s) decision missing required math fields %s and is not '
                 'a no_clear_lesson naming the gap' % (kind, sorted(missing)))
     return None
+
+
+# v8.17.1 P5(3): human labels for the all-in math fields + kinds, used by the
+# render fallback note so a missing canonical input is named in plain English.
+_ALLIN_FIELD_HUMAN = {
+    'to_call': 'amount to call', 'pot_before_call': 'pot at the decision',
+    'required_equity': 'required equity', 'estimated_equity': 'equity vs range',
+    'chip_ev': 'chip EV', 'bounty_adjusted': 'bounty contribution / provenance',
+    'hero_risk': 'amount Hero risks', 'pot_available': 'pot available to win',
+    'effective_stack': 'effective stack', 'equity_when_called': 'equity when called',
+    'range_relationship': 'shove-range relationship',
+    'fold_equity_or_ev': 'fold-equity / shove EV',
+}
+_ALLIN_KIND_HUMAN = {
+    'call_vs_jam': 'call-vs-jam', 'open_shove': 'open-shove', 'rejam': 're-jam',
+}
+
+
+def _allin_has(v):
+    return v not in (None, '', '—')
+
+
+def allin_rendered_fields(po, hand, kind):
+    """v8.17.1 P5(3): from the canonical pot-odds object + hand fields, the set of
+    required-math field keys that are actually rendered for this all-in kind.
+    PURE; reads only prepared facts — never reconstructs stacks or invents math.
+    'bounty_adjusted' is satisfied for a freezeout (correctly N/A) or when the
+    bounty value/provenance is present."""
+    po = po or {}
+    hand = hand or {}
+    present = set()
+    _is_bty = (str(hand.get('format') or '') in ('BOUNTY', 'MYSTERY_BOUNTY', 'PKO')
+               or (hand.get('bounty_value_bb') or 0) > 0 or bool(po.get('bounty')))
+    _bty_ok = ((not _is_bty) or bool(po.get('bounty'))
+               or _allin_has(hand.get('bounty_value_bb'))
+               or _allin_has(hand.get('bounty_value_provenance')))
+    if kind == 'call_vs_jam':
+        if _allin_has(po.get('call_bb')):
+            present.add('to_call')
+        if _allin_has(po.get('pot_before_call_bb')):
+            present.add('pot_before_call')
+        if _allin_has(po.get('required_eq_pct')):
+            present.add('required_equity')
+        if _allin_has(po.get('hero_equity_pct')):
+            present.add('estimated_equity')
+        if _allin_has(po.get('ev_call_bb')):
+            present.add('chip_ev')
+        if _bty_ok:
+            present.add('bounty_adjusted')
+    elif kind in ('open_shove', 'rejam'):
+        if _allin_has(hand.get('eff_stack_bb_at_decision')) or _allin_has(hand.get('stack_bb')):
+            present.add('hero_risk')
+            present.add('effective_stack')
+        if (_allin_has(po.get('pot_before_call_bb')) or _allin_has(po.get('pot_bb'))
+                or _allin_has(hand.get('pot_bb'))):
+            present.add('pot_available')
+        if _allin_has(po.get('hero_equity_pct')):
+            present.add('equity_when_called')
+        # range_relationship: the push/jam-range chart membership check.
+        if hand.get('_push_range_checked') or _allin_has(hand.get('pf_range_role')) \
+                or _allin_has(hand.get('hero_preflop_range_role')):
+            present.add('range_relationship')
+        # fold_equity_or_ev: only when a shove EV / fold-equity figure was modelled
+        # (the pot-odds engine models CALLS, not shove fold-equity — usually absent).
+        if _allin_has(po.get('ev_call_bb')) or _allin_has(hand.get('shove_ev_bb')):
+            present.add('fold_equity_or_ev')
+        if _bty_ok:
+            present.add('bounty_adjusted')
+    return present
+
+
+def allin_completeness_note(kind, po, hand, capsule_register=None):
+    """v8.17.1 P5(3): the compact no_clear_lesson markdown line a render path emits
+    for a scored Hero all-in whose complete math is NOT modelled — naming the exact
+    missing canonical input. Returns '' when the math is complete or a
+    no_clear_lesson capsule already states the gap. Never invents equity/EV/bounty."""
+    if kind in (None, '', 'not_allin', 'unknown'):
+        return ''
+    if (capsule_register or '') == 'no_clear_lesson':
+        return ''
+    rf = allin_rendered_fields(po, hand, kind)
+    if not allin_completeness_issue(kind, rf, register=capsule_register):
+        return ''
+    missing = sorted(set(required_allin_fields(kind)) - set(rf))
+    human = ', '.join(_ALLIN_FIELD_HUMAN.get(m, m) for m in missing)
+    return ("\U0001F4CA **All-in math — no clear lesson:** the complete "
+            + _ALLIN_KIND_HUMAN.get(kind, kind)
+            + " math is not fully modelled here (missing: " + human + "). "
+            "Review manually — no equity, EV or bounty value is inferred.")
 
 
 def equity_label(is_heuristic):

@@ -574,6 +574,66 @@ def auto_verdict_needs_review(verdict, is_auto_verdict, agg_label):
     return ('missed' not in lbl) and ('too aggressive' not in lbl)
 
 
+def build_canonical_verdicts(rd, hands):
+    """v8.17.1 P5(1): build the ONE canonical decision-quality verdict per hand
+    that EVERY surface reads — modal/topbar, .mh-verdict, Commentary Capsule,
+    action-row thumbs/mistake markers, push & call-jam footer, evidence queue,
+    review queue, hand-list, the analyst-reviewed path and the AUTO_ONLY path —
+    so no two surfaces can disagree. Built ONCE in the render data layer (the
+    review queue in the dashboard renders BEFORE the XIV hand details, so a
+    per-hand stamp made during XIV would be too late for it).
+
+    Priority (via gem_review_trust.resolve_canonical_verdict):
+      1. active-queue decision   (rd['queue_decisions'][id] — explicit override)
+      2. analyst-reviewed verdict
+      3. auto verdict — but only when it is USABLE (an auto Mistake/Punt with no
+         corroborating action-level marker is downgraded, exactly as the topbar
+         did, so it is NOT passed as a decision)
+      4. neutral Review
+      5. an outcome label ONLY when it is itself a decision classification
+         (a cooler) — a pure RESULT (won/lost/net BB/finish) NEVER becomes a grade.
+
+    Returns {full_id: cv, short_id: cv} where cv is the resolver dict plus
+    {'auto_downgraded', 'auto_downgraded_label'} so the topbar can still show the
+    explicit Review pill for a downgraded auto verdict. Pure-ish (reads rd/hands)."""
+    from gem_review_trust import resolve_canonical_verdict as _rcv
+    ac = rd.get('analyst_commentary') or {}
+    mr = rd.get('mistakes_review') or {}
+    av = rd.get('auto_verdicts') or {}
+    qd = rd.get('queue_decisions') or {}
+    out = {}
+    for h in (hands or []):
+        hid = h.get('id') or ''
+        if not hid:
+            continue
+        hid_short = hid[-8:] if len(hid) > 8 else hid
+        _c = ac.get(hid) or ac.get(hid_short) or {}
+        _r = mr.get(hid) or mr.get(hid_short) or {}
+        analyst_v = (_c.get('verdict', '') if isinstance(_c, dict) else '') or ''
+        if not analyst_v and isinstance(_r, dict):
+            analyst_v = _r.get('verdict', '') or ''
+        _a = av.get(hid) or av.get(hid_short) or {}
+        auto_raw = (_a.get('verdict', '') if isinstance(_a, dict) else '') or ''
+        try:
+            _agl = _agg_gate_label(hid, rd) or _agg_gate_label(hid_short, rd)
+        except Exception:
+            _agl = None
+        auto_usable = '' if (auto_raw and auto_verdict_needs_review(
+            auto_raw, True, (_agl[1] if _agl else ''))) else auto_raw
+        # decision-class outcome ONLY (a cooler is a decision classification; a
+        # bare win/loss/net BB is NOT and must never become a grade).
+        outcome_dc = 'cooler' if (h.get('eai_suckout') or '') == \
+            'hero_got_sucked_out' else ''
+        _aq = qd.get(hid) or qd.get(hid_short) or None
+        cv = dict(_rcv(active_queue=_aq, analyst=analyst_v or None,
+                       auto=auto_usable or None, outcome=outcome_dc or None))
+        cv['auto_downgraded'] = bool(auto_raw and not auto_usable)
+        cv['auto_downgraded_label'] = auto_raw if cv['auto_downgraded'] else ''
+        out[hid] = cv
+        out[hid_short] = cv
+    return out
+
+
 def monotone_overcommit_lesson(board, hsa, net_bb=None, spr=None):
     """v8.13.1 P2: monotone-board over-commit SEQUENCE leak. When the flop is
     monotone (a flush is already possible), Hero CHECKED the flop (skipped cheap

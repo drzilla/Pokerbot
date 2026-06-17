@@ -1994,8 +1994,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     or h.get('stack_bb') or 0)
         _vaa_t = _html_escape(str(h.get('tournament', '') or ''))
         _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
+        # v8.17.1 P5(1): stamp the ONE canonical verdict on the card so every
+        # surface (this topbar, the action-row grid, the capsule, the queue row)
+        # carries an identical data-canonical-verdict — zero cross-surface drift.
+        _cv_art = ((rd.get('canonical_verdicts') or {}).get(hid)
+                   or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
+        _cvv_art = _html_escape(_cv_art.get('verdict', '') or '')
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
+              f"data-canonical-verdict='{_cvv_art}' "
               f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'>")
         # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
         doc.w("<div class='mh-top'><div class='mh-title'>")
@@ -2010,8 +2017,28 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # touches analyst verdicts; preflop/no-label mistakes are left alone.
         _review_downgrade = False
         _orig_auto_label = ''
-        if auto_verdict_needs_review(verdict, _is_auto_verdict,
-                                     (_agl[1] if _agl else '')):
+        # v8.17.1 P5(1): adopt the ONE canonical verdict (built in the data layer)
+        # instead of re-deriving the analyst>auto ladder + downgrade here, so the
+        # topbar, .mh-verdict, pill, action markers, footer and queue can never
+        # disagree. Preserve "blank when there is no decision signal" (a neutral
+        # Review with nothing behind it does not paint every ungraded hand) and the
+        # explicit Review pill for a downgraded auto verdict.
+        _cv = ((rd.get('canonical_verdicts') or {}).get(hid)
+               or (rd.get('canonical_verdicts') or {}).get(hid_short))
+        if _cv is not None:
+            if _cv.get('source') != 'neutral_review':
+                verdict = _cv.get('verdict', '') or ''
+                _is_auto_verdict = (_cv.get('source') == 'auto')
+            else:
+                verdict = ''
+                _is_auto_verdict = False
+                if _cv.get('auto_downgraded'):
+                    _review_downgrade = True
+                    _orig_auto_label = (_verdict_display_label(
+                        _cv.get('auto_downgraded_label') or '') or 'Mistake')
+        elif auto_verdict_needs_review(verdict, _is_auto_verdict,
+                                       (_agl[1] if _agl else '')):
+            # Legacy fallback (canonical map absent).
             _review_downgrade = True
             _orig_auto_label = _verdict_display_label(verdict) or 'Mistake'
             verdict = ''
@@ -2860,11 +2887,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _cap_lead and (_cap_lead.get('has_anchor') or _capdec_lead):
                 _cs_lead = _street_attr(_cap_lead.get('street'))
                 _ds_lead = f" data-street='{_cs_lead}'" if _cs_lead else ''
-                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}>")
+                # v8.17.1 P5(1): the capsule carries the SAME canonical verdict
+                # the topbar / action row / queue read (zero cross-surface drift).
+                _cvd_lead = f" data-canonical-verdict='{_html_escape(verdict or '')}'"
+                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}{_cvd_lead}>")
                 doc.w(_rcm_lead(_cap_lead))
                 doc.w("</div>")
                 doc.w("")
                 h['_pb_capsule_emitted'] = True
+                h['_pb_capsule_register'] = _cap_lead.get('register', '')
         except Exception:
             pass
 
@@ -3188,6 +3219,28 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             doc.w(_osz_note)
             doc.w("</div>")
             doc.w("")
+
+        # v8.17.1 P5(3): every scored Hero all-in renders the COMPLETE math block
+        # OR an explicit no_clear_lesson naming the exact missing canonical input —
+        # never an empty/partial body or a bare verdict. Suppressed when the lead
+        # capsule already states the gap (register == no_clear_lesson). Stamps
+        # h['_allin_register'] for the build-gate validator (gem_analyzer Check 15).
+        if h.get('pf_allin'):
+            try:
+                from gem_review_trust import (classify_preflop_allin as _cpa_ac,
+                                              allin_completeness_note as _acn)
+                _ak_ac = _cpa_ac(h)[0]
+                _note_ac = _acn(_ak_ac, _po, h, h.get('_pb_capsule_register'))
+                if _note_ac:
+                    doc.w("<div class='analyst-notes' data-street='preflop'>")
+                    doc.w("  " + _note_ac)
+                    doc.w("</div>")
+                    doc.w("")
+                    h['_allin_register'] = 'no_clear_lesson'
+                elif _ak_ac not in ('not_allin', 'unknown'):
+                    h['_allin_register'] = (h.get('_pb_capsule_register') or 'complete')
+            except Exception:
+                pass
 
         _pko_ctx = ((rd.get('pko_research') or {}).get('by_hand', {})
                     .get(hid) or h.get('pko_context') or {})
@@ -3711,11 +3764,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         if _cap_bl and (_cap_bl.get('has_anchor') or _capdec_bl):
                             _cs_bl = _street_attr(_cap_bl.get('street'))
                             _ds_bl = f" data-street='{_cs_bl}'" if _cs_bl else ''
-                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}>")
+                            # v8.17.1 P5(1): same canonical verdict as every other surface.
+                            _cv_bl = ((rd.get('canonical_verdicts') or {}).get(hid)
+                                      or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
+                            _cvd_bl = f" data-canonical-verdict='{_html_escape(_cv_bl.get('verdict', '') or '')}'"
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}{_cvd_bl}>")
                             doc.w(_rcm_b(_cap_bl))
                             doc.w("</div>")
                             doc.w("")
                             _has_notes_b = True
+                            h['_pb_capsule_register'] = _cap_bl.get('register', '')
                             h['_pb_capsule_emitted'] = True
                     except Exception:
                         pass
@@ -3860,6 +3918,34 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     doc.w("</div>")
                     doc.w("")
                     _has_notes_b = True
+
+                # v8.17.1 P5(3): compact-path all-in completeness — same contract as
+                # XIV.A (complete math OR explicit no_clear_lesson naming the gap;
+                # suppressed when the capsule already states it). Stamps the register
+                # for the build-gate validator.
+                if h.get('pf_allin'):
+                    try:
+                        from gem_review_trust import (
+                            classify_preflop_allin as _cpa_acb,
+                            allin_completeness_note as _acnb)
+                        _po_b_g = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                                   or (rd.get('pot_odds_by_hand') or {}).get(
+                                       hid[-8:] if len(hid) > 8 else hid))
+                        _ak_acb = _cpa_acb(h)[0]
+                        _note_acb = _acnb(_ak_acb, _po_b_g, h,
+                                          h.get('_pb_capsule_register'))
+                        if _note_acb:
+                            doc.w("<div class='analyst-notes' data-street='preflop'>")
+                            doc.w("  " + _note_acb)
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                            h['_allin_register'] = 'no_clear_lesson'
+                        elif _ak_acb not in ('not_allin', 'unknown'):
+                            h['_allin_register'] = (h.get('_pb_capsule_register')
+                                                    or 'complete')
+                    except Exception:
+                        pass
 
                 _pko_ctx_b = ((rd.get('pko_research') or {}).get('by_hand', {})
                               .get(hid) or h.get('pko_context') or {})

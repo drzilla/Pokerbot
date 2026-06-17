@@ -10902,6 +10902,74 @@ if __name__ == '__main__':
                 print(f"  ✅ All Mistake/Punt verdicts substantiated (v8.16.4 Obj-5)")
         except Exception:
             pass
+        # Check 15 (v8.17.1 P5(2,3)): marker/commentary parity + scored all-in
+        # completeness BUILD GATES. Built from STRUCTURED decision/evidence atoms
+        # (analyst_commentary verdict+argument, villain_intel atoms, the
+        # classify_preflop_allin kind + the rendered pot-odds fields + the render's
+        # stamped _allin_register) — never from text proximity. A build FAILs (❌) on
+        # an orphan / wrong-player / wrong-action marker, or a scored all-in that
+        # rendered neither complete math nor an explicit no_clear_lesson.
+        try:
+            from gem_review_trust import (marker_parity_issues as _mpi15,
+                                          classify_preflop_allin as _cpa15,
+                                          allin_rendered_fields as _arf15,
+                                          allin_completeness_issue as _aci15)
+            _ac15 = report_data.get('analyst_commentary') or {}
+            _atoms_by_hand15 = ((report_data.get('villain_intel') or {})
+                                .get('atoms_by_hand') or {})
+            _pob15 = report_data.get('pot_odds_by_hand') or {}
+            _mk_issues, _ai_issues = [], []
+            for _h15 in (hands or []):
+                _hid15 = _h15.get('id') or ''
+                if not _hid15:
+                    continue
+                _hs15 = _hid15[-8:] if len(_hid15) > 8 else _hid15
+                # --- marker/commentary parity (structured identities only) ---
+                _markers, _notes, _ve, _atoms = [], set(), set(), {}
+                _c15 = _ac15.get(_hid15) or _ac15.get(_hs15) or {}
+                if isinstance(_c15, dict):
+                    _vd15 = str(_c15.get('verdict', '') or '').lower()
+                    if (_vd15.startswith('iii.2') or _vd15.startswith('iii.1')
+                            or 'mistake' in _vd15 or 'punt' in _vd15):
+                        _markers.append({'kind': 'mistake', 'ref': _hid15})
+                        if (_c15.get('argument') or '').strip():
+                            _notes.add(_hid15)
+                for _atom in (_atoms_by_hand15.get(_hid15)
+                              or _atoms_by_hand15.get(_hs15) or []):
+                    if not isinstance(_atom, dict):
+                        continue
+                    _aref = '%s:%s:%s' % (_hs15, _atom.get('signal', ''),
+                                          _atom.get('street', ''))
+                    _ve.add(_aref)
+                    _atoms[_aref] = {'player': _atom.get('villain_position'),
+                                     'street': _atom.get('street'),
+                                     'action_index': _atom.get('action_index')}
+                    _markers.append({'kind': 'villain_evidence', 'ref': _aref,
+                                     'player': _atom.get('villain_position'),
+                                     'street': _atom.get('street'),
+                                     'action_index': _atom.get('action_index')})
+                for _miss in _mpi15(_markers, _notes, _ve, atoms=_atoms):
+                    _mk_issues.append("❌ %s marker parity: %s" % (_hs15, _miss))
+                # --- scored all-in completeness (only hands the render processed) ---
+                if _h15.get('pf_allin') and _h15.get('_allin_register'):
+                    _k15 = _cpa15(_h15)[0]
+                    if _k15 not in ('not_allin', 'unknown'):
+                        _po15 = _pob15.get(_hid15) or _pob15.get(_hs15)
+                        _ci15 = _aci15(_k15, _arf15(_po15, _h15, _k15),
+                                       register=_h15.get('_allin_register'))
+                        if _ci15:
+                            _ai_issues.append("❌ %s all-in completeness: %s"
+                                              % (_hs15, _ci15))
+            if _mk_issues:
+                _val_issues.extend(_mk_issues)
+            else:
+                print("  ✅ Marker/commentary parity clean (v8.17.1 P5)")
+            if _ai_issues:
+                _val_issues.extend(_ai_issues)
+            else:
+                print("  ✅ All scored all-ins complete or no_clear_lesson (v8.17.1 P5)")
+        except Exception:
+            pass
     except Exception as _val_e:
         print(f"  ⚠️  Validation skipped: {_val_e}")
 

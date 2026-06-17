@@ -1242,11 +1242,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                       f"depth; no exact chart at {_eff_now:.1f}BB.")
                     # v8.13.1 P1: reconcile against the FINAL analyst verdict so
                     # the auto widget never contradicts it.
+                    # v8.17.1 P5(1): the "analyst cleared it" override consumes the
+                    # ONE canonical verdict (active-queue or analyst decision) so the
+                    # push footer can never disagree with the topbar / pill / markers.
                     _av_pv = ''
                     if rd:
-                        _cmt_pv = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
-                        if isinstance(_cmt_pv, dict):
-                            _av_pv = _cmt_pv.get('verdict', '') or ''
+                        _cvm_pv = rd.get('canonical_verdicts') or {}
+                        _cv_pv = (_cvm_pv.get(h.get('id'))
+                                  or _cvm_pv.get(str(h.get('id', ''))[-8:]))
+                        if _cv_pv is not None:
+                            if _cv_pv.get('source') in ('active_queue',
+                                                        'analyst_reviewed'):
+                                _av_pv = _cv_pv.get('verdict', '') or ''
+                        else:
+                            _cmt_pv = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                            if isinstance(_cmt_pv, dict):
+                                _av_pv = _cmt_pv.get('verdict', '') or ''
                     _mode_pv, _note_pv = reconcile_push_widget(_in, _av_pv)
                     if _mode_pv == 'overridden':
                         _in_color = '#6b7280'
@@ -1297,11 +1308,20 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     # label a not-yet-reviewed auto check as a pre-review heuristic.
                     _cj_near = (f"Nearest chart: {_cdl_hg(_cj_key)}; actual effective "
                                 f"stack: {_cj_stack:.1f}BB.")
+                    # v8.17.1 P5(1): same canonical override source as the push footer.
                     _av_cj = ''
                     if rd:
-                        _cmt_cj = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
-                        if isinstance(_cmt_cj, dict):
-                            _av_cj = _cmt_cj.get('verdict', '') or ''
+                        _cvm_cj = rd.get('canonical_verdicts') or {}
+                        _cv_cj = (_cvm_cj.get(h.get('id'))
+                                  or _cvm_cj.get(str(h.get('id', ''))[-8:]))
+                        if _cv_cj is not None:
+                            if _cv_cj.get('source') in ('active_queue',
+                                                        'analyst_reviewed'):
+                                _av_cj = _cv_cj.get('verdict', '') or ''
+                        else:
+                            _cmt_cj = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                            if isinstance(_cmt_cj, dict):
+                                _av_cj = _cmt_cj.get('verdict', '') or ''
                     _cj_mode, _ = reconcile_push_widget(_cj_in, _av_cj)
                     if _cj_mode == 'overridden':
                         _cj_color = '#6b7280'
@@ -1326,7 +1346,20 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     n_cols = len(used_streets)
 
     # Emit table
-    doc.w(f"<table class='hand-grid'{_push_verdict_attr}>")
+    # v8.17.1 P5(1): the action-row grid carries the SAME canonical verdict the
+    # topbar / push & call-jam footer / capsule / queue read (zero drift).
+    _canon_attr = ''
+    try:
+        _cvm_g = (rd or {}).get('canonical_verdicts') or {}
+        _cv_g = (_cvm_g.get(h.get('id'))
+                 or _cvm_g.get(str(h.get('id', ''))[-8:]) or {})
+        _cvv_g = _cv_g.get('verdict', '') or ''
+        if _cvv_g:
+            _canon_attr = (" data-canonical-verdict='"
+                           + _html_mod.escape(_cvv_g, quote=True) + "'")
+    except Exception:
+        _canon_attr = ''
+    doc.w(f"<table class='hand-grid'{_push_verdict_attr}{_canon_attr}>")
     doc.w("<thead><tr>")
     for h_html in headers:
         doc.w(f"<th>{h_html}</th>")

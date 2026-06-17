@@ -685,6 +685,18 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             if _a.get('is_hero'):
                 _hero_last_idx_by_street[_st] = _ai
     _street_sentinel_placed = {}
+    # v8.17.1 P3b: each VILLAIN's last non-fold action index per (street, POS) so
+    # a villain-side evid sentinel can pin to THAT villain's last action row by
+    # position (the atom's ledger action_index drifts from grid per-street index).
+    _villain_last_idx_by_street_pos = {}
+    for _st in used_streets:
+        for _ai, _a in enumerate(all_actions.get(_st) or []):
+            if _a.get('is_hero') or _a.get('action') in ('posts', 'folds', 'fold'):
+                continue
+            _vp = (_a.get('position') or '').upper()
+            if _vp:
+                _villain_last_idx_by_street_pos[(_st, _vp)] = _ai
+    _villain_sentinel_placed = {}
 
     # B143: precompute trigger markers for fold-type mistakes.
     # When Hero folds with a critical note, mark the last aggressive villain
@@ -993,6 +1005,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         if i == _hero_last_idx_by_street.get(street, i):
                             _vb_list = _vb_list + list(_sentinel)
                             _street_sentinel_placed[street] = True
+                else:
+                    # v8.17.1 P3b: villain-side sentinel — pin a (street, -1)
+                    # note/pivot/evid atom to THIS villain's last action row, gated
+                    # on the atom's villain_position == this row's position (never
+                    # 'last villain action'; the position gate keeps it on the
+                    # correct seat). Sentinel-anchored badges bypass the expect
+                    # filter — position + last-action IS the deliberate anchor.
+                    _vpos_row = (p or '').upper()
+                    if (_vpos_row
+                            and i == _villain_last_idx_by_street_pos.get((street, _vpos_row))
+                            and not _villain_sentinel_placed.get((street, _vpos_row))):
+                        for _vs in villain_badges.get((street, -1), []):
+                            if (_vs.get('type') in ('note', 'pivot', 'evid')
+                                    and (_vs.get('villain_position') or '') == _vpos_row):
+                                _vb_list = _vb_list + [dict(_vs, _sentinel_anchored=True)]
+                                _villain_sentinel_placed[(street, _vpos_row)] = True
                 for _vb in _vb_list:
                     _vbt = _vb.get('type', 'note')
                     # v8.12.8 (QA F): badge-row ownership — villain evidence
@@ -1008,7 +1036,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     # are street-space — require the row's action kind to
                     # match the badge's declared kind, else suppress.
                     _vb_exp = _vb.get('expect')
-                    if _vb_exp and act not in _vb_exp:
+                    if _vb_exp and not _vb.get('_sentinel_anchored') and act not in _vb_exp:
                         continue
                     _vb_cls = 'vb-' + _vbt
                     _vb_lbl = _vb.get('label', '')

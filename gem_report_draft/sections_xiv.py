@@ -1635,10 +1635,19 @@ def _build_villain_badges(hid, s):
                      'expect': ('bets', 'raises')})
             elif sig in _SIG_BADGE and _has_teaching:
                 # red ! evidence badge — renders only if the ❗ Note block
-                # below the grid carries the explanation (same atom)
+                # below the grid carries the explanation (same atom).
+                # v8.17.1 P3b: route to a VILLAIN-side sentinel keyed (street, -1)
+                # carrying villain_position. The atom's action_index is LEDGER
+                # space while grid rows are per-street index — that drift made the
+                # expect filter suppress ~every evid badge (1/585). The grid pins
+                # this sentinel to THAT villain's last action row by position
+                # (never 'last villain action' — the position gate keeps it on the
+                # correct seat, guarding the v8.8.9 BUG-4 mis-placement).
                 _alias = atom.get('villain_alias', '')
-                badges.setdefault(key, []).append({
+                _vpos = (atom.get('villain_position') or '').upper()
+                badges.setdefault((street, -1), []).append({
                     'type': 'evid', 'label': '! ' + _SIG_BADGE[sig],
+                    'villain_position': _vpos, 'villain_alias': _alias,
                     'expect': _SIG_EXPECT.get(sig),
                     'tip': (f"{_alias + ': ' if _alias else ''}"
                             f"{_SIG_BADGE[sig]} tell — see the ❗ Note "

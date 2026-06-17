@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'a051835e0341e408d35f976b3057018fcefef03de5cf362791e24c31f8c5a499',
+      _hg_hash == 'afc36a7e2a9ec049cc6d195f39d1a374894d66c979d0bfd09d3573acd160a9e8',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -4742,7 +4742,7 @@ check('T-V257-06: B140 sentinel key (street, -1) in _build_villain_badges',
       'sentinel key logic missing')
 
 check('T-V257-07: B140 auto_verdict fallback in _build_villain_badges',
-      'auto_verdict' in _v257_sxiv_src.split('_build_villain_badges')[1][:4000],
+      'auto_verdict' in _v257_sxiv_src.split('_build_villain_badges')[1][:5000],
       'auto_verdict fallback missing')
 
 _v257_hg_src = open(os.path.join(os.path.dirname(__file__),
@@ -6690,10 +6690,10 @@ _s_vi8 = {'villain_intel': {'atoms_by_hand': {'H8X': [
      'villain_key': 'T|y'},
 ]}, 'exploit_opportunities': []}}
 _b8 = _bvb8('H8X', _s_vi8)
-check('T-1228-MK-5: atom with teaching text gets evid badge; bare atom does not',
-      bool(_b8) and ('flop', 2) in _b8
-      and _b8[('flop', 2)][0]['type'] == 'evid'
-      and ('turn', 1) not in _b8, str(_b8))
+check('T-1228-MK-5: atom with teaching text gets evid badge (v8.17.1 villain sentinel); bare atom does not',
+      bool(_b8) and ('flop', -1) in _b8
+      and _b8[('flop', -1)][0]['type'] == 'evid'
+      and ('turn', 1) not in _b8 and ('turn', -1) not in _b8, str(_b8))
 
 # G: sizing-claim + street-anchor lints against the rendered grid
 check('T-1228-LINT-1: grid stashes rendered bet pcts for W-PCT',
@@ -9501,6 +9501,22 @@ check('T-P3A-02: read-impact +N scrub maps to plain words (slight/moderate/stron
 check('T-P3C-01: villain matrix/drilldown user-label is "Signals", not "Exploit Opportunit*"',
       ">Signals</div>" in _xiva_p3 and "'Exploit Opportunity</div>'" not in _xiva_p3
       and "'Signals — '+readLabel" in _html_p3 and "'Exploit Opportunities — '+readLabel" not in _html_p3, '')
+# ---- v8.17.1 P3b: villain evid badge anchoring (villain-side sentinel by position) ----
+_hg_p3b = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', '_hand_grid.py'),
+               encoding='utf-8').read()
+check('T-P3B-01: evid uses a (street,-1) sentinel + villain_position; grid pins by villain position',
+      "'villain_position': _vpos" in _xiva_p3
+      and "badges.setdefault((street, -1), [])" in _xiva_p3
+      and "_villain_last_idx_by_street_pos" in _hg_p3b
+      and "_sentinel_anchored" in _hg_p3b, '')
+import gem_report_draft.sections_xiv as _SX3
+_b8b = _SX3._build_villain_badges('TM90000003', {'villain_intel': {'atoms_by_hand': {'TM90000003': [
+    {'street': 'flop', 'action_index': 3, 'signal': 'multiway_donk', 'villain_position': 'CO',
+     'villain_alias': 'Torch', 'suggests': 'protection-heavy', 'evidence_text': 'donk flop'}]}}})
+check('T-P3B-02: evid sentinel carries villain_position for grid position-pinning',
+      bool(_b8b) and ('flop', -1) in _b8b
+      and _b8b[('flop', -1)][0].get('villain_position') == 'CO'
+      and _b8b[('flop', -1)][0]['type'] == 'evid', str(_b8b))
 
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',

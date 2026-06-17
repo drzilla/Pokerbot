@@ -4224,7 +4224,7 @@ from gem_coaching_cards import (build_coaching_cards, derive_quality_gates,
                                 _select_template, _clamp_words,
                                 _compute_blocker_facts, _compute_hero_range_facts,
                                 _tmpl_blocker_insight, _tmpl_range_awareness,
-                                _select_insight)
+                                _select_insight, _build_display_card)
 
 # synthetic hand for testing
 def _cc_hand(**kw):
@@ -4488,6 +4488,7 @@ print('\n  -- Phase 2: blocker + range awareness --')
 # T-CC-40: blocker_facts enabled on 3-flush board with A of suit
 _cc_h40 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f40 = _build_decision_facts(_cc_h40, _cc_stats, _cc_rd)
+_cc_f40['street'] = 'river'  # v8.17.1 Iter-1: blocker tests model a board Hero SAW (postflop decision)
 _compute_blocker_facts(_cc_f40)
 check('T-CC-40: blocker_facts enabled on 3-flush board with A of suit',
       _cc_f40['blocker_facts']['enabled'] and _cc_f40['blocker_facts']['nut_flush_blocker'],
@@ -4504,6 +4505,7 @@ check('T-CC-41: blocker_facts disabled with <3 board cards',
 # T-CC-42: no_flush_blocker detection
 _cc_h42 = _cc_hand(cards=['Ac', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f42 = _build_decision_facts(_cc_h42, _cc_stats, _cc_rd)
+_cc_f42['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f42)
 check('T-CC-42: no_flush_blocker when hero has no hearts',
       _cc_f42['blocker_facts']['enabled'] and _cc_f42['blocker_facts']['no_flush_blocker'],
@@ -4512,6 +4514,7 @@ check('T-CC-42: no_flush_blocker when hero has no hearts',
 # T-CC-43: paired_board_blocker detection with correct wording
 _cc_h43 = _cc_hand(cards=['7d', 'As'], board=['7h', '7c', 'Ts', 'Jd', '2c'])
 _cc_f43 = _build_decision_facts(_cc_h43, _cc_stats, _cc_rd)
+_cc_f43['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f43)
 check('T-CC-43: paired_board_blocker when hero holds board pair rank',
       _cc_f43['blocker_facts']['enabled'] and _cc_f43['blocker_facts']['paired_board_blocker']
@@ -4549,6 +4552,7 @@ check('T-CC-46: hero_range_facts disabled when ranges is None',
 # T-CC-47: blocker_insight template fires for nut flush blocker
 _cc_h47 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f47 = _build_decision_facts(_cc_h47, _cc_stats, _cc_rd)
+_cc_f47['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f47)
 _cc_g47 = derive_quality_gates(_cc_f47)[0]
 _cc_i47 = _tmpl_blocker_insight(_cc_f47, _cc_g47)
@@ -4630,6 +4634,7 @@ check('T-CC-54: no_flush_blocker does NOT fire on passive hand',
 # T-CC-55: nut_flush_blocker does NOT render when hero has made nut flush
 _cc_h55 = _cc_hand(cards=['Ah', '9h'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f55 = _build_decision_facts(_cc_h55, _cc_stats, _cc_rd)
+_cc_f55['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f55)
 _cc_g55 = derive_quality_gates(_cc_f55)[0]
 _cc_i55 = _tmpl_blocker_insight(_cc_f55, _cc_g55)
@@ -4641,6 +4646,7 @@ check('T-CC-55: made nut flush renders as nut_flush_made not blocker',
 _cc_h56 = _cc_hand(cards=['7d', 'As'], board=['7h', '7c', 'Ts', 'Jd', '2c'],
                    facing_bets=1)
 _cc_f56 = _build_decision_facts(_cc_h56, _cc_stats, _cc_rd)
+_cc_f56['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f56)
 _cc_g56 = derive_quality_gates(_cc_f56)[0]
 _cc_i56 = _tmpl_blocker_insight(_cc_f56, _cc_g56)
@@ -4700,6 +4706,7 @@ check('T-CC-60: max 2 cards per hand',
 _cc_h61 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'],
                    pot_facing=0, call_amount_bb=0)
 _cc_f61 = _build_decision_facts(_cc_h61, _cc_stats, _cc_rd)
+_cc_f61['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f61)
 _cc_g61, _, _cc_suppress61 = derive_quality_gates(_cc_f61)
 _cc_i61 = _tmpl_blocker_insight(_cc_f61, _cc_g61)
@@ -10449,6 +10456,201 @@ _ws_rows = _migws.scan_hand_body(_ws_body)  # [(source_type, street, data_street
 check('T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (survives migration, no silent drop)',
       any('villain' in str(r[0]).lower() for r in _ws_rows) and len(_ws_rows) >= 2,
       str([r[0] for r in _ws_rows]))
+
+# ============================================================
+# v8.17.1 ITERATION 1 — canonical decision-time snapshot
+# (gem_decision_snapshot) + downstream trust wiring.
+# Fixtures mirror the exact June-16 hands named in the handover.
+# ============================================================
+print('\n=== v8.17.1 Iteration 1: canonical decision snapshot ===')
+import gem_decision_snapshot as _ds
+from gem_coaching_cards import _tmpl_multiway_caution as _ds_mw_tmpl
+from gem_coaching_cards import _tmpl_pko_pressure as _ds_pko_tmpl
+import importlib as _il_ds, gem_parser as _gp_ds
+_il_ds.reload(_gp_ds)
+
+
+def _led(street, player, action, amt=0.0, allin=False):
+    return {'street': street, 'player': player, 'action': action,
+            'amount_bb': amt, 'is_all_in': allin}
+
+
+# ---- T-DS-01: board_at_decision is temporal (no future runout) ----
+_ds_board = ['Ah', 'Qh', '2h', 'Js', '6s']
+check('T-DS-01a: board_at_decision preflop == [] (no board seen)',
+      _ds.board_at_decision(_ds_board, 'preflop') == [], '')
+check('T-DS-01b: board_at_decision flop == first 3',
+      _ds.board_at_decision(_ds_board, 'flop') == ['Ah', 'Qh', '2h'], '')
+check('T-DS-01c: board_at_decision turn == first 4',
+      _ds.board_at_decision(_ds_board, 'turn') == ['Ah', 'Qh', '2h', 'Js'], '')
+check('T-DS-01d: board_at_decision river == all 5',
+      _ds.board_at_decision(_ds_board, 'river') == _ds_board, '')
+
+# ---- 84990829 fixture: BB jams 17.9, V2 17.5 calls, V1 0.8 dead-short all-in ----
+_ds_h_deadshort = {
+    'id': 'TM6084990829', 'hero': 'Hero', 'stack_bb': 17.95, 'pf_allin': True,
+    'board': _ds_board, 'format': 'BOUNTY', 'bounty_value_bb': 4.0,
+    'villains': {'V1': {'stack_bb': 0.8}, 'V2': {'stack_bb': 17.5}, 'V3': {'stack_bb': 24.5}},
+    'action_ledger': [
+        _led('preflop', 'V1', 'calls', 0.67, True),     # dead short all-in
+        _led('preflop', 'V3', 'folds'),
+        _led('preflop', 'V2', 'raises', 2.0),
+        _led('preflop', 'Hero', 'raises', 14.79, True),
+        _led('preflop', 'V2', 'calls', 14.31, True),
+    ],
+}
+_ds_opps = _ds.relevant_opponents(_ds_h_deadshort, 'preflop')
+_ds_dead = [o for o in _ds_opps if o['is_dead_short']]
+check('T-DS-02: relevant_opponents flags the 0.8BB all-in as dead-short, excludes the folder',
+      len(_ds_opps) == 2 and len(_ds_dead) == 1 and _ds_dead[0]['stack_bb'] == 0.8
+      and all(o['player'] != 'V3' for o in _ds_opps), str(_ds_opps))
+check('T-DS-03: contesting_count excludes the dead short (3 in pot -> 2-way real contest)',
+      _ds.contesting_count(_ds_h_deadshort, 'preflop') == 2,
+      _ds.contesting_count(_ds_h_deadshort, 'preflop'))
+check('T-DS-04: relevant_effective_stack excludes dead short (17.5, NOT 0.8)',
+      _ds.relevant_effective_stack_bb(_ds_h_deadshort, 'preflop') == 17.5,
+      _ds.relevant_effective_stack_bb(_ds_h_deadshort, 'preflop'))
+check('T-DS-05a: bounty_coverage collectible when Hero covers all live villains',
+      _ds.bounty_coverage(_ds_h_deadshort, 'preflop') == 'collectible', '')
+
+# ---- not-collectible: Hero 11 jams, villain 33 re-jams (covers Hero) ----
+_ds_h_notcover = {
+    'id': 'X', 'hero': 'Hero', 'stack_bb': 11.0, 'pf_allin': True, 'board': [],
+    'format': 'BOUNTY', 'villains': {'V1': {'stack_bb': 33.2}},
+    'action_ledger': [_led('preflop', 'Hero', 'raises', 9.9, True),
+                      _led('preflop', 'V1', 'raises', 22.1, True)]}
+check('T-DS-05b: bounty_coverage not_collectible when a live villain covers Hero',
+      _ds.bounty_coverage(_ds_h_notcover, 'preflop') == 'not_collectible', '')
+
+# ---- uncontested first-in jam (everyone folds) -> coverage genuinely unknown ----
+_ds_h_foldout = {
+    'id': 'Y', 'hero': 'Hero', 'stack_bb': 23.9, 'pf_allin': True, 'board': [],
+    'format': 'BOUNTY', 'villains': {'V1': {'stack_bb': 60.0}, 'V2': {'stack_bb': 18.0}},
+    'action_ledger': [_led('preflop', 'V2', 'raises', 1.2),
+                      _led('preflop', 'Hero', 'raises', 21.5, True),
+                      _led('preflop', 'V1', 'folds'), _led('preflop', 'V2', 'folds')]}
+check('T-DS-05c: uncontested jam (all fold) -> contesting_count 1, coverage unknown',
+      _ds.contesting_count(_ds_h_foldout, 'preflop') == 1
+      and _ds.bounty_coverage(_ds_h_foldout, 'preflop') == 'unknown', '')
+
+# ---- T-DS-06: hero_action_kind — call-off vs rejam (83915520) ----
+_ds_h_calloff = {  # Hero "raises" all-in OVER a villain already all-in == call-off
+    'hero': 'Hero', 'action_ledger': [
+        _led('preflop', 'V1', 'raises', 8.49, True),
+        _led('preflop', 'Hero', 'raises', 12.68, True)]}
+check('T-DS-06a: raise over an already-all-in villain == call_vs_jam (NOT rejam)',
+      _ds.hero_action_kind(_ds_h_calloff) == 'call_vs_jam',
+      _ds.hero_action_kind(_ds_h_calloff))
+_ds_h_rejam = {  # Hero re-jams over a LIVE (non-all-in) raise == genuine rejam
+    'hero': 'Hero', 'action_ledger': [
+        _led('preflop', 'V1', 'raises', 2.5, False),
+        _led('preflop', 'Hero', 'raises', 20.0, True)]}
+check('T-DS-06b: re-jam over a live (non-all-in) raise == rejam',
+      _ds.hero_action_kind(_ds_h_rejam) == 'rejam', _ds.hero_action_kind(_ds_h_rejam))
+_ds_h_openshove = {'hero': 'Hero', 'action_ledger': [
+    _led('preflop', 'Hero', 'raises', 12.0, True)]}
+check('T-DS-06c: first-in all-in == open_shove',
+      _ds.hero_action_kind(_ds_h_openshove) == 'open_shove', '')
+
+# ---- T-DS-07: coaching blocker is temporal — preflop all-in sees no board ----
+_cc_pf_flush = _cc_hand(pf_action='raise', pf_allin=True, cards=['As', 'Kd'],
+                        board=['7h', '9h', '4h', '2c', '3s'])  # 3-flush RUNOUT only
+_cc_f_pf = _build_decision_facts(_cc_pf_flush, _cc_stats, _cc_rd)
+_compute_blocker_facts(_cc_f_pf)
+check('T-DS-07: preflop all-in -> blocker_facts stays disabled (no future-board read)',
+      not _cc_f_pf['blocker_facts']['enabled'], str(_cc_f_pf['blocker_facts']))
+
+# ---- T-DS-08: blocker still fires when the flush is present AT the flop decision ----
+_cc_flop_flush = _cc_hand(pf_action='call', pf_allin=False, cards=['As', 'Kd'],
+                          board=['7h', '9h', '4h', '2c', '3s'],
+                          action_ledger=[_led('preflop', 'Hero', 'calls', 2.0),
+                                         _led('flop', 'Hero', 'bets', 5.0)])
+_cc_f_flop = _build_decision_facts(_cc_flop_flush, _cc_stats, _cc_rd)
+_compute_blocker_facts(_cc_f_flop)
+check('T-DS-08: flop-decision flush board -> blocker_facts enabled (real board seen)',
+      _cc_f_flop['blocker_facts']['enabled'], str(_cc_f_flop['blocker_facts']))
+
+# ---- T-DS-09: multiway uses contesting count (dead short -> not multiway) ----
+_cc_mw_dead = _cc_hand(pf_allin=True, first_in=False, stack_bb=17.95,
+                       villains={'V1': {'stack_bb': 0.8}, 'V2': {'stack_bb': 17.5}},
+                       action_ledger=_ds_h_deadshort['action_ledger'])
+_cc_f_mwd = _build_decision_facts(_cc_mw_dead, _cc_stats, _cc_rd)
+check('T-DS-09: dead-short 3-in-pot is NOT a multiway card (real contest is 2-way)',
+      _ds_mw_tmpl(_cc_f_mwd, derive_quality_gates(_cc_f_mwd)[0]) is None, '')
+
+# ---- T-DS-10: fold-out jam is NOT a multiway card (table-size bug) ----
+_cc_mw_fold = _cc_hand(pf_allin=True, first_in=False, stack_bb=23.9, players_at_flop=0,
+                       villains={'V1': {'stack_bb': 60}, 'V2': {'stack_bb': 18}},
+                       action_ledger=_ds_h_foldout['action_ledger'])
+_cc_f_mwf = _build_decision_facts(_cc_mw_fold, _cc_stats, _cc_rd)
+check('T-DS-10: jam everyone folds to is NOT an N-way multiway card',
+      _ds_mw_tmpl(_cc_f_mwf, derive_quality_gates(_cc_f_mwf)[0]) is None, '')
+
+# ---- T-DS-11: genuine 3-way contested pot DOES warn, with the real count ----
+_cc_mw_real = _cc_hand(pf_allin=False, first_in=False, stack_bb=24.5,
+                       villains={'V1': {'stack_bb': 46.8}, 'V2': {'stack_bb': 41.9}},
+                       action_ledger=[_led('preflop', 'V1', 'calls', 2.0),
+                                      _led('preflop', 'V2', 'calls', 2.0),
+                                      _led('preflop', 'Hero', 'calls', 2.0)])
+_cc_f_mwr = _build_decision_facts(_cc_mw_real, _cc_stats, _cc_rd)
+_cc_mw_card = _ds_mw_tmpl(_cc_f_mwr, derive_quality_gates(_cc_f_mwr)[0])
+check('T-DS-11: genuine 3-way contested pot warns with the real entrant count (3-way)',
+      _cc_mw_card is not None and _cc_mw_card['headline'].startswith('3-way'),
+      str(_cc_mw_card.get('headline') if _cc_mw_card else None))
+
+# ---- T-DS-12: pko_pressure card is pinned to preflop (never a later street) ----
+_cc_pko = _cc_hand(pf_allin=False, cards=['Ad', 'Kd'], board=['2h', '3c', 'Kc'],
+                   action_ledger=[_led('preflop', 'Hero', 'calls', 1.2),
+                                  _led('flop', 'Hero', 'folds')])
+_cc_pko['pko_context'] = {'enabled': True, 'classification': 'Review',
+                          'confidence': 'medium', 'delta_range_pp': [2.0, 4.0],
+                          'spot': 'BB defend', 'depth_bucket': '20-25bb'}
+_cc_f_pko = _build_decision_facts(_cc_pko, _cc_stats, _cc_rd)
+_cc_pko_card = _ds_pko_tmpl(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0])
+_cc_pko_disp = _build_display_card(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0], _cc_pko_card, 'medium') if _cc_pko_card else None
+check('T-DS-12: pko_pressure display card street is pinned to preflop',
+      _cc_pko_disp is not None and _cc_pko_disp.get('street') == 'preflop',
+      str(_cc_pko_disp.get('street') if _cc_pko_disp else None))
+
+# ---- T-DS-13: PARSER (production path) — eff_stack_bb_at_decision excludes a
+#       dead-short all-in. Hero 17.9 jams, RealVill 17.5 calls, DeadShort 0.8 all-in.
+_hh_ds = """Poker Hand #TM9000000777: Tournament #777, T Hold'em No Limit - Level10(500/1,000) - 2026/06/16 19:00:00
+Table '1' 6-max Seat #1 is the button
+Seat 1: villBTN (50,000 in chips)
+Seat 2: DeadShort (800 in chips)
+Seat 3: Hero (17,900 in chips)
+Seat 4: RealVill (17,500 in chips)
+Seat 5: villA (50,000 in chips)
+Seat 6: villB (50,000 in chips)
+DeadShort: posts small blind 500
+Hero: posts big blind 1,000
+*** HOLE CARDS ***
+Dealt to Hero [Ac 8d]
+RealVill: raises 1,000 to 2,000
+villA: folds
+villB: folds
+villBTN: folds
+DeadShort: calls 300 and is all-in
+Hero: raises 15,900 to 17,900 and is all-in
+RealVill: calls 15,500 and is all-in
+*** FLOP *** [5c 9c 4d]
+*** TURN *** [5c 9c 4d] [7s]
+*** RIVER *** [5c 9c 4d 7s] [3h]
+*** SHOWDOWN ***
+Hero collected 36,200 from pot
+*** SUMMARY ***
+Total pot 36,200 | Rake 0
+Board [5c 9c 4d 7s 3h]
+Seat 2: DeadShort (small blind) showed [Kh Kd] and lost
+Seat 3: Hero (big blind) showed [Ac 8d] and won (36,200)
+Seat 4: RealVill showed [Qs Qd] and lost
+"""
+_h_ds = _gp_ds.parse_one_hand(_hh_ds)
+check('T-DS-13: parser eff_stack_bb_at_decision excludes the 0.8BB dead-short all-in '
+      '(reads the real ~17.5BB contest, not 0.8)',
+      _h_ds is not None and _h_ds.get('eff_stack_bb_at_decision') is not None
+      and _h_ds['eff_stack_bb_at_decision'] > 10.0,
+      str(_h_ds.get('eff_stack_bb_at_decision') if _h_ds else None))
 
 # ============================================================
 # SUMMARY

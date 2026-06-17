@@ -3335,10 +3335,21 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if (not _po and not _pko_ctx.get('enabled')
                 and h.get('format') == 'BOUNTY' and h.get('pf_allin')
                 and h.get('bounty_collectible') in (None, 'unknown')):
+            # v8.17.1 Iteration 1: separate a genuine UNCONTESTED jam (everyone
+            # folded -> no bounty in play, collectibility undefined) from a real
+            # data gap. With canonical coverage now resolved for every CONTESTED
+            # all-in, the only residual unknowns are uncontested jams; say so
+            # precisely rather than implying the HH export is missing data.
+            from gem_decision_snapshot import contesting_count as _ds_cc
             doc.w("<div class='analyst-notes' data-street='preflop'>")
-            doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
-                  "from the HH export, so this verdict uses chip-chart logic only. "
-                  "Review manually.")
+            if _ds_cc(h, 'preflop') <= 1:
+                doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
+                      "Hero's jam took it down uncontested, so no bounty was at stake "
+                      "this hand.")
+            else:
+                doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
+                      "from the HH export, so this verdict uses chip-chart logic only. "
+                      "Review manually.")
             doc.w("</div>")
             doc.w("")
 
@@ -4259,10 +4270,18 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 if (not _po_b and not _pko_ctx_b.get('enabled')
                         and h.get('format') == 'BOUNTY' and h.get('pf_allin')
                         and h.get('bounty_collectible') in (None, 'unknown')):
+                    # v8.17.1 Iteration 1: uncontested jam (folded out) -> no bounty
+                    # confrontation, not a data gap. Canonical contesting count owns it.
+                    from gem_decision_snapshot import contesting_count as _ds_cc
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
-                    doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
-                          "unresolved from the HH export, so this verdict uses "
-                          "chip-chart logic only. Review manually.")
+                    if _ds_cc(h, 'preflop') <= 1:
+                        doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
+                              "— Hero's jam took it down uncontested, so no bounty "
+                              "was at stake this hand.")
+                    else:
+                        doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
+                              "unresolved from the HH export, so this verdict uses "
+                              "chip-chart logic only. Review manually.")
                     doc.w("</div>")
                     doc.w("")
 

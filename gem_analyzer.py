@@ -8137,6 +8137,7 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     # ---- BATCH 5 (ACE-4): ICM/BOUNTY RED-FLAG APPROXIMATION ----
     # Rough flags per hand — not full ICM math, just practical warnings.
     from gem_bounty import bounty_collectibility as _bounty_collectibility
+    from gem_decision_snapshot import bounty_coverage as _ds_bounty_coverage
     for h in hands:
         _phase = h.get('tournament_phase', '')
         _fmt = h.get('format', '')
@@ -8154,10 +8155,32 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         # 'unknown' (never a fabricated cover) when it is absent. Unknown is safe:
         # it asserts neither collectible nor not-collectible, so it can never
         # contradict the PKO audit's own cover classification.
-        _opp_stk = h.get('jammer_stack_bb')
-        _collect = _bounty_collectibility(
-            _stack, [_opp_stk] if _opp_stk else [], h.get('bounty_value_bb', 0),
-            is_bounty=(_fmt == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0))
+        _is_bnt = (_fmt == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+        # v8.17.1 Iteration 1 (bounty cover — ONE source of truth): derive
+        # collectibility from the live CONTESTING opponents at the decision, which
+        # works whether Hero jammed, CALLED a jam, jammed-and-got-called, or it was
+        # multiway. jammer_stack_bb only names a villain who jammed BEFORE Hero, so
+        # it was 0 (-> false 'unknown') for all of those, leaving 24 hands saying
+        # "cover/collectibility unresolved" when coverage was plainly knowable. We
+        # gate on Hero actually being all-in; if the contesting set is unresolvable
+        # we fall back to the legacy jammer read (which never fabricates a cover).
+        _hero_nm = h.get('hero', 'Hero')
+        _hero_ai_streets = [a.get('street', 'preflop')
+                            for a in (h.get('action_ledger') or [])
+                            if a.get('player') == _hero_nm and a.get('is_all_in')]
+        if _is_bnt and (h.get('pf_allin') or _hero_ai_streets):
+            _dstreet = _hero_ai_streets[-1] if _hero_ai_streets else 'preflop'
+            _collect = _ds_bounty_coverage(h, _dstreet)
+            if _collect == 'unknown':
+                _opp_stk = h.get('jammer_stack_bb')
+                _collect = _bounty_collectibility(
+                    _stack, [_opp_stk] if _opp_stk else [],
+                    h.get('bounty_value_bb', 0), is_bounty=True)
+        else:
+            _opp_stk = h.get('jammer_stack_bb')
+            _collect = _bounty_collectibility(
+                _stack, [_opp_stk] if _opp_stk else [],
+                h.get('bounty_value_bb', 0), is_bounty=_is_bnt)
         h['bounty_collectible'] = _collect
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),

@@ -9,6 +9,7 @@ Phase 2: blocker analysis + hero range awareness insight cards.
 """
 
 from gem_parser import normalize_hand
+import gem_decision_snapshot as _ds  # v8.17.1 Iter-1 canonical decision-time owner
 
 _COACHING_VERSION = 'v2'
 
@@ -264,7 +265,14 @@ def _build_decision_facts(h, stats, report_data):
 def _compute_blocker_facts(facts):
     """Compute blocker analysis from hero cards + board.  Mutates facts in place."""
     hero_cards = facts.get('hero', {}).get('cards', [])
-    board_cards = facts.get('board', {}).get('cards', [])
+    # v8.17.1 Iteration 1 (temporal board): blocker analysis must use the board Hero
+    # ACTUALLY saw at the decision street, never the final runout. A preflop all-in
+    # saw no board -> board_at_decision == [] -> no blocker card. This killed 11
+    # "your A blocks the nut flush on this 3-flush board" cards stamped on preflop
+    # jams that merely ran out to a flush. Flop-decision blocker cards keep their
+    # 3-card flop board and still fire.
+    board_cards = _ds.board_at_decision(facts.get('board', {}).get('cards', []),
+                                        facts.get('street', 'preflop'))
 
     if len(hero_cards) < 2 or len(board_cards) < 3:
         return
@@ -642,13 +650,16 @@ def _tmpl_multiway_caution(facts, gates):
     h = facts.get('_hand') or {}
     if h.get('pf_allin') and h.get('first_in'):
         return None
-    gc = facts['game_context']
-    _entered = h.get('players_at_flop') or 0
-    if not _entered:
-        _entered = gc.get('players_at_decision', 2)
-    if _entered <= 2:
+    # v8.17.1 Iteration 1 (actual pot entrants): count players actually CONTESTING
+    # the pot at Hero's decision (committed, not folded, dead-short side pots
+    # excluded) — NOT everyone dealt. players_at_flop was 0 for a preflop-ending jam
+    # so the old code fell back to players_at_decision, which counted blind posters
+    # => "8-way pot — equity less reliable" on a jam that folded out (83506399), and
+    # a 0.8BB dead-short all-in inflated 84990829 to "3-way". The canonical snapshot
+    # owns the contesting count.
+    n = _ds.contesting_count(h, _key_street(h))
+    if n <= 2:
         return None
-    n = _entered
 
     headline = f"{n}-way pot — equity is less reliable"
     verdict = 'Multiway caution'
@@ -969,6 +980,9 @@ def _tmpl_pko_pressure(facts, gates):
     return {
         'card_type': 'pko_pressure',
         '_insight_trigger': 'pko_' + cls.lower(),
+        # v8.17.1 Iter-1: PKO bounty pressure is a PREFLOP defend/jam decision; pin
+        # the street so the card never renders on a later (flop/river) action street.
+        'street': 'preflop',
         'poker_verdict': 'review',
         'metrics': [], 'ranges': [], 'warnings': [],
         'variant': 'blue',
@@ -1093,10 +1107,15 @@ def _run_assertions(facts, gates, interp):
 
 def _build_display_card(facts, gates, interp, confidence):
     """Assemble final display_card dict."""
+    # v8.17.1 Iter-1: a template may PIN the card's decision street. The PKO
+    # bounty-pressure card is a PREFLOP defend/jam concept; without this it inherited
+    # facts['street'] (Hero's last-action street) and rendered "PKO Review" on the
+    # flop/river (83793494 river value-bet, 84295953 flop fold).
+    _street = interp.get('street') or facts['street']
     return {
-        'card_id': _card_id(facts['hand_id'], facts['street'], interp['card_type']),
+        'card_id': _card_id(facts['hand_id'], _street, interp['card_type']),
         'hand_id': facts['hand_id'],
-        'street': facts['street'],
+        'street': _street,
         'card_type': interp['card_type'],
         'poker_verdict': interp['poker_verdict'],
         'headline': interp['headline'],

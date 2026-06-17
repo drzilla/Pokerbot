@@ -398,7 +398,16 @@ def _decision_node(c, kind=None, dev=None, hand=None):
     if kind == 'preflop_allin':
         evt, faced, limped = _preflop_allin_event(hand)
         if evt is not None:
-            is_call = (evt.get('action') == 'calls')
+            # v8.17.1 Iteration 1 (action kind from the ledger): a "raise" over a
+            # villain who is ALREADY all-in is a CALL-OFF of that (short) jam, not a
+            # re-jam — there is no live raise left to pressure and Hero's excess is
+            # uncalled. The canonical action kind owns this distinction so the
+            # reviewed event reads "call vs jam", carries the real capped call price,
+            # and never implies fold equity that does not exist (83915520: A8o BTN
+            # "raises 12.7 all-in" over a 9.6BB all-in jam == a call-off, not a rejam).
+            from gem_decision_snapshot import hero_action_kind as _ds_action_kind
+            akind = _ds_action_kind(hand)
+            is_call = (evt.get('action') == 'calls') or (akind == 'call_vs_jam')
             faced_amt = _f(faced.get('amount_bb')) if faced else 0.0
             faced_allin = bool(faced.get('is_all_in')) if faced else False
             hero_allin = bool(evt.get('is_all_in'))
@@ -428,6 +437,7 @@ def _decision_node(c, kind=None, dev=None, hand=None):
                 price_source = 'action_ledger'
             node = {
                 'street': 'preflop', 'decision_kind': kind,
+                'hero_action_kind': akind,
                 'hero_action_facing': facing or 'unknown',
                 'hero_actual_action': _fmt_action(evt),
                 'call_amount_bb': call_bb,

@@ -572,6 +572,15 @@ def parse_one_hand(text, filename=''):
     # folding."
     seat_stack_by_player = {info['player']: info['stack_bb'] for info in seats.values()}
     folded_so_far = set()
+    # v8.17.1 Iteration 1 (B-1): a villain already ALL-IN for a dead-short amount
+    # (<= DEAD_SHORT_MAX_BB) is a settled side pot — it does NOT constrain the
+    # effective stack of Hero's decision against the real field. Including it made
+    # eff_stack_bb_at_decision collapse to the dead short (84990829: a 0.8BB blind
+    # all-in dragged a Hero-17.9 vs villain-17.5 decision down to 0.83). We exclude
+    # already-all-in dead shorts from the candidate set; the dead-short threshold is
+    # owned by gem_decision_snapshot so every surface shares ONE definition.
+    from gem_decision_snapshot import DEAD_SHORT_MAX_BB as _DS_MAX
+    allin_dead_short = set()
     last_hero_active_set = None
     for line in streets['preflop'].split('\n'):
         am = re.match(r'(\S+):\s+(folds|calls|raises|checks|bets)', line)
@@ -582,9 +591,13 @@ def parse_one_hand(text, filename=''):
         # Snapshot at Hero's action (BEFORE processing this line's fold effect)
         if actor == hero_name:
             last_hero_active_set = {p for p in player_position
-                                    if p != hero_name and p not in folded_so_far}
+                                    if p != hero_name and p not in folded_so_far
+                                    and p not in allin_dead_short}
         if act == 'folds':
             folded_so_far.add(actor)
+        if (actor != hero_name and 'all-in' in line.lower()
+                and seat_stack_by_player.get(actor, _DS_MAX + 1) <= _DS_MAX):
+            allin_dead_short.add(actor)
     if last_hero_active_set:
         candidates = [hand['stack_bb']] + [
             seat_stack_by_player.get(opp, hand['stack_bb'])

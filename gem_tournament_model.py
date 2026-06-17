@@ -95,6 +95,57 @@ def _return_object(cash_received, ticket_value, config):
     return ret
 
 
+# ── v8.17.1 P4: finish object — canonical sort domain (CALCULATION_RULES) ──
+# Exact Top% finishes use 0.0–100.0; sentinels start ABOVE 100 so a Top 61%
+# exact finish never collides with Ticket/Day2/etc.
+_FINISH_SENTINEL = {
+    'ticket': 101, 'day2': 102, 'itm_est': 103, 'pending': 104,
+    'no_cash': 105, 'unknown': 999,
+}
+
+
+def _top_pct_label(tp):
+    """'Top X%' with adaptive precision (Top 0.4% / Top 5% / Top 61%)."""
+    if tp is None:
+        return None
+    tp = max(0.0, min(100.0, float(tp)))
+    return 'Top %s%%' % (('%.1f' % tp).rstrip('0').rstrip('.') if tp < 10 else '%.0f' % tp)
+
+
+def _finish_state(finish, ret):
+    """Derive {label, state, sort_key, is_in_play} for a finish object from the
+    typed finish fields + the typed return (CALCULATION_RULES finish domain).
+    state ∈ exact|estimated|pending|no_cash|unknown."""
+    place = finish.get('place')
+    tp = finish.get('top_percent')
+    itm = bool(finish.get('itm'))
+    is_sat = bool(finish.get('is_satellite'))
+    advanced = bool(finish.get('advanced_day2'))
+    exact = bool(ret.get('exact'))
+    basis = ret.get('basis', '')
+    if is_sat and (ret.get('ticket_value') or 0) > 0:
+        return {'label': 'Ticket', 'state': 'exact',
+                'sort_key': _FINISH_SENTINEL['ticket'], 'is_in_play': False}
+    if not exact:
+        if basis == 'day2_mean' or advanced:
+            return {'label': 'Day 2', 'state': 'estimated',
+                    'sort_key': _FINISH_SENTINEL['day2'], 'is_in_play': True}
+        if basis in ('min_cash_likely', 'mystery_avg', 'composite') or itm:
+            return {'label': 'Est. ITM', 'state': 'estimated',
+                    'sort_key': _FINISH_SENTINEL['itm_est'], 'is_in_play': False}
+        return {'label': 'Pending', 'state': 'pending',
+                'sort_key': _FINISH_SENTINEL['pending'], 'is_in_play': True}
+    # settled / exact
+    if tp is not None and (itm or (ret.get('value') or 0) > 0):
+        return {'label': _top_pct_label(tp), 'state': 'exact',
+                'sort_key': max(0.0, min(100.0, float(tp))), 'is_in_play': False}
+    if place is not None:
+        return {'label': 'No cash', 'state': 'no_cash',
+                'sort_key': _FINISH_SENTINEL['no_cash'], 'is_in_play': False}
+    return {'label': '—', 'state': 'unknown',
+            'sort_key': _FINISH_SENTINEL['unknown'], 'is_in_play': False}
+
+
 def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
                            session_financials_covers_session=None, config=None):
     """Build the typed event-level Tournament Tables model from the canonical
@@ -163,6 +214,19 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
 
         drivers = list(drivers_by_tid.get(tid, []))   # detector-backed only
 
+        # v8.17.1 P4: typed finish object — label/state/sort_key/is_in_play from
+        # the canonical finish domain (so the detail tables sort best-first and
+        # Finish shows Top X% / Ticket / Day 2 / Est. ITM / Pending / No cash).
+        _finish = {
+            'place': place or None,
+            'total_players': total_players or None,
+            'itm': bool(t.get('itm')),
+            'top_percent': top_percent,
+            'is_satellite': bool(t.get('is_sat')),
+            'advanced_day2': bool(t.get('advanced')),
+        }
+        _finish.update(_finish_state(_finish, ret))
+
         event = {
             'event_id': '%s|%s|%s' % (platform, tid, start_date),
             'tournament_id': tid,
@@ -180,14 +244,7 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
             'bounty_amount': None,                 # never inferred
             'speed': 'unknown',                    # name-token speed deferred to render phase
             'entry_timing': 'unknown',
-            'finish': {
-                'place': place or None,
-                'total_players': total_players or None,
-                'itm': bool(t.get('itm')),
-                'top_percent': top_percent,
-                'is_satellite': bool(t.get('is_sat')),
-                'advanced_day2': bool(t.get('advanced')),
-            },
+            'finish': _finish,
             'return': ret,
             'net': net,
             'roi_pct': roi_pct,
@@ -264,3 +321,141 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
         'event_day_tz_source': tz_source,
         'diagnostics': diagnostics,
     }
+
+
+# ============================================================
+# v8.17.1 P4: pure aggregation helpers (CALCULATION_RULES) — consumed by the
+# Tournament-Tables grouped surface. No rendering; no recompute of canonical
+# per-event values; just grouping + pooled/settled/hand-weighted math.
+# ============================================================
+
+_BAND_FLOOR = {label: lo for label, lo, hi in _BUYIN_BANDS}
+
+
+def buyin_band_sort_key(label):
+    """Sort buy-in bands by numeric floor, never lexicographically."""
+    return _BAND_FLOOR.get(label, 10 ** 9)
+
+
+def finish_sort_key(event):
+    """Best-first finish sort key (0–100 exact percent, sentinels >100)."""
+    return ((event or {}).get('finish') or {}).get('sort_key', _FINISH_SENTINEL['unknown'])
+
+
+_GROUP_KEY = {
+    'buyin': lambda e: e.get('buyin_band'),
+    'prize_type': lambda e: e.get('prize_type'),
+    'speed': lambda e: e.get('speed'),
+    'entry_pattern': lambda e: e.get('entry_pattern'),
+    'entry_timing': lambda e: e.get('entry_timing'),
+    'phase_reached': lambda e: (e.get('finish') or {}).get('label'),
+    'by_day': lambda e: e.get('event_day'),
+}
+
+
+def group_events(events, tab):
+    """Group events by the tab dimension → {category: [events]} (insertion order;
+    None/unknown categories kept under their literal key so the UI can auto-hide
+    an unknown-coverage tab)."""
+    keyfn = _GROUP_KEY.get(tab)
+    if keyfn is None:
+        return {}
+    out = {}
+    for e in events or []:
+        out.setdefault(keyfn(e), []).append(e)
+    return out
+
+
+def aggregate_group(events):
+    """CALCULATION_RULES group aggregate. Pooled ROI on the COVERED subset (events
+    with a non-null return); committed cost includes ALL bullets; unresolved cost
+    disclosed; ITM/Top5/Top1 on SETTLED denominators; BB/100 + cEV/100
+    hand-weighted. Never invents a Net for a blank-return event; never a fake
+    -100%."""
+    evs = list(events or [])
+    committed_cost = round(sum(float(e.get('cost') or 0) for e in evs), 2)
+    covered = [e for e in evs if (e.get('return') or {}).get('value') is not None]
+    covered_cost = round(sum(float(e.get('cost') or 0) for e in covered), 2)
+    covered_return = round(sum(float((e.get('return') or {}).get('value') or 0)
+                               for e in covered), 2)
+    net = round(covered_return - covered_cost, 2) if covered else None
+    roi_pct = (round(net / covered_cost * 100, 1)
+               if (covered and covered_cost > 0) else None)
+    settled = [e for e in evs
+               if (e.get('finish') or {}).get('state') in ('exact', 'no_cash')]
+    n_settled = len(settled)
+
+    def _share(pred):
+        return (round(sum(1 for e in settled if pred(e)) / n_settled * 100, 1)
+                if n_settled else None)
+    hw_bb = hw_cev = hw_den = 0.0
+    for e in evs:
+        perf = e.get('performance') or {}
+        hnd = float(perf.get('hands') or 0)
+        if hnd <= 0:
+            continue
+        hw_den += hnd
+        if perf.get('bb100') is not None:
+            hw_bb += float(perf['bb100']) * hnd
+        if perf.get('cev100') is not None:
+            hw_cev += float(perf['cev100']) * hnd
+    return {
+        'events': len(evs),
+        'bullets': sum(int(e.get('bullets') or 1) for e in evs),
+        'committed_cost': committed_cost,
+        'covered_cost': covered_cost,
+        'covered_return': covered_return,
+        'unresolved_cost': round(committed_cost - covered_cost, 2),
+        'results_covered': len(covered),
+        'net': net,
+        'roi_pct': roi_pct,
+        'estimated': any(not (e.get('return') or {}).get('exact', True) for e in covered),
+        'itm_pct': _share(lambda e: (e.get('finish') or {}).get('itm')),
+        'top5_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 5),
+        'top1_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 1),
+        'n_settled': n_settled,
+        'bb100': round(hw_bb / hw_den, 1) if hw_den else None,
+        'cev100': round(hw_cev / hw_den, 1) if hw_den else None,
+        'hands': int(hw_den),
+    }
+
+
+# Deterministic category colour (NOT array index) — stable across Cost/Return/Net
+# + filters + tab changes (CALCULATION_RULES "color stability").
+_TT_PALETTE = ('#2563eb', '#16a34a', '#d97706', '#9333ea', '#dc2626', '#0891b2',
+               '#ca8a04', '#4f46e5', '#059669', '#db2777', '#65a30d', '#0284c7')
+
+
+def color_for(tab, category):
+    """Deterministic colour for (tab, category) — hashed, never a visible index."""
+    h = 0
+    for ch in '%s:%s' % (tab, category):
+        h = (h * 31 + ord(ch)) & 0xffffffff
+    return _TT_PALETTE[h % len(_TT_PALETTE)]
+
+
+def distribution_shares(groups_agg, metric):
+    """Cost/Return = share of total; Net = diverging (neg share of |neg|, pos
+    share of pos). groups_agg = {category: aggregate_group()}. Returns
+    {category: {'value', 'share', 'sign'}}."""
+    out = {}
+    if metric in ('cost', 'return'):
+        key = 'committed_cost' if metric == 'cost' else 'covered_return'
+        tot = sum(max(0.0, float(g.get(key) or 0)) for g in groups_agg.values()) or 1.0
+        for cat, g in groups_agg.items():
+            v = float(g.get(key) or 0)
+            out[cat] = {'value': round(v, 2), 'share': round(v / tot * 100, 1), 'sign': 1}
+    else:  # net — diverging around zero
+        pos = sum(float(g['net']) for g in groups_agg.values()
+                  if g.get('net') and g['net'] > 0) or 1.0
+        neg = sum(-float(g['net']) for g in groups_agg.values()
+                  if g.get('net') and g['net'] < 0) or 1.0
+        for cat, g in groups_agg.items():
+            v = g.get('net')
+            if v is None:
+                out[cat] = {'value': None, 'share': 0.0, 'sign': 0}
+            elif v >= 0:
+                out[cat] = {'value': round(v, 2), 'share': round(v / pos * 100, 1), 'sign': 1}
+            else:
+                out[cat] = {'value': round(v, 2), 'share': round(-v / neg * 100, 1), 'sign': -1}
+    return out

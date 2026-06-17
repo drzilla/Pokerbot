@@ -9518,6 +9518,31 @@ check('T-P3B-02: evid sentinel carries villain_position for grid position-pinnin
       and _b8b[('flop', -1)][0].get('villain_position') == 'CO'
       and _b8b[('flop', -1)][0]['type'] == 'evid', str(_b8b))
 
+# ---- v8.17.1 P4: tournament tables v3 data layer + aggregation helpers ----
+import gem_tournament_model as _TM4
+check('T-P4D-01: finish domain — exact Top% (0-100) below Ticket/Day2/Est.ITM/Pending/No-cash sentinels',
+      _TM4._finish_state({'top_percent': 0.4, 'itm': True}, {'exact': True, 'value': 120})['sort_key'] == 0.4
+      and _TM4._finish_state({'top_percent': 61.0, 'itm': True}, {'exact': True, 'value': 5})['sort_key'] == 61.0
+      and _TM4._finish_state({'is_satellite': True}, {'exact': True, 'ticket_value': 109, 'value': 109})['sort_key'] == 101
+      and _TM4._finish_state({'advanced_day2': True}, {'exact': False, 'basis': 'day2_mean', 'value': 24})['sort_key'] == 102
+      and _TM4._finish_state({'place': 900}, {'exact': True, 'value': 0})['sort_key'] == 105, '')
+_p4ag = _TM4.aggregate_group([
+    {'cost': 10, 'bullets': 1, 'return': {'value': 30, 'exact': True}, 'finish': {'state': 'exact', 'itm': True, 'top_percent': 3}, 'performance': {'hands': 100, 'bb100': 50, 'cev100': 40}},
+    {'cost': 10, 'bullets': 2, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 80}, 'performance': {'hands': 50, 'bb100': -20, 'cev100': -10}},
+    {'cost': 10, 'return': {'value': None}, 'finish': {'state': 'pending'}, 'performance': {'hands': 0}}])
+check('T-P4D-02: pooled group ROI on covered subset; committed incl pending; no fake -100%',
+      _p4ag['committed_cost'] == 30.0 and _p4ag['covered_cost'] == 20.0 and _p4ag['net'] == 10.0
+      and _p4ag['roi_pct'] == 50.0 and _p4ag['unresolved_cost'] == 10.0, str(_p4ag))
+check('T-P4D-03: settled-only ITM/Top denominators + hand-weighted BB/100; band floor sort; deterministic colour',
+      _p4ag['n_settled'] == 2 and _p4ag['itm_pct'] == 50.0 and _p4ag['top1_pct'] == 0.0
+      and _p4ag['hands'] == 150 and _p4ag['bb100'] == round((50 * 100 - 20 * 50) / 150, 1)
+      and _TM4.buyin_band_sort_key('$11-$22') < _TM4.buyin_band_sort_key('$55-$110')
+      and _TM4.color_for('buyin', '$11-$22') == _TM4.color_for('buyin', '$11-$22'), str(_p4ag))
+check('T-P4D-04: distribution Net is diverging (neg share of |neg|, pos share of pos)',
+      (lambda ds: ds['a']['sign'] == 1 and ds['b']['sign'] == -1
+       and ds['a']['share'] == 100.0 and ds['b']['share'] == 100.0)(
+          _TM4.distribution_shares({'a': {'net': 10}, 'b': {'net': -10}}, 'net')), '')
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'

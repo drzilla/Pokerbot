@@ -1096,7 +1096,12 @@ def _emit_villain_street_notes(doc, s, hid, hid_short):
                     _str = _a.get('strength', 0)
                     if _dim and _str:
                         _dim_label = _dim.replace('_', ' ').title()
-                        doc.w(f"<p class='vsn-entry vsn-impact'>Read impact: {_dim_label} +{_str}</p>")
+                        # v8.17.1 P3a: plain-word strength — NEVER a raw +N support
+                        # weight (the numeric _str stays internal for scoring).
+                        _imp_w = ('slight' if _str <= 2 else
+                                  'moderate' if _str == 3 else 'strong')
+                        doc.w(f"<p class='vsn-entry vsn-impact'>Read impact: "
+                              f"{_dim_label} ({_imp_w} read)</p>")
             doc.w("</div>")
             doc.w("")
             return True
@@ -4063,7 +4068,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             _text = _atom.get('evidence_text', '')
                             _sig = _atom.get('signal', '')
                             _sig_label = _SIGNAL_LABELS_RENDER.get(_sig, _sig.replace('_', ' ').title() if _sig else '')
-                            _ri = _atom.get('read_impact', '')
+                            # v8.17.1 P3a: scrub internal +N support weights from
+                            # the visible read-impact string -> plain words.
+                            import re as _re_p3a
+                            _ri = _re_p3a.sub(
+                                r'\s*\+(\d+)',
+                                lambda _m: ' (%s read)' % (
+                                    'slight' if int(_m.group(1)) <= 2 else
+                                    'moderate' if int(_m.group(1)) == 3 else 'strong'),
+                                _atom.get('read_impact', '') or '')
                             _title_attr = f' title="{_html_escape(_text)}"' if _text else ''
                             doc.w(f"<p><span class='vi-badge {_badge}'{_title_attr}>{_label}"
                                   f"{(' · ' + _sig_label) if _sig_label else ''}</span> "
@@ -4074,7 +4087,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                               "<em>Tagging evidence — not necessarily a Hero mistake.</em></p>")
                     # Exploit implications
                     if _vi_exploits_oc:
-                        doc.w(f"<div class='oc-heading' style='margin-top:8px'>Exploit Opportunity</div>")
+                        # v8.17.1 P3c: 'Exploit Opportunit*' -> 'Signals' (villain handoff §9)
+                        doc.w(f"<div class='oc-heading' style='margin-top:8px'>Signals</div>")
                     for _exp in _vi_exploits_oc:
                         _elabel = _exp.get('label', '')
                         _etext = _exp.get('recommended_exploit', '')

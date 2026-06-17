@@ -3523,7 +3523,7 @@ _MODAL_HTML = r"""
         +'<td><span class="ve-signal '+a.badge+'">'+(a.label||'')
         +(a.signal_label?' · '+a.signal_label:'')+'</span></td>'
         +'<td>'+a.evidence_text+'</td>'
-        +'<td>'+a.read_impact+'</td>'
+        +'<td>'+String(a.read_impact||'').replace(/\s*\+(\d+)/g,function(_m,n){return ' ('+(+n<=2?'slight':+n===3?'moderate':'strong')+' read)';})+'</td>'  /* v8.17.1 P3a: no raw +N weight */
         +'<td style="font-size:11px;color:'+(isRev?'#1e40af':'#94a3b8')+'">'
         +(isRev?'Open hand':'Evidence only')+'</td>';
       tr.replaceChild(td0,tr.firstChild);
@@ -3667,7 +3667,7 @@ _MODAL_HTML = r"""
       ?'Missed Exploits — '+readLabel+' ('+filtered.length+')'
       :filterType==='good'
       ?'Good Exploits — '+readLabel+' ('+filtered.length+')'
-      :'Exploit Opportunities — '+readLabel+' ('+filtered.length+')';
+      :'Signals — '+readLabel+' ('+filtered.length+')';  /* v8.17.1 P3c: Exploit Opportunities -> Signals */
     /* Header */
     var hdr=document.createElement('div');
     hdr.className='ve-header';
@@ -4045,7 +4045,7 @@ _MODAL_HTML = r"""
         +'<td><span class="ve-signal '+a.badge+'">'+(a.label||'')
         +(a.signal_label?' · '+a.signal_label:'')+'</span></td>'
         +'<td>'+a.evidence_text+(a.context_text?'<br><small style="color:#64748b">'+a.context_text+'</small>':'')+'</td>'
-        +'<td>'+a.read_impact+'</td>'
+        +'<td>'+String(a.read_impact||'').replace(/\s*\+(\d+)/g,function(_m,n){return ' ('+(+n<=2?'slight':+n===3?'moderate':'strong')+' read)';})+'</td>'  /* v8.17.1 P3a: no raw +N weight */
         +'<td style="font-size:11px;color:'+(isRev?'#1e40af':'#94a3b8')+'">'+detailText+'</td>';
       tr.replaceChild(td0,tr.firstChild);
       tbl.appendChild(tr);

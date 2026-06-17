@@ -9480,6 +9480,28 @@ _p2md = _MDI2(_REM2(_p2ev))
 check('T-P2-05: range_evidence_md emits action-coloured + combo-bolded rng-hl that survives _html_escape',
       'rng-hl' in _p2md and "rng-combo-hero'>A6o" in _p2md and '&lt;span' not in _p2md, '')
 
+# ---- v8.17.1 P3a: villain read-impact +N scrub (plain words, never a raw weight) ----
+import re as _re_p3t
+_xiva_p3 = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', 'sections_xiv.py'),
+                encoding='utf-8').read()
+_html_p3 = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', '_html.py'),
+                encoding='utf-8').read()
+def _p3scrub(s):
+    return _re_p3t.sub(r'\s*\+(\d+)', lambda m: ' (%s read)' % (
+        'slight' if int(m.group(1)) <= 2 else 'moderate' if int(m.group(1)) == 3 else 'strong'), s)
+check('T-P3A-01: no render emit-site prints a raw +N read-weight (vsn-impact + matrix scrubbed)',
+      'Read impact: {_dim_label} +{_str}' not in _xiva_p3
+      and "+'<td>'+a.read_impact+'</td>'" not in _html_p3
+      and "'slight' if _str <= 2" in _xiva_p3, '')
+check('T-P3A-02: read-impact +N scrub maps to plain words (slight/moderate/strong), no raw +N',
+      _p3scrub('Loose-passive +2 (donk)') == 'Loose-passive (slight read) (donk)'
+      and _p3scrub('Sticky +3') == 'Sticky (moderate read)'
+      and _p3scrub('Aggressive +4') == 'Aggressive (strong read)'
+      and '+' not in _p3scrub('Tight +2 (blind overfold)'), '')
+check('T-P3C-01: villain matrix/drilldown user-label is "Signals", not "Exploit Opportunit*"',
+      ">Signals</div>" in _xiva_p3 and "'Exploit Opportunity</div>'" not in _xiva_p3
+      and "'Signals — '+readLabel" in _html_p3 and "'Exploit Opportunities — '+readLabel" not in _html_p3, '')
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'

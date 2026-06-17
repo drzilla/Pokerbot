@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'd847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865',
+      _hg_hash == 'a051835e0341e408d35f976b3057018fcefef03de5cf362791e24c31f8c5a499',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next

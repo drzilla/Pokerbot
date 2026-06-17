@@ -630,10 +630,14 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             cell_html += f"<br><span class='cards'>{cards_html}</span>"
         if pot_str:
             cell_html += f"<span class='pot'>{pot_str}</span>"
-        # Board texture label on flop header
-        if street == 'flop' and h.get('board_texture'):
+        # Board texture label on flop header. v8.17.1 P0B: a stringified
+        # None/null/undefined must NEVER render as a visible texture label — the
+        # truthy string "None" was leaking into ~231 continued-street headers.
+        _bt_raw = h.get('board_texture')
+        if (street == 'flop' and _bt_raw
+                and str(_bt_raw).strip().lower() not in ('none', 'null', 'undefined')):
             _bt = _html_mod.escape(
-                h['board_texture'].replace('_', ' ')
+                str(_bt_raw).replace('_', ' ')
                 .replace('ahigh', 'A-high').replace('khigh', 'K-high')
                 .title())
             cell_html += f"<br><span class='board-tex pb-lbl'>{_bt}</span>"

@@ -1657,15 +1657,15 @@ _MODAL_HTML = r"""
       var potEl=th.querySelector('.pot');
       var texEl=th.querySelector('.board-tex');
       var drawEl=th.querySelector('.draw-profile');
-      var potTxt=potEl?clean(potEl.textContent):'';
+      var potTxt=potEl?safeMeta(clean(potEl.textContent)):'';
       if(potTxt){
         var potChip=document.createElement('span');potChip.className='v25-pot-chip';
         potChip.textContent=/pot/i.test(potTxt)?potTxt:(potTxt+' pot');
         sCtx.appendChild(potChip);
       }
       var stateParts=[];
-      if(texEl){var _tx=clean(texEl.textContent);if(_tx)stateParts.push(_tx);}
-      if(drawEl){var _dr=clean(drawEl.textContent);if(_dr)stateParts.push(_dr);}
+      if(texEl){var _tx=safeMeta(clean(texEl.textContent));if(_tx)stateParts.push(_tx);}
+      if(drawEl){var _dr=safeMeta(clean(drawEl.textContent));if(_dr)stateParts.push(_dr);}
       var stateTxt=stateParts.join(' · ');
       if(stateTxt){
         var stChip=document.createElement('span');stChip.className='v25-strength-chip';
@@ -1829,6 +1829,26 @@ _MODAL_HTML = r"""
   /* ---- Hand Queue State (v8.4.0) ---- */
   window.activeHandQueue=null;
   /* V25.3 item 10: compact queue header — class-based, no inline styles */
+  /* v8.17.1 P0A: ONE canonical reviewed-state reader. A hand is "reviewed" when it
+     has a saved verdict OR saved notes in the persisted review store — the same
+     store PBReview.isReviewed / PBReviewQueue._status read (status||notes). Every
+     "green" surface (queue chip-rail, inline audit/review pills, modal topbar,
+     Tournament-Tables reviewed trigger) reads green = viewed_in_current_queue ||
+     isHandReviewed(hid). Merely opening a hand does NOT write the store, so opening
+     never turns a chip green. Hoisted declaration so callers above its definition
+     resolve it; window.PBReview is assigned before any modal opens. */
+  function isHandReviewed(hid){
+    try{return !!(window.PBReview&&window.PBReview.isReviewed&&window.PBReview.isReviewed(hid));}
+    catch(e){return false;}
+  }
+  window.isHandReviewed=isHandReviewed;
+  /* v8.17.1 P0B: coalesce a stringified None/null/undefined to '' so it can never
+     reach a visible street chip (pot / board texture / draw profile). Defense-in-
+     depth alongside the server-side board-texture guard. Hoisted declaration. */
+  function safeMeta(v){
+    var s=(v==null)?'':String(v);
+    return /^(none|null|undefined)$/i.test(s.trim())?'':s;
+  }
   function _renderQueueContext(hid){
     var cb=document.getElementById('hand-queue-context');
     if(!cb)return;
@@ -1859,7 +1879,10 @@ _MODAL_HTML = r"""
     q.handIds.forEach(function(h,i){
       var cls='v25-queue-chip';
       if(i===idx)cls+=' current';
-      else if(q.viewed&&q.viewed[h])cls+=' viewed';
+      /* v8.17.1 P0A: green if opened this session OR persisted-reviewed (saved
+         verdict/notes). Previously only in-session q.viewed coloured the chip, so
+         a hand reviewed in a prior load showed not-green until re-opened. */
+      else if((q.viewed&&q.viewed[h])||isHandReviewed(h))cls+=' viewed';
       _html+='<button class="'+cls+'" onclick="_queueJump('+i+')">'+(i+1)+' '+(h.length>8?h.slice(-8):h)+'</button>';
     });
     _html+='</div>';

@@ -240,6 +240,60 @@ def verdict_validation_issue(verdict, has_bound_action_marker, has_explanation):
 
 
 # ============================================================
+# v8.17.1 P5 — ONE canonical verdict resolver + marker/commentary parity gate
+# ============================================================
+def _verdict_result(value, source):
+    nv = _norm_verdict(value)
+    return {'verdict': value, 'source': source,
+            'marker': ('mistake' if nv in MISTAKE_VERDICTS else 'cleared'),
+            'scrub_negative': nv in NON_MISTAKE_VERDICTS,
+            'data_verdict': value}
+
+
+def resolve_canonical_verdict(active_queue=None, analyst=None, auto=None, outcome=None):
+    """The ONE canonical verdict every surface reads (topbar / action annotation /
+    commentary capsule / evidence queue / review queue / hand-list) so they never
+    disagree. Priority: (1) active queue decision > (2) canonical analyst-reviewed
+    > (3) canonical auto > (4) neutral Review > (5) outcome/variance label ONLY
+    when it IS a decision classification (Cooler/Flip/…), never a bare result.
+    Result / net BB / tournament outcome must NEVER silently replace decision
+    quality — a pure result falls through to neutral Review. Returns
+    {verdict, source, marker, scrub_negative, data_verdict}. Pure (primitive in)."""
+    for src, val in (('active_queue', active_queue),
+                     ('analyst_reviewed', analyst), ('auto', auto)):
+        if val:
+            return _verdict_result(val, src)
+    decision_outcomes = set(MISTAKE_VERDICTS) | set(NON_MISTAKE_VERDICTS)
+    if outcome and _norm_verdict(outcome) in decision_outcomes:
+        return _verdict_result(outcome, 'outcome_only')
+    return {'verdict': REVIEW_FALLBACK, 'source': 'neutral_review',
+            'marker': 'neutral', 'scrub_negative': False, 'data_verdict': None}
+
+
+def marker_parity_issues(markers, notes, villain_evidence=None):
+    """Every visible action marker must reference a commentary item tied to the
+    same decision/evidence atom. Returns a list of orphan findings (build FAILs on
+    any). Pure; inputs are caller-derived:
+      markers = [{'kind':'thumbs'|'mistake'|'trigger'|'villain_evidence', 'ref':id|None}]
+      notes   = ids of existing commentary items; villain_evidence = villain atom ids.
+    A mistake/trigger marker needs a bound note; a villain-evidence marker needs a
+    bound note OR villain atom; a thumbs (positive confirmation) needs none."""
+    note_ids = set(notes or [])
+    ve_ids = set(villain_evidence or [])
+    issues = []
+    for m in markers or []:
+        kind = (m.get('kind') or '').lower()
+        ref = m.get('ref')
+        if kind in ('mistake', 'trigger'):
+            if not ref or ref not in note_ids:
+                issues.append('orphan %s marker (no bound commentary: %r)' % (kind, ref))
+        elif kind in ('villain_evidence', 'evid'):
+            if not ref or ref not in (note_ids | ve_ids):
+                issues.append('orphan villain-evidence marker (no bound note: %r)' % ref)
+    return issues
+
+
+# ============================================================
 # Objective 7 — preflop all-in decision math (by type)
 # ============================================================
 ALLIN_MATH_KINDS = ('call_vs_jam', 'open_shove', 'rejam', 'not_allin')
@@ -279,6 +333,24 @@ def required_allin_fields(kind):
     """The decision-time arithmetic fields a render MUST show for this all-in
     type (drives a completeness check). Empty for 'not_allin'."""
     return _REQUIRED_ALLIN_FIELDS.get(kind, ())
+
+
+def allin_completeness_issue(kind, rendered_fields, register=None):
+    """v8.17.1 P5: every scored all-in decision must render the COMPLETE math
+    block (all required_allin_fields for its kind) OR be an explicit
+    no_clear_lesson that names the missing input — never an empty body. Returns an
+    issue string (build FAIL) or None. rendered_fields = the field keys actually
+    present in the render. A no_clear_lesson register is accepted (it states the
+    gap). Pure."""
+    if kind in (None, '', 'not_allin'):
+        return None
+    if (register or '') == 'no_clear_lesson':
+        return None
+    missing = set(required_allin_fields(kind)) - set(rendered_fields or [])
+    if missing:
+        return ('all-in (%s) decision missing required math fields %s and is not '
+                'a no_clear_lesson naming the gap' % (kind, sorted(missing)))
+    return None
 
 
 def equity_label(is_heuristic):

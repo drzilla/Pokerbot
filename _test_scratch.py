@@ -9559,6 +9559,26 @@ check('T-P4UI-01: grouped aggregate surface renders (tabs + legend squares + poo
       and 'Results available for' in _g_p4 and '$11-$22' in _g_p4
       and _g_p4.index('$11-$22') < _g_p4.index('$55-$110'), '')
 
+# ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
+check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
+      _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'
+      and _RT.resolve_canonical_verdict(analyst='Mistake', auto='Correct')['source'] == 'analyst_reviewed'
+      and _RT.resolve_canonical_verdict(auto='Correct')['source'] == 'auto'
+      and _RT.resolve_canonical_verdict(outcome='won 18.4BB')['source'] == 'neutral_review'
+      and _RT.resolve_canonical_verdict(outcome='Cooler')['source'] == 'outcome_only'
+      and _RT.resolve_canonical_verdict(auto='Mistake', outcome='won big')['verdict'] == 'Mistake', '')
+check('T-P5-02: marker_parity_issues flags orphan mistake/trigger/villain-evidence (bound + thumbs OK)',
+      (lambda iss: len(iss) == 2 and any('nope' in x for x in iss) and any('trigger' in x for x in iss))(
+          _RT.marker_parity_issues(
+              [{'kind': 'thumbs', 'ref': None}, {'kind': 'mistake', 'ref': 'n1'},
+               {'kind': 'mistake', 'ref': 'nope'}, {'kind': 'villain_evidence', 'ref': 'v1'},
+               {'kind': 'trigger', 'ref': None}], notes={'n1'}, villain_evidence={'v1'})), '')
+check('T-P5-03: allin_completeness — empty math FAILs unless no_clear_lesson; complete passes',
+      _RT.allin_completeness_issue('open_shove', [], register='no_clear_lesson') is None
+      and _RT.allin_completeness_issue('not_allin', []) is None
+      and _RT.allin_completeness_issue('call_vs_jam', ['to_call']) is not None
+      and _RT.allin_completeness_issue('call_vs_jam', _RT.required_allin_fields('call_vs_jam')) is None, '')
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'

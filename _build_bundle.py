@@ -42,7 +42,11 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               # v8.17.1 Iter-1 (REV10): the exact-report inventory (Range Lens exact count,
               # fold/depth, taxonomy, no-decision, evidence purpose) — a release canary pins
               # its REV10 metric, so it must extract with the runtime.
-              '_qa_iter1_inventory.py']
+              '_qa_iter1_inventory.py',
+              # v8.17.1 Iter-1 (REV11): the INDEPENDENT ledger oracle — imported by _qa_parity
+              # (the suite's gate-catches tests + the holdout use it), so it must extract with
+              # the runtime or the clean-room suite breaks.
+              '_qa_ledger_oracle.py']
 
 # Stage-A kill list — never bundled
 KILL = {

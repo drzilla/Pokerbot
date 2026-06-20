@@ -30,6 +30,7 @@ sys.path.insert(0, '.')
 import gem_decision_snapshot as ds
 from gem_analyst_worklist import _reviewed_action_index
 from _qa_decode_lazy import decode_lazy_hands
+import _qa_ledger_oracle as oracle   # REV11 G: INDEPENDENT ledger oracle (no canonical imports)
 
 EFF_TOL = 0.6   # BB; absorbs round(,1) + chart-bucket display
 
@@ -47,7 +48,7 @@ def _load_hands(path):
 
 
 def _hand_index(hands):
-    idx = {}
+    idx = {'_all_hands': list(hands)}
     for h in hands:
         tid = str(h.get('tournament_hand_id') or h.get('hand_id') or h.get('id') or '')
         if tid:
@@ -569,17 +570,20 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
             v_call = _f(cm.group(1))
             callable_amt = _f(snap.get('callable_amount_bb'))
             raw_to_match = _f(snap.get('raw_amount_to_match_bb'))
-            if sd is not None and v_call > _f(sd) + 0.20:
+            if sd is not None and v_call is not None and v_call > _f(sd) + 0.20:
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'visible_call_gt_effective_depth',
                      'visible_call': v_call, 'depth': sd, 'idx': ridx})
-            if v_call > callable_amt + 0.20:
+            # REV11 B4: callable / raw can be None for a non-price action — the overjam/callable
+            # checks apply ONLY to a priced call (both present).
+            if v_call is not None and callable_amt is not None and v_call > callable_amt + 0.20:
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'visible_call_gt_callable',
                      'visible_call': v_call, 'callable': callable_amt, 'idx': ridx})
             # if there is an uncallable overjam, the visible price must be the CALLABLE amount,
             # never the raw to_match (the REV6 83974506 'call 111.46BB' bug).
-            if (raw_to_match - callable_amt) > 0.20 and abs(v_call - raw_to_match) <= 0.20:
+            if (raw_to_match is not None and callable_amt is not None and v_call is not None
+                    and (raw_to_match - callable_amt) > 0.20 and abs(v_call - raw_to_match) <= 0.20):
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'visible_call_is_raw_overjam',
                      'visible_call': v_call, 'raw_to_match': raw_to_match,
@@ -722,6 +726,93 @@ def gate_report_full_render(hands_idx, html, worklist=None):
     return out
 
 
+def gate_ledger_oracle(hands_idx, worklist, html):
+    """H. (REV11 G) INDEPENDENT-ORACLE parity + semantic invariants. The expected answer comes
+    from `_qa_ledger_oracle` (raw ledger only — it imports NONE of canonical_node_type /
+    serialize_reviewed_decision_node / reviewed_action_display), so this is NOT self-agreement.
+    For every authoritative item: oracle == canonical view == serialized worklist node == visible
+    reviewed line. Plus the G3 semantic invariants over all 844 hands."""
+    bodies = decode_lazy_hands(html)
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'authoritative_checked': 0, 'all_hands_checked': 0, 'mismatches': []}
+
+    def viol(hid, field, **kw):
+        d = {'hand': hid, 'field': field}
+        d.update(kw)
+        out['mismatches'].append(d)
+
+    # ── 5-surface parity on the authoritative items ──
+    for it in items:
+        hid = str(it.get('hand_id') or '')
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        kind = it.get('decision_kind') or it.get('bucket')
+        ridx = _reviewed_action_index(h, kind)
+        if ridx is None:
+            continue
+        out['authoritative_checked'] += 1
+        o = oracle.oracle_identity(h, ridx)
+        snap = ds.build_decision_snapshot(h, ridx)
+        dn = it.get('decision_node') or {}
+        # oracle <-> canonical
+        if not oracle.semantic_consistent(o['action_semantics'], snap.get('hero_action_kind')):
+            viol(hid, 'oracle_vs_canonical_kind', oracle_sem=o['action_semantics'],
+                 canonical_kind=snap.get('hero_action_kind'))
+        if o['became_all_in'] != bool(snap.get('became_all_in_on_this_action')):
+            viol(hid, 'oracle_vs_canonical_all_in', oracle=o['became_all_in'],
+                 canonical=snap.get('became_all_in_on_this_action'))
+        if o['raw_action'] != (snap.get('hero_actual_action') or dn.get('hero_actual_action')) \
+                and o['raw_action'] is not None:
+            viol(hid, 'oracle_vs_canonical_raw_action', oracle=o['raw_action'],
+                 canonical=snap.get('hero_actual_action'))
+        # canonical <-> worklist node
+        if dn.get('hero_action_kind') and dn['hero_action_kind'] != snap.get('hero_action_kind'):
+            viol(hid, 'worklist_vs_canonical_kind', worklist=dn.get('hero_action_kind'),
+                 canonical=snap.get('hero_action_kind'))
+        if dn.get('actual_node_type') and dn['actual_node_type'] != snap.get('actual_node_type'):
+            viol(hid, 'worklist_vs_canonical_node', worklist=dn.get('actual_node_type'),
+                 canonical=snap.get('actual_node_type'))
+        # visible reviewed line <-> canonical display
+        body = bodies.get(str(hid)) or bodies.get(str(hid)[-8:]) or ''
+        disp = ds.reviewed_action_display(h, ridx, snap).get('display_text') or ''
+        # the canonical display itself may contain commas; capture up to the tag, then strip the
+        # optional ", effective depth ≈XBB" suffix before comparing.
+        m = re.search(r'(?:Reviewed decision|Inferred decision context):</strong>\s*[a-z]+,\s*([^<]+)', body)
+        if m and disp:
+            shown = re.sub(r',?\s*effective depth.*$', '', m.group(1)).strip()
+            if shown != disp.strip():
+                viol(hid, 'visible_line_vs_canonical_display', visible=shown, canonical=disp)
+
+    # ── G3 semantic invariants over EVERY hand (oracle-derived) ──
+    for h in (hands_idx.get('_all_hands') or []):
+        hid = str(h.get('tournament_hand_id') or h.get('id') or '')
+        ridx = ds.infer_reviewed_action_index(h)
+        o = oracle.oracle_identity(h, ridx)
+        snap = ds.build_decision_snapshot(h, ridx)
+        out['all_hands_checked'] += 1
+        k = snap.get('hero_action_kind')
+        # ledger bets postflop (non-all-in) => canonical kind 'bet', never first_in_open
+        if o['action_semantics'] == 'bet' and k == 'first_in_open':
+            viol(hid, 'postflop_bet_typed_first_in_open', kind=k)
+        # ledger raise/jam over a jam => re_jam family, never a call
+        if o['action_semantics'] == 're_jam' and k in ('call', 'call_vs_jam', 'call_off'):
+            viol(hid, 'rejam_typed_call', kind=k)
+        # first-in complete => not call_vs_jam node
+        if o['action_semantics'] == 'complete' and snap.get('actual_node_type') == 'call_vs_jam':
+            viol(hid, 'first_in_complete_typed_call_vs_jam')
+        # first-in short all-in => short_all_in, never limp/call_off
+        if o['action_semantics'] == 'short_all_in' and k in ('call', 'call_off') \
+                and snap.get('actual_node_type') != 'first_in_short_all_in':
+            viol(hid, 'underblind_all_in_typed_ordinary_call', kind=k)
+        # no voluntary wager faced => no voluntary raw price on the contract
+        if not o['has_voluntary_wager_faced'] and snap.get('raw_amount_to_match_bb') is not None:
+            viol(hid, 'no_wager_carries_raw_price', raw=snap.get('raw_amount_to_match_bb'))
+    return out
+
+
 def gate_semantic(hands_idx, worklist):
     """REV2/REV3: semantic invariants on EVERY worklist decision item (not just
     cross-surface agreement). Catches a wrong MODEL the agreement gates can't.
@@ -842,6 +933,7 @@ def main():
     g_pd = gate_report_decision_bounty(hands_idx, html)
     g_vd = gate_report_visible_decision(hands_idx, html, worklist)
     g_fr = gate_report_full_render(hands_idx, html, worklist)
+    g_or = gate_ledger_oracle(hands_idx, worklist, html)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -874,9 +966,13 @@ def main():
           f"{len(g_fr['mismatches'])} mismatch(es)")
     for mm in g_fr['mismatches'][:40]:
         print('   ✗', mm)
+    print(f"H. INDEPENDENT LEDGER ORACLE : {g_or['authoritative_checked']} authoritative + "
+          f"{g_or['all_hands_checked']} all-hand checks, {len(g_or['mismatches'])} mismatch(es)")
+    for mm in g_or['mismatches'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
-          and not g_fr['mismatches'])
+          and not g_fr['mismatches'] and not g_or['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -885,7 +981,7 @@ def main():
             json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
                        'report_bounty': g_rb, 'report_decision_bounty': g_pd,
                        'report_visible_decision': g_vd, 'report_full_render': g_fr,
-                       'pass': ok}, fh, indent=2)
+                       'ledger_oracle': g_or, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

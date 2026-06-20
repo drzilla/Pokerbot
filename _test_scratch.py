@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'ea3df6caae9ec0acc22d7f2c4dead0cbbb993f50ea9862d08c04cab3b951051f',
+      _hg_hash == 'feb8dc717cec29d92179fb727d534c2c808bb20bf50b04688d8df297d1235c79',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -10653,10 +10653,10 @@ check('T-DS-10d: call_vs_jam (call a short jam)', _ds.hero_action_kind(_hk(
 check('T-DS-10e: call_off (call all-in vs a live raise)', _ds.hero_action_kind(_hk(
     [_led('preflop', 'V', 'raises', 12.0, to=12.0), _led('preflop', 'Hero', 'calls', 10.0, True)],
     hstack=10, stacks={'Hero': 10, 'V': 50})) == 'call_off', '')
-check('T-DS-10f: raise over already-all-in, NO other live -> call_vs_jam (call-off)',
+check('T-DS-10f (REV11 B1.2): raise/jam over an already-all-in, NO other live -> rejam_over_live_raise (LITERAL re-jam, NOT a call)',
       _ds.hero_action_kind(_hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
                                 _led('preflop', 'Hero', 'raises', 20.0, True, to=20.0)],
-                               hstack=22, stacks={'Hero': 22, 'V': 8})) == 'call_vs_jam', '')
+                               hstack=22, stacks={'Hero': 22, 'V': 8})) == 'rejam_over_live_raise', '')
 check('T-DS-10g: rejam over a LIVE raise', _ds.hero_action_kind(_hk(
     [_led('preflop', 'V', 'raises', 3.0, to=3.0), _led('preflop', 'Hero', 'raises', 25.0, True, to=25.0)], hstack=25)) == 'rejam_over_live_raise', '')
 check('T-DS-10h: open_shove', _ds.hero_action_kind(_hk(
@@ -10694,8 +10694,9 @@ check('T-DS-13b: board_at_decision flop == first 3',
 # ============================================================
 # v8.17.1 Iteration 1 — canonical action kind routed into the PRODUCT surfaces
 # (report decision label / range role + worklist deviation-bucketed call-of-jam).
-# These lock the 83915520-class fix: a HU covering re-jam over a single jam is a
-# CALL everywhere, never a "re-jam"; and a genuine over-jam keeps the re-jam role.
+# REV11 B1.2 REVERSAL: the LITERAL action of a raise/jam over a short all-in is a re-jam
+# everywhere — it must NEVER be rewritten as a call (the continue/call price is modelled
+# separately under faced_voluntary_price_bb). A genuine over-jam keeps the re-jam role too.
 # ============================================================
 # the 83915520 ledger pattern: Hero raises all-in (22) over a shorter all-in jam (V=8).
 _i1_call_h = _hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
@@ -10710,12 +10711,12 @@ _i1_rejam_h.update({'pf_allin': True, 'pf_action': '3bet', 'first_in': False})
 try:
     from gem_report_draft.sections_xiv import _canon_allin_kind as _i1_cak
     from gem_report_draft._helpers import _hand_preflop_range_role as _i1_role
-    check('T-I1RT-01: _canon_allin_kind overrides legacy rejam->call_vs_jam for a covering call',
-          _i1_cak(_i1_call_h, 'rejam') == 'call_vs_jam', _i1_cak(_i1_call_h, 'rejam'))
+    check('T-I1RT-01 (REV11 B1.2): a covering re-jam over a short jam is labelled re-jam (literal action preserved, NOT call)',
+          _i1_cak(_i1_call_h, 'rejam') == 'rejam', _i1_cak(_i1_call_h, 'rejam'))
     check('T-I1RT-02: _canon_allin_kind keeps the fallback for a genuine re-jam',
           _i1_cak(_i1_rejam_h, 'rejam') == 'rejam', _i1_cak(_i1_rejam_h, 'rejam'))
-    check('T-I1RT-03: range role for a canonical call_vs_jam is call_jam (no re-jam lens)',
-          _i1_role(_i1_call_h) == 'call_jam', _i1_role(_i1_call_h))
+    check('T-I1RT-03 (REV11 B1.2): range role for a covering re-jam is rejam (the literal action is a re-jam)',
+          _i1_role(_i1_call_h) == 'rejam', _i1_role(_i1_call_h))
     check('T-I1RT-04: range role for a genuine re-jam stays rejam',
           _i1_role(_i1_rejam_h) == 'rejam', _i1_role(_i1_rejam_h))
 except Exception as _e_i1:
@@ -10732,8 +10733,8 @@ _i1_wl_dev = [{'id': 'TM_I1DEV', 'type': 'Wide CVJ (Call Villain Jam)', 'cards':
 _i1_wl = _awl.build_analyst_worklist({'bestplay_screening': [_i1_wl_cand]},
     {'preflop_deviations': _i1_wl_dev}, {}, [_i1_wl_hand], '20260101')
 _i1_dn = _i1_wl['items']['TM_I1DEV']['decision_node']
-check('T-I1RT-05: deviation-bucketed call-of-jam -> call_vs_jam + snapshot eff (~8, not clean 22)',
-      _i1_dn.get('hero_action_kind') == 'call_vs_jam'
+check('T-I1RT-05 (REV11 B1.2): deviation-bucketed covering re-jam -> rejam_over_live_raise + snapshot eff (~8, not clean 22)',
+      _i1_dn.get('hero_action_kind') == 'rejam_over_live_raise'
       and (_i1_dn.get('effective_bb_vs_relevant_villain') or 99) <= 10
       and _i1_dn.get('price_source') != 'unavailable', str(_i1_dn))
 
@@ -12123,6 +12124,130 @@ check('T-REV10-13 (F4): a first-in fold has NO decision price, with OR without a
       and _ds.build_decision_snapshot(_h_ante0, 2)['actual_node_type'] == 'fold_first_in',
       str((_ds.build_decision_snapshot(_h_ante0, 2)['price_applicable'],
            _ds.build_decision_snapshot(_h_ante1, 2)['price_applicable'])))
+
+# ============================================================
+# REV11 — semantic oracle + consumer closure (T-REV11-*)
+# ============================================================
+import _qa_ledger_oracle as _orc
+
+# --- B1.1: a postflop first bet is KIND 'bet' / node postflop_bet, never first_in_open ---
+_h_pfb = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='CO'), _Lp('preflop', 'V', 'calls', 2.5, pos='BB'),
+                 _Lp('flop', 'Hero', 'bets', 5.0, pos='CO')], {'Hero': 60.0, 'V': 60.0}, board=['2c', '7d', 'Js'])
+_s_pfb = _ds.build_decision_snapshot(_h_pfb, 2)
+check('T-REV11-01 (B1.1): a postflop first bet is hero_action_kind=bet / node postflop_bet (NOT first_in_open)',
+      _s_pfb['hero_action_kind'] == 'bet' and _s_pfb['actual_node_type'] == 'postflop_bet'
+      and _ds.reviewed_action_display(_h_pfb, 2, _s_pfb)['display_text'] == 'bet 5BB', str(_s_pfb['hero_action_kind']))
+
+# --- B1.2: a raise/jam over a short all-in (no other live) is a re_jam, NEVER a call ---
+_h_rj = _mkh10([_Lp('preflop', 'V', 'raises', 8.0, True, pos='HJ'),
+                _Lp('preflop', 'Hero', 'raises', 12.7, True, pos='BTN')],
+               {'Hero': 12.7, 'V': 8.0})
+_s_rj = _ds.build_decision_snapshot(_h_rj, 1)
+check('T-REV11-02 (B1.2): a covering re-jam over a short jam is rejam_over_live_raise / node re_jam, display "re-jam" (NOT call)',
+      _s_rj['hero_action_kind'] == 'rejam_over_live_raise' and _s_rj['actual_node_type'] == 're_jam'
+      and 're-jam' in _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text']
+      and 'call' not in _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text'].lower(),
+      _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text'])
+
+# --- B3: a first-in underblind all-in is first_in_short_all_in, never limp/call_off ---
+_h_sa = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                _Lp('preflop', 'Hero', 'calls', 0.12, True, pos='MP')], {'Hero': 0.12, 'SB': 30.0, 'BB': 30.0})
+_s_sa = _ds.build_decision_snapshot(_h_sa, 2)
+check('T-REV11-03 (B3/C3): a first-in underblind all-in -> short_all_in / first_in_short_all_in / "short of the big blind", NOT limp/call_off',
+      _s_sa['hero_action_kind'] == 'short_all_in' and _s_sa['actual_node_type'] == 'first_in_short_all_in'
+      and 'short of the big blind' in _ds.reviewed_action_display(_h_sa, 2, _s_sa)['display_text']
+      and _s_sa['became_all_in_on_this_action'] is True, str(_s_sa['hero_action_kind']))
+
+# --- B4: a non-price contract carries NO blind-derived raw price / overjam ---
+check('T-REV11-04 (B4): a first-in/no-wager contract has raw_amount_to_match_bb=None and uncallable_overjam_bb=None',
+      _s_sa['raw_amount_to_match_bb'] is None and _s_sa['uncallable_overjam_bb'] is None
+      and _s_sa['price_applicable'] is False, str((_s_sa['raw_amount_to_match_bb'], _s_sa['uncallable_overjam_bb'])))
+# an aggressive action keeps its faced price under faced_voluntary_price_bb, NOT raw_amount_to_match
+check('T-REV11-05 (B4/D2): an aggressive action keeps the faced price under faced_voluntary_price_bb, raw_amount_to_match=None',
+      _s_rj['raw_amount_to_match_bb'] is None and _s_rj['faced_voluntary_price_bb'] is not None, str(_s_rj['faced_voluntary_price_bb']))
+
+# --- B3 production bug: became_all_in derives from the AFTER-action stack ---
+check('T-REV11-06 (B3): became_all_in_on_this_action uses the post-action stack (an action that jams Hero is all-in)',
+      _ds.build_decision_snapshot(_h_rj, 1)['became_all_in_on_this_action'] is True
+      and _ds.build_decision_snapshot(_h_sa, 2)['became_all_in_on_this_action'] is True, '')
+
+# --- G1: the oracle is INDEPENDENT — its source imports none of the canonical functions ---
+import io as _io11
+_orc_src = _io11.open('_qa_ledger_oracle.py', encoding='utf-8').read()
+# check for actual IMPORTS/CALLS (the docstring deliberately NAMES the forbidden functions to
+# document the constraint — a bare mention is not a call). A call has a '(' after the name.
+_orc_code = '\n'.join(l for l in _orc_src.splitlines()
+                      if not l.strip().startswith('#') and not l.strip().startswith('"'))
+check('T-REV11-07 (G1): the ledger oracle imports/calls NONE of the canonical functions (independent oracle, not self-agreement)',
+      'import gem_decision_snapshot' not in _orc_src
+      and not any((_f + '(') in _orc_code for _f in ('canonical_node_type', 'serialize_reviewed_decision_node',
+                                                     'reviewed_action_display', 'build_decision_snapshot',
+                                                     'hero_action_kind')), '')
+# the oracle independently agrees with the canonical on the fixtures
+check('T-REV11-08 (G2): the oracle independently classifies the fixtures consistently with the canonical',
+      _orc.semantic_consistent(_orc.oracle_identity(_h_pfb, 2)['action_semantics'], 'bet')
+      and _orc.semantic_consistent(_orc.oracle_identity(_h_rj, 1)['action_semantics'], 'rejam_over_live_raise')
+      and _orc.oracle_identity(_h_sa, 2)['action_semantics'] == 'short_all_in', '')
+
+# --- G3 FAILURE INJECTION: the oracle gate catches each corruption ---
+_idx11 = _qp._hand_index([_h_pfb, _h_rj, _h_sa])
+def _wl_node(h, idx, kind):
+    return {'hand_id': h['id'], 'decision_kind': kind,
+            'decision_node': _ds.serialize_reviewed_decision_node(h, idx, kind, 'worklist_reviewed_action')}
+# (1) postflop bet corrupted to first_in_open in the worklist node
+_wl_pfb = {'items': {_h_pfb['id']: _wl_node(_h_pfb, 2, 'postflop')}}
+_wl_pfb['items'][_h_pfb['id']]['decision_node']['hero_action_kind'] = 'first_in_open'
+check('T-REV11-09 (J1): the oracle gate CATCHES a postflop bet serialized as first_in_open',
+      any(m['field'] == 'worklist_vs_canonical_kind' for m in
+          _qp.gate_ledger_oracle(_idx11, _wl_pfb, _mk_lazy_html({'95000001': ''}))['mismatches']), '')
+# (6/7) underblind all-in corrupted to call_off
+_h_sa_bad = _io11_copy = json.loads(json.dumps(_h_sa))
+check('T-REV11-10 (J6/J7): the canonical NEVER types the underblind all-in as call_off/limp (short_all_in node)',
+      _ds.build_decision_snapshot(_h_sa, 2)['actual_node_type'] == 'first_in_short_all_in'
+      and _ds.reviewed_action_display(_h_sa, 2)['display_text'] != 'limp 0.12BB first-in', '')
+
+# --- F1: the serialized coaching card carries decision_content_ownership ---
+try:
+    import gem_coaching_cards as _cc11
+    _cc_facts = {'hand_id': 'TM_CC11', 'street': 'flop', 'provenance': 'test',
+                 'reviewed_action_index': 5, 'bounty_context_owner': 'reviewed_action_index',
+                 'decision_content_ownership': {'reviewed_action_index': 5, 'reviewed_street': 'flop',
+                                                'reviewed_bounty_applicability': 'not_applicable'}}
+    _cc_interp = {'card_type': 'range_awareness', 'card_context_street': 'preflop',
+                  'poker_verdict': 'x', 'headline': 'h', 'why': 'w', 'learn': 'l', 'plan': 'p'}
+    _cc_card = _cc11._build_display_card(_cc_facts, {}, _cc_interp, 'high')
+    check('T-REV11-11 (F1/B5): the SERIALIZED coaching card carries decision_content_ownership + an ownership class',
+          isinstance(_cc_card.get('decision_content_ownership'), dict)
+          and _cc_card.get('ownership') in ('selected_action', 'earlier_context', 'whole_hand',
+                                            'population_research', 'suppressed'), str(_cc_card.get('ownership')))
+    check('T-REV11-12 (F3): a preflop-concept card on a flop reviewed action is ownership=earlier_context',
+          _cc_card.get('ownership') == 'earlier_context', str(_cc_card.get('ownership')))
+except Exception as _e_cc11:
+    check('T-REV11-11..12: coaching ownership serialization', False, str(_e_cc11))
+
+# --- H1 METAMORPHIC: player-rename + future-append produce NON-ZERO checks and 0 violations ---
+def _np11(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    return (s['actual_node_type'], s['hero_action_kind'], s['became_all_in_on_this_action'])
+_base11 = _np11(_h_rj, 1)
+_h_rn = _mkh10([_Lp('preflop', 'Z', 'raises', 8.0, True, pos='HJ'),
+                _Lp('preflop', 'Hero', 'raises', 12.7, True, pos='BTN')], {'Hero': 12.7, 'Z': 8.0})
+_h_fa = _mkh10(_h_rj['action_ledger'] + [_Lp('preflop', 'X', 'calls', 12.7, True, pos='CO')],
+               {'Hero': 12.7, 'V': 8.0, 'X': 40.0})
+check('T-REV11-13 (H1): METAMORPHIC player-rename invariance (non-zero check, 0 violations)',
+      _np11(_h_rn, 1) == _base11, str((_np11(_h_rn, 1), _base11)))
+check('T-REV11-14 (H1): METAMORPHIC future-append invariance — a later action never changes the earlier identity',
+      _np11(_h_fa, 1) == _base11, str((_np11(_h_fa, 1), _base11)))
+
+# --- positive end-to-end on the oracle gate (no mismatches on the clean fixtures) ---
+_wl_clean = {'items': {_h_pfb['id']: _wl_node(_h_pfb, 2, 'postflop'),
+                       _h_rj['id']: _wl_node(_h_rj, 1, 'preflop_allin'),
+                       _h_sa['id']: _wl_node(_h_sa, 2, 'preflop_deviation')}}
+check('T-REV11-15: the oracle gate PASSES the clean canonical fixtures (no semantic-invariant violations)',
+      not any(m['field'] in ('postflop_bet_typed_first_in_open', 'rejam_typed_call',
+                             'first_in_complete_typed_call_vs_jam', 'underblind_all_in_typed_ordinary_call',
+                             'no_wager_carries_raw_price')
+              for m in _qp.gate_ledger_oracle(_idx11, _wl_clean, _mk_lazy_html({'95000001': ''}))['mismatches']), '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

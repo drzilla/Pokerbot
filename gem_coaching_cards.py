@@ -950,6 +950,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "Note whether deviations are deliberate exploits or leaks."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'outside_chart',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -967,6 +968,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "After flatting a premium, be ready for aggressive villain lines."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'capped_premium',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -984,6 +986,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "From EP with premiums, expect folds or strong resistance."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'premium_early',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -1157,6 +1160,32 @@ def _build_display_card(facts, gates, interp, confidence):
     # facts['street'] (Hero's last-action street) and rendered "PKO Review" on the
     # flop/river (83793494 river value-bet, 84295953 flop fold).
     _street = interp.get('street') or facts['street']
+    # REV11 F1: SERIALIZE the per-card decision-content ownership onto the rendered/serialised
+    # card (window.coachingCards) — not only the intermediate facts (the REV10 B5 gap). Classify
+    # the card's ownership CLASS: a card whose concept belongs to an EARLIER street than the
+    # reviewed action is earlier_context (84295885: a preflop flat-call card on a flop re-jam); a
+    # not-applicable PKO pressure card is population_research; a whole-hand card with no reviewed
+    # action is whole_hand; otherwise selected_action.
+    _dco = dict(facts.get('decision_content_ownership') or {})
+    _rev_street = _dco.get('reviewed_street') or facts.get('street')
+    _content_street = interp.get('card_context_street') or _street
+    _ct = interp.get('card_type')
+    if _ct == 'pko_pressure' and _dco.get('reviewed_bounty_applicability') == 'not_applicable':
+        _ownclass = 'population_research'
+    elif _content_street and _rev_street and _content_street != _rev_street:
+        _ownclass = 'earlier_context'
+    elif facts.get('reviewed_action_index') is None:
+        _ownclass = 'whole_hand'
+    else:
+        _ownclass = 'selected_action'
+    _dco['ownership'] = _ownclass
+    _dco['card_context_street'] = _content_street
+    _dco['context_action_index'] = (None if _ownclass in ('selected_action', 'whole_hand')
+                                    else _dco.get('reviewed_action_index'))
+    _dco['decision_question'] = _dco.get('decision_question') or _dco.get('reviewed_actual_node_type')
+    for _k in ('price_owner', 'bounty_owner', 'range_owner', 'verdict_owner'):
+        _dco.setdefault(_k, ('selected_action' if _ownclass == 'selected_action'
+                             else ('whole_hand' if _ownclass == 'whole_hand' else _ownclass)))
     return {
         'card_id': _card_id(facts['hand_id'], _street, interp['card_type']),
         'hand_id': facts['hand_id'],
@@ -1178,6 +1207,9 @@ def _build_display_card(facts, gates, interp, confidence):
         # reviewed action, never the hand-level default).
         'reviewed_action_index': facts.get('reviewed_action_index'),
         'bounty_context_owner': facts.get('bounty_context_owner'),
+        # REV11 F1: the full ownership contract on the SERIALISED card.
+        'ownership': _ownclass,
+        'decision_content_ownership': _dco,
     }
 
 

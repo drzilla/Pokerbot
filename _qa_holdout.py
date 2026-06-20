@@ -121,6 +121,18 @@ def _gen_edge_cases():
                     _L('flop', 'BB', 'bets', 4.0, pos='BB'), _L('flop', 'Hero', 'calls', 4.0, pos='CO')],
                    {'Hero': 60.0, 'BB': 60.0}, 3, ['postflop', 'earlier_context', 'call'],
                    board=['2c', '7d', 'Js'], pos='CO'))
+    # REV11: a POSTFLOP first BET (kind=bet, not first_in_open).
+    out.append(_mk([_L('preflop', 'Hero', 'raises', 2.5, pos='CO'), _L('preflop', 'BB', 'calls', 2.5, pos='BB'),
+                    _L('flop', 'Hero', 'bets', 5.0, pos='CO')], {'Hero': 60.0, 'BB': 60.0}, 2,
+                   ['postflop', 'bet', 'postflop_bet'], board=['2c', '7d', 'Js'], pos='CO'))
+    # REV11 B1.2: a covering RE-JAM over a short all-in (no other live opponent) — literal re-jam.
+    out.append(_mk([_L('preflop', 'V', 'raises', 8.0, True, pos='HJ'),
+                    _L('preflop', 'Hero', 'raises', 12.7, True, pos='BTN')], {'Hero': 12.7, 'V': 8.0}, 1,
+                   ['preflop', 're_jam', 'covering_rejam'], fmt='BOUNTY', pos='BTN'))
+    # REV11 B3/C3: a first-in UNDERBLIND short all-in.
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'Hero', 'calls', 0.12, True, pos='MP')], {'Hero': 0.12, 'SB': 30.0, 'BB': 30.0}, 2,
+                   ['preflop', 'short_all_in', 'first_in_short_all_in'], fmt='BOUNTY', pos='MP'))
     return out
 
 
@@ -283,6 +295,8 @@ def main():
     wl = {'items': wl_items}
     gate_vd = qp.gate_report_visible_decision(our_idx, html, wl)
     gate_fr = qp.gate_report_full_render(our_idx, html, wl)
+    # REV11 G: run the INDEPENDENT ledger oracle on the holdout corpus too.
+    gate_or = qp.gate_ledger_oracle(our_idx, real_wl, html)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -301,6 +315,10 @@ def main():
         'coaching_cards_built': n_coaching_cards,
         'worklist_items_built': len(real_wl.get('items') or {}),
         'no_hero_decision_lines': len(_re.findall(r'No reviewed decision', _all_body)),
+        # REV11: the new action-identity classes must each activate at least once.
+        'postflop_bet_display': len(_re.findall(r'bet \d', _all_body)),
+        're_jam_display': len(_re.findall(r're-jam', _all_body)),
+        'underblind_short_all_in_display': len(_re.findall(r'short of the big blind', _all_body)),
     }
     # every claimed surface must have been activated at least once
     surface_zero = [k for k, v in surface_activation.items() if not v]
@@ -321,8 +339,9 @@ def main():
     # REV10 E1: a claimed-but-unactivated surface is a holdout FAILURE (false confidence).
     surface_violations = [{'why': 'consumer_surface_not_activated', 'surface': k} for k in surface_zero]
     wl_a_mismatches = list(gate_a.get('mismatches', []))
+    oracle_mismatches = list(gate_or.get('mismatches', []))
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
-                  + direct + surface_violations + wl_a_mismatches)
+                  + direct + surface_violations + wl_a_mismatches + oracle_mismatches)
     rendered = sum(1 for h, _, _ in corpus if (cards.get(h['id'][-8:]) or cards.get(h['id'])))
     summary = {
         'production_render_entrypoint': PROD_RENDER_ENTRYPOINT,
@@ -339,6 +358,7 @@ def main():
         'real_worklist_items': len(real_wl.get('items') or {}),
         'real_worklist_gate_a_checked': gate_a.get('checked', 0),
         'real_worklist_gate_a_mismatches': len(wl_a_mismatches),
+        'ledger_oracle_mismatches': len(oracle_mismatches),
         'coaching_cards_built': n_coaching_cards,
         'visible_decision_mismatches': len(gate_vd.get('mismatches', [])),
         'full_render_mismatches': len(gate_fr.get('mismatches', [])),

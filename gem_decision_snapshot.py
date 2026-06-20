@@ -333,6 +333,15 @@ def build_decision_snapshot(h, hero_action_index=None):
     # as a 'call 1BB' is wrong. Derive the facing state from the VOLUNTARY action before Hero.
     _hkind = hero_action_kind(h, idx)
     _hero_pos = _pos_of(ledger, hero)
+    # REV11 B3: whether THIS action puts Hero all-in — derived from Hero's stack AFTER applying
+    # the action (the ledger is_all_in flag, or remaining-minus-added <= 0). `all_in_before` is
+    # the pre-action set and does NOT include an action that itself jams Hero, so the canonical
+    # node type must be told about the post-action all-in (the 84078253 underblind-shove bug).
+    _revt = ledger[idx] if (idx is not None and 0 <= idx < len(ledger)) else {}
+    _revt_added = _added(_revt) if _revt else 0.0
+    became_all_in_on_this_action = bool(_revt.get('is_all_in')) or (
+        bool(_revt) and _revt_added > _EPS and (hero_remaining - _revt_added) <= _EPS)
+    hero_all_in_through_action = (hero in all_in_before) or became_all_in_on_this_action
     if faced_aggressor is not None:
         if faced_aggressor_all_in:
             facing_state = 'facing_jam'
@@ -369,7 +378,10 @@ def build_decision_snapshot(h, hero_action_index=None):
     else:
         required_equity_pct = None
         price_applicable = False
-        if not _is_call_decision:
+        if _hkind == 'short_all_in':
+            # REV11 C3: a forced first-in short/underblind all-in — no voluntary wager, no price.
+            price_reason = 'first_in_short_all_in_no_wager'
+        elif not _is_call_decision:
             price_reason = 'hero_aggressive_action_sets_price'
         elif facing_state == 'first_in':
             price_reason = ('first_in_no_wager_sb' if _hero_pos == 'SB' else 'first_in_no_wager')
@@ -399,10 +411,12 @@ def build_decision_snapshot(h, hero_action_index=None):
                               for p in ([hero] + opp_keys)
                               if committed_total.get(p, 0.0) > _EPS})
 
-    # REV10 C1: the canonical action-node type for THIS reviewed action (one taxonomy).
+    # REV10 C1 / REV11 B3: the canonical action-node type for THIS reviewed action (one
+    # taxonomy). Pass the THROUGH-action all-in state so a first-in action that itself jams Hero
+    # below the blind is typed first_in_short_all_in, not a first_in open/limp.
     actual_node_type = canonical_node_type(
         facing_state, _hkind, street, _hero_pos,
-        hero_all_in=(hero in all_in_before), no_hero_decision=no_hero_decision)
+        hero_all_in=hero_all_in_through_action, no_hero_decision=no_hero_decision)
 
     return {
         'hand_id': h.get('id', ''),
@@ -438,11 +452,18 @@ def build_decision_snapshot(h, hero_action_index=None):
         'hero_committed_before_decision_bb': hero_committed_total,
         'callable_amount_bb': callable_amount,
         'eligible_allin_amount_bb': eligible_allin_amount,
-        # REV7 A1: decision-time price contract (callable/contestable truth — see
-        # decision_price_contract()). raw_amount_to_match == to_call_bb (diagnostic only).
-        'raw_amount_to_match_bb': to_call,
-        'contestable_pot_before_action_bb': contestable_pot_before_action,
-        'uncallable_overjam_bb': uncallable_overjam,
+        # REV11 B3: did THIS action put Hero all-in (post-action), for the underblind-shove node.
+        'became_all_in_on_this_action': became_all_in_on_this_action,
+        # REV7 A1 / REV11 B4: decision-time price contract (callable/contestable truth). The raw
+        # voluntary amount-to-match and the uncallable overjam are populated ONLY when a call/fold
+        # price actually applies (Hero faces a VOLUNTARY wager). A forced blind/ante gap must
+        # never populate a voluntary-wager field (84078253: BB 1.0 is not a raw wager). The
+        # diagnostic to_call_bb stays separate; the voluntary price Hero acted OVER (for an
+        # aggressive 3-bet/re-jam) lives in faced_voluntary_price_bb.
+        'raw_amount_to_match_bb': (to_call if price_applicable else None),
+        'contestable_pot_before_action_bb': (contestable_pot_before_action if price_applicable else None),
+        'uncallable_overjam_bb': (uncallable_overjam if price_applicable else None),
+        'faced_voluntary_price_bb': (round(to_call, 2) if (faced_aggressor is not None and to_call > _EPS) else None),
         'required_equity_pct': required_equity_pct,
         'price_applicable': price_applicable,
         'price_reason': price_reason,
@@ -517,7 +538,7 @@ _POSTFLOP_NODE = {
     'fold': 'postflop_fold', 'raise': 'postflop_raise', '3bet': 'postflop_raise',
     '4bet': 'postflop_raise', '5bet_plus': 'postflop_raise',
     'open_shove': 'postflop_jam', 'rejam_over_live_raise': 'postflop_jam',
-    'overjam_with_side_pot': 'postflop_jam',
+    'overjam_with_side_pot': 'postflop_jam', 'short_all_in': 'postflop_jam',
 }
 
 
@@ -530,8 +551,14 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
     k = hero_action_kind or 'none'
     if no_hero_decision or facing_state == 'no_hero_decision' or k == 'none':
         return 'no_hero_decision'
+    # REV11 B3: an all-in upgrade to a JAM applies ONLY to an AGGRESSIVE action (a bet/raise that
+    # itself jams Hero). A CALL that happens to put Hero all-in (a call-off) is still a call —
+    # never re-typed as a jam/re-jam (83974506 is a call_vs_jam, NOT a postflop_jam/re_jam).
+    _aggr = k in ('bet', 'raise', 'first_in_open', '3bet', '4bet', '5bet_plus',
+                  'open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot')
+    _aggr_jam = hero_all_in and _aggr
     if street != 'preflop':
-        if hero_all_in and k not in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot'):
+        if _aggr_jam:
             return 'postflop_jam'
         return _POSTFLOP_NODE.get(k, 'postflop_call')
     # ── preflop ──
@@ -540,7 +567,11 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
     if facing_state == 'first_in':
         if k == 'fold':
             return 'fold_first_in'
-        if k == 'open_shove' or hero_all_in:
+        # REV11 C3: a first-in action that puts Hero all-in BELOW the big blind (a forced short
+        # all-in) is its OWN node — never an ordinary limp/open-shove (84078253).
+        if k == 'short_all_in':
+            return 'first_in_short_all_in'
+        if k == 'open_shove' or _aggr_jam:
             return 'first_in_open_shove'
         if k in ('call', 'call_vs_jam', 'call_off'):
             return 'first_in_limp'                 # SB complete / open-limp first-in
@@ -548,7 +579,7 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
     if facing_state == 'facing_limp':
         if k == 'fold':
             return 'fold_over_limp'
-        if k == 'open_shove' or hero_all_in:
+        if k == 'open_shove' or _aggr_jam:
             return 'iso_shove'
         if k in ('call', 'call_vs_jam', 'call_off'):
             return 'sb_complete_after_limp' if hero_position == 'SB' else 'overlimp'
@@ -556,13 +587,13 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
     if facing_state == 'facing_jam':
         if k == 'fold':
             return 'fold_vs_jam'
-        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or _aggr_jam:
             return 're_jam'
         return 'call_vs_jam'
     if facing_state == 'facing_reopen':            # a 3-bet (2+ raises) already in front of Hero
         if k == 'fold':
             return 'fold_vs_three_bet'
-        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or _aggr_jam:
             return 're_jam'
         if k in ('call', 'call_vs_jam', 'call_off'):
             return 'call_vs_three_bet'
@@ -570,7 +601,7 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
     if facing_state == 'facing_raise':
         if k == 'fold':
             return 'fold_vs_open'
-        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or _aggr_jam:
             return 're_jam'
         if k in ('call', 'call_vs_jam', 'call_off'):
             return 'call_vs_open'
@@ -615,6 +646,17 @@ def reviewed_action_display(h, hero_action_index, snap=None):
             'action_added_bb': 0.0, 'action_total_to_bb': 0.0, 'callable_amount_bb': 0.0,
             'faced_action_added_bb': None, 'display_verb': 'no decision',
             'display_text': 'no Hero decision', 'no_hero_decision': True,
+        }
+    # ── REV11 C3: a first-in action that puts Hero ALL-IN below the big blind is a forced short
+    # all-in — never an ordinary limp/complete/call-off (84078253). ──
+    if kind == 'short_all_in':
+        _amt = added if added > _EPS else (callable_amt if callable_amt > _EPS else facing)
+        verb, text = 'all-in', 'all-in for %sBB first-in, short of the big blind' % _g(_amt)
+        return {
+            'hero_action_kind': kind, 'hero_actual_action': actual,
+            'facing_action_kind': None, 'facing_price_bb': 0.0,
+            'action_added_bb': added, 'action_total_to_bb': total_to, 'callable_amount_bb': None,
+            'faced_action_added_bb': None, 'display_verb': verb, 'display_text': text,
         }
     # ── REV10 C3: a first-in SB complete / open-limp is a LIMP — never 'call XBB' / call_vs_jam.
     if _facing == 'first_in' and (kind in ('call', 'call_vs_jam', 'call_off') or actual == 'calls'):
@@ -1186,17 +1228,26 @@ def hero_action_kind(h, hero_action_index=None):
         if faced_allin:
             return 'call_vs_jam'
         if hero_allin:
-            return 'call_off'
+            # REV11 B3: a 'calls' that itself puts Hero all-in FIRST-IN (no voluntary wager
+            # faced — only forced posts) is a forced short/underblind all-in, NOT a call-off of
+            # a prior wager (84078253). A call-off requires a prior voluntary bet/raise.
+            return 'short_all_in' if faced is None else 'call_off'
         return 'call'
     if act in ('raises', 'bets'):
         if faced is None:
-            return 'open_shove' if hero_allin else 'first_in_open'
+            # REV11 B1: a POSTFLOP first-aggressive 'bets' is a BET, never a preflop first-in
+            # open (84074399 river bet 15.01). A preflop first-in 'raises' is the open.
+            if hero_allin:
+                return 'open_shove'
+            return 'bet' if (street != 'preflop' and act == 'bets') else 'first_in_open'
         if faced_allin:
-            # raising "over" a player already all-in: a side pot forms only if another
-            # live opponent (confirmed before Hero acts) can contest it.
-            if not has_other_live:
-                return 'call_vs_jam'            # functional call-off of the short jam
-            return 'overjam_with_side_pot' if hero_allin else '3bet'
+            # REV11 B1.2: a raise OVER a faced all-in is a re-jam / over-jam — the LITERAL action
+            # is a raise and must NEVER be collapsed to 'call_vs_jam' (83915520 Hero jams 12.7
+            # over HJ's 8.5 jam is a re-jam, not a call). A genuine side pot forms only when
+            # another live opponent already committed; otherwise it is a heads-up re-jam.
+            if hero_allin:
+                return 'overjam_with_side_pot' if has_other_live else 'rejam_over_live_raise'
+            return '3bet'
         if hero_allin:
             return 'rejam_over_live_raise'
         if n_raises_before == 1:

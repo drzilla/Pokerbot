@@ -298,6 +298,9 @@ _NODE_COMPAT = {
     # A FIRST-IN limp (Hero is first voluntary actor, e.g. an SB complete with no limper before)
     # may use the RFI open chart as a RECOMMENDED ALTERNATIVE (open-or-fold instead of limp).
     'first_in_limp': {'first_in_open'},
+    # REV11 C3: a forced first-in short/underblind all-in (<1BB) has NO meaningful strategic
+    # chart — a push chart at ~0BB effective is nonsensical — so its range is suppressed.
+    'first_in_short_all_in': set(),
     'first_in_open_shove': {'open_shove', 'first_in_open'},
     'fold_first_in': {'first_in_open', 'fold_first_in'},
     # The FACING-LIMP family (a limper already entered) is a genuinely DIFFERENT spot — it must

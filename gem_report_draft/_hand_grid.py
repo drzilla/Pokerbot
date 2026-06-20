@@ -545,6 +545,39 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     """
     all_actions = app_details.get('actions') or {}
 
+    # ── REV11 E1: canonical action-semantic per Hero ledger action ──
+    # The action grid renders Hero rows from the SAME classifier as the reviewed-decision
+    # capsule (gem_decision_snapshot), so a first-in SB complete reads "Complete 0.5BB" (NOT
+    # "Call 0.5BB / need 18%"), an underblind shove reads "All-in … short of the BB", and a
+    # re-jam never reads "Call". Keyed by (street, Hero-occurrence-on-street).
+    _canon_by_street_occ = {}
+    try:
+        from gem_decision_snapshot import (reviewed_action_display as _ds_rad,
+                                           build_decision_snapshot as _ds_bds)
+        _led_cg = h.get('action_ledger') or []
+        _hero_cg = h.get('hero', 'Hero')
+        _occ_cg = {}
+        for _li, _la in enumerate(_led_cg):
+            if _la.get('player') == _hero_cg and _la.get('action') != 'posts':
+                _st = _la.get('street', 'preflop')
+                _o = _occ_cg.get(_st, 0)
+                _occ_cg[_st] = _o + 1
+                try:
+                    _snap_cg = _ds_bds(h, _li)
+                    _disp_cg = _ds_rad(h, _li, _snap_cg)
+                    _canon_by_street_occ[(_st, _o)] = {
+                        'display_text': _disp_cg.get('display_text'),
+                        'display_verb': _disp_cg.get('display_verb'),
+                        'hero_action_kind': _snap_cg.get('hero_action_kind'),
+                        'actual_node_type': _snap_cg.get('actual_node_type'),
+                        'price_applicable': bool(_snap_cg.get('price_applicable')),
+                        'facing': _snap_cg.get('decision_facing_state'),
+                    }
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # ── Seat-stack fallback lookup (v8.4.2) ──
     _seat_stacks = {}
     for _pos, _stk_val in (h.get('seat_stacks_bb_all', {}) or {}).items():
@@ -839,8 +872,21 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 cls = 'act-check'; text = f'{_ps(p, stk, _pname)} Check'
             elif act == 'calls':
                 cls = 'act-call'; text = f'{_ps(p, stk, _pname)} Call {amt:.1f}BB'
-                # Show required equity on hero calls
-                if is_h and running_pot > 0 and amt > 0:
+                # REV11 E1/B2/C2: a Hero 'calls' that is canonically NOT an ordinary priced call
+                # (a first-in complete/limp, an underblind short all-in, or a covering re-jam)
+                # renders the canonical verb and shows NO pot-odds (there is no voluntary wager to
+                # price). Only a genuine call FACING a wager keeps "Call X / need Y%".
+                _cg = _canon_by_street_occ.get((street, hero_action_idx_on_street)) if is_h else None
+                _cg_kind = (_cg or {}).get('hero_action_kind')
+                _cg_priced = bool((_cg or {}).get('price_applicable'))
+                if _cg and _cg_kind == 'short_all_in':
+                    cls = 'act-allin'
+                    text = f'{_ps(p, stk, _pname)} ⚡ All-in {amt:.2f}BB (short of BB, first-in)'
+                elif _cg and (_cg or {}).get('facing') == 'first_in':
+                    _cverb = 'Complete' if p == 'SB' else 'Limp'
+                    text = f'{_ps(p, stk, _pname)} {_cverb} {amt:.1f}BB first-in'
+                # Show required equity ONLY on a genuine priced call (facing a voluntary wager)
+                if is_h and running_pot > 0 and amt > 0 and (_cg is None or _cg_priced):
                     _req_eq = amt / (running_pot + amt) * 100
                     _bet_frac = amt / running_pot
                     if _bet_frac < 0.4:

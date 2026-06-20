@@ -351,52 +351,59 @@ def _is_bounty(h):
     return bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
 
 
+_COLLECTIBLE_COVERS = ('collectible', 'collectible_equal_stack')
+
+
 def _coverage(hero_total, opp_total):
+    """Cover relationship for bounty purposes (REV5 B5). EQUAL stacks are COLLECTIBLE
+    if Hero wins the all-in outright — the opponent loses all chips and is eliminated,
+    so Hero earns the bounty. Equal stacks therefore are NOT non-collectible. Returns:
+      collectible              — Hero strictly out-stacks the opponent (strict cover)
+      collectible_equal_stack  — exactly equal stacks; collectible on an outright win
+      not_collectible          — the opponent out-stacks Hero
+      unknown                  — a stack is missing
+    A chopped/split pot is an outcome handled separately and does not make the whole
+    decision non-collectible."""
     if hero_total is None or opp_total is None:
         return 'unknown'
     if abs(hero_total - opp_total) <= _EPS:
-        return 'equal_stack_boundary'
+        return 'collectible_equal_stack'
     return 'collectible' if hero_total > opp_total else 'not_collectible'
 
 
 def _classify_bounty(eligible, in_confront, is_bounty, contested_no_eliminable=False):
     """ONE canonical typed classification of a bounty confrontation -> (aggregate,
-    reason). Both consumer fields derive from this SINGLE function so the aggregate
-    and the reason can NEVER contradict each other (REV3 B2 — the shipped code could
-    return aggregate='mixed' with reason='known_all'). Exhaustive truth table
-    (GPT acceptance):
+    reason). Both consumer fields derive from this SINGLE function so aggregate and
+    reason can NEVER contradict (REV3 B2). Truth table (REV5 B5 — equal stacks are
+    collectible, never automatically 'none'):
 
         no all-in confrontation       -> not_applicable / not_applicable_no_allin_confrontation
-        all eligible collectible      -> all   / known_all
-        all eligible not-collectible  -> none  / known_none
-        only equal-stack boundaries   -> none  / equal_boundary
-        collectible + not/equal       -> mixed / known_mixed
-        unknown stack/eligibility     -> unknown / unknown_missing_stack
+        all eligible collectible       -> all   / known_all   (strict cover OR equal stacks)
+        all eligible not-collectible   -> none  / known_none
+        collectible + not-collectible  -> mixed / known_mixed
+        unknown stack/eligibility      -> unknown / unknown_missing_stack
     """
     if not is_bounty or not in_confront:
         return ('not_applicable', 'not_applicable_no_allin_confrontation')
     if not eligible:
         # Hero is in an all-in confrontation but no opponent is eliminable in the
         # relevant layer. For the REALIZED view a contested-but-not-eliminable pot
-        # (every caller covers Hero / has chips behind) collects nothing -> known_none;
-        # for a future-blind decision view with no committed opponent it is N/A.
+        # (every caller covers Hero) collects nothing -> known_none; for a future-blind
+        # decision view with no committed opponent it is N/A.
         if contested_no_eliminable:
             return ('none', 'known_none')
         return ('not_applicable', 'not_applicable_no_allin_confrontation')
     vals = list(eligible.values())
     if any(v == 'unknown' for v in vals):
         return ('unknown', 'unknown_missing_stack')
-    has_c = any(v == 'collectible' for v in vals)
+    has_c = any(v in _COLLECTIBLE_COVERS for v in vals)   # strict cover or equal stacks
     has_n = any(v == 'not_collectible' for v in vals)
-    has_eq = any(v == 'equal_stack_boundary' for v in vals)
-    if has_c and (has_n or has_eq):
+    if has_c and has_n:
         return ('mixed', 'known_mixed')
     if has_c:
         return ('all', 'known_all')
     if has_n:
         return ('none', 'known_none')
-    if has_eq:
-        return ('none', 'equal_boundary')
     return ('unknown', 'unknown_missing_stack')
 
 
@@ -410,6 +417,26 @@ def _pot_layers(committed_by_player):
         layers.append({'from_bb': round(prev, 2), 'to_bb': round(cap, 2), 'participants': elig})
         prev = cap
     return layers
+
+
+def _normalize_uncalled(committed_by_player):
+    """REV5 B3: normalize UNCALLED excess out of the contestable pot. The single deepest
+    contributor's chips beyond what the next-deepest contributor matched are uncalled and
+    RETURNED to that player — an all-in bet nobody matched is not a one-player side pot.
+    Only the single deepest overshoot is uncalled (in an all-in pot everyone else is
+    all-in or has called). Returns (capped_contributions, uncalled_return_by_player)."""
+    contrib = {p: round(v, 2) for p, v in committed_by_player.items() if v > _EPS}
+    uncalled = {}
+    if len(contrib) >= 2:
+        totals = sorted(contrib.values(), reverse=True)
+        top, second = totals[0], totals[1]
+        if top > second + _EPS:
+            tops = [p for p, v in contrib.items() if abs(v - top) <= _EPS]
+            if len(tops) == 1:
+                p = tops[0]
+                uncalled[p] = round(top - second, 2)
+                contrib[p] = round(second, 2)
+    return contrib, uncalled
 
 
 def _contest_pot_layers(committed_by_player, folded):
@@ -599,8 +626,18 @@ def build_realized_contest(h, hero_action_index=None):
     # never disagree.
     folded_contributors = {p for p in folded_anytime
                            if committed_total.get(p, 0.0) > _EPS}
-    pot_layers = _contest_pot_layers(
-        {p: v for p, v in committed_total.items() if v > _EPS}, folded_contributors)
+
+    # REV5 B3: normalize UNCALLED excess out of the contestable pot BEFORE building pot
+    # layers. The single deepest contributor's chips beyond what the next-deepest player
+    # put in are uncalled and RETURNED — an all-in nobody matched is not a one-player
+    # side pot. Pot layers are built on the capped (contestable) contributions, so no
+    # layer can have a single eligible participant with no dead money.
+    all_contrib = {p: v for p, v in committed_total.items() if v > _EPS}
+    gross_action_commitments_bb = round(sum(all_contrib.values()), 2)
+    capped_contrib, uncalled_return_by_player = _normalize_uncalled(all_contrib)
+    uncalled_return_bb = round(sum(uncalled_return_by_player.values()), 2)
+
+    pot_layers = _contest_pot_layers(capped_contrib, folded_contributors)
     eligible_all = sorted(set().union(*[set(l['eligible_participants']) for l in pot_layers])
                           if pot_layers else set())
     main_pot = pot_layers[0]['eligible_participants'] if pot_layers else []
@@ -611,18 +648,21 @@ def build_realized_contest(h, hero_action_index=None):
     realized_participant_count = len(eligible_all)
     contributing_player_count = sum(1 for v in committed_total.values() if v > _EPS)
     # back-compat eligible-only side-pot layers (folded excluded), for older readers.
-    side_pot_layers = _pot_layers({p: committed_total.get(p, 0.0) for p in eligible_all
-                                   if committed_total.get(p, 0.0) > _EPS})
+    side_pot_layers = _pot_layers({p: capped_contrib.get(p, 0.0) for p in eligible_all
+                                   if capped_contrib.get(p, 0.0) > _EPS})
 
-    dead_money_by_player = {p: round(committed_total.get(p, 0.0), 2)
-                            for p in sorted(folded_contributors)}
+    # dead money = folded contributions that STAYED in the pot (capped, i.e. the folded
+    # player's uncalled excess is returned, not dead).
+    dead_money_by_player = {p: round(capped_contrib.get(p, 0.0), 2)
+                            for p in sorted(folded_contributors)
+                            if capped_contrib.get(p, 0.0) > _EPS}
     dead_money_bb = round(sum(dead_money_by_player.values()), 2)
-    total_committed_pot_bb = round(sum(v for v in committed_total.values() if v > _EPS), 2)
+    contestable_pot_bb = round(sum(l['total_layer_bb'] for l in pot_layers), 2)
+    total_committed_pot_bb = gross_action_commitments_bb   # gross (all chips committed)
 
     # REV2 B4 / REV3: realized bounty eligibility — per opponent and ONLY for opponents
     # Hero can ELIMINATE in the realized contest (opponents who are ALL-IN, fully
-    # committed). A pot participant with chips behind (not all-in) cannot be busted and
-    # is NOT bounty-eligible. This is the REALIZED description of the hand; the
+    # committed). This DECISION-ish field describes who was all-in that Hero covers; the
     # future-blind DECISION-TIME adjustment is owned by build_decision_bounty_context.
     is_bounty = _is_bounty(h)
     eligible = {}
@@ -630,6 +670,21 @@ def build_realized_contest(h, hero_action_index=None):
         for p in contesting:
             if p in all_in_anytime:
                 eligible[p] = _coverage(starting.get(hero), starting.get(p))
+
+    # REV5 B4: REALIZED bounty CAPABILITY is different from decision-time eligibility. If
+    # Hero LATER folded he cannot win any pot layer and so cannot collect ANY bounty —
+    # realized eligibility must NOT survive Hero's fold. Only opponents Hero can eliminate
+    # in a layer Hero REMAINED eligible to win count as realized-collectible.
+    hero_remained_eligible = hero in eligible_all
+    hero_eligible_pot_layers = ([i for i, l in enumerate(pot_layers)
+                                 if hero in l['eligible_participants']]
+                                if hero_remained_eligible else [])
+    realized_collectible_bounties = {}
+    if hero_remained_eligible:
+        for p, cov in eligible.items():
+            if any(hero in l['eligible_participants'] and p in l['eligible_participants']
+                   for l in pot_layers):
+                realized_collectible_bounties[p] = cov
 
     return {
         'hand_id': h.get('id', ''),
@@ -644,11 +699,19 @@ def build_realized_contest(h, hero_action_index=None):
         'side_pot_participants': side_participants,
         'side_pot_layers': side_pot_layers,
         'folded_players': sorted(folded_contributors),
+        'gross_action_commitments_bb': gross_action_commitments_bb,
+        'contestable_pot_bb': contestable_pot_bb,
+        'uncalled_return_bb': uncalled_return_bb,
+        'uncalled_return_by_player': uncalled_return_by_player,
         'total_committed_pot_bb': total_committed_pot_bb,
         'dead_money_bb': dead_money_bb,
         'dead_money_by_player': dead_money_by_player,
         'pot_layers': pot_layers,
         'eligible_bounties': eligible,
+        # REV5 B4 realized capability (never reuse decision-time eligibility as realized)
+        'hero_remained_eligible': hero_remained_eligible,
+        'hero_eligible_pot_layers': hero_eligible_pot_layers,
+        'realized_collectible_bounties': realized_collectible_bounties,
     }
 
 
@@ -744,13 +807,37 @@ def build_decision_bounty_context(h, hero_action_index=None):
         cov = _coverage(starting.get(hero), starting.get(p))
         if is_bounty:
             cover_rel[p] = cov
-        # ELIGIBLE only if this opponent is committed ALL-IN at/before the reviewed
-        # action AND Hero is in the confrontation. A non-all-in opponent with chips
-        # behind is never eligible; a future all-in is never visible here.
+        # COMMITTED eligibility only if this opponent is committed ALL-IN at/before the
+        # reviewed action AND Hero is in the confrontation. A non-all-in opponent with
+        # chips behind is not committed; a future all-in is never visible here.
         if is_bounty and in_confront and p in allin_before:
             eligible[p] = cov
 
     aggregate, reason = _classify_bounty(eligible, in_confront, is_bounty)
+
+    # REV5 B1: separate EXACT COMMITTED eligibility (opponents already all-in that Hero
+    # can eliminate now) from POTENTIAL-IF-CALLED bounty EV. When Hero SHOVES (open-shove
+    # / re-jam / overjam / raise-all-in over a non-all-in opener), the live players who
+    # can still call are POTENTIAL bounty opponents — their cover relationships are
+    # decision-time knowable even though nobody is committed yet. "No committed all-in
+    # opponent" is NOT equivalent to "bounty is irrelevant / chip-chart only".
+    hero_kind = hero_action_kind(h, idx)
+    hero_is_shoving = hero_kind in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot')
+    potential = {}
+    if is_bounty and hero_is_shoving:
+        for o in active:
+            p = o['player']
+            if p in allin_before or o.get('is_all_in'):
+                continue   # committed -> exact eligibility, not potential
+            potential[p] = cover_rel.get(p) or _coverage(starting.get(hero), starting.get(p))
+    if not is_bounty:
+        applicability = 'not_applicable'
+    elif eligible:
+        applicability = 'exact_committed'
+    elif (hero_is_shoving or in_confront) and potential:
+        applicability = 'potential_if_called'
+    else:
+        applicability = 'not_applicable'
 
     # Relevant villain for the SEPARATE stack-cover relationship (NOT eligibility): the
     # faced all-in aggressor if any, else the deepest active opponent (the one who could
@@ -760,17 +847,16 @@ def build_decision_bounty_context(h, hero_action_index=None):
         relevant = max(cover_rel, key=lambda p: (starting.get(p) or 0.0))
     rel_cov = cover_rel.get(relevant) if relevant else None
     cover_relationship_known = rel_cov is not None and rel_cov != 'unknown'
-    hero_covers_relevant_by_cover = (rel_cov == 'collectible') if cover_relationship_known else None
+    hero_covers_relevant_by_cover = (rel_cov in _COLLECTIBLE_COVERS) if cover_relationship_known else None
 
     # REV4 B1: bounty ELIGIBILITY (collectibility) is a DIFFERENT fact from cover.
-    # `bounty_eligibility_known` is true only when there is a real all-in confrontation
-    # with a definite verdict (all / none / mixed). `hero_covers_relevant_villain` is
-    # eligibility-based and MUST be null when the bounty is not applicable (invariant:
-    # not_applicable => eligible {} => hero_covers null). For mixed/all Hero covers at
-    # least one ELIGIBLE villain; for none Hero covers no eligible villain.
+    # `bounty_eligibility_known` is true only when there is a committed confrontation with
+    # a definite verdict (all / none / mixed). `hero_covers_relevant_villain` is
+    # eligibility-based and MUST be null when there is no committed eligibility (invariant:
+    # coverage_aggregate not_applicable => eligible {} => hero_covers null).
     bounty_eligibility_known = aggregate in ('all', 'none', 'mixed')
     if bounty_eligibility_known:
-        hero_covers_relevant_villain = any(v == 'collectible' for v in eligible.values())
+        hero_covers_relevant_villain = any(v in _COLLECTIBLE_COVERS for v in eligible.values())
     else:
         hero_covers_relevant_villain = None
 
@@ -780,8 +866,15 @@ def build_decision_bounty_context(h, hero_action_index=None):
         'hero_action_index': idx,
         'is_bounty': is_bounty,
         'hero_in_allin_confrontation': in_confront,
-        # eligibility (collectibility) — the decision-time bounty truth
+        'hero_action_kind': hero_kind,
+        # REV5 B1: typed applicability — exact_committed / potential_if_called /
+        # not_applicable / unknown. The report and auto-clear gate branch on THIS, not
+        # on coverage_aggregate, so an open-shove is never called "bounty irrelevant".
+        'bounty_applicability': applicability,
+        # eligibility (collectibility) — committed all-in opponents Hero can eliminate now
         'eligible_bounties_by_opponent': eligible,
+        'committed_allin_bounties_by_opponent': dict(eligible),
+        'potential_calling_bounties_by_opponent': potential,
         'coverage_aggregate': aggregate,
         'coverage_reason': reason,
         'aggregate': aggregate,            # back-compat alias

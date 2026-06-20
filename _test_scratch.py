@@ -5586,13 +5586,13 @@ check('T-H141-34: Correct-range lines use human chart labels, not raw ids',
       and '_cdl_h(cn)' in _helpers141
       and 'Correct range — `{cn}`' not in _helpers141, '')
 
-# rev-4 Blocker D: explicit PKO-unavailable note for unresolved BOUNTY all-ins (XIV.A + XIV.B)
-# REV4 B2: the PKO bounty-math note gates on the canonical DECISION-TIME aggregate
-# (not the legacy realized scalar) in BOTH real hand-detail paths (XIV.A + XIV.B).
-check('T-H141-35: PKO bounty-math-unavailable note renders for unresolved BOUNTY all-ins (XIV.A + XIV.B)',
+# rev-4 Blocker D / REV5 B1: explicit PKO-unavailable note for unresolved BOUNTY all-ins.
+# REV5 B1: the note gates on the typed bounty APPLICABILITY (not coverage_aggregate) in
+# BOTH real hand-detail paths (XIV.A + XIV.B); potential_if_called is never irrelevant.
+check('T-H141-35: PKO bounty-math note gates on bounty_applicability in both paths (XIV.A + XIV.B)',
       _xiv141.count('**PKO bounty math:** cover/collectibility') == 2
-      and _xiv141.count("_dbc_agg_pko in (None, 'not_applicable', 'unknown')") == 1
-      and _xiv141.count("_dbc_agg_pko_b in (None, 'not_applicable', 'unknown')") == 1, '')
+      and _xiv141.count("_dbc_app in (None, 'potential_if_called', 'not_applicable', 'unknown')") == 1
+      and _xiv141.count("_dbc_app_b in (None, 'potential_if_called', 'not_applicable', 'unknown')") == 1, '')
 
 # ============================================================
 # v8.14.1-preview xway-fix — "X-way" must mean LIVE contenders at the decision,
@@ -10568,8 +10568,8 @@ _h_eq = {'id': 'EQ', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
          'seat_stack_by_player': {'Hero': 20.0, 'V': 20.0},
          'action_ledger': [_led('preflop', 'Hero', 'raises', 20.0, True, to=20.0),
                            _led('preflop', 'V', 'calls', 20.0, True)]}
-check('T-DS-05e: equal stacks -> equal_stack_boundary',
-      _ds.bounty_coverage_by_opponent(_h_eq).get('V') == 'equal_stack_boundary',
+check('T-DS-05e: equal stacks -> collectible_equal_stack (REV5 B5: collectible on outright win)',
+      _ds.bounty_coverage_by_opponent(_h_eq).get('V') == 'collectible_equal_stack',
       _ds.bounty_coverage_by_opponent(_h_eq))
 
 # ---- mandatory #6: postflop all-in uses remaining stacks, not starting ----
@@ -11010,12 +11010,12 @@ check('T-I1F-08: truth table — all collectible -> (all, known_all)',
       _ar(_tt_all, 1) == ('all', 'known_all'), _ar(_tt_all, 1))
 check('T-I1F-09: truth table — all not-collectible -> (none, known_none)',
       _ar(_tt_none, 1) == ('none', 'known_none'), _ar(_tt_none, 1))
-check('T-I1F-10: truth table — only equal boundary -> (none, equal_boundary)',
-      _ar(_tt_eq, 1) == ('none', 'equal_boundary'), _ar(_tt_eq, 1))
+check('T-I1F-10: truth table — only equal stacks -> (all, known_all) [REV5 B5: equal is collectible]',
+      _ar(_tt_eq, 1) == ('all', 'known_all'), _ar(_tt_eq, 1))
 check('T-I1F-11: truth table — collectible + not-collectible -> (mixed, known_mixed)',
       _ar(_tt_mix, 2) == ('mixed', 'known_mixed'), _ar(_tt_mix, 2))
-check('T-I1F-12: truth table — collectible + equal boundary -> (mixed, known_mixed)',
-      _ar(_tt_ceq, 2) == ('mixed', 'known_mixed'), _ar(_tt_ceq, 2))
+check('T-I1F-12: truth table — strict-cover + equal stacks -> (all, known_all) [both collectible]',
+      _ar(_tt_ceq, 2) == ('all', 'known_all'), _ar(_tt_ceq, 2))
 check('T-I1F-13: truth table — unknown stack present -> (unknown, unknown_missing_stack)',
       _ar(_tt_unk, 1) == ('unknown', 'unknown_missing_stack'), _ar(_tt_unk, 1))
 # every decision-time pair must be valid under the truth table (never a contradiction).
@@ -11207,8 +11207,8 @@ check('T-I1G-01: rendered == canonical — HU collectible all-in (all/known_all)
       _rendered_bounty(_g_hu_coll) == _canon_ar(_g_hu_coll) == ('all', 'known_all'), _rendered_bounty(_g_hu_coll))
 check('T-I1G-02: rendered == canonical — HU non-collectible all-in (none/known_none)',
       _rendered_bounty(_g_hu_not) == _canon_ar(_g_hu_not) == ('none', 'known_none'), _rendered_bounty(_g_hu_not))
-check('T-I1G-03: rendered == canonical — equal-stack boundary (none/equal_boundary)',
-      _rendered_bounty(_g_eq) == _canon_ar(_g_eq) == ('none', 'equal_boundary'), _rendered_bounty(_g_eq))
+check('T-I1G-03: rendered == canonical — equal stacks (all/known_all) [REV5 B5: equal is collectible]',
+      _rendered_bounty(_g_eq) == _canon_ar(_g_eq) == ('all', 'known_all'), _rendered_bounty(_g_eq))
 check('T-I1G-04: rendered == canonical — mixed multiway eligibility (mixed/known_mixed)',
       _rendered_bounty(_g_mix) == _canon_ar(_g_mix) == ('mixed', 'known_mixed'), _rendered_bounty(_g_mix))
 check('T-I1G-05: rendered == canonical — unknown opponent stack (unknown/unknown_missing_stack)',
@@ -11291,6 +11291,193 @@ check('T-I1G-15: a not_applicable canonical context yields null hero_covers + un
       and _g_open_ctx['hero_covers_relevant_villain'] is None
       and _g_open_ctx['bounty_eligibility_known'] is False
       and _g_open_ctx['eligible_bounties_by_opponent'] == {}, '')
+
+
+# ============================================================
+# REV5 (Iteration 1 — bounty applicability, action-index routing, uncalled returns,
+# realized eligibility after fold, equal-stack semantics) — T-I1H-01..NN
+# ============================================================
+def _app(h, idx=None):
+    return _ds.build_decision_bounty_context(h, idx)['bounty_applicability']
+
+# ---- B1: exact_committed vs potential_if_called vs not_applicable ----
+_h_osh = {'id': 'OSH', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 12.0, 'SB': 20.0, 'BB': 25.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'BB', 'posts', 1.0),
+                            _Lb('preflop', 'Hero', 'raises', 12, True), _Lb('preflop', 'BB', 'folds', 0)]}
+_h_rejam = {'id': 'RJ5', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 30.0, 'MP': 50.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'MP', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 30, True)]}
+_h_cvj = {'id': 'CVJ5', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'V': 5.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_h_open_nonai = {'id': 'ON5', 'hero': 'Hero', 'format': 'BOUNTY',
+                 'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+                 'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+check('T-I1H-01: open-shove -> potential_if_called (NOT not_applicable)',
+      _app(_h_osh, 2) == 'potential_if_called', _app(_h_osh, 2))
+check('T-I1H-02: re-jam over a live raise -> potential_if_called',
+      _app(_h_rejam, 1) == 'potential_if_called', _app(_h_rejam, 1))
+check('T-I1H-03: call vs an existing jam -> exact_committed',
+      _app(_h_cvj, 1) == 'exact_committed', _app(_h_cvj, 1))
+check('T-I1H-04: first-in NON-all-in open -> not_applicable (no shove, no committed)',
+      _app(_h_open_nonai, 0) == 'not_applicable', _app(_h_open_nonai, 0))
+_osh_ctx = _ds.build_decision_bounty_context(_h_osh, 2)
+check('T-I1H-05: open-shove carries potential_calling_bounties (cover relationships known)',
+      set(_osh_ctx['potential_calling_bounties_by_opponent'].keys()) == {'SB', 'BB'}
+      and _osh_ctx['committed_allin_bounties_by_opponent'] == {}, str(_osh_ctx['potential_calling_bounties_by_opponent']))
+# the model never mislabels a shove with live callers as bounty-irrelevant, and the
+# INV11 gate catches a deliberately-corrupted hand whose shove reads not_applicable.
+check('T-I1H-06: a Hero shove with live callers is never not_applicable (model invariant)',
+      all(_ds.build_decision_bounty_context(h, i)['bounty_applicability'] != 'not_applicable'
+          for h, i in [(_h_osh, 2), (_h_rejam, 1)]), '')
+# failure injection for INV11: a hand whose shove has callers but a NON-bounty format is
+# not_applicable (the model is correct); flip is_bounty on and the shove becomes
+# potential_if_called — proving the gate's shove check keys on applicability vs kind.
+_osh_nb = dict(_h_osh); _osh_nb['format'] = 'HOLDEM'; _osh_nb['bounty_value_bb'] = 0
+check('T-I1H-07: non-bounty shove is not_applicable; bounty shove is potential_if_called (gate distinguishes)',
+      _ds.build_decision_bounty_context(_osh_nb, 2)['bounty_applicability'] == 'not_applicable'
+      and _ds.build_decision_bounty_context(_h_osh, 2)['bounty_applicability'] == 'potential_if_called', '')
+
+# ---- B2: action-index routing + per-decision parity ----
+# Hand with TWO materially different Hero decisions (preflop open + flop call-vs-jam)
+_h_multi = {'id': 'MULTI', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'V': 30.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                              _Lb('flop', 'V', 'bets', 27.5, True), _Lb('flop', 'Hero', 'calls', 27.5)]}
+check('T-I1H-08: the two Hero decisions in one hand have DIFFERENT contexts (open vs call-vs-jam)',
+      _canon_ar(_h_multi, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation')
+      and _canon_ar(_h_multi, 3) == ('all', 'known_all'), (_canon_ar(_h_multi, 0), _canon_ar(_h_multi, 3)))
+# the per-decision metadata renderer emits a block per Hero action index, each correct
+from gem_report_draft.sections_xiv import _per_decision_bounty_meta as _pdm_fn
+_h_multi_stamped = dict(_h_multi)
+_h_multi_stamped['decision_bounty_context_by_action_index'] = {
+    i: _ds.build_decision_bounty_context(_h_multi, i)
+    for i, a in enumerate(_h_multi['action_ledger']) if a['player'] == 'Hero'}
+_meta_html = _pdm_fn(_h_multi_stamped)
+check('T-I1H-09: per-decision metadata emits a block per Hero action index (0 and 3) with the RIGHT context',
+      "data-decision-action-index='0'" in _meta_html and "data-decision-action-index='3'" in _meta_html
+      and _meta_html.count('decision-bounty-meta') == 2
+      and "data-decision-action-index='0' data-decision-street='preflop' data-bounty-aggregate='not_applicable'" in _meta_html, _meta_html)
+# gate_report_decision_bounty: PASSES the correct render, CATCHES a wrong-index render
+_gpd_idx = _qp._hand_index([{**_h_multi, 'tournament_hand_id': 'MULTI'}])
+from _qa_decode_lazy import decode_lazy_hands as _dlh
+import _qa_parity as _qp2
+_good_pd = "<article data-hand-id='MULTI'>" + _meta_html + "</article>"
+# corrupt: the flop call (idx 3) block carries the preflop open's context (not_applicable)
+_bad_pd = ("<article data-hand-id='MULTI'>"
+           "<span class='decision-bounty-meta' data-decision-action-index='3' data-decision-street='flop'"
+           " data-bounty-aggregate='not_applicable' data-bounty-reason='not_applicable_no_allin_confrontation'"
+           " data-bounty-applicability='not_applicable'></span></article>")
+def _pd_mismatches(html):
+    # decode_lazy_hands needs lazy payload; here pass the raw article via a tiny shim
+    out = {'checked': 0, 'mismatches': []}
+    import re as _re_pd
+    pat = _re_pd.compile(r"decision-bounty-meta' data-decision-action-index='(\d+)'[^>]*data-bounty-aggregate='([^']*)'[^>]*data-bounty-reason='([^']*)'[^>]*data-bounty-applicability='([^']*)'")
+    for m in pat.finditer(html):
+        i, agg, rsn, app = int(m.group(1)), m.group(2), m.group(3), m.group(4)
+        c = _ds.build_decision_bounty_context(_h_multi, i)
+        if (c['coverage_aggregate'] != agg or c['coverage_reason'] != rsn or c['bounty_applicability'] != app):
+            out['mismatches'].append({'idx': i})
+    return out
+check('T-I1H-10: per-decision gate PASSES correct render, CATCHES a wrong-action-index render',
+      len(_pd_mismatches(_good_pd)['mismatches']) == 0 and len(_pd_mismatches(_bad_pd)['mismatches']) == 1, '')
+
+# ---- B3: uncalled-return normalization ----
+def _rc(led, ssb, idx, fmt='BOUNTY'):
+    return _ds.build_realized_contest({'id': 'U', 'hero': 'Hero', 'format': fmt,
+                                       'seat_stack_by_player': ssb, 'board': [], 'action_ledger': led}, idx)
+# 1) Hero overjam vs one shorter all-in caller -> uncalled to Hero, no side pot
+_u1 = _rc([_Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'V', 'calls', 20, True)],
+          {'Hero': 100.0, 'V': 20.0}, 0)
+check('T-I1H-11: Hero overjam vs shorter caller -> gross 120, contestable 40, uncalled 80, NO side pot',
+      _u1['gross_action_commitments_bb'] == 120.0 and _u1['contestable_pot_bb'] == 40.0
+      and _u1['uncalled_return_by_player'] == {'Hero': 80.0} and _u1['side_pot_participants'] == []
+      and _qp.pot_semantic_violations(_u1) == [], str(_u1.get('side_pot_participants')))
+# 2) Villain overjam vs shorter Hero call -> uncalled to Villain
+_u2 = _rc([_Lb('preflop', 'V', 'raises', 100, True), _Lb('preflop', 'Hero', 'calls', 40, True)],
+          {'Hero': 40.0, 'V': 100.0}, 1)
+check('T-I1H-12: Villain overjam vs shorter Hero call -> uncalled to V, contestable 80, no side',
+      _u2['uncalled_return_by_player'] == {'V': 60.0} and _u2['contestable_pot_bb'] == 80.0
+      and _u2['side_pot_participants'] == [] and _qp.pot_semantic_violations(_u2) == [], str(_u2))
+# 3) multiway main + genuine side + final uncalled
+_u3 = _rc([_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Mid', 'raises', 20, True),
+           _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'calls', 100, True)],
+          {'Hero': 50.0, 'Short': 5.0, 'Mid': 20.0, 'Deep': 100.0}, 2)
+check('T-I1H-13: multiway main + genuine side pots + final uncalled (Deep 50 returned), all layers >=2 eligible',
+      _u3['uncalled_return_by_player'] == {'Deep': 50.0}
+      and all(len(l['eligible_participants']) >= 2 for l in _u3['pot_layers'])
+      and _qp.pot_semantic_violations(_u3) == [], str([(l['from_bb'], l['to_bb'], l['eligible_participants']) for l in _u3['pot_layers']]))
+# 4) folded dead money + uncalled
+_u4 = _rc([_Lb('preflop', 'Folder', 'calls', 3), _Lb('preflop', 'Short', 'raises', 5, True),
+           _Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'Folder', 'folds', 0)],
+          {'Hero': 100.0, 'Short': 5.0, 'Folder': 30.0}, 2)
+check('T-I1H-14: folded dead money + uncalled -> dead 3 stays, Hero uncalled 95, reconciles',
+      _u4['dead_money_bb'] == 3.0 and _u4['uncalled_return_by_player'].get('Hero') == 95.0
+      and _qp.pot_semantic_violations(_u4) == [], str(_u4))
+# 5) one eligible band + dead money is a valid uncontested award (NOT a fake side pot)
+_u5 = _rc([_Lb('preflop', 'V', 'raises', 20, True), _Lb('preflop', 'Hero', 'raises', 30, True),
+           _Lb('preflop', 'Folder', 'calls', 25), _Lb('preflop', 'Folder', 'folds', 0)],
+          {'Hero': 30.0, 'V': 20.0, 'Folder': 25.0}, 1)
+check('T-I1H-15: one-eligible band WITH dead money is a valid uncontested award (not a fake side pot)',
+      _qp.pot_semantic_violations(_u5) == []
+      and any(len(l['eligible_participants']) == 1 and l['dead_money_bb'] > 0 for l in _u5['pot_layers']), str(_u5['pot_layers']))
+# 6/7/8 reconciliation across all uncalled fixtures
+check('T-I1H-16: gross == contestable + uncalled for every uncalled fixture; no zero/one-player-no-dead layer',
+      all(abs(r['gross_action_commitments_bb'] - (r['contestable_pot_bb'] + r['uncalled_return_bb'])) < 0.02
+          and 'zero_player_pot_layer' not in _qp.pot_semantic_violations(r)
+          for r in (_u1, _u2, _u3, _u4, _u5)), '')
+# failure injection: a one-player-no-dead layer is caught
+_u_bad = _i1f_copy.deepcopy(_u1)
+_u_bad['pot_layers'] = _u_bad['pot_layers'] + [{'kind': 'side', 'from_bb': 40.0, 'to_bb': 120.0, 'cap_bb': 120.0,
+    'eligible_participants': ['Hero'], 'eligible_contribution_bb': 80.0, 'dead_money_bb': 0.0,
+    'dead_money_by_player': {}, 'total_layer_bb': 80.0}]
+check('T-I1H-17: pot gate CATCHES an injected one-player side pot (uncalled excess as side pot)',
+      'one_player_side_pot' in _qp.pot_semantic_violations(_u_bad), '')
+
+# ---- B4: realized eligibility does NOT survive Hero's later fold ----
+_b4_fold = {'id': 'B4F', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5),
+                              _Lb('preflop', 'Deep', 'calls', 5), _Lb('flop', 'Deep', 'bets', 8),
+                              _Lb('flop', 'Hero', 'folds', 0)]}
+_rc_fold = _ds.build_realized_contest(_b4_fold, 1)
+check('T-I1H-18: Hero later folds -> hero_remained_eligible False, realized_collectible {} (decision-time stays)',
+      _rc_fold['hero_remained_eligible'] is False and _rc_fold['realized_collectible_bounties'] == {}
+      and _rc_fold['hero_eligible_pot_layers'] == []
+      and _rc_fold['eligible_bounties'] == {'Short': 'collectible'}, str(_rc_fold['realized_collectible_bounties']))
+_b4_show = {'id': 'B4S', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_rc_show = _ds.build_realized_contest(_b4_show, 1)
+check('T-I1H-19: Hero remains to showdown -> realized_collectible includes Short',
+      _rc_show['hero_remained_eligible'] is True and _rc_show['realized_collectible_bounties'] == {'Short': 'collectible'}, str(_rc_show))
+_rc_bad = _i1f_copy.deepcopy(_rc_fold); _rc_bad['realized_collectible_bounties'] = {'Short': 'collectible'}
+check('T-I1H-20: pot gate CATCHES Hero-folded-but-realized-collectible (failure injection)',
+      'hero_folded_but_realized_collectible_nonempty' in _qp.pot_semantic_violations(_rc_bad), '')
+
+# ---- B5: equal stacks are collectible (not automatically none) ----
+def _cov(hs, vs):
+    h = {'id': 'EQ5', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': hs, 'V': vs},
+         'board': [], 'action_ledger': [_Lb('preflop', 'V', 'raises', min(hs, vs), True),
+                                        _Lb('preflop', 'Hero', 'calls', min(hs, vs), hs <= vs)]}
+    return _ds.build_decision_bounty_context(h, 1)
+check('T-I1H-21: exact equal stacks -> collectible_equal_stack, aggregate all (collectible on outright win)',
+      _cov(20.0, 20.0)['eligible_bounties_by_opponent'].get('V') == 'collectible_equal_stack'
+      and _cov(20.0, 20.0)['coverage_aggregate'] == 'all', str(_cov(20.0, 20.0)['coverage_aggregate']))
+check('T-I1H-22: Hero covers by one chip -> collectible (strict)',
+      _cov(20.05, 20.0)['eligible_bounties_by_opponent'].get('V') == 'collectible', '')
+check('T-I1H-23: Hero covered by one chip -> not_collectible',
+      _cov(20.0, 20.05)['eligible_bounties_by_opponent'].get('V') == 'not_collectible', '')
+check('T-I1H-24: equal stacks are NEVER classified aggregate none (B5 core)',
+      _cov(33.3, 33.3)['coverage_aggregate'] != 'none', _cov(33.3, 33.3)['coverage_aggregate'])
+# multiway equal: Hero equal to both all-in opponents -> all collectible
+_eqmw = _ds.build_decision_bounty_context({'id': 'EQMW', 'hero': 'Hero', 'format': 'BOUNTY',
+    'seat_stack_by_player': {'Hero': 20.0, 'A': 20.0, 'B': 20.0}, 'board': [],
+    'action_ledger': [_Lb('preflop', 'A', 'raises', 20, True), _Lb('preflop', 'B', 'raises', 20, True),
+                      _Lb('preflop', 'Hero', 'calls', 20, True)]}, 2)
+check('T-I1H-25: multiway equal-stack boundary -> all collectible (not none)',
+      _eqmw['coverage_aggregate'] == 'all', _eqmw['coverage_aggregate'])
 
 
 # ============================================================

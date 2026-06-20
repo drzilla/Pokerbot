@@ -169,6 +169,41 @@ def _bounty_data_attrs(h):
             f" data-bounty-eligible-n='{n_elig}' data-bounty-hero-covers='{hc_s}'")
 
 
+def _per_decision_bounty_meta(h):
+    """REV5 B2: emit ONE hidden metadata element per Hero DECISION (action index),
+    consuming the analyzer's action-indexed map h['decision_bounty_context_by_action_index'].
+    A hand can contain several materially different Hero decisions (e.g. a preflop open AND
+    a later flop call-vs-jam) with DIFFERENT bounty contexts; the article-level default
+    attribute is for navigation only. Each element carries data-decision-action-index +
+    the per-decision aggregate/reason/applicability so the parity gate proves EVERY decision
+    block uses the correct action-index context (never one hand-level default)."""
+    if (h.get('format') != 'BOUNTY') and not h.get('bounty_value_bb'):
+        return ''
+    by_idx = h.get('decision_bounty_context_by_action_index')
+    if not by_idx:
+        try:
+            from gem_decision_snapshot import build_decision_bounty_context as _b
+            ledger = h.get('action_ledger') or []
+            hero = h.get('hero', 'Hero')
+            by_idx = {i: _b(h, i) for i, a in enumerate(ledger)
+                      if a.get('player') == hero and a.get('action') != 'posts'}
+        except Exception:
+            return ''
+    out = []
+    for idx in sorted(by_idx, key=lambda x: int(x)):
+        dbc = by_idx[idx] or {}
+        if not dbc.get('is_bounty'):
+            continue
+        agg = _html_escape(dbc.get('coverage_aggregate') or '')
+        rsn = _html_escape(dbc.get('coverage_reason') or '')
+        app = _html_escape(dbc.get('bounty_applicability') or '')
+        st = _html_escape(dbc.get('street') or '')
+        out.append(f"<span class='decision-bounty-meta' data-decision-action-index='{int(idx)}'"
+                   f" data-decision-street='{st}' data-bounty-aggregate='{agg}'"
+                   f" data-bounty-reason='{rsn}' data-bounty-applicability='{app}'></span>")
+    return ''.join(out)
+
+
 def _bounty_trust_strip_md(rd, h, _po):
     """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
     rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
@@ -2078,6 +2113,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
               f"data-canonical-verdict='{_cvv_art}' "
               f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'"
               f"{_bounty_data_attrs(h)}>")
+        _pdm = _per_decision_bounty_meta(h)
+        if _pdm:
+            doc.w(_pdm)
         # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
         doc.w("<div class='mh-top'><div class='mh-title'>")
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -3407,28 +3445,34 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # bounty math was silently absent (73559949). Render an explicit note so
         # the user knows WHY rather than leaving it silent. Never fabricates math.
         _dbc_pko = h.get('decision_bounty_context') or {}
-        _dbc_agg_pko = _dbc_pko.get('coverage_aggregate') or _dbc_pko.get('aggregate')
+        _dbc_app = _dbc_pko.get('bounty_applicability')
+        _dbc_aidx = _dbc_pko.get('hero_action_index')
         if (not _po and not _pko_ctx.get('enabled')
                 and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                and _dbc_agg_pko in (None, 'not_applicable', 'unknown')):
-            # REV4 B2: gate on the canonical DECISION-TIME aggregate (not the legacy
-            # realized scalar). not_applicable = no committed all-in opponent at the
-            # decision (uncontested jam, or an open jam whose callers are future and so
-            # not a decision-time bounty factor); unknown = a real missing-stack data gap.
+                and _dbc_app in (None, 'potential_if_called', 'not_applicable', 'unknown')):
+            # REV5 B1/B2: gate on the typed bounty APPLICABILITY (not coverage_aggregate).
+            # potential_if_called (Hero open-shoves/re-jams) is NOT bounty-irrelevant — the
+            # callers' bounties are part of the shove EV even though nobody is committed;
+            # never say "not a decision-time factor / chip-chart only" for it.
             from gem_decision_snapshot import contesting_count as _ds_cc
-            doc.w("<div class='analyst-notes' data-street='preflop'>")
-            if _dbc_agg_pko != 'unknown' and _ds_cc(h) <= 1:
-                doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
-                      "Hero's jam took it down uncontested, so no bounty was at stake "
-                      "this hand.")
-            elif _dbc_agg_pko != 'unknown':
-                doc.w("\U0001f3af **PKO bounty math:** no committed all-in opponent at "
-                      "the decision, so the bounty was not a decision-time factor; this "
-                      "verdict uses chip-chart logic only.")
-            else:
+            doc.w(f"<div class='analyst-notes' data-street='preflop' data-decision-action-index='{_dbc_aidx if _dbc_aidx is not None else ''}'>")
+            if _dbc_app == 'potential_if_called':
+                doc.w("\U0001f3af **PKO bounty math:** Bounty EV is potentially relevant "
+                      "if called, but the caller distribution, ranges and fold-equity "
+                      "model are not available, so no numerical bounty adjustment is "
+                      "applied.")
+            elif _dbc_app == 'unknown':
                 doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
                       "from the HH export, so this verdict uses chip-chart logic only. "
                       "Review manually.")
+            elif _ds_cc(h) <= 1:
+                doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
+                      "Hero's jam took it down uncontested, so no bounty was at stake "
+                      "this hand.")
+            else:
+                doc.w("\U0001f3af **PKO bounty math:** no committed all-in opponent and "
+                      "no live caller at the decision; this verdict uses chip-chart "
+                      "logic only.")
             doc.w("</div>")
             doc.w("")
 
@@ -3615,6 +3659,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
                       f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'"
                       f"{_bounty_data_attrs(h)}>")
+                _pdm_b = _per_decision_bounty_meta(h)
+                if _pdm_b:
+                    doc.w(_pdm_b)
                 # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
                 doc.w("<div class='mh-top'><div class='mh-title'>")
                 doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -4352,27 +4399,32 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # BOUNTY all-in with unresolved collectibility that got neither a
                 # pot-odds Bounty-trust strip nor a PKO pill (XIV.B parity).
                 _dbc_pko_b = h.get('decision_bounty_context') or {}
-                _dbc_agg_pko_b = _dbc_pko_b.get('coverage_aggregate') or _dbc_pko_b.get('aggregate')
+                _dbc_app_b = _dbc_pko_b.get('bounty_applicability')
+                _dbc_aidx_b = _dbc_pko_b.get('hero_action_index')
                 if (not _po_b and not _pko_ctx_b.get('enabled')
                         and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                        and _dbc_agg_pko_b in (None, 'not_applicable', 'unknown')):
-                    # REV4 B2: gate on the canonical DECISION-TIME aggregate (not the
-                    # legacy realized scalar). not_applicable = no committed all-in
-                    # opponent at the decision; unknown = a missing-stack data gap.
+                        and _dbc_app_b in (None, 'potential_if_called', 'not_applicable', 'unknown')):
+                    # REV5 B1/B2: gate on the typed bounty APPLICABILITY — potential_if_called
+                    # (open-shove/re-jam) is never "bounty irrelevant / chip-chart only".
                     from gem_decision_snapshot import contesting_count as _ds_cc
-                    doc.w("<div class='analyst-notes' data-street='preflop'>")
-                    if _dbc_agg_pko_b != 'unknown' and _ds_cc(h) <= 1:
-                        doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
-                              "— Hero's jam took it down uncontested, so no bounty "
-                              "was at stake this hand.")
-                    elif _dbc_agg_pko_b != 'unknown':
-                        doc.w("\U0001f3af **PKO bounty math:** no committed all-in "
-                              "opponent at the decision, so the bounty was not a "
-                              "decision-time factor; chip-chart logic only.")
-                    else:
+                    doc.w(f"<div class='analyst-notes' data-street='preflop' data-decision-action-index='{_dbc_aidx_b if _dbc_aidx_b is not None else ''}'>")
+                    if _dbc_app_b == 'potential_if_called':
+                        doc.w("\U0001f3af **PKO bounty math:** Bounty EV is potentially "
+                              "relevant if called, but the caller distribution, ranges "
+                              "and fold-equity model are not available, so no numerical "
+                              "bounty adjustment is applied.")
+                    elif _dbc_app_b == 'unknown':
                         doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
                               "unresolved from the HH export, so this verdict uses "
                               "chip-chart logic only. Review manually.")
+                    elif _ds_cc(h) <= 1:
+                        doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
+                              "— Hero's jam took it down uncontested, so no bounty "
+                              "was at stake this hand.")
+                    else:
+                        doc.w("\U0001f3af **PKO bounty math:** no committed all-in "
+                              "opponent and no live caller at the decision; this "
+                              "verdict uses chip-chart logic only.")
                     doc.w("</div>")
                     doc.w("")
 

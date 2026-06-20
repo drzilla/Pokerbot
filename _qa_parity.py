@@ -257,16 +257,25 @@ def prefix_invariance_violations(h, ridx, future_actions, ctx_fn=None):
 
 
 def pot_reconciliation_violation(rc):
-    """A realized contest reconciles iff sum(layer totals) == total committed pot,
-    sum(layer dead) == total dead money, and each layer total == eligible + dead.
-    Returns a reason string or None."""
+    """REV5: a realized contest reconciles iff
+        sum(real pot-layer totals) == contestable pot,
+        gross commitments == contestable + uncalled returns,
+        sum(layer dead) == total dead money, and each layer total == eligible + dead.
+    `total_committed_pot_bb` is the GROSS commitments (incl. uncalled); the layers sum to
+    the CONTESTABLE pot. Returns a reason string or None."""
     layers = rc.get('pot_layers') or []
-    total = rc.get('total_committed_pot_bb')
-    if total is None:
+    gross = rc.get('total_committed_pot_bb')
+    if gross is None:
         return 'missing_total_committed_pot'
+    contestable = rc.get('contestable_pot_bb')
+    uncalled = rc.get('uncalled_return_bb') or 0.0
     lsum = round(sum(l.get('total_layer_bb', 0.0) for l in layers), 2)
-    if abs(lsum - total) > 0.02:
-        return 'layer_sum_%s_!=_total_%s' % (lsum, total)
+    if contestable is not None and abs(lsum - contestable) > 0.02:
+        return 'layer_sum_%s_!=_contestable_%s' % (lsum, contestable)
+    # gross == contestable + uncalled (contestable defaults to the layer sum)
+    _cont = contestable if contestable is not None else lsum
+    if abs(round(_cont + uncalled, 2) - gross) > 0.02:
+        return 'gross_%s_!=_contestable_%s_+_uncalled_%s' % (gross, _cont, uncalled)
     dsum = round(sum(l.get('dead_money_bb', 0.0) for l in layers), 2)
     if abs(dsum - (rc.get('dead_money_bb') or 0.0)) > 0.02:
         return 'dead_layer_sum_%s_!=_dead_%s' % (dsum, rc.get('dead_money_bb'))
@@ -350,6 +359,25 @@ def pot_semantic_violations(rc):
     elig_all = (set().union(*[set(l['eligible_participants']) for l in layers]) if layers else set())
     if rc.get('realized_participant_count') != len(elig_all):
         out.append('participant_count_ne_eligible')
+    # REV5 B3: a real pot layer needs >=2 eligible participants, OR exactly 1 eligible
+    # plus folded dead money (an uncontested dead-money award). A 1-eligible-no-dead
+    # layer is uncalled excess masquerading as a side pot; a 0-eligible layer is invalid.
+    for l in layers:
+        ne = len(l.get('eligible_participants') or [])
+        dead = l.get('dead_money_bb', 0.0) or 0.0
+        if ne == 0:
+            out.append('zero_player_pot_layer')
+            break
+        if ne == 1 and dead <= 0.02:
+            out.append('one_player_side_pot')
+            break
+    # REV5 B4: a Hero who LATER folded cannot win any layer, so realized bounty
+    # capability must be empty — decision-time eligibility must NOT survive the fold.
+    if rc.get('hero_remained_eligible') is False:
+        if rc.get('realized_collectible_bounties'):
+            out.append('hero_folded_but_realized_collectible_nonempty')
+        if rc.get('hero_eligible_pot_layers'):
+            out.append('hero_folded_but_eligible_layers_nonempty')
     prv = pot_reconciliation_violation(rc)
     if prv:
         out.append('reconcile:' + prv)
@@ -374,6 +402,36 @@ def gate_report_bounty(hands_idx, html):
             out['mismatches'].append(
                 {'hand': hid, 'field': 'rendered_bounty_ne_canonical', 'rendered': [agg, rsn],
                  'canonical': [ctx.get('coverage_aggregate'), ctx.get('coverage_reason')]})
+    return out
+
+
+def gate_report_decision_bounty(hands_idx, html):
+    """REV5 B2: EVERY rendered per-decision bounty block (data-decision-action-index +
+    data-bounty-aggregate/-reason/-applicability) equals build_decision_bounty_context(
+    hand, that_index). Proves each decision in a multi-decision hand uses its OWN
+    action-index context — not one article-level default. Compares per DECISION, not per
+    article (the gate fails if a decision block carries another Hero action's context)."""
+    bodies = decode_lazy_hands(html)
+    out = {'checked': 0, 'mismatches': []}
+    pat = re.compile(
+        r"decision-bounty-meta' data-decision-action-index='(\d+)'"
+        r"[^>]*data-bounty-aggregate='([^']*)'[^>]*data-bounty-reason='([^']*)'"
+        r"[^>]*data-bounty-applicability='([^']*)'")
+    for hid, body in bodies.items():
+        h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
+        if h is None:
+            continue
+        for m in pat.finditer(body):
+            idx, agg, rsn, app = int(m.group(1)), m.group(2), m.group(3), m.group(4)
+            out['checked'] += 1
+            ctx = ds.build_decision_bounty_context(h, idx)
+            if (ctx.get('coverage_aggregate') != agg or ctx.get('coverage_reason') != rsn
+                    or ctx.get('bounty_applicability') != app):
+                out['mismatches'].append(
+                    {'hand': hid, 'action_index': idx,
+                     'rendered': [agg, rsn, app],
+                     'canonical': [ctx.get('coverage_aggregate'), ctx.get('coverage_reason'),
+                                   ctx.get('bounty_applicability')]})
     return out
 
 
@@ -456,6 +514,16 @@ def gate_semantic(hands_idx, worklist):
             if pv:
                 out['violations'].append({'hand': hid, 'inv': 'future_contaminated_bounty_context',
                                           'fields': pv})
+            # INV11 (REV5 B1): a Hero SHOVE (open-shove / re-jam / overjam) with live
+            # potential callers or a committed opponent must be exact_committed or
+            # potential_if_called — NEVER not_applicable ("bounty irrelevant").
+            if dbc.get('hero_action_kind') in ('open_shove', 'rejam_over_live_raise',
+                                               'overjam_with_side_pot'):
+                _pot = dbc.get('potential_calling_bounties_by_opponent') or {}
+                _comm = dbc.get('committed_allin_bounties_by_opponent') or {}
+                if (_pot or _comm) and dbc.get('bounty_applicability') == 'not_applicable':
+                    out['violations'].append({'hand': hid, 'inv': 'shove_classified_bounty_irrelevant',
+                                              'kind': dbc.get('hero_action_kind')})
         # INV9 (pot semantics): main/side semantics + folded dead money + reconciliation.
         psv = pot_semantic_violations(ds.build_realized_contest(h, ridx))
         if psv:
@@ -484,6 +552,7 @@ def main():
     g_rp = gate_report(hands_idx, html)
     g_sem = gate_semantic(hands_idx, worklist)
     g_rb = gate_report_bounty(hands_idx, html)
+    g_pd = gate_report_decision_bounty(hands_idx, html)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -504,15 +573,19 @@ def main():
           f"{len(g_rb['mismatches'])} mismatch(es)")
     for mm in g_rb['mismatches'][:40]:
         print('   ✗', mm)
+    print(f"E. PER-DECISION BOUNTY == CANONICAL : {g_pd['checked']} decision blocks checked, "
+          f"{len(g_pd['mismatches'])} mismatch(es)")
+    for mm in g_pd['mismatches'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
-          and not g_rb['mismatches'])
+          and not g_rb['mismatches'] and not g_pd['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
     if out_json:
         with io.open(out_json, 'w', encoding='utf-8') as fh:
             json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
-                       'report_bounty': g_rb, 'pass': ok}, fh, indent=2)
+                       'report_bounty': g_rb, 'report_decision_bounty': g_pd, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

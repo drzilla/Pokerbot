@@ -779,17 +779,22 @@ def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
         return False, 'multiway'
     if c.get('side_pot') or c.get('has_side_pot'):
         return False, 'side_pot'
-    # req: bounty certainty branches on the typed aggregate (REV4 B1):
-    #   not_applicable -> no bounty adjustment exists, no uncertainty block
-    #   unknown        -> block (missing-stack uncertainty)
-    #   all/none/mixed -> collectibility known, use the canonical context (no block)
+    # req: bounty certainty branches on the typed APPLICABILITY (REV5 B1):
+    #   exact_committed   -> collectibility known, use the canonical context (no block)
+    #   potential_if_called -> bounty EV is a real but UNMODELLED factor (open-shove /
+    #                          re-jam); NOT equivalent to not_applicable, so it BLOCKS the
+    #                          deterministic auto-clear (the shove is not a clean clear)
+    #   unknown           -> block (missing-stack uncertainty)
+    #   not_applicable    -> no bounty at stake, no uncertainty block
     # With no canonical context (hand absent) fall back to the pko-research flag.
     if bnt.get('is_pko'):
-        _bagg = bnt.get('coverage_aggregate')
-        if _bagg is None:
+        _bapp = bnt.get('bounty_applicability')
+        if _bapp is None:
             if not bnt.get('collectibility_known'):
                 return False, 'bounty_uncertain'
-        elif _bagg == 'unknown':
+        elif _bapp == 'potential_if_called':
+            return False, 'bounty_potential_if_called_unmodelled'
+        elif _bapp == 'unknown':
             return False, 'bounty_uncertain'
     # req: known action node (price available + facing known) OR a rich,
     # ledger-built action line the analyst can read end-to-end.
@@ -1054,6 +1059,12 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
             bnt['coverage_mixed'] = _dbc['coverage_mixed']
             bnt['eligible_bounties_by_opponent'] = _dbc['eligible_bounties_by_opponent']
             bnt['bounty_eligibility_known'] = _dbc['bounty_eligibility_known']
+            # REV5 B1: the typed applicability (exact_committed / potential_if_called /
+            # not_applicable / unknown). An open-shove/re-jam is potential_if_called, NOT
+            # not_applicable; the auto-clear gate branches on this.
+            bnt['bounty_applicability'] = _dbc['bounty_applicability']
+            bnt['committed_allin_bounties_by_opponent'] = _dbc['committed_allin_bounties_by_opponent']
+            bnt['potential_calling_bounties_by_opponent'] = _dbc['potential_calling_bounties_by_opponent']
             # back-compat: collectibility_known == bounty eligibility known (NOT cover)
             bnt['collectibility_known'] = _dbc['bounty_eligibility_known']
             bnt['hero_covers_relevant_villain'] = _dbc['hero_covers_relevant_villain']
@@ -1065,7 +1076,7 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
             # not_applicable/none/unknown => adjustment false).
             _discount = _f(c.get('bounty_discount_pp')) > 0
             _adj = bool(_discount and _agg in ('all', 'mixed')
-                        and any(v == 'collectible' for v in
+                        and any(v in ('collectible', 'collectible_equal_stack') for v in
                                 (_dbc['eligible_bounties_by_opponent'] or {}).values()))
             bnt['adjustment_applied_to_decision'] = _adj
             bnt['adjustment_source'] = 'pko_discount_on_eligible_bounty' if _adj else None

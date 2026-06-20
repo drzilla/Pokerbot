@@ -55,6 +55,12 @@ def main():
         'pots_with_dead_money': [],
         'main_side_layer_reconciliations': [],
         'call_vs_jam_and_call_off_prices': [],
+        # REV5 inventories
+        'bounty_applicability_combinations': {},
+        'hero_shoves_potential_if_called': [],
+        'uncalled_returns': [],
+        'realized_bounty_eligibility': [],
+        'equal_stack_confrontations': [],
     }
     viol = {
         'future_contaminated_bounty_contexts': [],
@@ -69,6 +75,15 @@ def main():
         'rendered_report_bounty_mismatches': [],
         'collectibility_known_with_not_applicable': [],
         'adjustment_applied_with_not_applicable_none_unknown': [],
+        # REV5 additions
+        'open_shove_rejam_rendered_bounty_irrelevant': [],
+        'rendered_wrong_action_index': [],
+        'one_player_side_pots': [],
+        'zero_player_pot_layers': [],
+        'uncalled_excess_in_contestable_pot': [],
+        'gross_contestable_return_reconciliation_failures': [],
+        'hero_folded_realized_bounty_eligibility': [],
+        'equal_stack_classified_non_collectible': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -105,6 +120,28 @@ def main():
                 h, ridx, qp._future_contamination_actions(dbc.get('street', 'preflop')))
             if pv:
                 viol['future_contaminated_bounty_contexts'].append({'hand': hid, 'fields': pv})
+            # REV5 B1: applicability combinations + shove inventory
+            app = dbc.get('bounty_applicability')
+            inv['bounty_applicability_combinations'][app] = \
+                inv['bounty_applicability_combinations'].get(app, 0) + 1
+            _hk = dbc.get('hero_action_kind')
+            if _hk in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot'):
+                inv['hero_shoves_potential_if_called'].append(
+                    {'hand': hid, 'action_index': ridx, 'kind': _hk, 'applicability': app,
+                     'potential_callers': dbc.get('potential_calling_bounties_by_opponent'),
+                     'committed': dbc.get('committed_allin_bounties_by_opponent')})
+                _pot = dbc.get('potential_calling_bounties_by_opponent') or {}
+                _comm = dbc.get('committed_allin_bounties_by_opponent') or {}
+                if (_pot or _comm) and app == 'not_applicable':
+                    viol['open_shove_rejam_rendered_bounty_irrelevant'].append({'hand': hid, 'kind': _hk})
+            # REV5 B5: an equal-stack opponent must never make the aggregate 'none'
+            cover_vals = list((dbc.get('stack_cover_relationship_by_opponent') or {}).values())
+            elig_vals = list((dbc.get('eligible_bounties_by_opponent') or {}).values())
+            if any(v == 'collectible_equal_stack' for v in elig_vals + cover_vals):
+                inv['equal_stack_confrontations'].append(
+                    {'hand': hid, 'aggregate': dbc['aggregate'], 'eligible': dbc.get('eligible_bounties_by_opponent')})
+                if dbc['aggregate'] == 'none':
+                    viol['equal_stack_classified_non_collectible'].append({'hand': hid})
 
         # (3) pots with dead money + (4) layer reconciliation + REV4 pot semantics
         prv = qp.pot_reconciliation_violation(rc)
@@ -119,6 +156,36 @@ def main():
             elif v in ('main_participants_mismatch', 'side_participants_mismatch',
                        'participant_count_ne_eligible', 'main_not_single_lowest'):
                 viol['legacy_canonical_participant_mismatches'].append({'hand': hid, 'why': v})
+            elif v == 'one_player_side_pot':
+                viol['one_player_side_pots'].append({'hand': hid})
+            elif v == 'zero_player_pot_layer':
+                viol['zero_player_pot_layers'].append({'hand': hid})
+            elif v.startswith('reconcile:'):
+                viol['gross_contestable_return_reconciliation_failures'].append({'hand': hid, 'why': v})
+            elif v in ('hero_folded_but_realized_collectible_nonempty',
+                       'hero_folded_but_eligible_layers_nonempty'):
+                viol['hero_folded_realized_bounty_eligibility'].append({'hand': hid, 'why': v})
+        # REV5 B3: gross == contestable + uncalled; uncalled never inside contestable
+        _gross = rc.get('gross_action_commitments_bb')
+        _cont = rc.get('contestable_pot_bb')
+        _unc = rc.get('uncalled_return_bb') or 0.0
+        if _gross is not None and _cont is not None:
+            if abs((_cont + _unc) - _gross) > 0.02:
+                viol['gross_contestable_return_reconciliation_failures'].append(
+                    {'hand': hid, 'gross': _gross, 'contestable': _cont, 'uncalled': _unc})
+            if _unc > 0.001:
+                inv['uncalled_returns'].append(
+                    {'hand': hid, 'gross': _gross, 'contestable': _cont,
+                     'uncalled_by_player': rc.get('uncalled_return_by_player')})
+                # uncalled excess must NOT be inside any contestable layer
+                if _cont + _unc - _gross > 0.02:
+                    viol['uncalled_excess_in_contestable_pot'].append({'hand': hid})
+        # REV5 B4: realized eligibility inventory (Hero folded => realized {})
+        if rc.get('eligible_bounties'):
+            inv['realized_bounty_eligibility'].append(
+                {'hand': hid, 'hero_remained_eligible': rc.get('hero_remained_eligible'),
+                 'decision_eligible': rc.get('eligible_bounties'),
+                 'realized_collectible': rc.get('realized_collectible_bounties')})
         if (rc.get('dead_money_bb') or 0) > 0.001:
             inv['pots_with_dead_money'].append(
                 {'hand': hid, 'total_committed_pot_bb': rc['total_committed_pot_bb'],
@@ -180,6 +247,17 @@ def main():
     for mm in _grb.get('mismatches', []):
         viol['rendered_report_bounty_mismatches'].append(mm)
     inv['rendered_bounty_hands_checked'] = _grb.get('checked', 0)
+
+    # REV5 B2: per-decision rendered bounty context == canonical (action-index routing)
+    _gpd = qp.gate_report_decision_bounty(by_id, html)
+    for mm in _gpd.get('mismatches', []):
+        viol['rendered_wrong_action_index'].append(mm)
+    inv['rendered_decision_blocks_checked'] = _gpd.get('checked', 0)
+    # REV5 B1: the OLD "bounty irrelevant / not a decision-time factor" copy must be GONE
+    for _bad in ('not a decision-time factor', 'no committed all-in opponent at the decision'):
+        _n = html.count(_bad)
+        if _n:
+            viol['open_shove_rejam_rendered_bounty_irrelevant'].append({'text': _bad, 'count': _n})
 
     # ---- preserve-list named fixtures ----
     def _depth(hid):

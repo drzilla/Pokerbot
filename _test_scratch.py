@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'b8d42cc60a648570180ed3b9f815b2b357c6ee6a4b5056484dbd555bdaf7061c',
+      _hg_hash == '677a5d59cb7bdff235949c4048de3371a2fa94915aa2d756cac1810194f6b20e',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -12289,21 +12289,28 @@ check('T-REV12-06: visible-semantic gate PASSES a clean short-all-in / re-jam bo
       not [m for m in _vsg('95000001', 'all-in for 0.12BB first-in, short of the big blind', _h_sa12)['violations'] if m['hand'] != '_renderer']
       and not [m for m in _vsg('95000002', 'Re-jam decision — continue component vs the jam', _h_rj12)['violations'] if m['hand'] != '_renderer'], '')
 
-# --- Part G gate: gate_action_row_parity reads the actual Hero rows (failure injection) ---
-def _arg(hid, body, hand, kind):
+# --- Part E/G gate: gate_action_row_parity reads the EXACT selected Hero row (failure injection) ---
+# REV13: the gate selects Hero's reviewed-ordinal row. _h_rj12's reviewed action is the 2nd Hero
+# action (open, then re-jam), so prepend a benign first Hero row before the injected row under test.
+# Rendered rows are double-quoted and carry `is-hero` (matching production _hand_grid line 1144).
+def _arg(hid, hero_row_html, hand, kind):
+    lead = '<span class="grid-action act-raise is-hero">BTN Open to 2.5BB</span>'
+    body = lead + hero_row_html
     wl = {'items': {hand['id']: {'hand_id': hand['id'], 'decision_kind': kind}}}
     return _qp.gate_action_row_parity(_qp._hand_index([hand]), wl, _mk_lazy_html({hid: body}))
-# a re-jam whose Hero row is a plain "Call X / need Y%" must be CAUGHT
-_rj_bad_row = "<span class='grid-action act-call'>BTN Call 9.3BB <span class='pot-pct'>need 42%</span></span>"
-check('T-REV12-07 (J10/G): action-row gate READS the Hero row and CATCHES a re-jam shown as a plain priced Call',
-      _arg(_h_rj12['id'][-8:], _rj_bad_row, _h_rj12, 'preflop_allin')['authoritative_action_rows_checked'] >= 1
-      and any(m['field'] in ('action_row_plain_call_potodds', 'action_row_verb_missing')
-              for m in _arg(_h_rj12['id'][-8:], _rj_bad_row, _h_rj12, 'preflop_allin')['mismatches']), '')
-# a re-jam JAM row WITHOUT the "all-in to Y" label (only added) must be flagged as unlabelled amount type
-_rj_unlabelled = "<span class='grid-action act-allin'>BTN ⚡ JAM 12.7BB</span>"
-check('T-REV12-08 (J5/A2): action-row gate CATCHES a JAM row that shows only the added amount (no all-in-to label)',
-      any(m['field'] == 'jam_amount_type_unlabelled'
-          for m in _arg(_h_rj12['id'][-8:], _rj_unlabelled, _h_rj12, 'preflop_allin')['mismatches']), '')
+def _arg_fields(hid, row, hand, kind):
+    return [f for m in _arg(hid, row, hand, kind)['mismatches'] for f in m['fields']]
+_hid12 = _h_rj12['id'][-8:]
+# a re-jam whose selected Hero row is a plain "Call X / need Y%" must be CAUGHT
+_rj_bad_row = '<span class="grid-action act-call is-hero">BTN Call 9.3BB <span class="pot-pct">need 42%</span></span>'
+check('T-REV12-07 (J10/G): action-row gate READS the selected Hero row and CATCHES a re-jam shown as a plain priced Call',
+      _arg(_hid12, _rj_bad_row, _h_rj12, 'preflop_allin')['authoritative_action_rows_checked'] >= 1
+      and any(f in ('action_row_plain_call_potodds', 'action_row_verb_missing')
+              for f in _arg_fields(_hid12, _rj_bad_row, _h_rj12, 'preflop_allin')), '')
+# a re-jam JAM row WITHOUT an adds/all-in label (a bare numeric jam) must be flagged
+_rj_unlabelled = '<span class="grid-action act-allin is-hero">BTN ⚡ JAM 12.7BB</span>'
+check('T-REV12-08 (J5/A2): action-row gate CATCHES a JAM row that shows a bare numeric amount (no adds/all-in label)',
+      'unlabelled_jam_amount' in _arg_fields(_hid12, _rj_unlabelled, _h_rj12, 'preflop_allin'), '')
 
 # --- E2/E3 failure injection: earlier-context card pointing at the reviewed action is CAUGHT ---
 def _vsg_cc(hid, cards, hand, body='re-jam decision body'):
@@ -12327,6 +12334,118 @@ check('T-REV12-10 (B3/B4): _renderCoachingCard renders the ownership labels (ear
 check('T-REV12-11 (J8): the visible-semantic gate flags a MISSING ownership-label renderer',
       any(m['field'] == 'ownership_label_renderer_missing'
           for m in _qp.gate_visible_semantic(_qp._hand_index([_h_rj12]), _mk_lazy_html({'95000002': 'x'}), None)['violations']), '')
+
+# ===== REV13: typed sizing + canonical view unification + neutral forced all-in =====
+# T-REV13-01 (H1/A): the re-jam ActionSizingContract — amount_added is the chips Hero adds; the
+# raise increment is amount_added minus the continue component; they are DISTINCT (the value a row
+# must label "adds" is amount_added, NEVER the raise increment — the REV12 B1 defect).
+_sz13 = _ds.build_action_sizing_contract(_h_rj12, 2)
+check('T-REV13-01 (H1/A): re-jam sizing contract — amount_added != raise_increment, both typed',
+      _sz13['amount_added_bb'] is not None and _sz13['raise_increment_bb'] is not None
+      and abs(_sz13['amount_added_bb'] - _sz13['raise_increment_bb']) > 0.5
+      and abs((_sz13['raise_increment_bb'] + (_sz13['continue_component_bb'] or 0)) - _sz13['amount_added_bb']) < 0.05,
+      str(_sz13))
+
+# T-REV13-02 (E2): the INDEPENDENT sizing oracle agrees with the production contract on the displayed
+# quantities (amount_added / total_to) WITHOUT calling the production builder.
+_oz13 = _orc.oracle_sizing(_h_rj12, 2)
+check('T-REV13-02 (E2): independent sizing oracle agrees with the contract on amount_added + total_to',
+      abs(_oz13['amount_added_bb'] - _sz13['amount_added_bb']) < 0.05
+      and abs(_oz13['total_to_bb'] - _sz13['total_to_bb']) < 0.05
+      and _oz13['display_amount_type'] == 'total_to', str(_oz13))
+
+# T-REV13-03/04 (T1/T5): a CORRECT all-in row labels amount_added as "adds"; a row that labels the
+# raise INCREMENT as "adds" is caught by the numeric row check.
+_added13 = _sz13['amount_added_bb']; _tot13 = _sz13['total_to_bb']; _ri13 = _sz13['raise_increment_bb']
+_good_row = '⚡ JAM adds %.1fBB, all-in to %.1fBB' % (_added13, _tot13)
+_bad_row13 = '⚡ JAM adds %.1fBB, all-in to %.1fBB' % (_ri13, _tot13)
+check('T-REV13-03 (T1): the correct row labels amount_added; the raise-increment row is a DIFFERENT string',
+      ('adds %.1fBB' % _added13) in _good_row and _good_row != _bad_row13, _good_row + ' | ' + _bad_row13)
+_lblG, _amtG, _ttG = _qp._parse_action_row(_good_row)
+_lblB, _amtB, _ttB = _qp._parse_action_row(_bad_row13)
+check('T-REV13-04 (E3/T5): numeric row check PASSES amount_added "adds", FAILS the raise-increment "adds"',
+      _qp.check_action_row_numeric(_lblG, _amtG, _ttG, _oz13) == []
+      and 'amount_label_value_mismatch' in _qp.check_action_row_numeric(_lblB, _amtB, _ttB, _oz13), '')
+
+# T-REV13-05 (B2/T3): the serialized decision_node.price_contract is an EXACT serialization of the
+# canonical ReviewedDecisionView.price_contract (deeply equal); a non-price re-jam nulls callable;
+# action_sizing_contract is identical on both.
+_view13 = _ds.build_reviewed_decision_view(_h_rj12, 2, None, 'worklist_reviewed_action')
+_node13 = _ds.serialize_reviewed_decision_node(_h_rj12, 2, None, 'worklist_reviewed_action')
+check('T-REV13-05 (B2/T3): node.price_contract == view.price_contract; non-price re-jam callable None; sizing equal',
+      _node13['price_contract'] == _view13['price_contract']
+      and _view13['price_contract']['callable_amount_bb'] is None
+      and _view13['price_contract']['price_applicable'] is False
+      and _node13['action_sizing_contract'] == _view13['action_sizing_contract'], '')
+
+# T-REV13-06 (F/T5): check_view_node_parity PASSES the real pair, FAILS when a serializer restores a
+# callable on a non-price view (the REV12 47/77 defect injected back).
+_inj_view = json.loads(json.dumps(_view13)); _inj_node = json.loads(json.dumps(_node13))
+_inj_view['price_contract']['callable_amount_bb'] = 1.0
+check('T-REV13-06 (F/T5): view==node deep parity PASSES the real pair, FAILS an injected non-price callable',
+      _qp.check_view_node_parity(_view13, _node13) == []
+      and 'price_contract' in _qp.check_view_node_parity(_inj_view, _inj_node), '')
+
+# T-REV13-07 (B2): a first-in fold has callable null in BOTH view + node + action_display (never a
+# forced-post price); the price contract is the same shared object.
+_h_fold13 = _mkh10([_Lp('preflop','SB','posts',0.5,pos='SB'), _Lp('preflop','BB','posts',1.0,pos='BB'),
+                    _Lp('preflop','Hero','folds',0,pos='UTG')], {'Hero':30.0,'SB':30.0,'BB':30.0}, hid='TM6095000003')
+_v_fold = _ds.build_reviewed_decision_view(_h_fold13, 2, None, 'worklist_reviewed_action')
+_n_fold = _ds.serialize_reviewed_decision_node(_h_fold13, 2, None, 'worklist_reviewed_action')
+check('T-REV13-07 (B2): a first-in fold has callable null in view + node + action_display (no forced price)',
+      _v_fold['price_contract']['callable_amount_bb'] is None and _n_fold['price_contract']['callable_amount_bb'] is None
+      and _v_fold['price_contract'] == _n_fold['price_contract']
+      and (_v_fold['action_display'] or {}).get('facing_price_bb') is None, '')
+
+# T-REV13-08 (C3): the decision-grade eligibility CONTRACT — short all-in + walk are UNGRADED, a
+# re-jam is GRADABLE. (FinalDecisionStatus is NOT implemented — this is the documented contract.)
+check('T-REV13-08 (C3): first_in_short_all_in + no_hero_decision UNGRADED; re-jam GRADABLE',
+      _ds.decision_grade_eligibility('first_in_short_all_in') == 'UNGRADED'
+      and _ds.decision_grade_eligibility('no_hero_decision') == 'UNGRADED'
+      and _ds.decision_grade_eligibility('re_jam') == 'GRADABLE', '')
+
+# T-REV13-09 (C1): the short all-in display is neutral "short of the big blind" with NO callable price.
+_disp_sa = _ds.reviewed_action_display(_h_sa12, 2)
+check('T-REV13-09 (C1): short all-in display is neutral "short of the big blind" (no grade), callable None',
+      'short of the big blind' in _disp_sa['display_text'] and _disp_sa['callable_amount_bb'] is None, str(_disp_sa))
+
+# T-REV13-10 (H6): the sizing contract is invariant under player-rename + changed hand ID (metamorphic).
+_h_rj_renamed = json.loads(json.dumps(_h_rj12))
+_h_rj_renamed['id'] = 'TM6099999999'; _h_rj_renamed['tournament_hand_id'] = 'TM6099999999'
+for _a in _h_rj_renamed['action_ledger']:
+    if _a.get('player') == 'HJ':
+        _a['player'] = 'Villain9'
+_sz_re = _ds.build_action_sizing_contract(_h_rj_renamed, 2)
+check('T-REV13-10 (H6): sizing contract invariant under player-rename + changed hand ID',
+      abs(_sz_re['amount_added_bb'] - _sz13['amount_added_bb']) < 0.01
+      and abs(_sz_re['total_to_bb'] - _sz13['total_to_bb']) < 0.01
+      and abs((_sz_re['raise_increment_bb'] or 0) - (_sz13['raise_increment_bb'] or 0)) < 0.01, '')
+
+# T-REV13-11 (F): gate_canonical_view_node_parity is clean over the fixtures.
+_idx13 = _qp._hand_index([_h_rj12, _h_fold13])
+_wl13 = {'items': {_h_rj12['id']: {'hand_id': _h_rj12['id'], 'decision_kind': 'preflop_allin'},
+                   _h_fold13['id']: {'hand_id': _h_fold13['id'], 'decision_kind': 'preflop_fold'}}}
+_gvn = _qp.gate_canonical_view_node_parity(_idx13, _wl13)
+check('T-REV13-11 (F): canonical view==node deep-parity gate is clean over the fixtures',
+      _gvn['mismatches'] == 0 and _gvn['authoritative_items_checked'] >= 1, str(_gvn))
+
+# T-REV13-12 (E/B6): the numeric action-row gate PASSES a re-jam row that correctly labels amount_added.
+_good_full = ('<span class="grid-action act-raise is-hero">BTN Open to 2.5BB</span>'
+              + '<span class="grid-action act-allin is-hero">BTN ⚡ JAM adds %.1fBB, all-in to %.1fBB</span>'
+              % (_added13, _tot13))
+_g_ok = _qp.gate_action_row_parity(
+    _qp._hand_index([_h_rj12]),
+    {'items': {_h_rj12['id']: {'hand_id': _h_rj12['id'], 'decision_kind': 'preflop_allin'}}},
+    _mk_lazy_html({_hid12: _good_full}))
+check('T-REV13-12 (E/B6): numeric action-row gate PASSES a re-jam row that correctly labels amount_added',
+      _g_ok['total_mismatches'] == 0 and _g_ok['authoritative_action_rows_checked'] == 1,
+      str(_g_ok['mismatches'][:2]))
+
+# T-REV13-13 (D): the re-jam / open-shove bounty flag never restates the action as a "wider call".
+_an_src13 = _io12.open('gem_analyzer.py', encoding='utf-8').read()
+check('T-REV13-13 (D): re-jam/open-shove bounty flag uses subordinate wording, not "wider call"',
+      'bounty may widen the continue threshold before the re-jam' in _an_src13
+      and 'bounty may widen the open-shove range' in _an_src13, '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

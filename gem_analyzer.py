@@ -8270,7 +8270,16 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         elif _icm['bounty_covers_villain'] and _rev_kind_icm in (
                 'call_vs_jam', 'call_off', 'open_shove', 'rejam_over_live_raise',
                 'overjam_with_side_pot'):
-            _icm['icm_flag'] = 'Bounty covers villain — bounty may justify wider call'
+            # REV13 D: the bounty flag must name the SELECTED action, never restate a literal
+            # re-jam / open-shove as a "call" (83915520 / 84990829). For a re-jam/overjam the
+            # bounty widens the CONTINUE threshold before the re-jam; for a shove it widens the
+            # shove range; only a genuine call gets "wider call".
+            if _rev_kind_icm in ('rejam_over_live_raise', 'overjam_with_side_pot'):
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may widen the continue threshold before the re-jam'
+            elif _rev_kind_icm == 'open_shove':
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may widen the open-shove range'
+            else:
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may justify wider call'
         h['icm_context'] = _icm
 
     # ---- BATCH 4 (R5): SIZING-TELL DETECTION ----

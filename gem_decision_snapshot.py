@@ -778,6 +778,37 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     }
 
 
+def decision_grade_eligibility(actual_node_type, no_hero_decision=False):
+    """REV13 C3: the CONTRACT (not the implementation) for whether a node can carry a strategic
+    decision grade. A forced underblind short all-in and a no-Hero-decision walk are UNGRADED — no
+    push/fold/call choice exists to grade, so the future FinalDecisionStatus lane must mark them
+    UNGRADED (and the report must show no thumbs-up / mistake marker / decision-range grade for them,
+    84078253). Everything else is GRADABLE. This is a pure mapping documented + tested here; the
+    FinalDecisionStatus production code is NOT implemented in Iteration 1."""
+    if no_hero_decision or actual_node_type in ('no_hero_decision', 'first_in_short_all_in'):
+        return 'UNGRADED'
+    return 'GRADABLE'
+
+
+def _canonical_price_contract(snap):
+    """REV13 B1/B2: the ONE DecisionPriceContract that BOTH the ReviewedDecisionView and the
+    serialized decision_node carry — byte-identical by construction, so the worklist's nested
+    node and the canonical object Wave 1 consumes are never two different truths (the REV12 47/77
+    callable mismatch). A non-applicable price (first-in / aggressive / no-wager) NULLS every
+    price field; any useful continue/faced amount lives in ActionSizingContract.continue_component_bb
+    / FacingActionContext, NEVER under the non-applicable DecisionPriceContract."""
+    pa = bool(snap.get('price_applicable'))
+    return {
+        'price_applicable': pa,
+        'price_reason': snap.get('price_reason'),
+        'raw_amount_to_match_bb': snap.get('raw_amount_to_match_bb') if pa else None,
+        'callable_amount_bb': snap.get('callable_amount_bb') if pa else None,
+        'contestable_pot_before_action_bb': snap.get('contestable_pot_before_action_bb') if pa else None,
+        'uncallable_overjam_bb': snap.get('uncallable_overjam_bb') if pa else None,
+        'required_equity_pct': snap.get('required_equity_pct') if pa else None,
+    }
+
+
 def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
                                 selection_source='analyzer_inferred'):
     """REV6 B2 / REV7 A1-A3: the ONE canonical reviewed-decision reference (a serialisable
@@ -795,6 +826,15 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
     idx = hero_action_index if hero_action_index is not None else infer_reviewed_action_index(h)
     snap = build_decision_snapshot(h, idx)
     disp = reviewed_action_display(h, idx, snap)
+    # REV13 B2: when no voluntary price applies (first-in / aggressive / no-wager), the action
+    # display must NOT carry a forced-post callable/faced price either (the REV12 first-in-fold
+    # action_display.facing_price_bb = 1.0 / decision_ref.callable_amount_bb = 1.0 inconsistency).
+    # The whole canonical view is then internally consistent with its DecisionPriceContract.
+    _pa_ref = bool(snap.get('price_applicable'))
+    if not _pa_ref and isinstance(disp, dict):
+        disp = dict(disp)
+        disp['facing_price_bb'] = None
+        disp['callable_amount_bb'] = None
     # decision-time bounty context AT THIS action index (REV5 B2 / REV7 A5) — never hand-level
     try:
         dbc = build_decision_bounty_context(h, idx)
@@ -821,7 +861,9 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
         'actual_node_type': snap.get('actual_node_type'),
         'hero_action_kind': snap.get('hero_action_kind'),
         # ── REV7 A1 price contract (callable/contestable truth) ──
-        'callable_amount_bb': snap.get('callable_amount_bb'),
+        # REV13 B2: callable is the canonical price — NULL when no voluntary price applies, so the
+        # ref never carries a forced-post callable a non-price node should not have.
+        'callable_amount_bb': (snap.get('callable_amount_bb') if _pa_ref else None),
         'raw_amount_to_match_bb': snap.get('raw_amount_to_match_bb'),
         'contestable_pot_before_action_bb': snap.get('contestable_pot_before_action_bb'),
         'uncallable_overjam_bb': snap.get('uncallable_overjam_bb'),
@@ -875,15 +917,12 @@ def build_reviewed_decision_view(h, hero_action_index=None, decision_kind=None,
         'decision_ref': ref,
         'snapshot': snap,
         'action_display': ref.get('action_display'),
-        'price_contract': {
-            'callable_amount_bb': ref.get('callable_amount_bb'),
-            'raw_amount_to_match_bb': ref.get('raw_amount_to_match_bb'),
-            'contestable_pot_before_action_bb': ref.get('contestable_pot_before_action_bb'),
-            'uncallable_overjam_bb': ref.get('uncallable_overjam_bb'),
-            'required_equity_pct': ref.get('required_eq_pct'),
-            'price_applicable': ref.get('price_applicable'),
-            'price_reason': ref.get('price_reason'),
-        },
+        # REV13 B2: the price contract is built by the ONE shared helper — the serialized
+        # decision_node uses the SAME helper, so node.price_contract == view.price_contract exactly.
+        'price_contract': _canonical_price_contract(snap),
+        # REV13 A4: the ActionSizingContract travels ON the canonical view (and the serialized
+        # node) so a downstream consumer never re-derives sizing from a display string.
+        'action_sizing_contract': build_action_sizing_contract(h, idx),
         'bounty_context': dbc,
         'street': ref.get('street'),
         'hero_action_index': ref.get('hero_action_index'),
@@ -972,8 +1011,11 @@ def serialize_reviewed_decision_node(h, hero_action_index=None, decision_kind=No
     no_dec = bool(snap.get('no_hero_decision'))
     price_applicable = bool(ref.get('price_applicable'))
     # callable is populated ONLY for a price-bearing call/fold facing a voluntary wager.
-    callable_amt = ref.get('callable_amount_bb') if price_applicable else None
+    callable_amt = snap.get('callable_amount_bb') if price_applicable else None
     faced = snap.get('faced_aggressor')
+    # REV13 B2: the price contract is built by the SAME shared helper the ReviewedDecisionView
+    # uses — node.price_contract is therefore an EXACT serialization of view.price_contract.
+    _price_contract = _canonical_price_contract(snap)
     return {
         'hero_action_index': snap.get('hero_action_index'),
         'street': snap.get('street'),
@@ -990,16 +1032,10 @@ def serialize_reviewed_decision_node(h, hero_action_index=None, decision_kind=No
         'limpers_before_hero': snap.get('limpers_before_hero'),
         'no_hero_decision': no_dec,
 
-        'price_contract': {
-            'price_applicable': price_applicable,
-            'price_reason': snap.get('price_reason'),
-            'raw_amount_to_match_bb': snap.get('raw_amount_to_match_bb'),
-            'callable_amount_bb': callable_amt,
-            'contestable_pot_before_action_bb': (snap.get('contestable_pot_before_action_bb')
-                                                 if price_applicable else None),
-            'uncallable_overjam_bb': snap.get('uncallable_overjam_bb'),
-            'required_equity_pct': snap.get('required_equity_pct'),
-        },
+        'price_contract': _price_contract,
+        # REV13 A4/F: the ActionSizingContract is serialized onto the node from the SAME builder
+        # the view carries, so node.action_sizing_contract == view.action_sizing_contract exactly.
+        'action_sizing_contract': build_action_sizing_contract(h, idx),
         'stack_contract': {
             'hero_stack_before_action_bb': snap.get('hero_stack_before_action_bb'),
             'effective_stack_at_start_of_street_bb': snap.get('effective_stack_at_start_of_street_bb'),

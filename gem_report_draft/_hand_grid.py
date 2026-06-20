@@ -988,15 +988,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             else:
                 cls = ''; text = f'{_ps(p, stk, _pname)} {act} {amt:.1f}BB'
 
-            # REV12 A2/A3: a Hero all-in raise/bet whose canonical TOTAL-TO differs from the
-            # displayed ADDED amount (a re-jam: adds 12.7BB but is all-in to 22.16BB) labels BOTH,
-            # so the grid never shows an unexplained size next to the reviewed "re-jam to YBB" line.
-            if is_h and cls == 'act-allin':
+            # REV13 A1/A2: a Hero all-in raise/bet displays its sizing from the canonical
+            # ActionSizingContract — NEVER the grid's raw amount_bb (which for a re-jam/open-shove
+            # is the raise INCREMENT, not the chips Hero adds). "adds X" must equal amount_added_bb
+            # (REV12 mislabelled the raise increment 12.7BB as "adds"); "all-in to Y" equals
+            # total_to_bb. When Hero commits his whole all-in with no prior street chips, a single
+            # "all-in YBB" (added == total) — never a spurious "adds".
+            if is_h and cls == 'act-allin' and '⚡ JAM' in text:
                 _cgz = _canon_by_street_occ.get((street, hero_action_idx_on_street))
-                if (_cgz and _cgz.get('total_to_bb') is not None
-                        and abs(_cgz['total_to_bb'] - amt) > 0.05):
-                    text = text.replace(f'⚡ JAM {amt:.1f}BB',
-                                        f'⚡ JAM adds {amt:.1f}BB, all-in to {_cgz["total_to_bb"]:.1f}BB', 1)
+                if (_cgz and _cgz.get('amount_added_bb') is not None
+                        and _cgz.get('total_to_bb') is not None):
+                    _aa = _cgz['amount_added_bb']; _tt = _cgz['total_to_bb']
+                    if abs(_tt - _aa) > 0.05:
+                        _new_jam = f'⚡ JAM adds {_aa:.1f}BB, all-in to {_tt:.1f}BB'
+                    else:
+                        _new_jam = f'⚡ JAM all-in {_tt:.1f}BB'
+                    text = text.replace(f'⚡ JAM {amt:.1f}BB', _new_jam, 1)
 
             # Hero annotation
             # B54/B57 (v7.55):
@@ -1005,7 +1012,13 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             # - Positive/confirming note → 👎 red thumbs-down: "good move + here's why"
             # B66 (v7.56, Ron 2026-05-18): emojis bumped via ann-emoji class
             ann_html = ''
-            if is_h:
+            # REV13 C1: a forced underblind short all-in (Hero all-in below the big blind, first-in)
+            # is NOT a strategic choice — it gets NO 👍/mistake marker. A green thumbs-up is a
+            # strategic grade, and the contract says this node is UNGRADED (84078253). The neutral
+            # explanation ("All-in XBB short of BB, first-in") lives in the action text itself.
+            _ann_cg = _canon_by_street_occ.get((street, hero_action_idx_on_street)) if is_h else None
+            _is_short_allin_ann = bool(_ann_cg and _ann_cg.get('hero_action_kind') == 'short_all_in')
+            if is_h and not _is_short_allin_ann:
                 note_key = (street, hero_action_idx_on_street)
                 note_num = action_to_note_num.get(note_key)
                 tone = (action_to_tone or {}).get(note_key)
@@ -1053,6 +1066,9 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     elif act not in ('folds', 'checks') and not _q4_suppress:
                         # ~440x per report -> .pb-tt1
                         ann_html = '<span class="ann-bare pb-tt1">👍</span>'
+            # REV13 C1: the per-street Hero occurrence index advances for EVERY Hero action
+            # (including the marker-suppressed short all-in) so subsequent rows stay aligned.
+            if is_h:
                 hero_action_idx_on_street += 1
 
             # v8.8.6 VH Phase 4: inline villain badges at (street, action_index)

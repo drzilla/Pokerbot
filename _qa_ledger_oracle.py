@@ -154,6 +154,60 @@ def oracle_identity(h, idx):
     }
 
 
+def oracle_sizing(h, idx):
+    """REV13 E2: the INDEPENDENT sizing oracle for the selected Hero action — amount_added,
+    total_to, continue_component, raise_increment, extra_isolation and display_amount_type derived
+    straight from the raw ledger, with NO call to build_action_sizing_contract or any production
+    row formatter. The action-row parity gate compares the VISIBLE row's label + value to THIS, so
+    a row that labels the raise INCREMENT as chips Hero "adds" is caught (the REV12 B1 defect).
+
+    Key identity (independent of production): raise_increment == amount_added - continue_component,
+    because faced_total_to == continue_component + hero_street_committed_before and
+    total_to == hero_street_committed_before + amount_added."""
+    ident = oracle_identity(h, idx)
+    if ident.get('no_hero_decision') or ident.get('raw_action') is None:
+        return {'amount_added_bb': None, 'total_to_bb': None, 'continue_component_bb': None,
+                'raise_increment_bb': None, 'extra_isolation_amount_bb': None,
+                'display_amount_type': None, 'action_semantics': ident.get('action_semantics'),
+                'became_all_in': bool(ident.get('became_all_in'))}
+    added = ident['amount_added_bb']
+    total_to = ident['total_to_bb']
+    to_call = ident.get('to_call_bb')
+    stack_before = ident.get('hero_stack_before_bb')
+    sem = ident['action_semantics']
+    has_faced = bool(ident.get('has_voluntary_wager_faced'))
+    became_all_in = bool(ident.get('became_all_in'))
+    # continue component = the price to MATCH the faced voluntary wager, capped by Hero's stack.
+    continue_component = None
+    if has_faced and to_call is not None and to_call > _EPS:
+        cap = stack_before if stack_before is not None else to_call
+        continue_component = round(min(to_call, cap), 2)
+    # raise increment = amount_added beyond the continue component (only when Hero raised over a wager)
+    raise_increment = None
+    extra_isolation = None
+    if continue_component is not None and sem in ('three_bet', 'four_bet', 're_jam', 'raise'):
+        if added > continue_component + _EPS:
+            raise_increment = round(added - continue_component, 2)
+            extra_isolation = raise_increment
+    # which typed amount a surface should SHOW for this action
+    if sem in ('open', 'three_bet', 'four_bet', 'open_shove', 're_jam', 'raise'):
+        disp = 'total_to'                       # aggressive: total-to (all-in also labels "adds")
+    elif sem == 'call':
+        disp = 'callable_component'
+    else:                                       # bet / complete / short_all_in / check / fold
+        disp = 'amount_added'
+    return {
+        'amount_added_bb': added,
+        'total_to_bb': total_to,
+        'continue_component_bb': continue_component,
+        'raise_increment_bb': raise_increment,
+        'extra_isolation_amount_bb': extra_isolation,
+        'display_amount_type': disp,
+        'action_semantics': sem,
+        'became_all_in': became_all_in,
+    }
+
+
 # Map the oracle's literal action_semantics -> the set of canonical hero_action_kind values that
 # are CONSISTENT with it (the canonical is the value under test; this is the independent check).
 # REV12 B5: the mapping is STRICT — a first-in 'complete' is ONLY the plain 'call' verb, never an

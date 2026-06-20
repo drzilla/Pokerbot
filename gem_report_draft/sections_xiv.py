@@ -3575,7 +3575,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _n_sd = _po.get('n_players_at_showdown') or 0
             _mw_tag = f" *(multiway \u2014 {_n_sd} players)*" if _n_sd > 2 else ''
             _eq = _po.get('hero_equity_pct')
-            if _eq is not None:
+            # REV13 C2: a forced underblind short all-in has no meaningful strategic decision \u2014
+            # suppress the decision-range equity (a "Hero equity vs range: 39.0%" line reads as a
+            # decision grade the contract says does not exist; 84078253). UNGRADED node.
+            if _eq is not None and _po.get('reviewed_actual_node_type') != 'first_in_short_all_in':
                 _eq_mode = _po.get('equity_mode', '\u2014')
                 _eq_label = ('Hero equity vs shown hand'
                              if _eq_mode == 'exact_vs_shown'
@@ -4464,7 +4467,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             + ("; players still to act (pot odds uncertain)"
                                if _mw_b.get('pot_odds_uncertain') else ""))
                     _eq_b = _po_b.get('hero_equity_pct')
-                    if _eq_b is not None:
+                    # REV13 C2: suppress decision-range equity on a forced underblind short all-in
+                    # (no strategic decision to grade; 84078253). This is the compact XIV.B path.
+                    if (_eq_b is not None
+                            and _po_b.get('reviewed_actual_node_type') != 'first_in_short_all_in'):
                         _po_lines_b.append(f"**Hero equity vs range:** {_eq_b:.1f}%")
                     _vh_b = _po_b.get('verdict_hint', '')
                     # REV8 B2: a call verdict only on a CALL/FOLD decision (not an open/3-bet).

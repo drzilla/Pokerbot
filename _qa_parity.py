@@ -834,18 +834,124 @@ _NO_PLAIN_CALL_ROW = ('first_in_limp', 'sb_complete_after_limp', 'first_in_short
                       're_jam', 'first_in_open_shove', 'iso_shove')
 
 
+_ROW_AMT_RE = r'([\d]+(?:\.[\d]+)?)\s*BB'
+_ROW_LABEL_PATS = (
+    ('adds', r'adds\s+' + _ROW_AMT_RE),
+    ('raises by', r'raises by\s+' + _ROW_AMT_RE),
+    ('all-in to', r'all-in to\s+' + _ROW_AMT_RE),
+    ('all-in', r'all-in\s+' + _ROW_AMT_RE),
+    ('open to', r'open to\s+' + _ROW_AMT_RE),
+    ('3-bet to', r'3-bet to\s+' + _ROW_AMT_RE),
+    ('4-bet to', r'4-bet to\s+' + _ROW_AMT_RE),
+    ('5-bet to', r'5-bet to\s+' + _ROW_AMT_RE),
+    ('raise to', r'raise to\s+' + _ROW_AMT_RE),
+    ('iso-raise', r'iso-raise to\s+' + _ROW_AMT_RE),
+    ('jam', r'jam\s+' + _ROW_AMT_RE),
+    ('bet', r'bet\s+' + _ROW_AMT_RE),
+    ('overlimp', r'overlimp\s+' + _ROW_AMT_RE),
+    ('complete', r'complete\s+' + _ROW_AMT_RE),
+    ('limp', r'limp\s+' + _ROW_AMT_RE),
+    ('call', r'call\s+' + _ROW_AMT_RE),
+)
+
+
+def _parse_action_row(txt):
+    """REV13 E1: extract (amount_label, amount, total_to) from ONE visible Hero action-grid row.
+    'all-in to Y' is captured separately as the total; the primary label is the FIRST sizing token
+    (so 'adds X, all-in to Y' -> label='adds', amount=X, total=Y). Returns (None, None, total) for a
+    fold/check (no amount)."""
+    t = txt or ''
+    tt = None
+    m_tt = re.search(r'all-in to\s+' + _ROW_AMT_RE, t, re.I)
+    if m_tt:
+        tt = float(m_tt.group(1))
+    for lbl, pat in _ROW_LABEL_PATS:
+        m = re.search(pat, t, re.I)
+        if m:
+            return lbl, float(m.group(1)), tt
+    return None, None, tt
+
+
+def _row_close(a, b, tol=0.06):
+    return a is not None and b is not None and abs(round(a, 1) - round(b, 1)) <= tol
+
+
+def check_action_row_numeric(lbl, amt, tt, oz):
+    """REV13 E3/T5: compare ONE parsed action row to the INDEPENDENT sizing oracle `oz`. Returns the
+    list of mismatch fields (empty == consistent). The gate FAILS a row that labels the raise
+    INCREMENT as chips Hero 'adds' (the REV12 B1 defect): `adds X` must equal amount_added_bb, never
+    raise_increment_bb."""
+    sem = oz.get('action_semantics')
+    added = oz.get('amount_added_bb')
+    total = oz.get('total_to_bb')
+    raise_inc = oz.get('raise_increment_bb')
+    fields = []
+    if lbl is None:
+        return fields                      # no amount on this row (fold/check) — nothing numeric
+    if lbl == 'adds':
+        if not _row_close(amt, added):
+            fields.append('adds_value_not_amount_added')
+        if raise_inc is not None and _row_close(amt, raise_inc) and not _row_close(added, raise_inc):
+            fields.append('amount_label_value_mismatch')      # "adds" == raise_increment
+        if tt is not None and not _row_close(tt, total):
+            fields.append('all_in_to_mismatch')
+    elif lbl == 'raises by':
+        if not _row_close(amt, raise_inc):
+            fields.append('raises_by_value_not_raise_increment')
+        if tt is not None and not _row_close(tt, total):
+            fields.append('all_in_to_mismatch')
+    elif lbl in ('all-in', 'all-in to'):
+        expect = added if sem == 'short_all_in' else total
+        if not _row_close(amt, expect):
+            fields.append('all_in_value_mismatch')
+    elif lbl in ('open to', '3-bet to', '4-bet to', '5-bet to', 'raise to', 'iso-raise'):
+        if not _row_close(amt, total):
+            fields.append('total_to_value_mismatch')
+    elif lbl == 'call':
+        if not _row_close(amt, added):
+            fields.append('call_value_mismatch')
+    elif lbl in ('bet', 'complete', 'limp', 'overlimp'):
+        if not _row_close(amt, added):
+            fields.append('added_value_mismatch')
+    elif lbl == 'jam':
+        # a Hero all-in still showing a bare "JAM X" (no adds/all-in label) — REV13 requires the
+        # ActionSizingContract label, so a bare numeric jam is itself a defect.
+        fields.append('unlabelled_jam_amount')
+    return fields
+
+
+def _hero_grid_rows(body, pos=None):
+    """All Hero action-grid rows in DOM order (== ledger order), flattening any nested span (the
+    villain-mini badge, the 'need X%' pot-pct, the annotation) so the full visible row text is
+    captured. Hero rows are identified by the `is-hero` class the grid stamps on them (line 1144 of
+    _hand_grid) — the rendered HTML uses DOUBLE quotes, which the REV12 single-quote regex never
+    matched (so that gate was vacuous and missed B1)."""
+    rows = []
+    for _gm in re.finditer(r'<span class="grid-action ([^"]*)">', body):
+        cls = _gm.group(1)
+        _rest = body[_gm.end():]
+        _end = re.search(r'<span class="grid-action |</td>', _rest)
+        _seg = _rest[:_end.start()] if _end else _rest[:300]
+        _txt = re.sub(r'<[^>]+>', '', _seg).strip()
+        rows.append((cls, _txt))
+    return [(cls, txt) for cls, txt in rows if 'is-hero' in cls]
+
+
 def gate_action_row_parity(hands_idx, worklist, html):
-    """REV12 G/B6: REAL action-row parity for ALL authoritative selected actions. Parses the Hero
-    rows from the rendered action grid and compares the SELECTED action's visible verb + sizing
-    to the canonical reviewed action — so a re-jam can never show a plain 'Call' row and an
-    underblind shove can never show a 'Call X / need Y%' row. (Gate H earlier claimed this without
-    reading the grid.)"""
+    """REV13 E/B4/B6: NUMERIC action-row parity for ALL authoritative selected actions. Locates the
+    EXACT selected Hero row (by Hero's per-hand action ordinal — never a token borrowed from another
+    action), parses its visible amount LABEL + VALUE + total-to, and compares them to the INDEPENDENT
+    ledger sizing oracle (`_qa_ledger_oracle.oracle_sizing`, which calls NO production formatter). A
+    row that labels the raise increment as 'adds' (REV12 B1), or whose displayed value disagrees with
+    the canonical field it claims, FAILS. Emits one DETAILED record per authoritative row (observed
+    text/label/value + expected type/value), not just summary counts (REV12 B4)."""
     bodies = decode_lazy_hands(html)
     items = worklist.get('items') or {}
     if isinstance(items, dict):
         items = list(items.values())
     out = {'authoritative_action_rows_checked': 0, 'semantic_mismatches': 0,
-           'amount_type_mismatches': 0, 'mismatches': []}
+           'amount_type_mismatches': 0, 'verb_mismatches': 0, 'row_not_found': 0,
+           'mismatches': [], 'records': []}
     for it in items:
         hid = str(it.get('hand_id') or '')
         h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
@@ -859,40 +965,156 @@ def gate_action_row_parity(hands_idx, worklist, html):
         snap = ds.build_decision_snapshot(h, ridx)
         node = snap.get('actual_node_type')
         pos = snap.get('hero_position') or '?'
+        oz = oracle.oracle_sizing(h, ridx)
         out['authoritative_action_rows_checked'] += 1
-        # all Hero grid rows (the grid prefixes the seat position, e.g. "SB Complete 0.5BB ...").
-        # A row may contain a NESTED span (a "need X%" pot-pct) — flatten its inner tags so the
-        # full visible text (incl. the pot-odds) is captured.
-        rows = []
-        for _gm in re.finditer(r"<span class='grid-action act-([a-z]+)'>", body):
-            _cls = _gm.group(1)
-            _rest = body[_gm.end():]
-            _end = re.search(r"<span class='grid-action|</td>", _rest)
-            _seg = _rest[:_end.start()] if _end else _rest[:160]
-            _txt = re.sub(r'<[^>]+>', '', _seg).strip()
-            rows.append((_cls, _txt))
-        hero_rows = [(cls, txt) for cls, txt in rows
-                     if re.match(r'\s*%s\b' % re.escape(pos), txt) or re.match(r'\s*%s\b' % re.escape(pos), re.sub(r'^[^A-Za-z]*', '', txt))]
-        joined = ' || '.join(t.lower() for _c, t in hero_rows)
+        led = h.get('action_ledger') or []
+        hero = h.get('hero', 'Hero')
+        # the SELECTED row = Hero's `ordinal`-th non-posts action (DOM Hero rows are in ledger order)
+        hero_ordinal = sum(1 for i, a in enumerate(led)
+                           if i <= ridx and a.get('player') == hero and a.get('action') != 'posts')
+        hero_rows = _hero_grid_rows(body, pos)
+        selected_text = ''
+        if 1 <= hero_ordinal <= len(hero_rows):
+            selected_text = hero_rows[hero_ordinal - 1][1]
+        lbl, amt, tt = _parse_action_row(selected_text)
+        mism = []
+        # A body that renders NO action grid at all (no Hero rows) is N/A for action-row parity —
+        # the grid is a specific render surface a partial/synthetic render may omit. A MISSING row
+        # when the grid IS present (Hero rows exist but the reviewed ordinal is out of range) is a
+        # real failure. This keeps the gate strict on the full report (every authoritative hand has
+        # a grid) without false-failing gridless bodies.
+        grid_absent = not hero_rows
+        if not selected_text and not grid_absent:
+            out['row_not_found'] += 1
+            mism.append('selected_row_not_found')
+        # 1) the expected verb token must appear in the SELECTED row (never borrowed from another)
         want = _NODE_GRID_VERB.get(node)
-        # 1) the expected verb token must appear in some Hero row
-        if want and hero_rows and not any(w in joined for w in want):
+        if selected_text and want and not any(w in selected_text.lower() for w in want):
+            out['verb_mismatches'] += 1
+            mism.append('action_row_verb_missing')
+        # 2) the selected non-priced action must never read as an ordinary "Call X / need Y%"
+        if node in _NO_PLAIN_CALL_ROW and re.search(r'call\s+[\d.]+\s*bb.{0,40}need', selected_text.lower()):
             out['semantic_mismatches'] += 1
-            out['mismatches'].append({'hand': hid, 'field': 'action_row_verb_missing',
-                                      'node': node, 'expected': want, 'hero_rows': [t for _c, t in hero_rows][:4]})
-        # 2) a non-priced selected action must never show an ordinary "Call X ... need Y%" row
-        if node in _NO_PLAIN_CALL_ROW and re.search(r'call\s+[\d.]+bb.{0,40}need', joined):
-            out['semantic_mismatches'] += 1
-            out['mismatches'].append({'hand': hid, 'field': 'action_row_plain_call_potodds', 'node': node})
-        # 3) a re-jam / all-in raise must label BOTH amounts (adds X, all-in to Y) when added != total-to
-        if node in ('re_jam', 'first_in_open_shove', 'iso_shove'):
-            sc = ds.build_action_sizing_contract(h, ridx)
-            _added = sc.get('amount_added_bb') or 0.0
-            _tt = sc.get('total_to_bb') or 0.0
-            if abs(_tt - _added) > 0.05 and 'all-in to' not in joined and 'jam' in joined:
-                out['amount_type_mismatches'] += 1
-                out['mismatches'].append({'hand': hid, 'field': 'jam_amount_type_unlabelled',
-                                          'added': _added, 'total_to': _tt})
+            mism.append('action_row_plain_call_potodds')
+        # 3) NUMERIC: the visible label/value/total must match the independent sizing oracle
+        num_fields = check_action_row_numeric(lbl, amt, tt, oz)
+        if num_fields:
+            out['amount_type_mismatches'] += 1
+            mism.extend(num_fields)
+        rec = {
+            'hand_id': hid,
+            'selected_action_index': ridx,
+            'selected_street': snap.get('street'),
+            'node': node,
+            'action_semantics': oz.get('action_semantics'),
+            'observed_row_text': selected_text or None,
+            'observed_verb': lbl,
+            'observed_amount_label': lbl,
+            'observed_amount': amt,
+            'observed_total_to': tt,
+            'expected_amount_type': oz.get('display_amount_type'),
+            'expected_amount_added_bb': oz.get('amount_added_bb'),
+            'expected_total_to_bb': oz.get('total_to_bb'),
+            'expected_raise_increment_bb': oz.get('raise_increment_bb'),
+            'expected_continue_component_bb': oz.get('continue_component_bb'),
+            'grid_absent': grid_absent,
+            'mismatch_fields': mism,
+        }
+        out['records'].append(rec)
+        if mism:
+            out['mismatches'].append({'hand': hid, 'node': node, 'observed_row': selected_text,
+                                      'observed_label': lbl, 'observed_amount': amt,
+                                      'expected_added': oz.get('amount_added_bb'),
+                                      'expected_total_to': oz.get('total_to_bb'),
+                                      'fields': mism})
+    out['total_mismatches'] = (out['semantic_mismatches'] + out['amount_type_mismatches']
+                               + out['verb_mismatches'] + out['row_not_found'])
+    return out
+
+
+def check_view_node_parity(view, node):
+    """REV13 F/T5: the serialized decision_node must be an EXACT serialization of the canonical
+    ReviewedDecisionView — no serializer may 'clean' or override a view field. Returns the list of
+    fields where the node and the view disagree (empty == exact). Used by the deep-parity gate AND
+    the failure-injection test (restore a non-price callable on the view and prove this fails)."""
+    fields = []
+    ref = view.get('decision_ref') or {}
+    snap = view.get('snapshot') or {}
+    # 1) the two foundational canonical contracts must be byte-equal
+    if node.get('price_contract') != view.get('price_contract'):
+        fields.append('price_contract')
+    if node.get('action_sizing_contract') != view.get('action_sizing_contract'):
+        fields.append('action_sizing_contract')
+    # 2) action identity
+    if node.get('hero_action_kind') != view.get('hero_action_kind'):
+        fields.append('hero_action_kind')
+    if node.get('actual_node_type') != ref.get('actual_node_type'):
+        fields.append('actual_node_type')
+    if node.get('hero_action_index') != view.get('hero_action_index'):
+        fields.append('hero_action_index')
+    # 3) facing state
+    if node.get('decision_facing_state') != ref.get('decision_facing_state'):
+        fields.append('decision_facing_state')
+    # 4) stack contract
+    sc = node.get('stack_contract') or {}
+    if sc.get('effective_stack_at_decision_bb') != snap.get('canonical_effective_decision_depth_bb'):
+        fields.append('stack_effective_depth')
+    if sc.get('hero_stack_before_action_bb') != snap.get('hero_stack_before_action_bb'):
+        fields.append('stack_hero_before')
+    # 5) selection
+    sel = node.get('selection') or {}
+    if sel.get('source') != view.get('selection_source'):
+        fields.append('selection_source')
+    if sel.get('confidence') != view.get('selection_confidence'):
+        fields.append('selection_confidence')
+    # 6) bounty context (the reviewed-index applicability/certainty, not a hand-level default)
+    if node.get('bounty_applicability') != ref.get('bounty_applicability'):
+        fields.append('bounty_applicability')
+    if node.get('bounty_certainty') != ref.get('bounty_certainty'):
+        fields.append('bounty_certainty')
+    return fields
+
+
+def gate_canonical_view_node_parity(hands_idx, worklist):
+    """REV13 Part F/B2: for EVERY authoritative worklist item, deep-compare the serialized
+    decision_node against the canonical ReviewedDecisionView it is supposed to serialize — the
+    REV12 defect was the worklist's nested node disagreeing with the embedded view on
+    `price_contract.callable_amount_bb` (47/77). The expected object is the supplied view; the
+    serializer must not alter a field. Emits one detailed record per authoritative item."""
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'authoritative_items_checked': 0, 'mismatches': 0,
+           'price_contract_mismatches': 0, 'sizing_mismatches': 0, 'records': []}
+    for it in items:
+        hid = str(it.get('hand_id') or '')
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        kind = it.get('decision_kind') or it.get('bucket')
+        ridx = _reviewed_action_index(h, kind)
+        if ridx is None:
+            continue
+        view = ds.build_reviewed_decision_view(h, ridx, kind, 'worklist_reviewed_action')
+        node = ds.serialize_reviewed_decision_node(h, ridx, kind, 'worklist_reviewed_action')
+        fields = check_view_node_parity(view, node)
+        out['authoritative_items_checked'] += 1
+        if fields:
+            out['mismatches'] += 1
+            if 'price_contract' in fields:
+                out['price_contract_mismatches'] += 1
+            if 'action_sizing_contract' in fields:
+                out['sizing_mismatches'] += 1
+        out['records'].append({
+            'hand_id': hid,
+            'selected_action_index': ridx,
+            'node_type': node.get('actual_node_type'),
+            'price_applicable': (node.get('price_contract') or {}).get('price_applicable'),
+            'node_price_callable_bb': (node.get('price_contract') or {}).get('callable_amount_bb'),
+            'view_price_callable_bb': (view.get('price_contract') or {}).get('callable_amount_bb'),
+            'continue_component_bb': (node.get('action_sizing_contract') or {}).get('continue_component_bb'),
+            'mismatch_fields': fields,
+        })
     return out
 
 
@@ -1083,6 +1305,7 @@ def main():
     g_or = gate_ledger_oracle(hands_idx, worklist, html)
     g_ar = gate_action_row_parity(hands_idx, worklist, html)
     g_vs = gate_visible_semantic(hands_idx, html, worklist)
+    g_vn = gate_canonical_view_node_parity(hands_idx, worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -1119,18 +1342,24 @@ def main():
           f"{g_or['all_hands_checked']} all-hand checks, {len(g_or['mismatches'])} mismatch(es)")
     for mm in g_or['mismatches'][:40]:
         print('   ✗', mm)
-    print(f"I. ACTION-ROW PARITY : {g_ar['authoritative_action_rows_checked']} authoritative rows, "
-          f"{len(g_ar['mismatches'])} mismatch(es)")
+    print(f"I. ACTION-ROW PARITY (numeric) : {g_ar['authoritative_action_rows_checked']} authoritative rows, "
+          f"{g_ar.get('total_mismatches', len(g_ar['mismatches']))} mismatch(es)")
     for mm in g_ar['mismatches'][:40]:
         print('   ✗', mm)
     print(f"J. VISIBLE SEMANTIC (legacy/coaching) : {g_vs['checked']} bodies, "
           f"{len(g_vs['violations'])} violation(s)")
     for mm in g_vs['violations'][:40]:
         print('   ✗', mm)
+    print(f"K. CANONICAL VIEW == NODE (deep) : {g_vn['authoritative_items_checked']} authoritative items, "
+          f"{g_vn['mismatches']} mismatch(es) "
+          f"(price {g_vn['price_contract_mismatches']}, sizing {g_vn['sizing_mismatches']})")
+    for mm in [r for r in g_vn['records'] if r['mismatch_fields']][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
-          and not g_fr['mismatches'] and not g_or['mismatches'] and not g_ar['mismatches']
-          and not g_vs['violations'])
+          and not g_fr['mismatches'] and not g_or['mismatches']
+          and not g_ar.get('total_mismatches', len(g_ar['mismatches']))
+          and not g_vs['violations'] and not g_vn['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -1140,7 +1369,8 @@ def main():
                        'report_bounty': g_rb, 'report_decision_bounty': g_pd,
                        'report_visible_decision': g_vd, 'report_full_render': g_fr,
                        'ledger_oracle': g_or, 'action_row_parity': g_ar,
-                       'visible_semantic': g_vs, 'pass': ok}, fh, indent=2)
+                       'visible_semantic': g_vs, 'canonical_view_node_parity': g_vn,
+                       'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

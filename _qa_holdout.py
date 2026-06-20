@@ -300,6 +300,8 @@ def main():
     # REV12 G/I: real action-row parity + visible-semantic gates on the holdout.
     gate_ar = qp.gate_action_row_parity(our_idx, real_wl, html)
     gate_vs = qp.gate_visible_semantic(our_idx, html, real_wl)
+    # REV13 F/I: canonical ReviewedDecisionView == serialized decision_node deep parity on the holdout.
+    gate_vn = qp.gate_canonical_view_node_parity(our_idx, real_wl)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -338,6 +340,24 @@ def main():
                 direct.append({'hand': h['id'], 'why': 'limp_fold_wording_missing'})
         if ('first_in_fold' in tags or 'facing_limp' in tags) and s.get('price_applicable') and disp.startswith('fold'):
             direct.append({'hand': h['id'], 'why': 'first_in_or_limp_fold_priced'})
+        # REV13 E/I: NUMERIC sizing comparison on every activated class — the INDEPENDENT ledger
+        # sizing oracle must agree with the production ActionSizingContract on the displayed
+        # quantities (amount_added / total_to). A re-jam whose contract labels the raise increment
+        # as the added amount would diverge here (the B1 defect), at the contract level.
+        try:
+            import _qa_ledger_oracle as _oraH
+            _ozH = _oraH.oracle_sizing(h, idx)
+            _scH = ds.build_action_sizing_contract(h, idx)
+            if (_ozH.get('amount_added_bb') is not None and _scH.get('amount_added_bb') is not None
+                    and abs(_ozH['amount_added_bb'] - _scH['amount_added_bb']) > 0.06):
+                direct.append({'hand': h['id'], 'why': 'sizing_amount_added_oracle_mismatch',
+                               'oracle': _ozH['amount_added_bb'], 'contract': _scH['amount_added_bb']})
+            if (_ozH.get('total_to_bb') is not None and _scH.get('total_to_bb') is not None
+                    and abs(_ozH['total_to_bb'] - _scH['total_to_bb']) > 0.06):
+                direct.append({'hand': h['id'], 'why': 'sizing_total_to_oracle_mismatch',
+                               'oracle': _ozH['total_to_bb'], 'contract': _scH['total_to_bb']})
+        except Exception:
+            pass
 
     # REV10 E1: a claimed-but-unactivated surface is a holdout FAILURE (false confidence).
     surface_violations = [{'why': 'consumer_surface_not_activated', 'surface': k} for k in surface_zero]
@@ -347,9 +367,12 @@ def main():
     # the holdout's render_html DOES emit the renderer, but guard against accidental absence below).
     ar_mismatches = list(gate_ar.get('mismatches', []))
     vs_violations = [v for v in gate_vs.get('violations', []) if v.get('hand') != '_renderer']
+    # REV13 F/I: any node/view deep-parity disagreement on the holdout corpus is a violation.
+    vn_mismatches = [{'hand': r.get('hand_id'), 'why': 'view_node_parity', 'fields': r['mismatch_fields']}
+                     for r in gate_vn.get('records', []) if r.get('mismatch_fields')]
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
                   + direct + surface_violations + wl_a_mismatches + oracle_mismatches
-                  + ar_mismatches + vs_violations)
+                  + ar_mismatches + vs_violations + vn_mismatches)
     rendered = sum(1 for h, _, _ in corpus if (cards.get(h['id'][-8:]) or cards.get(h['id'])))
     summary = {
         'production_render_entrypoint': PROD_RENDER_ENTRYPOINT,
@@ -369,6 +392,8 @@ def main():
         'ledger_oracle_mismatches': len(oracle_mismatches),
         'action_row_parity_checked': gate_ar.get('authoritative_action_rows_checked', 0),
         'action_row_mismatches': len(ar_mismatches),
+        'view_node_parity_checked': gate_vn.get('authoritative_items_checked', 0),
+        'view_node_parity_mismatches': len(vn_mismatches),
         'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,
         'visible_decision_mismatches': len(gate_vd.get('mismatches', [])),

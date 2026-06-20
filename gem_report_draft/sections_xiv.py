@@ -201,7 +201,8 @@ def _per_decision_bounty_meta(h):
         except Exception:
             return ''
     out = []
-    for idx in sorted(by_idx, key=lambda x: int(x)):
+    # REV10: a no-Hero-decision hand contributes no per-action index; ignore any None key.
+    for idx in sorted((k for k in by_idx if k is not None), key=lambda x: int(x)):
         dbc = by_idx[idx] or {}
         if not dbc.get('is_bounty'):
             continue
@@ -269,72 +270,103 @@ def _ev_range_node_type(ev):
 
 
 def _reviewed_node_type(rdref):
-    """REV9 D: map the reviewed action (kind + facing state) to a canonical NODE TYPE."""
-    kind = (rdref or {}).get('hero_action_kind') or ''
-    facing = (rdref or {}).get('decision_facing_state') or ''
-    street = (rdref or {}).get('street') or ''
-    if street and street != 'preflop':
-        return 'postflop'
-    if facing == 'facing_limp':
-        if kind == 'fold':
-            return 'fold_over_limp'
-        return 'iso_raise'        # iso-raise / overlimp / complete over a limp — NOT a first-in RFI
-    if kind == 'first_in_open':
-        return 'first_in_open'
-    if kind == 'fold':
-        return 'fold_first_in' if facing in ('first_in', 'check_option') else 'call_vs_jam'
-    if kind in ('3bet',):
-        return 'three_bet'
-    if kind in ('4bet', '5bet_plus'):
-        return 'four_bet'
-    if kind in ('call_vs_jam', 'call_off', 'call'):
-        return 'call_vs_jam'
-    if kind == 'open_shove':
-        return 'open_shove'
-    if kind in ('rejam_over_live_raise', 'overjam_with_side_pot'):
-        return 're_jam'
-    return 'unknown'
+    """REV10 C1: the canonical actual_node_type for the reviewed action — derived by the ONE
+    taxonomy in gem_decision_snapshot.canonical_node_type and carried on the rdref. Falls back
+    to deriving it when an older rdref lacks the field. Postflop nodes are returned as
+    'postflop_*'; the ownership gate treats any postflop reviewed action as earlier context."""
+    if rdref and rdref.get('actual_node_type'):
+        return rdref['actual_node_type']
+    try:
+        from gem_decision_snapshot import canonical_node_type
+        return canonical_node_type(
+            (rdref or {}).get('decision_facing_state') or '',
+            (rdref or {}).get('hero_action_kind') or '',
+            (rdref or {}).get('street') or 'preflop',
+            (rdref or {}).get('hero_position') or '',
+            no_hero_decision=bool((rdref or {}).get('no_hero_decision')))
+    except Exception:
+        return 'unknown'
 
 
-# node-type families that may legitimately share a range chart
+# REV10 C4: node-type families that may legitimately share a range chart. The value set is the
+# CHART (ev) node types compatible with the reviewed (actual) node. The chart is ACTUAL-action
+# evidence only when ev_node is in _ACTUAL_CHART[rev_node]; any OTHER compatible chart is a
+# RECOMMENDED-ALTERNATIVE (e.g. a first-in fold/limp uses the RFI open chart to show what Hero
+# should have done) — never silently presented as the actual-action chart, never dropped.
 _NODE_COMPAT = {
     'first_in_open': {'first_in_open'},
-    'iso_raise': {'iso_raise'},               # NEVER first_in_open (a limp changed the spot)
+    # A FIRST-IN limp (Hero is first voluntary actor, e.g. an SB complete with no limper before)
+    # may use the RFI open chart as a RECOMMENDED ALTERNATIVE (open-or-fold instead of limp).
+    'first_in_limp': {'first_in_open'},
+    'first_in_open_shove': {'open_shove', 'first_in_open'},
+    'fold_first_in': {'first_in_open', 'fold_first_in'},
+    # The FACING-LIMP family (a limper already entered) is a genuinely DIFFERENT spot — it must
+    # NEVER pull in the first-in RFI chart (REV9 D / GPT C4); its reference is an iso-raise node.
+    'fold_over_limp': {'iso_raise', 'fold_over_limp'},
+    'overlimp': {'overlimp'},
+    'sb_complete_after_limp': {'sb_complete_after_limp'},
+    'iso_raise': {'iso_raise'},
+    'iso_shove': {'iso_shove', 'open_shove'},
+    'fold_vs_open': {'bb_defend', 'call_vs_jam', 'fold_vs_open'},
+    'call_vs_open': {'call_vs_jam', 'bb_defend'},
+    'three_bet': {'three_bet'},
+    'fold_vs_three_bet': {'three_bet', 'call_vs_jam', 'fold_vs_three_bet'},
+    'call_vs_three_bet': {'call_vs_jam', 'three_bet'},
+    'four_bet': {'four_bet'},
+    'fold_vs_jam': {'call_vs_jam', 'fold_vs_jam'},
+    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
+    're_jam': {'re_jam', 'three_bet'},
+    'check_option': {'check_option'},
+    'no_hero_decision': set(),                 # a walk owns NO range evidence
+}
+
+# the chart node that IS the reviewed action's own actual-action chart (vs a recommendation)
+_ACTUAL_CHART = {
+    'first_in_open': {'first_in_open'},
+    'first_in_open_shove': {'open_shove'},
+    'iso_raise': {'iso_raise'},
+    'iso_shove': {'open_shove'},
+    'call_vs_open': {'call_vs_jam', 'bb_defend'},
+    'call_vs_three_bet': {'call_vs_jam', 'three_bet'},
+    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
+    're_jam': {'re_jam', 'three_bet'},
     'three_bet': {'three_bet'},
     'four_bet': {'four_bet'},
-    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
-    'open_shove': {'open_shove', 'first_in_open'},
-    're_jam': {'re_jam', 'three_bet'},
-    'fold_first_in': {'first_in_open', 'fold_first_in'},
-    'fold_over_limp': {'iso_raise', 'fold_over_limp'},
 }
 
 
 def _range_evidence_ownership(ev, rdref):
-    """REV8 B2/B5 / REV9 D: decide whether the PREFLOP range-evidence block describes the
-    SELECTED reviewed action, by ACTION INDEX + STREET + NODE TYPE (not merely raise-vs-call).
-    Returns (mode, label):
-      'selected' — the range NODE matches the reviewed action's node;
-      'earlier'  — the reviewed action is on a later street (label as earlier preflop context);
-      'suppress' — the range describes a DIFFERENT node than the reviewed one (84074364 open vs
-                   'call a jam'; a facing-limp iso-raise must NOT use a first-in RFI chart)."""
+    """REV8 B2/B5 / REV9 D / REV10 C4: decide whether the PREFLOP range-evidence block describes
+    the SELECTED reviewed action, by ACTION INDEX + STREET + canonical NODE TYPE, and classify
+    its PURPOSE. Returns (mode, label, purpose):
+      mode    'selected' | 'earlier' | 'suppress'
+      purpose 'actual_action_range' | 'recommended_alternative' | 'earlier_context'
+              | 'population_context' | 'suppressed'
+    A first-in fold/limp keeps the RFI open chart as an explicitly-labelled recommended
+    alternative (never dropped, never shown as the actual-action chart); a facing-limp iso-raise
+    or an open-vs-'call a jam' mismatch is suppressed; a walk (no_hero_decision) owns nothing."""
     if not rdref:
-        return 'selected', ''
+        return 'selected', '', 'actual_action_range'
     rstreet = rdref.get('street')
     if rstreet and rstreet != 'preflop':
-        return 'earlier', ("*Earlier preflop context — not the reviewed %s decision.*" % rstreet)
+        return 'earlier', ("*Earlier preflop context — not the reviewed %s decision.*" % rstreet), 'earlier_context'
     rev_node = _reviewed_node_type(rdref)
     ev_node = _ev_range_node_type(ev)
+    if rev_node == 'no_hero_decision' or (rdref or {}).get('no_hero_decision'):
+        return 'suppress', '', 'suppressed'
     if ev_node == 'unknown' or rev_node == 'unknown':
-        return 'selected', ''   # nothing to contradict
-    if ev_node in _NODE_COMPAT.get(rev_node, {rev_node}):
-        return 'selected', ''
-    return 'suppress', ''
+        return 'selected', '', 'actual_action_range'
+    if ev_node not in _NODE_COMPAT.get(rev_node, {rev_node}):
+        return 'suppress', '', 'suppressed'
+    if ev_node in _ACTUAL_CHART.get(rev_node, set()):
+        return 'selected', '', 'actual_action_range'
+    return ('selected', '*Recommended-alternative range — Hero took a different action.*',
+            'recommended_alternative')
 
 
 def range_ownership_record(h, ev, rdref):
-    """REV9 D: structured per-block range ownership record for the inventory/gate."""
-    mode, _ = _range_evidence_ownership(ev, rdref)
+    """REV9 D / REV10 C4: structured per-block range ownership record for the inventory/gate."""
+    mode, _lbl, purpose = _range_evidence_ownership(ev, rdref)
     return {
         'hand_id': h.get('id', ''),
         'selected_action_index': (rdref or {}).get('hero_action_index'),
@@ -342,11 +374,31 @@ def range_ownership_record(h, ev, rdref):
         'range_street': 'preflop',
         'selected_node_type': _reviewed_node_type(rdref),
         'range_node_type': _ev_range_node_type(ev),
+        'evidence_purpose': purpose,
         'hero_position': (rdref or {}).get('hero_position') or (ev or {}).get('position'),
         'effective_depth_bb': (rdref or {}).get('effective_stack_at_decision_bb'),
         'chart_key': (ev or {}).get('chart_key'),
         'ownership': mode,
     }
+
+
+def reviewed_range_ownership(h, rdref, ranges=None):
+    """REV10 A1/C4: the range-node ownership the analyst WORKLIST serializes onto its canonical
+    decision node — computed by the SAME helper the report renders from, so the worklist range
+    node equals the visible report range node (closes the B8 false-confidence gap)."""
+    rev_node = _reviewed_node_type(rdref)
+    ev = None
+    try:
+        from gem_report_draft._helpers import hand_range_evidence
+        ev = hand_range_evidence(h, ranges)
+    except Exception:
+        ev = None
+    if not ev:
+        return {'actual_node_type': rev_node, 'reference_node_type': None, 'evidence_purpose': None}
+    mode, _lbl, purpose = _range_evidence_ownership(ev, rdref)
+    return {'actual_node_type': rev_node,
+            'reference_node_type': _ev_range_node_type(ev),
+            'evidence_purpose': ('suppressed' if mode == 'suppress' else purpose)}
 
 
 def _reconcile_po_to_reviewed(_po, _rdref):
@@ -374,7 +426,15 @@ def _reconcile_po_to_reviewed(_po, _rdref):
     out['reviewed_raw_to_match_bb'] = _rdref.get('raw_amount_to_match_bb')
     out['reviewed_overjam_bb'] = _rdref.get('uncallable_overjam_bb')
     out['reviewed_contestable_pot_bb'] = _rdref.get('contestable_pot_before_action_bb')
-    out['effective_stack_bb'] = _rdref.get('effective_stack_at_decision_bb')
+    # REV10 B3: the VISIBLE decision depth is the canonical contract value (callable <= depth <=
+    # hero stack), never the bare stack-behind-the-bet which could fall below the callable price.
+    out['effective_stack_bb'] = (_rdref.get('canonical_effective_decision_depth_bb')
+                                 if _rdref.get('canonical_effective_decision_depth_bb') is not None
+                                 else _rdref.get('effective_stack_at_decision_bb'))
+    # REV10 D1/C1: carry the no-decision flag + canonical node type so the visible decision line
+    # can render "No Hero decision" and suppress the price/bounty/range/verdict for a walk.
+    out['no_hero_decision'] = bool(_rdref.get('no_hero_decision'))
+    out['reviewed_actual_node_type'] = _rdref.get('actual_node_type')
     # REV7 A5: bounty context AT the reviewed action index travels on the block
     out['reviewed_bounty_applicability'] = _rdref.get('bounty_applicability')
     out['reviewed_bounty_certainty'] = _rdref.get('bounty_certainty')
@@ -412,6 +472,10 @@ def _reviewed_decision_line_md(_po):
     description of the canonical reviewed action (call / fold / check / open / 3-bet / bet /
     open-shove / re-jam) plus its effective depth. NEVER a generic 'call XBB' for a non-call
     action (the REV6 bug), and the call price is the CALLABLE amount, never the raw to_call."""
+    # REV10 D1: a hand where Hero never acted (a walk) has NO reviewed decision — render a typed
+    # no-decision line, never an "Inferred decision context: preflop, act" with a price/bounty.
+    if _po.get('no_hero_decision') or _po.get('reviewed_actual_node_type') == 'no_hero_decision':
+        return "**No reviewed decision** — Hero took no action in this hand (won the blinds / walk)."
     st = _po.get('reviewed_street')
     if not st:
         return ''
@@ -3296,7 +3360,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # REV8 B2: the preflop range block is the SELECTED decision's evidence only when
             # the reviewed action is a matching preflop action; a postflop reviewed action gets
             # it relabelled as earlier context, and a different preflop action suppresses it.
-            _re_mode, _re_label = _range_evidence_ownership(
+            _re_mode, _re_label, _re_purpose = _range_evidence_ownership(
                 _rev, _reviewed_ref(rd, h, hid, hid_short))
             if _rev and _re_mode != 'suppress':
                 doc.w("")
@@ -3399,6 +3463,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # reviewed ref but no pot-odds object still renders the canonical street/call/depth.
         _rdref_po = _reviewed_ref(rd, h, hid, hid_short)
         _po = _reconcile_po_to_reviewed(_po, _rdref_po)
+        # REV10 D2: a NO-HERO-DECISION hand (a walk) attaches NO decision bounty trust / pot
+        # odds / range / verdict teaching — only the typed no-decision line.
+        _no_dec_a = bool(_po.get('no_hero_decision')) if _po else False
         if _po:
             _po_lines = []
             _rev_line = _reviewed_decision_line_md(_po)
@@ -3586,12 +3653,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # THE REVIEWED ACTION INDEX, never the hand-level default — so a first-in open
             # (84074364/83765091) shows no all-in cover/collectibility strip.
             _rev_dbc_a = _reviewed_bounty_ctx(h, _rdref_po)
-            _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po, dbc_override=_rev_dbc_a)
+            _bts = '' if (_pko_will_strip or _no_dec_a) else _bounty_trust_strip_md(rd, h, _po, dbc_override=_rev_dbc_a)
             if _bts:
                 _po_lines.append(_bts)
             # REV6 B3/B4: disclose a COMBINED exact+potential bounty opportunity (or an
             # unresolved committed-stack) in the visible lesson, never just the committed one.
-            _bapp_note = _bounty_applicability_note_md(h, dbc_override=_rev_dbc_a)
+            _bapp_note = '' if _no_dec_a else _bounty_applicability_note_md(h, dbc_override=_rev_dbc_a)
             if _bapp_note:
                 _po_lines.append(_bapp_note)
             _ev = _po.get('ev_call_bb')
@@ -3686,7 +3753,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         _rev_street_pko = _pko_ref.get('street')
         _rev_bapp_pko = _pko_ref.get('bounty_applicability')
         _pko_not_applicable = (_rev_bapp_pko == 'not_applicable')
-        if _pko_ctx.get('enabled') and _rev_street_pko in (None, 'preflop'):
+        if _pko_ctx.get('enabled') and _rev_street_pko in (None, 'preflop') and not _no_dec_a:
             _pk_rng = _pko_ctx.get('delta_range_pp') or [0, 0]
             _pk_d = (f"{_pk_rng[0]:+.1f} to {_pk_rng[1]:+.1f}pp"
                      if _pk_rng[0] != _pk_rng[1] else f"{_pk_rng[0]:+.1f}pp")
@@ -4295,7 +4362,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _rev_b = _hre_b(h)
                         # REV8 B2: same ownership gate as XIV.A — selected / earlier-labelled /
                         # suppressed depending on whether the range describes the reviewed action.
-                        _re_mode_b, _re_label_b = _range_evidence_ownership(
+                        _re_mode_b, _re_label_b, _re_purpose_b = _range_evidence_ownership(
                             _rev_b, _reviewed_ref(rd, h, hid, hid_short))
                         if _rev_b and _re_mode_b != 'suppress':
                             doc.w("")
@@ -4314,6 +4381,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # street/call/depth line.
                 _rdref_b = _reviewed_ref(rd, h, hid, hid_short)
                 _po_b = _reconcile_po_to_reviewed(_po_b, _rdref_b)
+                # REV10 D2: a NO-HERO-DECISION (walk) stub card attaches NO bounty/pot-odds teaching.
+                _no_dec_b = bool(_po_b.get('no_hero_decision')) if _po_b else False
                 if _po_b:
                     _po_lines_b = []
                     _rev_line_b = _reviewed_decision_line_md(_po_b)
@@ -4394,25 +4463,28 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         # action index (never hand-level), so a first-in open shows no all-in
                         # cover/collectibility (84074364/83765091 on the compact path).
                         _rev_dbc_b = _reviewed_bounty_ctx(h, _rdref_b)
-                        _bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=_rev_dbc_b)
+                        _bts_b = '' if (_pko_will_strip_b or _no_dec_b) else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=_rev_dbc_b)
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
                         # REV6 B3/B4: disclose a COMBINED exact+potential bounty (or an
                         # unresolved committed stack) on the compact path too (84990829).
-                        _bapp_note_b = _bounty_applicability_note_md(h, dbc_override=_rev_dbc_b)
+                        _bapp_note_b = '' if _no_dec_b else _bounty_applicability_note_md(h, dbc_override=_rev_dbc_b)
                         if _bapp_note_b:
                             doc.w("")
                             doc.w(_bapp_note_b)
                         # v8.16.4 DTI Blocker 2/Obj 9: bounty provenance on the
                         # compact path (exact $ vs flat starting-BB estimate),
                         # reusing the same bounty fields (one source, no recompute).
+                        # REV10 D2: never on a no-Hero-decision (walk) stub card.
                         try:
                             from gem_review_trust import bounty_provenance_label as _bpl_b
                             _bb_b = ((_po_b.get('bounty') or {}).get('value_bb')
                                      or h.get('bounty_value_bb'))
                             _usd_b = _pko_bounty_usd(rd, h)
-                            if _usd_b is not None:
+                            if _no_dec_b:
+                                pass
+                            elif _usd_b is not None:
                                 doc.w("")
                                 doc.w("*" + _bpl_b('exact', value_usd=_usd_b, value_bb=_bb_b) + "*")
                             elif _bb_b:
@@ -4495,7 +4567,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 _pko_ref_b = _reviewed_ref(rd, h, hid, hid_short) or {}
                 _rev_street_pko_b = _pko_ref_b.get('street')
                 _pko_not_applicable_b = (_pko_ref_b.get('bounty_applicability') == 'not_applicable')
-                if _pko_ctx_b.get('enabled') and _rev_street_pko_b in (None, 'preflop'):
+                if (_pko_ctx_b.get('enabled') and _rev_street_pko_b in (None, 'preflop')
+                        and not locals().get('_no_dec_b')):
                     _pkb_rng = _pko_ctx_b.get('delta_range_pp') or [0, 0]
                     _pkb_d = (f"{_pkb_rng[0]:+.1f} to {_pkb_rng[1]:+.1f}pp"
                               if _pkb_rng[0] != _pkb_rng[1]

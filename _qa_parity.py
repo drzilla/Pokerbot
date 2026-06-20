@@ -64,12 +64,30 @@ def _snap_eff(snap):
             or snap.get('max_effective_stack_among_active_opponents'))
 
 
+def _num_eq(a, b, tol=0.05):
+    fa, fb = _f(a), _f(b)
+    if fa is None and fb is None:
+        return True
+    if fa is None or fb is None:
+        return False
+    return abs(fa - fb) <= tol
+
+
 def gate_worklist(hands_idx, worklist):
-    """A. worklist item fields == canonical snapshot."""
+    """A. (REV10 A5/B8) COMPLETE-FIELD parity: every exported worklist decision_node is a
+    byte-faithful SERIALIZATION of the canonical ReviewedDecisionView built from the SAME hand
+    at the SAME reviewed action index. The prior gate compared only street/kind/eff/bounty and
+    gave false confidence (the worklist still carried legacy facing=unknown / raw call prices).
+    Now every canonical field is compared, plus two hard invariants:
+      * an authoritative worklist node must never have facing_state 'unknown';
+      * a non-price action must never carry a populated call price."""
+    from gem_report_draft.sections_xiv import reviewed_range_ownership as _rro
     items = worklist.get('items') or {}
     if isinstance(items, dict):
         items = list(items.values())
-    out = {'checked': 0, 'mismatches': []}
+    out = {'checked': 0, 'mismatches': [], 'facing_unknown': 0, 'nonprice_with_call': 0}
+    # field path -> (extractor from worklist dn, extractor from canonical cn, comparator)
+    EXACT = lambda a, b: (a or None) == (b or None)
     for it in items:
         hid = str(it.get('hand_id') or '')
         h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
@@ -79,51 +97,73 @@ def gate_worklist(hands_idx, worklist):
         ridx = _reviewed_action_index(h, kind)
         if ridx is None:
             continue
-        snap = ds.build_decision_snapshot(h, ridx)
         out['checked'] += 1
         dn = it.get('decision_node') or {}
-        # --- street ---
-        wl_street = (dn.get('street') or it.get('street') or '').lower()
-        sn_street = (snap.get('street') or '').lower()
-        if wl_street and sn_street and wl_street != sn_street:
-            out['mismatches'].append(
-                {'hand': hid, 'field': 'street', 'worklist': wl_street, 'snapshot': sn_street})
-        # --- action kind ---
-        wl_kind = dn.get('hero_action_kind')
-        sn_kind = snap.get('hero_action_kind')
-        if wl_kind and sn_kind and wl_kind != sn_kind:
-            out['mismatches'].append(
-                {'hand': hid, 'field': 'action_kind', 'worklist': wl_kind, 'snapshot': sn_kind})
-        # --- effective stack (only meaningful for an all-in confrontation) ---
-        if sn_kind in ('call_vs_jam', 'call_off', 'open_shove',
-                       'rejam_over_live_raise', 'overjam_with_side_pot'):
-            wl_eff = _f(it.get('effective_bb')) or _f(dn.get('effective_bb_vs_relevant_villain'))
-            sn_eff = _f(_snap_eff(snap))
-            if wl_eff is not None and sn_eff is not None and abs(wl_eff - sn_eff) > EFF_TOL:
-                out['mismatches'].append(
-                    {'hand': hid, 'field': 'effective_bb', 'worklist': wl_eff,
-                     'snapshot': round(sn_eff, 2)})
-        # --- bounty aggregate (REV3: worklist consumes the FUTURE-BLIND decision-time
-        #     context, so parity is checked against decision_bounty_aggregate) ---
-        bnt = it.get('bounty_context') or it.get('bounty') or {}
-        wl_agg = bnt.get('coverage_aggregate') or bnt.get('aggregate')
+        # rebuild the canonical node the SAME way the worklist does
         try:
-            sn_agg = ds.decision_bounty_aggregate(h, ridx)
-        except Exception:
-            sn_agg = None
-        if wl_agg and sn_agg and wl_agg != sn_agg:
-            out['mismatches'].append(
-                {'hand': hid, 'field': 'decision_bounty_aggregate', 'worklist': wl_agg, 'snapshot': sn_agg})
-        # --- worklist eligible map must equal the canonical decision-time eligible map ---
-        wl_elig = bnt.get('eligible_bounties_by_opponent')
-        if wl_elig is not None:
-            try:
-                sn_elig = ds.decision_eligible_bounties_by_opponent(h, ridx)
-            except Exception:
-                sn_elig = None
-            if sn_elig is not None and wl_elig != sn_elig:
+            _rdref = ds.build_reviewed_decision_ref(h, ridx, kind, 'worklist_reviewed_action')
+            _rown = _rro(h, _rdref)
+            cn = ds.serialize_reviewed_decision_node(
+                h, ridx, kind, 'worklist_reviewed_action',
+                reference_node_type=_rown.get('reference_node_type'),
+                evidence_purpose=_rown.get('evidence_purpose'))
+        except Exception as e:
+            out['mismatches'].append({'hand': hid, 'field': '_canonical_build', 'error': str(e)})
+            continue
+
+        def _pc(d, k):
+            return (d.get('price_contract') or {}).get(k)
+
+        def _sc(d, k):
+            return (d.get('stack_contract') or {}).get(k)
+
+        def _sel(d, k):
+            return (d.get('selection') or {}).get(k)
+
+        checks = [
+            ('hero_action_index', dn.get('hero_action_index'), cn.get('hero_action_index'), EXACT),
+            ('street', dn.get('street'), cn.get('street'), EXACT),
+            ('hero_action_kind', dn.get('hero_action_kind'), cn.get('hero_action_kind'), EXACT),
+            ('hero_actual_action', dn.get('hero_actual_action'), cn.get('hero_actual_action'), EXACT),
+            ('action_display', dn.get('action_display'), cn.get('action_display'), EXACT),
+            ('decision_facing_state', dn.get('decision_facing_state'), cn.get('decision_facing_state'), EXACT),
+            ('faced_action_kind', dn.get('faced_action_kind'), cn.get('faced_action_kind'), EXACT),
+            ('faced_player', dn.get('faced_player'), cn.get('faced_player'), EXACT),
+            ('limpers_before_hero', dn.get('limpers_before_hero'), cn.get('limpers_before_hero'), EXACT),
+            ('no_hero_decision', bool(dn.get('no_hero_decision')), bool(cn.get('no_hero_decision')), EXACT),
+            ('price_applicable', _pc(dn, 'price_applicable'), _pc(cn, 'price_applicable'), EXACT),
+            ('price_reason', _pc(dn, 'price_reason'), _pc(cn, 'price_reason'), EXACT),
+            ('raw_amount_to_match_bb', _pc(dn, 'raw_amount_to_match_bb'), _pc(cn, 'raw_amount_to_match_bb'), _num_eq),
+            ('callable_amount_bb', _pc(dn, 'callable_amount_bb'), _pc(cn, 'callable_amount_bb'), _num_eq),
+            ('contestable_pot_before_action_bb', _pc(dn, 'contestable_pot_before_action_bb'),
+             _pc(cn, 'contestable_pot_before_action_bb'), _num_eq),
+            ('uncallable_overjam_bb', _pc(dn, 'uncallable_overjam_bb'), _pc(cn, 'uncallable_overjam_bb'), _num_eq),
+            ('required_equity_pct', _pc(dn, 'required_equity_pct'), _pc(cn, 'required_equity_pct'), _num_eq),
+            ('hero_stack_before_action_bb', _sc(dn, 'hero_stack_before_action_bb'),
+             _sc(cn, 'hero_stack_before_action_bb'), _num_eq),
+            ('effective_stack_at_decision_bb', _sc(dn, 'effective_stack_at_decision_bb'),
+             _sc(cn, 'effective_stack_at_decision_bb'), _num_eq),
+            ('selection_source', _sel(dn, 'source'), _sel(cn, 'source'), EXACT),
+            ('selection_confidence', _sel(dn, 'confidence'), _sel(cn, 'confidence'), EXACT),
+            ('bounty_applicability', dn.get('bounty_applicability'), cn.get('bounty_applicability'), EXACT),
+            ('bounty_certainty', dn.get('bounty_certainty'), cn.get('bounty_certainty'), EXACT),
+            ('actual_node_type', dn.get('actual_node_type'), cn.get('actual_node_type'), EXACT),
+            ('reference_node_type', dn.get('reference_node_type'), cn.get('reference_node_type'), EXACT),
+            ('evidence_purpose', dn.get('evidence_purpose'), cn.get('evidence_purpose'), EXACT),
+        ]
+        for field, wl_v, sn_v, cmp in checks:
+            if not cmp(wl_v, sn_v):
                 out['mismatches'].append(
-                    {'hand': hid, 'field': 'eligible_bounties', 'worklist': wl_elig, 'snapshot': sn_elig})
+                    {'hand': hid, 'field': field, 'worklist': wl_v, 'snapshot': sn_v})
+        # hard invariants
+        if _sel(dn, 'confidence') == 'authoritative' and dn.get('decision_facing_state') == 'unknown':
+            out['facing_unknown'] += 1
+            out['mismatches'].append({'hand': hid, 'field': 'authoritative_facing_unknown'})
+        if _pc(dn, 'price_applicable') is False and _pc(dn, 'callable_amount_bb') not in (None, 0, 0.0):
+            out['nonprice_with_call'] += 1
+            out['mismatches'].append(
+                {'hand': hid, 'field': 'nonprice_with_call_price',
+                 'callable': _pc(dn, 'callable_amount_bb')})
     return out
 
 
@@ -512,7 +552,11 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
             out['mismatches'].append(
                 {'hand': hid, 'field': 'visible_action_ne_canonical_display',
                  'visible': v_phrase, 'canonical': disp.get('display_text'), 'idx': ridx})
-        sd = snap.get('effective_stack_at_decision_bb')
+        # REV10 B3: the VISIBLE depth is the canonical effective decision depth (callable <=
+        # depth <= hero stack), the same value the report renders — never the bare stack-behind.
+        sd = (snap.get('canonical_effective_decision_depth_bb')
+              if snap.get('canonical_effective_decision_depth_bb') is not None
+              else snap.get('effective_stack_at_decision_bb'))
         if sd is not None and abs(_f(sd) - v_depth) > 0.15:
             out['mismatches'].append(
                 {'hand': hid, 'field': 'visible_depth_ne_snapshot',
@@ -648,6 +692,33 @@ def gate_report_full_render(hands_idx, html, worklist=None):
         if facing == 'facing_limp' and re.search(
                 r'(?:Reviewed decision|Inferred decision context):</strong>\s*[a-z]+,\s*fold first-in', body):
             viol('facing_limp_rendered_first_in')
+        # 7) REV10 D: a NO-HERO-DECISION hand (a walk) must never fabricate an 'act' decision,
+        #    a price, or bounty teaching.
+        if ref.get('no_hero_decision') or ref.get('actual_node_type') == 'no_hero_decision':
+            if re.search(r'(?:Reviewed decision|Inferred decision context):</strong>\s*[a-z]+,\s*act', body):
+                viol('no_decision_rendered_as_act')
+            if re.search(r'Bounty trust:|Bounty \(combined\)|bounty collectible', body):
+                viol('no_decision_shows_bounty_teaching')
+            if 'Pot odds:' in body:
+                viol('no_decision_shows_pot_odds')
+        # 8/9) REV10 B2/B3: a fold-facing displayed price must be the CALLABLE amount (never the
+        #    raw wager) and must never exceed the canonical effective decision depth.
+        if kind == 'fold' and price_appl:
+            _cap = ref.get('callable_amount_bb')
+            _depth = ref.get('canonical_effective_decision_depth_bb')
+            _m = re.search(r'fold facing\s*([0-9.]+)\s*BB', body)
+            if _m:
+                _shown = float(_m.group(1))
+                if _cap is not None and _shown - float(_cap) > 0.1:
+                    viol('fold_price_exceeds_callable', shown=_shown, callable=_cap)
+                if _depth is not None and _shown - float(_depth) > 0.1:
+                    viol('fold_price_exceeds_effective_depth', shown=_shown, depth=_depth)
+        # 10) REV10 B3 contract: the callable price can never exceed the effective decision depth.
+        if price_appl:
+            _cap = ref.get('callable_amount_bb')
+            _depth = ref.get('canonical_effective_decision_depth_bb')
+            if _cap is not None and _depth is not None and float(_cap) - float(_depth) > 0.1:
+                viol('callable_exceeds_effective_depth', callable=_cap, depth=_depth)
     return out
 
 

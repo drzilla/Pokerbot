@@ -5674,8 +5674,8 @@ check('T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to R
 # (the generic pot-odds strip + the specific PKO-pill strip). Both XIV.A and
 # XIV.B suppress the generic strip when the PKO pill will render its own.
 check('T-CONSIST-01: generic Bounty-trust strip suppressed when PKO pill renders its own (XIV.A + XIV.B)',
-      "_bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po, dbc_override=" in _xiv141
-      and "_bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=" in _xiv141
+      "_bts = '' if (_pko_will_strip or _no_dec_a) else _bounty_trust_strip_md(rd, h, _po, dbc_override=" in _xiv141
+      and "_bts_b = '' if (_pko_will_strip_b or _no_dec_b) else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=" in _xiv141
       and _xiv141.count('_pko_will_strip') >= 2, '')
 
 # T-CONSIST-02: a quick analyst re-render refreshes the run manifest + run log so
@@ -11650,7 +11650,7 @@ check('T-REV7-05 (A1): a non-call decision (open/bet/check) has price_applicable
 _ov_hidx = _qp._hand_index([_ov])
 def _gov(phrase):
     body = ("<div class='analyst-notes' data-decision-action-index='2'>"
-            "**Reviewed decision:** preflop, %s, effective depth ≈20.00BB</div>" % phrase)
+            "**Reviewed decision:** preflop, %s, effective depth ≈19.00BB</div>" % phrase)
     return _qp.gate_report_visible_decision(_ov_hidx, _mk_lazy_html({'85000001': body}))
 check('T-REV7-06 (B): gate CATCHES the raw overjam (call 99BB) rendered as Hero\'s price',
       any(m['field'] == 'visible_call_is_raw_overjam' for m in _gov('call 99BB')['mismatches'])
@@ -11978,6 +11978,152 @@ check('T-B34-09: visible note for exact_and_potential discloses committed AND po
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')
+# ============================================================
+# REV10 — canonical export + edge-state closure (T-REV10-*)
+# ============================================================
+def _Lp(street, p, act, added, allin=False, pos=None):
+    d = _Lb(street, p, act, added, allin)
+    d['position'] = pos
+    return d
+
+
+def _mkh10(led, ssb, fmt='NLHE', board=None, hid='TM6095000001', cards=('Ah', 'Kd')):
+    return {'id': hid, 'tournament_hand_id': hid, 'hero': 'Hero', 'format': fmt,
+            'cards': list(cards), 'board': board or [], 'seat_stack_by_player': ssb,
+            'action_ledger': led}
+
+
+# --- taxonomy (C1/C2/C3): the facing-limp family + first-in limp are NEVER collapsed ---
+_h_fil = _mkh10([_Lp('preflop', 'Hero', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                 _Lp('preflop', 'CO', 'folds', 0, pos='CO'), _Lp('preflop', 'BTN', 'folds', 0, pos='BTN'),
+                 _Lp('preflop', 'Hero', 'calls', 0.5, pos='SB')],
+                {'Hero': 40.0, 'BB': 40.0, 'CO': 40.0, 'BTN': 40.0})
+_s_fil = _ds.build_decision_snapshot(_h_fil, 4)
+check('T-REV10-01 (C3): first-in SB complete -> first_in_limp node + "complete" display, NOT call_vs_jam',
+      _s_fil['actual_node_type'] == 'first_in_limp' and _s_fil['decision_facing_state'] == 'first_in'
+      and _ds.reviewed_action_display(_h_fil, 4, _s_fil)['display_text'].startswith('complete'),
+      str((_s_fil['actual_node_type'], _ds.reviewed_action_display(_h_fil, 4, _s_fil)['display_text'])))
+
+
+def _node(facing, kind, street='preflop', pos='BTN', allin=False):
+    return _ds.canonical_node_type(facing, kind, street, pos, hero_all_in=allin)
+check('T-REV10-02 (C2/B4): facing-limp overlimp / SB-complete / iso-raise / iso-shove are DISTINCT nodes',
+      _node('facing_limp', 'fold') == 'fold_over_limp'
+      and _node('facing_limp', 'call', pos='BTN') == 'overlimp'
+      and _node('facing_limp', 'call', pos='SB') == 'sb_complete_after_limp'
+      and _node('facing_limp', 'first_in_open') == 'iso_raise'
+      and _node('facing_limp', 'open_shove') == 'iso_shove',
+      str([_node('facing_limp', k, pos=p) for k, p in
+           [('fold', 'BTN'), ('call', 'BTN'), ('call', 'SB'), ('first_in_open', 'BTN'), ('open_shove', 'BTN')]]))
+
+# --- no Hero decision (D1) ---
+_h_walk = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                  _Lp('preflop', 'CO', 'folds', 0, pos='CO'), _Lp('preflop', 'SB', 'folds', 0, pos='SB')],
+                 {'Hero': 40.0, 'SB': 40.0, 'CO': 40.0}, fmt='BOUNTY')
+_s_walk = _ds.build_decision_snapshot(_h_walk, None)
+_r_walk = _ds.build_reviewed_decision_ref(_h_walk)
+check('T-REV10-03 (D1): a walk (Hero never acts) -> no_hero_decision node, no price, confidence none, "no Hero decision"',
+      _s_walk['no_hero_decision'] is True and _s_walk['actual_node_type'] == 'no_hero_decision'
+      and _s_walk['price_applicable'] is False and _r_walk['selection_confidence'] == 'none'
+      and _ds.reviewed_action_display(_h_walk, None, _s_walk)['display_text'] == 'no Hero decision',
+      str((_s_walk['no_hero_decision'], _r_walk['selection_confidence'])))
+
+# --- fold price = callable, never raw; canonical depth >= callable (B2/B3) ---
+_h_oj = _mkh10([_Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'), _Lp('preflop', 'V', 'raises', 98.5, True, pos='BTN'),
+                _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'V': 100.0})
+_s_oj = _ds.build_decision_snapshot(_h_oj, 2)
+_d_oj = _ds.reviewed_action_display(_h_oj, 2, _s_oj)['display_text']
+check('T-REV10-04 (B2): a fold facing an overjam shows the CALLABLE amount + raw separately, never raw as the price',
+      'fold facing 37.88BB' in _d_oj and 'villain wagered 97.5BB' in _d_oj and '97.5BB callable' not in _d_oj,
+      _d_oj)
+check('T-REV10-05 (B3): canonical effective decision depth is always >= callable and <= hero stack',
+      _s_oj['canonical_effective_decision_depth_bb'] >= _s_oj['callable_amount_bb'] - 0.01
+      and _s_oj['canonical_effective_decision_depth_bb'] <= _s_oj['hero_stack_before_action_bb'] + 0.01,
+      str((_s_oj['callable_amount_bb'], _s_oj['canonical_effective_decision_depth_bb'], _s_oj['hero_stack_before_action_bb'])))
+
+# --- worklist serialization == canonical view (A1/A2/A3) ---
+_n_oj = _ds.serialize_reviewed_decision_node(_h_oj, 2, 'preflop_allin', 'worklist_reviewed_action')
+check('T-REV10-06 (A2/A3): serialized worklist node exposes nested price/stack/selection; non-price fold carries no call price',
+      _n_oj['price_contract']['callable_amount_bb'] == _s_oj['callable_amount_bb']
+      and _n_oj['selection']['authoritative'] is True
+      and _n_oj['actual_node_type'] == _s_oj['actual_node_type']
+      and _n_oj['stack_contract']['effective_stack_at_decision_bb'] == _s_oj['canonical_effective_decision_depth_bb'],
+      str(_n_oj['price_contract']))
+_h_bet = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='CO'), _Lp('preflop', 'V', 'calls', 2.5, pos='BB'),
+                 _Lp('flop', 'Hero', 'bets', 4.0, pos='CO')], {'Hero': 60.0, 'V': 60.0}, board=['2c', '7d', 'Js'])
+_n_bet = _ds.serialize_reviewed_decision_node(_h_bet, 2, 'postflop', 'worklist_reviewed_action')
+check('T-REV10-07 (A3): a river/flop BET serializes hero_action_kind != first_in_open and NO call price',
+      _n_bet['actual_node_type'] == 'postflop_bet' and _n_bet['price_contract']['callable_amount_bb'] is None
+      and _n_bet['price_contract']['price_applicable'] is False, str(_n_bet['actual_node_type']))
+
+# --- FAILURE INJECTION (F3): the full-field gate A catches a corrupted node a subset gate misses ---
+_idx10 = _qp._hand_index([_h_oj])
+_wl_good = {'items': {'TM6095000001': {'hand_id': 'TM6095000001', 'decision_kind': 'preflop_allin',
+                                       'decision_node': _ds.serialize_reviewed_decision_node(_h_oj, 2, 'preflop_allin', 'worklist_reviewed_action')}}}
+_corrupt = json.loads(json.dumps(_wl_good))
+_corrupt['items']['TM6095000001']['decision_node']['actual_node_type'] = 'first_in_open'    # postflop-bet style corruption
+_corrupt['items']['TM6095000001']['decision_node']['price_contract']['callable_amount_bb'] = 0.1   # spurious price
+check('T-REV10-08 (F3/B8): gate A PASSES the canonical node and CATCHES a corrupted node/price (subset gate would miss)',
+      len(_qp.gate_worklist(_idx10, _wl_good)['mismatches']) == 0
+      and any(m['field'] == 'actual_node_type' for m in _qp.gate_worklist(_idx10, _corrupt)['mismatches'])
+      and any(m['field'] == 'callable_amount_bb' for m in _qp.gate_worklist(_idx10, _corrupt)['mismatches']),
+      str(_qp.gate_worklist(_idx10, _corrupt)['mismatches'][:3]))
+
+# --- FAILURE INJECTION: full-render gate catches no-decision-as-act, fold>callable, callable>depth ---
+def _frgate(hid, body, hand):
+    return _qp.gate_report_full_render(_qp._hand_index([hand]), _mk_lazy_html({hid: body}), None)
+_walk_bad = ("<div class='analyst-notes' data-decision-action-index='0'>"
+             "<strong>Inferred decision context:</strong> preflop, act</div>"
+             "<p>🎯 <strong>Bounty trust:</strong> collectible</p>")
+check('T-REV10-09 (F3/D): full-render gate CATCHES a no-Hero-decision hand rendered as "act" + bounty teaching',
+      any(m['field'] == 'no_decision_rendered_as_act' for m in _frgate('95000001', _walk_bad, _h_walk)['mismatches'])
+      and any(m['field'] == 'no_decision_shows_bounty_teaching' for m in _frgate('95000001', _walk_bad, _h_walk)['mismatches']),
+      str(_frgate('95000001', _walk_bad, _h_walk)['mismatches']))
+_fold_bad = ("<div class='analyst-notes' data-decision-action-index='2'>"
+             "<strong>Inferred decision context:</strong> preflop, fold facing 98.5BB, effective depth ≈37.88BB</div>")
+check('T-REV10-10 (F3/B2): full-render gate CATCHES a fold-facing price above the callable amount (raw overjam shown)',
+      any(m['field'] == 'fold_price_exceeds_callable' for m in _frgate('95000001', _fold_bad, _h_oj)['mismatches']),
+      str(_frgate('95000001', _fold_bad, _h_oj)['mismatches']))
+
+# --- METAMORPHIC (F4): node + price invariant under irrelevant transforms ---
+def _np(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    return (s['actual_node_type'], s['callable_amount_bb'], s['price_applicable'],
+            s['decision_facing_state'])
+_base10 = _np(_h_oj, 2)
+# (a) hand id
+_h_id = dict(_h_oj); _h_id['id'] = 'TM6099999999'; _h_id['tournament_hand_id'] = 'TM6099999999'
+# (b) rename players
+_ren = {'V': 'Z'}
+_h_ren = _mkh10([_Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'), _Lp('preflop', 'Z', 'raises', 98.5, True, pos='BTN'),
+                 _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'Z': 100.0})
+# (c) irrelevant hole cards
+_h_cards = dict(_h_oj); _h_cards['cards'] = ['2c', '7h']
+# (d) append a FUTURE action after the reviewed fold (must not change the earlier view)
+_h_future = _mkh10(_h_oj['action_ledger'] + [_Lp('preflop', 'X', 'calls', 98.5, True, pos='CO')],
+                   {'Hero': 38.88, 'V': 100.0, 'X': 120.0})
+# (e) add a folded unrelated player BEFORE the wager
+_h_folded = _mkh10([_Lp('preflop', 'UTG', 'folds', 0, pos='UTG'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                    _Lp('preflop', 'V', 'raises', 98.5, True, pos='BTN'), _Lp('preflop', 'Hero', 'folds', 0, pos='BB')],
+                   {'Hero': 38.88, 'V': 100.0, 'UTG': 50.0})
+# (f) add an ante to a first-in fold (must NOT create a decision price)
+_h_ante0 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                   _Lp('preflop', 'Hero', 'folds', 0, pos='CO')], {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0})
+_h_ante1 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.6, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.1, pos='BB'),
+                   _Lp('preflop', 'Hero', 'folds', 0, pos='CO')], {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0})
+check('T-REV10-11 (F4): node+price invariant under hand-id / player-rename / irrelevant-cards changes',
+      _np(_h_id, 2) == _base10 and _np(_h_ren, 2) == _base10 and _np(_h_cards, 2) == _base10,
+      str((_np(_h_id, 2), _np(_h_ren, 2), _np(_h_cards, 2), _base10)))
+check('T-REV10-12 (F4): appending a future action + adding a folded unrelated player do not change the earlier callable/node',
+      _np(_h_future, 2) == _base10 and _np(_h_folded, 3)[:3] == _base10[:3],
+      str((_np(_h_future, 2), _np(_h_folded, 3), _base10)))
+check('T-REV10-13 (F4): a first-in fold has NO decision price, with OR without an ante (an ante never creates one)',
+      _ds.build_decision_snapshot(_h_ante0, 2)['price_applicable'] is False
+      and _ds.build_decision_snapshot(_h_ante1, 2)['price_applicable'] is False
+      and _ds.build_decision_snapshot(_h_ante0, 2)['actual_node_type'] == 'fold_first_in',
+      str((_ds.build_decision_snapshot(_h_ante0, 2)['price_applicable'],
+           _ds.build_decision_snapshot(_h_ante1, 2)['price_applicable'])))
+
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:
     print('FIX BEFORE PROCEEDING')

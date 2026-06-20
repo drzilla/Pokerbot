@@ -465,12 +465,29 @@ def main():
                  'TM6083973489', 'TM6083975040', 'TM6084295885']}
 
     # ---- report-surface preserve metrics (from HTML) ----
-    rng_lens = len(re.findall(r'class=["\'][^"\']*range-lens', html))
-    hero_combo = html.count('Hero:') if 'Hero:' in html else None
-    modal_total = None
-    m = re.search(r'(\d+)\s*/\s*(\d+)\s*hands?', html)
+    # REV10 C5: the Range Lens spans are the rng-hl highlight spans inside the LAZY-ENCODED hand
+    # bodies (the prior 'range-lens' regex matched a non-existent class and recorded 0). Decode
+    # the lazyHands and count the opening rng-hl spans + the Hero-emphasis (rng-combo-hero) spans,
+    # deriving the number from the regenerated output (never hard-coded).
+    try:
+        from _qa_decode_lazy import decode_lazy_hands as _dlh
+        _bodies = _dlh(html)
+    except Exception:
+        _bodies = {}
+    rng_lens = 0
+    hero_lens = 0
+    _rng_hands = 0
+    for _hid, _b in _bodies.items():
+        _spans = re.findall(r"<span[^>]*class=['\"][^'\"]*rng-hl", _b)
+        if _spans:
+            _rng_hands += 1
+            rng_lens += len(_spans)
+        hero_lens += len(re.findall(r'rng-combo-hero', _b))
     metrics = {
         'range_lens_spans': rng_lens,
+        'range_lens_hands': _rng_hands,
+        'range_lens_hero_emphasis_spans': hero_lens,
+        'range_lens_hero_emphasis_pct': round(100.0 * hero_lens / max(rng_lens, 1), 1),
         'hands_in_html_appendix': len(set(re.findall(r"data-hand-id='(\w+)'", html))),
     }
 

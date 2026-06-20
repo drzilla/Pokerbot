@@ -149,6 +149,34 @@ def _build_decision_facts(h, stats, report_data):
     _collectibility = {'all': 'collectible', 'none': 'not_collectible', 'mixed': 'mixed',
                        'unknown': 'unknown', 'not_applicable': None}.get(_cc_agg)
     hero_covers = bool(_dbc_cc.get('hero_covers_relevant_villain'))
+    # REV10 B7: the FULL decision-content ownership contract. Every DECISION-SPECIFIC coaching
+    # fact (street, action, node, price, bounty, range, verdict) is OWNED by the selected
+    # ReviewedDecisionView at _rev_idx_cc; fields that are inherently whole-hand/session (the
+    # realized equity vs shown cards, the showdown villain range) are marked as such — so the
+    # ownership inventory can compare ACTUAL CONTENT against the selected action, not merely an
+    # owner label (the REV9 B7 gap).
+    _rev_disp_cc = (_rdref_cc.get('action_display') or {})
+    _decision_content_ownership = {
+        'reviewed_action_index': _rev_idx_cc,
+        'reviewed_street': _rdref_cc.get('street'),
+        'reviewed_action_display': _rev_disp_cc.get('display_text') or _rdref_cc.get('display_text'),
+        'reviewed_actual_node_type': _rdref_cc.get('actual_node_type'),
+        'reviewed_hero_action_kind': _rdref_cc.get('hero_action_kind'),
+        'reviewed_price_applicable': _rdref_cc.get('price_applicable'),
+        'reviewed_selection_confidence': _rdref_cc.get('selection_confidence'),
+        'reviewed_bounty_applicability': _dbc_cc.get('bounty_applicability'),
+        'no_hero_decision': bool(_rdref_cc.get('no_hero_decision')),
+        'field_ownership': {
+            'street': 'reviewed_action_index',
+            'action': 'reviewed_action_index',
+            'bounty_context': ('reviewed_action_index' if _rev_idx_cc is not None else 'hand_level_default'),
+            'price_context': 'reviewed_action_index',
+            'range_context': 'reviewed_action_index',
+            'verdict_context': 'reviewed_action_index',
+            'hero_equity_vs_shown': 'whole_hand_realized',
+            'villain_range_showdown': 'whole_hand_realized',
+        },
+    }
 
     range_facts = []
     for vpos, vdata in h.get('villains', {}).items():
@@ -190,6 +218,7 @@ def _build_decision_facts(h, stats, report_data):
         'reviewed_selection_source': _rdref_cc.get('selection_source'),
         'bounty_context_owner': ('reviewed_action_index' if _rev_idx_cc is not None
                                  else ('hand_level_default' if (fmt == 'BOUNTY' or bounty_bb) else 'not_applicable')),
+        'decision_content_ownership': _decision_content_ownership,   # REV10 B7
         'decision_meta': {
             'pf_action': h.get('pf_action', ''),
             'hero_bets': len(h.get('hero_bets', [])) if isinstance(h.get('hero_bets', []), (list, tuple)) else (h.get('hero_bets', 0) or 0),

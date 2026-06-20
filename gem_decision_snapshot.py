@@ -153,6 +153,13 @@ def build_decision_snapshot(h, hero_action_index=None):
     if not starting:
         warnings.append('no_starting_stacks')
 
+    # REV10 D1: a hand where Hero takes NO voluntary action (a walk in the BB, or a hand Hero
+    # is never dealt into) has NO reviewed decision. It must never be rendered as an 'act'
+    # decision with a price / bounty / range / verdict. Detected from the ledger alone.
+    _hero_voluntary = [a for a in ledger
+                       if a.get('player') == hero and a.get('action') != 'posts']
+    no_hero_decision = (len(_hero_voluntary) == 0)
+
     stop = idx if idx is not None else len(ledger)
     committed_total, committed_prior, committed_street = {}, {}, {}
     folded_before, all_in_before, acted_street, committed_voluntary = set(), set(), set(), set()
@@ -305,6 +312,22 @@ def build_decision_snapshot(h, hero_action_index=None):
     contestable_pot_before_action = round(
         sum(min(round(v, 2), hero_cap) for v in committed_total.values()), 2)
     uncallable_overjam = round(max(0.0, to_call - callable_amount), 2)
+    # ── REV10 B3: canonical EFFECTIVE DECISION DEPTH — the contestable effective stack for
+    # THIS call/fold, GUARANTEED  callable_amount <= depth <= hero_stack_before_action.
+    # `effective_stack_at_decision_bb` (REV2) measures the stack BEHIND a non-all-in bet (for
+    # multi-street planning) and can fall BELOW the current callable amount (84075480: 2.23
+    # behind a 16.06 bet) — that must never be displayed as Hero's decision depth. For an
+    # all-in confrontation the depth IS the jammed stack (eff_at_decision, already >= callable);
+    # for a non-all-in faced bet it is callable + the aggressor's stack still behind, capped by
+    # Hero's stack. For an unbet/first-in/limp spot it falls back to the confrontation depth.
+    if faced_aggressor is not None and not faced_aggressor_all_in and faced_remaining_after is not None:
+        _depth_base = callable_amount + max(0.0, faced_remaining_after)
+    elif eff_at_decision is not None:
+        _depth_base = eff_at_decision
+    else:
+        _depth_base = callable_amount
+    canonical_effective_decision_depth = round(
+        min(hero_remaining, max(_depth_base, callable_amount)), 2)
     # ── REV8 A1: canonical DECISION-FACING STATE (NOT inferred from to_call_bb > 0) ──
     # A forced big blind makes to_call>0 even when Hero is first-in; pricing a first-in fold
     # as a 'call 1BB' is wrong. Derive the facing state from the VOLUNTARY action before Hero.
@@ -330,6 +353,9 @@ def build_decision_snapshot(h, hero_action_index=None):
         facing_state = 'check_option' if (_hero_pos == 'BB' or to_call <= _EPS) else 'first_in'
     else:
         facing_state = 'check_option'       # postflop, first to act, unbet
+    # REV10 D1: a no-decision hand has no facing state at all.
+    if no_hero_decision:
+        facing_state = 'no_hero_decision'
     # price applicability is driven by the FACING STATE, never by to_call>0. Only a CALL/FOLD
     # that FACES a voluntary raise/bet/jam has a call price; a first-in / check-option / over-
     # limps fold faces no voluntary wager (forced posts are not a wager).
@@ -357,6 +383,11 @@ def build_decision_snapshot(h, hero_action_index=None):
             price_reason = 'no_wager_to_call'
         else:
             price_reason = 'no_callable_chips'
+    # REV10 D1: a no-decision hand never carries a price/required-equity/reason of any kind.
+    if no_hero_decision:
+        required_equity_pct = None
+        price_applicable = False
+        price_reason = 'no_hero_decision'
 
     is_bounty = _is_bounty(h)
     cover_by_opp = {}
@@ -368,11 +399,19 @@ def build_decision_snapshot(h, hero_action_index=None):
                               for p in ([hero] + opp_keys)
                               if committed_total.get(p, 0.0) > _EPS})
 
+    # REV10 C1: the canonical action-node type for THIS reviewed action (one taxonomy).
+    actual_node_type = canonical_node_type(
+        facing_state, _hkind, street, _hero_pos,
+        hero_all_in=(hero in all_in_before), no_hero_decision=no_hero_decision)
+
     return {
         'hand_id': h.get('id', ''),
         'street': street,
         'hero_action_index': idx,
         'hero_action_kind': _hkind,
+        # REV10 D1/C1: typed no-decision flag + canonical node type
+        'no_hero_decision': no_hero_decision,
+        'actual_node_type': actual_node_type,
         'board_at_decision': board_at_decision(h.get('board'), street),
 
         'pot_before_action_bb': pot_before,
@@ -417,6 +456,8 @@ def build_decision_snapshot(h, hero_action_index=None):
         'iso_raise_context': (facing_state == 'facing_limp' and n_street_limps_before > 0),
         'effective_stack_at_start_of_street_bb': eff_at_start_of_street,
         'effective_stack_at_decision_bb': eff_at_decision,
+        # REV10 B3: the contract-satisfying visible decision depth (callable <= depth <= hero stack)
+        'canonical_effective_decision_depth_bb': canonical_effective_decision_depth,
         'effective_stack_by_opponent': eff_by_opp,
         'effective_stack_vs_faced_aggressor': eff_vs_faced,
         'max_effective_stack_among_active_opponents': max_eff_active,
@@ -466,6 +507,82 @@ def _g(x):
         return '?'
 
 
+# ── REV10 C1: ONE canonical action-node taxonomy ───────────────────
+# Distinguishes ACTUAL action from FACING state. A first-in SB limp is first_in_limp
+# (NEVER call_vs_jam); overlimp / SB-complete / iso-raise / iso-shove are NEVER collapsed
+# into one node; a walk where Hero never acts is no_hero_decision.
+_POSTFLOP_NODE = {
+    'check': 'postflop_check', 'bet': 'postflop_bet', 'first_in_open': 'postflop_bet',
+    'call': 'postflop_call', 'call_vs_jam': 'postflop_call', 'call_off': 'postflop_call',
+    'fold': 'postflop_fold', 'raise': 'postflop_raise', '3bet': 'postflop_raise',
+    '4bet': 'postflop_raise', '5bet_plus': 'postflop_raise',
+    'open_shove': 'postflop_jam', 'rejam_over_live_raise': 'postflop_jam',
+    'overjam_with_side_pot': 'postflop_jam',
+}
+
+
+def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
+                        hero_all_in=False, no_hero_decision=False):
+    """The ONE preflop/postflop action-node taxonomy (REV10 C1). Pure function of the
+    canonical facing state + future-blind hero_action_kind + street/position. Used by the
+    snapshot (actual_node_type), the worklist serialization, the range-evidence ownership
+    gate and the inventories so every surface agrees on the node by construction."""
+    k = hero_action_kind or 'none'
+    if no_hero_decision or facing_state == 'no_hero_decision' or k == 'none':
+        return 'no_hero_decision'
+    if street != 'preflop':
+        if hero_all_in and k not in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot'):
+            return 'postflop_jam'
+        return _POSTFLOP_NODE.get(k, 'postflop_call')
+    # ── preflop ──
+    if facing_state == 'check_option':
+        return 'check_option'
+    if facing_state == 'first_in':
+        if k == 'fold':
+            return 'fold_first_in'
+        if k == 'open_shove' or hero_all_in:
+            return 'first_in_open_shove'
+        if k in ('call', 'call_vs_jam', 'call_off'):
+            return 'first_in_limp'                 # SB complete / open-limp first-in
+        return 'first_in_open'
+    if facing_state == 'facing_limp':
+        if k == 'fold':
+            return 'fold_over_limp'
+        if k == 'open_shove' or hero_all_in:
+            return 'iso_shove'
+        if k in ('call', 'call_vs_jam', 'call_off'):
+            return 'sb_complete_after_limp' if hero_position == 'SB' else 'overlimp'
+        return 'iso_raise'
+    if facing_state == 'facing_jam':
+        if k == 'fold':
+            return 'fold_vs_jam'
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+            return 're_jam'
+        return 'call_vs_jam'
+    if facing_state == 'facing_reopen':            # a 3-bet (2+ raises) already in front of Hero
+        if k == 'fold':
+            return 'fold_vs_three_bet'
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+            return 're_jam'
+        if k in ('call', 'call_vs_jam', 'call_off'):
+            return 'call_vs_three_bet'
+        return 'four_bet'
+    if facing_state == 'facing_raise':
+        if k == 'fold':
+            return 'fold_vs_open'
+        if k in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot') or hero_all_in:
+            return 're_jam'
+        if k in ('call', 'call_vs_jam', 'call_off'):
+            return 'call_vs_open'
+        return 'three_bet'
+    # fallback (facing_bet on preflop should not occur)
+    if k == 'fold':
+        return 'fold_vs_open'
+    if k in ('call', 'call_vs_jam', 'call_off'):
+        return 'call_vs_open'
+    return 'first_in_open'
+
+
 def reviewed_action_display(h, hero_action_index, snap=None):
     """REV7 A2: the ONE typed ACTION-DISPLAY for the reviewed action. NEVER renders a
     non-call decision as 'call XBB' (the REV6 bug where folds/checks/bets/opens/jams/re-jams
@@ -489,6 +606,29 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     _faces_wager_disp = _facing in ('facing_raise', 'facing_bet', 'facing_jam', 'facing_reopen')
     hero_pos = snap.get('hero_position')
     n_limp = int(snap.get('limpers_before_hero') or 0)
+    # ── REV10 D1: NO Hero decision (a walk / Hero never acted) — render neither an action verb
+    # nor a price. The visible consumer suppresses the whole decision lesson. ──
+    if snap.get('no_hero_decision') or _facing == 'no_hero_decision':
+        return {
+            'hero_action_kind': 'no_hero_decision', 'hero_actual_action': actual,
+            'facing_action_kind': None, 'facing_price_bb': 0.0,
+            'action_added_bb': 0.0, 'action_total_to_bb': 0.0, 'callable_amount_bb': 0.0,
+            'faced_action_added_bb': None, 'display_verb': 'no decision',
+            'display_text': 'no Hero decision', 'no_hero_decision': True,
+        }
+    # ── REV10 C3: a first-in SB complete / open-limp is a LIMP — never 'call XBB' / call_vs_jam.
+    if _facing == 'first_in' and (kind in ('call', 'call_vs_jam', 'call_off') or actual == 'calls'):
+        _amt = callable_amt if callable_amt > _EPS else facing
+        if hero_pos == 'SB':
+            verb, text = 'complete', 'complete %sBB first-in' % _g(_amt)
+        else:
+            verb, text = 'limp', 'limp %sBB first-in' % _g(_amt)
+        return {
+            'hero_action_kind': kind, 'hero_actual_action': actual,
+            'facing_action_kind': snap.get('faced_action_kind'), 'facing_price_bb': facing,
+            'action_added_bb': added, 'action_total_to_bb': total_to, 'callable_amount_bb': callable_amt,
+            'faced_action_added_bb': faced_added, 'display_verb': verb, 'display_text': text,
+        }
     # ── REV9 A2: FACING-LIMP is DISTINCT from first-in — another player has entered the pot.
     # A fold over a limp is 'fold over limp' (never 'fold first-in'); a call is an overlimp /
     # SB complete; a raise is an iso-raise. ──
@@ -521,8 +661,15 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     elif kind == 'fold':
         # REV8 A3: a FIRST-IN / check-option fold faced NO voluntary wager — never render
         # 'fold facing 1BB' (the forced big blind). It is a decline-to-open decision.
+        # REV10 B2: when Hero DOES face a wager, the displayed price is the CALLABLE amount
+        # (what Hero could actually call), NEVER the raw wager. If the raw wager exceeds the
+        # callable amount, state the raw separately so it can never read as Hero's price.
         if _faces_wager_disp and facing > _EPS:
-            verb, text = 'fold', 'fold facing %sBB' % _g(facing)
+            _cap = callable_amt if callable_amt > _EPS else facing
+            if facing - _cap > _EPS:
+                verb, text = 'fold', 'fold facing %sBB callable (villain wagered %sBB)' % (_g(_cap), _g(facing))
+            else:
+                verb, text = 'fold', 'fold facing %sBB' % _g(_cap)
         else:
             verb, text = 'fold', 'fold first-in'
     elif kind == 'check':
@@ -557,7 +704,9 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     elif actual == 'checks':
         verb, text = 'check', 'check'
     elif actual == 'folds':
-        verb, text = 'fold', ('fold facing %sBB' % _g(facing) if facing > _EPS else 'fold')
+        # REV10 B2: callable, never raw (mirror the typed fold branch above).
+        _cap = callable_amt if callable_amt > _EPS else facing
+        verb, text = 'fold', ('fold facing %sBB' % _g(_cap) if _cap > _EPS else 'fold')
     else:
         verb, text = (actual or 'act'), (actual or 'act')
     return {
@@ -597,7 +746,15 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
     except Exception:
         dbc = {}
     src = selection_source or 'analyzer_inferred'
-    confidence = ('authoritative' if src == 'worklist_reviewed_action' else 'inferred')
+    _no_dec = bool(snap.get('no_hero_decision'))
+    # REV10 D1: a walk / no-Hero-action hand is NEITHER authoritative NOR inferred — its
+    # selection confidence is 'none' and it can never feed a final decision status.
+    if _no_dec:
+        confidence = 'none'
+    elif src == 'worklist_reviewed_action':
+        confidence = 'authoritative'
+    else:
+        confidence = 'inferred'
     return {
         'hand_id': h.get('id', ''),
         'hero_action_index': snap.get('hero_action_index'),
@@ -605,6 +762,8 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
         'decision_kind': decision_kind,
         'selection_source': src,
         'selection_confidence': confidence,
+        'no_hero_decision': _no_dec,
+        'actual_node_type': snap.get('actual_node_type'),
         'hero_action_kind': snap.get('hero_action_kind'),
         # ── REV7 A1 price contract (callable/contestable truth) ──
         'callable_amount_bb': snap.get('callable_amount_bb'),
@@ -621,6 +780,8 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
         'eligible_allin_amount_bb': snap.get('eligible_allin_amount_bb'),
         'pot_before_action_bb': snap.get('pot_before_action_bb'),
         'effective_stack_at_decision_bb': snap.get('effective_stack_at_decision_bb'),
+        # REV10 B3: the contract-satisfying decision depth (callable <= depth <= hero stack)
+        'canonical_effective_decision_depth_bb': snap.get('canonical_effective_decision_depth_bb'),
         # legacy/back-compat: to_call_bb == raw (diagnostic). Consumers must NOT display it.
         'to_call_bb': snap.get('to_call_bb'),
         'faced_aggressor': snap.get('faced_aggressor'),
@@ -674,6 +835,87 @@ def build_reviewed_decision_view(h, hero_action_index=None, decision_kind=None,
         'hero_action_kind': ref.get('hero_action_kind'),
         'selection_source': ref.get('selection_source'),
         'selection_confidence': ref.get('selection_confidence'),
+    }
+
+
+def serialize_reviewed_decision_node(h, hero_action_index=None, decision_kind=None,
+                                     selection_source='analyzer_inferred',
+                                     reference_node_type=None, evidence_purpose=None):
+    """REV10 A1: the ONE serialization path for the exported analyst-worklist decision node.
+    The worklist must NOT independently reconstruct hero action / street / facing state / call
+    amount / price applicability / effective depth / bounty context / range node / selection
+    authority — every one of those is read from the SAME canonical ReviewedDecisionView the
+    report renders, so the worklist (the handoff to analyst review and the future Verdict lane)
+    can never carry a parallel legacy decision model (the REV9 B1/B8 defect).
+
+    `reference_node_type` / `evidence_purpose` describe the range chart the report shows for
+    this action; the caller supplies them (computed by the SAME range-ownership helper the
+    report uses) so the worklist range node equals the visible report range node.
+
+    A non-price action (first-in fold/limp, bet, check, open, open-shove, re-jam, walk) carries
+    callable_amount_bb = None and price_applicable = false — never a forced-post/rounding price."""
+    idx = hero_action_index if hero_action_index is not None else infer_reviewed_action_index(h)
+    snap = build_decision_snapshot(h, idx)
+    ref = build_reviewed_decision_ref(h, idx, decision_kind, selection_source)
+    disp = ref.get('action_display') or {}
+    no_dec = bool(snap.get('no_hero_decision'))
+    price_applicable = bool(ref.get('price_applicable'))
+    # callable is populated ONLY for a price-bearing call/fold facing a voluntary wager.
+    callable_amt = ref.get('callable_amount_bb') if price_applicable else None
+    faced = snap.get('faced_aggressor')
+    return {
+        'hero_action_index': snap.get('hero_action_index'),
+        'street': snap.get('street'),
+        'decision_kind': decision_kind,
+
+        'hero_action_kind': snap.get('hero_action_kind'),
+        'hero_actual_action': disp.get('hero_actual_action'),
+        'action_display': disp.get('display_text'),
+        'action_display_verb': disp.get('display_verb'),
+
+        'decision_facing_state': snap.get('decision_facing_state'),
+        'faced_action_kind': snap.get('faced_action_kind'),
+        'faced_player': faced,
+        'limpers_before_hero': snap.get('limpers_before_hero'),
+        'no_hero_decision': no_dec,
+
+        'price_contract': {
+            'price_applicable': price_applicable,
+            'price_reason': snap.get('price_reason'),
+            'raw_amount_to_match_bb': snap.get('raw_amount_to_match_bb'),
+            'callable_amount_bb': callable_amt,
+            'contestable_pot_before_action_bb': (snap.get('contestable_pot_before_action_bb')
+                                                 if price_applicable else None),
+            'uncallable_overjam_bb': snap.get('uncallable_overjam_bb'),
+            'required_equity_pct': snap.get('required_equity_pct'),
+        },
+        'stack_contract': {
+            'hero_stack_before_action_bb': snap.get('hero_stack_before_action_bb'),
+            'effective_stack_at_start_of_street_bb': snap.get('effective_stack_at_start_of_street_bb'),
+            'effective_stack_at_decision_bb': snap.get('canonical_effective_decision_depth_bb'),
+            'effective_stack_by_opponent': snap.get('effective_stack_by_opponent'),
+        },
+        'selection': {
+            'source': ref.get('selection_source'),
+            'confidence': ref.get('selection_confidence'),
+            'authoritative': ref.get('selection_confidence') == 'authoritative',
+        },
+        'bounty_applicability': ref.get('bounty_applicability'),
+        'bounty_certainty': ref.get('bounty_certainty'),
+
+        'actual_node_type': snap.get('actual_node_type'),
+        'reference_node_type': reference_node_type,
+        'evidence_purpose': evidence_purpose,
+
+        # ── compatibility-only flattened aliases (mechanically derived from the canonical
+        # nested object above; NO consumer may recalculate from these) ──
+        'hero_action_facing': snap.get('decision_facing_state'),
+        'call_amount_bb': callable_amt,
+        'effective_bb_vs_relevant_villain': snap.get('canonical_effective_decision_depth_bb'),
+        'price_not_applicable': (not price_applicable),
+        'price_unavailable': False,   # the canonical contract never yields an 'unavailable' price
+        'price_source': ('canonical_reviewed_view' if price_applicable else 'not_applicable'),
+        '_compatibility_only': True,
     }
 
 

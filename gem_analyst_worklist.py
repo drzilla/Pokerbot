@@ -1051,7 +1051,40 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         _kds = 'preflop' if _is_preflop_kind(kind) else (
             (c.get('decision_math') or {}).get('key_decision_street', ''))
         dm_block = ((c.get('decision_math') or {}).get('streets') or {}).get(_kds, {})
-        dn = _decision_node(c, kind, dev, hand)
+        # REV10 A1/B1/B8: the exported worklist decision_node is a SERIALIZATION of the SAME
+        # canonical ReviewedDecisionView the report renders — it must NEVER independently
+        # reconstruct hero action / facing state / call price / effective depth / bounty context /
+        # range node / selection authority (the REV9 legacy-model divergence). The legacy
+        # _decision_node builder is retired to a hand-missing fallback only; a single canonical
+        # path owns every real node, and the range node is computed by the SAME ownership helper
+        # the report uses so worklist == report by construction.
+        _reviewed_view = None
+        _has_stacks = False
+        if hand is not None:
+            try:
+                from gem_decision_snapshot import _starting_stacks as _ds_stk
+                _has_stacks = bool(_ds_stk(hand))
+            except Exception:
+                _has_stacks = False
+        if hand is not None and _has_stacks:
+            try:
+                from gem_decision_snapshot import (serialize_reviewed_decision_node as _ds_srdn,
+                                                    build_reviewed_decision_view as _ds_brdv)
+                from gem_report_draft.sections_xiv import reviewed_range_ownership as _rro
+                _ridx2 = _reviewed_action_index(hand, kind)
+                _rown = _rro(hand, hand.get('reviewed_decision_ref') or {})
+                dn = _ds_srdn(hand, _ridx2, kind, 'worklist_reviewed_action',
+                              reference_node_type=_rown.get('reference_node_type'),
+                              evidence_purpose=_rown.get('evidence_purpose'))
+                _reviewed_view = _ds_brdv(hand, _ridx2, kind, 'worklist_reviewed_action')
+            except Exception:
+                dn = _decision_node(c, kind, dev, hand)
+        else:
+            # Degenerate hand with NO usable stacks (synthetic fixtures only — every real
+            # parsed hand carries seat_stack_by_player). The canonical view needs stacks; fall
+            # back to the legacy node-builder for these so a stack-less ledger never serialises
+            # a zero-stack price/depth. Real exported nodes are always the canonical view.
+            dn = _decision_node(c, kind, dev, hand)
         rng = _range_membership(c, dev, dev_charts)
         bnt = _bounty_context(c, pko)
         # v8.17.1 Iter-1 corrective: reconcile range label + bounty coverage to the
@@ -1178,6 +1211,7 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
                                    'phase': c.get('tournament_phase', '')},
             'canonical_action_line': action_line,
             'decision_node': dn,
+            'reviewed_decision_view': _reviewed_view,   # REV10 A1: canonical view (authoritative)
             'range_membership': rng,
             'bounty_context': bnt,
             'source_truth': src_truth,

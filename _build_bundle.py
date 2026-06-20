@@ -38,7 +38,11 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               # v8.17.1 Iter-1 (REV9): the real production-render holdout — the suite
               # (T-REV9-12) reads its source to prove it invokes render_html, so it must
               # extract with the runtime.
-              '_qa_holdout.py']
+              '_qa_holdout.py',
+              # v8.17.1 Iter-1 (REV10): the exact-report inventory (Range Lens exact count,
+              # fold/depth, taxonomy, no-decision, evidence purpose) — a release canary pins
+              # its REV10 metric, so it must extract with the runtime.
+              '_qa_iter1_inventory.py']
 
 # Stage-A kill list — never bundled
 KILL = {

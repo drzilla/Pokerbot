@@ -96,7 +96,32 @@ def _gen_corpus():
                               {'Hero': hero_stk, 'V': 40.0}, 2, ['check', 'postflop'], board=['2c', '7d', 'Js'], pos='CO'))
     corpus.extend(_gen_first_in_folds())
     corpus.extend(_gen_limp_cases())
+    corpus.extend(_gen_edge_cases())
     return corpus
+
+
+def _gen_edge_cases():
+    """REV10: no-Hero-decision walk, first-in SB limp/complete, postflop call with an earlier
+    preflop range context — so the holdout activates the no-decision, first_in_limp, and
+    earlier-context range surfaces too."""
+    out = []
+    # NO Hero decision — Hero is BB, folds around, Hero never voluntarily acts (a walk).
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'CO', 'folds', 0, pos='CO'), _L('preflop', 'BTN', 'folds', 0, pos='BTN'),
+                    _L('preflop', 'SB', 'folds', 0, pos='SB')],
+                   {'Hero': 40.0, 'SB': 40.0, 'CO': 40.0, 'BTN': 40.0}, None, ['no_hero_decision', 'walk'],
+                   fmt='BOUNTY', pos='BB'))
+    # FIRST-IN SB limp/complete (folds to Hero in the SB, Hero completes first-in).
+    out.append(_mk([_L('preflop', 'CO', 'folds', 0, pos='CO'), _L('preflop', 'BTN', 'folds', 0, pos='BTN'),
+                    _L('preflop', 'Hero', 'calls', 0.5, pos='SB'), _L('preflop', 'BB', 'checks', 0, pos='BB')],
+                   {'Hero': 40.0, 'BB': 40.0, 'CO': 40.0, 'BTN': 40.0}, 2, ['first_in_limp', 'sb_complete_first_in'],
+                   pos='SB'))
+    # POSTFLOP call carrying an earlier preflop open (earlier-context range).
+    out.append(_mk([_L('preflop', 'Hero', 'raises', 2.5, pos='CO'), _L('preflop', 'BB', 'calls', 2.5, pos='BB'),
+                    _L('flop', 'BB', 'bets', 4.0, pos='BB'), _L('flop', 'Hero', 'calls', 4.0, pos='CO')],
+                   {'Hero': 60.0, 'BB': 60.0}, 3, ['postflop', 'earlier_context', 'call'],
+                   board=['2c', '7d', 'Js'], pos='CO'))
+    return out
 
 
 def _gen_first_in_folds():
@@ -111,7 +136,14 @@ def _gen_first_in_folds():
                 led.append(_L('preflop', q, 'folds', 0, pos=q))
         idx = len(led)
         led.append(_L('preflop', 'Hero', 'folds', 0, pos=pos))
-        out.append(_mk(led, {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0}, idx, ['first_in_fold', pos], fmt='BOUNTY', pos=pos))
+        _hc = _mk(led, {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0}, idx, ['first_in_fold', pos], fmt='BOUNTY', pos=pos)
+        # REV10 E1: give the first-in fold the range-chart fields so hand_range_evidence returns
+        # the RFI open chart, rendered as a RECOMMENDED-ALTERNATIVE range (Hero folded a hand the
+        # open chart includes) — activating that surface in the holdout.
+        _hc[0]['first_in'] = True
+        _hc[0]['pf_action'] = 'fold'
+        _hc[0]['eff_stack_bb_at_decision'] = 30.0
+        out.append(_hc)
     # BB check option (limped pot)
     out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'Hero', 'posts', 1.0, pos='BB'),
                     _L('preflop', 'BTN', 'calls', 1.0, pos='BTN'), _L('preflop', 'Hero', 'checks', 0, pos='BB')],
@@ -171,6 +203,29 @@ def main():
     rd.setdefault('pot_odds_by_hand', {})
 
     corpus = _gen_corpus()
+    # REV10 E2: build the ACTUAL analyst worklist from the PRISTINE corpus (before the render-time
+    # mutations below) so the builder routes every candidate, then compare its serialized decision
+    # nodes to the SAME canonical reviewed views (gate A) — proving the worklist export is canonical.
+    real_wl = {'items': {}}
+    try:
+        from gem_analyst_worklist import build_analyst_worklist
+        _corpus_hands = [h for h, _i, _t in corpus]
+        _cands = {'mistakes': [
+            {'id': h['id'], 'tournament_hand_id': h['id'], 'cards': ''.join(h.get('cards') or []),
+             'position': h.get('position', ''), 'format': h.get('format', 'NLHE'),
+             'tournament_phase': 'mid', 'decision_kind': _kind_for(_t), 'action_summary': 'holdout',
+             'decision_math': {'key_decision_street': 'preflop', 'streets': {}}}
+            for h, _i, _t in corpus]}
+        # IMPORTANT: give the builder its OWN reviewed_decision_ref_by_hand dict — dict(rd) is a
+        # SHALLOW copy that would otherwise share (and let the builder pollute) rd's map with
+        # authoritative refs, mislabelling the holdout's inferred cases as "Reviewed decision".
+        _wl_rd = dict(rd)
+        _wl_rd['reviewed_decision_ref_by_hand'] = {}
+        real_wl = build_analyst_worklist(_cands, {'preflop_deviations': []}, _wl_rd,
+                                         base_hands + _corpus_hands, '20260616')
+    except Exception as _e:
+        real_wl = {'items': {}, '_error': str(_e)}
+
     holdout_hands, our_idx, wl_items = [], {}, {}
     tag_counts = {}
     n_authoritative = n_inferred = 0
@@ -194,12 +249,25 @@ def main():
         if h.get('format') == 'BOUNTY':
             try:
                 h['decision_bounty_context'] = ds.build_decision_bounty_context(h, idx)
-                h['decision_bounty_context_by_action_index'] = {idx: h['decision_bounty_context']}
+                if idx is not None:
+                    h['decision_bounty_context_by_action_index'] = {idx: h['decision_bounty_context']}
             except Exception:
                 pass
         holdout_hands.append(h)
         our_idx[h['id']] = h
         our_idx[h['id'][-8:]] = h
+
+    # REV10 E2: build the ACTUAL coaching cards via the production builder so the coaching
+    # surface is genuinely activated (not merely seeded), and stamp them onto report_data.
+    try:
+        from gem_coaching_cards import build_coaching_cards
+        rd['coaching_cards'] = build_coaching_cards(base_hands + holdout_hands, stats, rd)
+    except Exception as _e:
+        rd.setdefault('coaching_cards', {})
+    n_coaching_cards = sum(len(v) for v in (rd.get('coaching_cards') or {}).values())
+
+    # REV10 E2: gate A on the real worklist built above (canonical-node parity on the holdout).
+    gate_a = qp.gate_worklist(our_idx, real_wl)
 
     prev = os.environ.get('GEM_LAZY_HANDS')
     os.environ['GEM_LAZY_HANDS'] = '1'
@@ -215,6 +283,27 @@ def main():
     wl = {'items': wl_items}
     gate_vd = qp.gate_report_visible_decision(our_idx, html, wl)
     gate_fr = qp.gate_report_full_render(our_idx, html, wl)
+
+    # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
+    # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
+    # having nothing to inspect. Counts are derived from the decoded production-render bodies.
+    import re as _re
+    _all_body = '\n'.join(cards.values())
+    surface_activation = {
+        'decision_capsule': len(_re.findall(r'(?:Reviewed decision|Inferred decision context|No reviewed decision)', _all_body)),
+        'typed_action_display': len(_re.findall(r'(?:open to|3-bet to|call \d|fold facing|fold first-in|fold over limp|open-shove|re-jam|bet \d|check|complete \d|overlimp|iso-raise)', _all_body)),
+        'price_pot_odds_block': len(_re.findall(r'Pot odds:', _all_body)),
+        'range_evidence': len(_re.findall(r"<span[^>]*class=['\"][^'\"]*rng-hl", _all_body)),
+        'recommended_alternative_range': len(_re.findall(r'Recommended-alternative range', _all_body)),
+        'earlier_context_range': len(_re.findall(r'Earlier preflop context', _all_body)),
+        'verdict_or_allin_math': len(_re.findall(r'(?:Decision:|All-in|EV of call:|Verdict)', _all_body)),
+        'pko_bounty_teaching': len(_re.findall(r'(?:Bounty trust:|PKO|bounty)', _all_body)),
+        'coaching_cards_built': n_coaching_cards,
+        'worklist_items_built': len(real_wl.get('items') or {}),
+        'no_hero_decision_lines': len(_re.findall(r'No reviewed decision', _all_body)),
+    }
+    # every claimed surface must have been activated at least once
+    surface_zero = [k for k, v in surface_activation.items() if not v]
     # direct invariant: every facing-limp / first-in fold renders correctly + no pot odds
     direct = []
     for h, idx, tags in corpus:
@@ -229,7 +318,11 @@ def main():
         if ('first_in_fold' in tags or 'facing_limp' in tags) and s.get('price_applicable') and disp.startswith('fold'):
             direct.append({'hand': h['id'], 'why': 'first_in_or_limp_fold_priced'})
 
-    violations = list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', [])) + direct
+    # REV10 E1: a claimed-but-unactivated surface is a holdout FAILURE (false confidence).
+    surface_violations = [{'why': 'consumer_surface_not_activated', 'surface': k} for k in surface_zero]
+    wl_a_mismatches = list(gate_a.get('mismatches', []))
+    violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
+                  + direct + surface_violations + wl_a_mismatches)
     rendered = sum(1 for h, _, _ in corpus if (cards.get(h['id'][-8:]) or cards.get(h['id'])))
     summary = {
         'production_render_entrypoint': PROD_RENDER_ENTRYPOINT,
@@ -240,12 +333,20 @@ def main():
         'authoritative_cases': n_authoritative,
         'inferred_cases': n_inferred,
         'action_type_distribution': tag_counts,
+        # REV10 E1/E2: per-surface activation + real-worklist node parity (gate A on the holdout).
+        'surface_activation_counts': surface_activation,
+        'surfaces_not_activated': surface_zero,
+        'real_worklist_items': len(real_wl.get('items') or {}),
+        'real_worklist_gate_a_checked': gate_a.get('checked', 0),
+        'real_worklist_gate_a_mismatches': len(wl_a_mismatches),
+        'coaching_cards_built': n_coaching_cards,
         'visible_decision_mismatches': len(gate_vd.get('mismatches', [])),
         'full_render_mismatches': len(gate_fr.get('mismatches', [])),
         'direct_invariant_violations': len(direct),
         'semantic_violations': len(violations),
         'violations': violations[:60],
-        'pass': len(violations) == 0 and rendered > 0 and gate_fr.get('checked', 0) > 0,
+        'pass': (len(violations) == 0 and rendered > 0 and gate_fr.get('checked', 0) > 0
+                 and not surface_zero and gate_a.get('checked', 0) > 0),
     }
     with io.open(out_json, 'w', encoding='utf-8') as fh:
         json.dump(summary, fh, indent=2, ensure_ascii=False)

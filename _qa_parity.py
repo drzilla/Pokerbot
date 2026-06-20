@@ -885,6 +885,8 @@ def check_action_row_numeric(lbl, amt, tt, oz):
     added = oz.get('amount_added_bb')
     total = oz.get('total_to_bb')
     raise_inc = oz.get('raise_increment_bb')
+    cont = oz.get('continue_component_bb')
+    callable_amt = oz.get('callable_amount_bb')
     fields = []
     if lbl is None:
         return fields                      # no amount on this row (fold/check) — nothing numeric
@@ -908,8 +910,14 @@ def check_action_row_numeric(lbl, amt, tt, oz):
         if not _row_close(amt, total):
             fields.append('total_to_value_mismatch')
     elif lbl == 'call':
-        if not _row_close(amt, added):
-            fields.append('call_value_mismatch')
+        # REV14 B6: a literal call's visible price MUST equal the callable / continue component
+        # (the live amount Hero commits), NEVER an ante-inflated amount, and a call can NEVER carry a
+        # raise increment. The oracle's amount_added for a call already equals the callable price.
+        _call_expect = cont if cont is not None else (callable_amt if callable_amt is not None else added)
+        if not _row_close(amt, _call_expect):
+            fields.append('call_value_not_callable')
+        if raise_inc not in (None, 0):
+            fields.append('call_has_raise_increment')
     elif lbl in ('bet', 'complete', 'limp', 'overlimp'):
         if not _row_close(amt, added):
             fields.append('added_value_mismatch')
@@ -966,6 +974,8 @@ def gate_action_row_parity(hands_idx, worklist, html):
         node = snap.get('actual_node_type')
         pos = snap.get('hero_position') or '?'
         oz = oracle.oracle_sizing(h, ridx)
+        contract = ds.build_action_sizing_contract(h, ridx)   # production display contract (labels)
+        canon_req_eq = snap.get('required_equity_pct')        # canonical required equity (capsule value)
         out['authoritative_action_rows_checked'] += 1
         led = h.get('action_ledger') or []
         hero = h.get('hero', 'Hero')
@@ -1001,6 +1011,29 @@ def gate_action_row_parity(hands_idx, worklist, html):
         if num_fields:
             out['amount_type_mismatches'] += 1
             mism.extend(num_fields)
+        # 4) REQUIRED-EQUITY parity (REV14 B5): a Hero call's visible "need X%" must equal the
+        # canonical required_equity (the capsule value, from the contestable pot) AND the independent
+        # oracle's contestable-pot required equity — never a raw running-pot recompute (83915165 56%).
+        _m_need = re.search(r'need\s+([\d.]+)\s*%', selected_text)
+        observed_need = float(_m_need.group(1)) if _m_need else None
+        if observed_need is not None:
+            if canon_req_eq is not None and abs(observed_need - canon_req_eq) > 0.6:
+                out['amount_type_mismatches'] += 1
+                mism.append('required_equity_row_vs_canonical_mismatch')
+            if oz.get('required_equity_pct') is not None and abs(observed_need - oz['required_equity_pct']) > 0.6:
+                out['amount_type_mismatches'] += 1
+                mism.append('required_equity_row_vs_oracle_mismatch')
+        # 5) COMPOSITE DISPLAY (REV14 B7): a composite all-in row "adds X, all-in to Y" must map its
+        # 'adds' value to amount_added and its 'all-in to' value to live_total_to — never one
+        # ambiguous amount_type. (The numeric check above already verifies the 'adds' value ==
+        # amount_added and the 'all-in to' value == total_to; here we record the typed display.)
+        _prim = (contract.get('primary_display') or {})
+        _sec = contract.get('secondary_display')
+        if lbl == 'adds' and tt is not None and _sec is not None:
+            # a true composite: the secondary 'all-in to' value must equal live_total_to
+            if _sec.get('field') != 'live_betting_total_to_bb':
+                out['amount_type_mismatches'] += 1
+                mism.append('composite_secondary_field_wrong')
         rec = {
             'hand_id': hid,
             'selected_action_index': ridx,
@@ -1008,15 +1041,18 @@ def gate_action_row_parity(hands_idx, worklist, html):
             'node': node,
             'action_semantics': oz.get('action_semantics'),
             'observed_row_text': selected_text or None,
-            'observed_verb': lbl,
             'observed_amount_label': lbl,
             'observed_amount': amt,
             'observed_total_to': tt,
-            'expected_amount_type': oz.get('display_amount_type'),
+            'observed_need_pct': observed_need,
+            'primary_display': _prim,
+            'secondary_display': _sec,
             'expected_amount_added_bb': oz.get('amount_added_bb'),
-            'expected_total_to_bb': oz.get('total_to_bb'),
-            'expected_raise_increment_bb': oz.get('raise_increment_bb'),
+            'expected_live_total_to_bb': oz.get('total_to_bb'),
             'expected_continue_component_bb': oz.get('continue_component_bb'),
+            'expected_raise_increment_bb': oz.get('raise_increment_bb'),
+            'expected_required_equity_pct': canon_req_eq,
+            'oracle_required_equity_pct': oz.get('required_equity_pct'),
             'grid_absent': grid_absent,
             'mismatch_fields': mism,
         }
@@ -1113,6 +1149,39 @@ def gate_canonical_view_node_parity(hands_idx, worklist):
             'node_price_callable_bb': (node.get('price_contract') or {}).get('callable_amount_bb'),
             'view_price_callable_bb': (view.get('price_contract') or {}).get('callable_amount_bb'),
             'continue_component_bb': (node.get('action_sizing_contract') or {}).get('continue_component_bb'),
+            'mismatch_fields': fields,
+        })
+    return out
+
+
+def gate_persisted_view_node_parity(worklist):
+    """REV14 H4/B8: PERSISTED parity — compares the worklist's STORED item['reviewed_decision_view']
+    and item['decision_node'] WITHOUT rebuilding either object. This proves the EXPORTED worklist
+    embeds the SAME serialized view it ships (a builder-parity gate that reconstructs both sides could
+    miss corruption introduced during persistence/packaging). Builder parity stays a SEPARATE gate
+    (gate_canonical_view_node_parity)."""
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'persisted_items_checked': 0, 'items_with_both_objects': 0, 'mismatches': 0, 'records': []}
+    for it in items:
+        view = it.get('reviewed_decision_view')
+        node = it.get('decision_node')
+        out['persisted_items_checked'] += 1
+        if not isinstance(view, dict) or not isinstance(node, dict):
+            continue                       # degenerate/stack-less item carries no canonical view — N/A
+        out['items_with_both_objects'] += 1
+        fields = []
+        if node.get('price_contract') != view.get('price_contract'):
+            fields.append('price_contract')
+        if node.get('action_sizing_contract') != view.get('action_sizing_contract'):
+            fields.append('action_sizing_contract')
+        if fields:
+            out['mismatches'] += 1
+        out['records'].append({
+            'hand_id': it.get('hand_id'),
+            'node_price_callable_bb': (node.get('price_contract') or {}).get('callable_amount_bb'),
+            'view_price_callable_bb': (view.get('price_contract') or {}).get('callable_amount_bb'),
             'mismatch_fields': fields,
         })
     return out
@@ -1306,6 +1375,7 @@ def main():
     g_ar = gate_action_row_parity(hands_idx, worklist, html)
     g_vs = gate_visible_semantic(hands_idx, html, worklist)
     g_vn = gate_canonical_view_node_parity(hands_idx, worklist)
+    g_pv = gate_persisted_view_node_parity(worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -1350,16 +1420,20 @@ def main():
           f"{len(g_vs['violations'])} violation(s)")
     for mm in g_vs['violations'][:40]:
         print('   ✗', mm)
-    print(f"K. CANONICAL VIEW == NODE (deep) : {g_vn['authoritative_items_checked']} authoritative items, "
+    print(f"K. CANONICAL VIEW == NODE (deep, builder) : {g_vn['authoritative_items_checked']} authoritative items, "
           f"{g_vn['mismatches']} mismatch(es) "
           f"(price {g_vn['price_contract_mismatches']}, sizing {g_vn['sizing_mismatches']})")
     for mm in [r for r in g_vn['records'] if r['mismatch_fields']][:40]:
+        print('   ✗', mm)
+    print(f"L. PERSISTED VIEW == NODE : {g_pv['items_with_both_objects']} stored items, "
+          f"{g_pv['mismatches']} mismatch(es)")
+    for mm in [r for r in g_pv['records'] if r['mismatch_fields']][:40]:
         print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
           and not g_fr['mismatches'] and not g_or['mismatches']
           and not g_ar.get('total_mismatches', len(g_ar['mismatches']))
-          and not g_vs['violations'] and not g_vn['mismatches'])
+          and not g_vs['violations'] and not g_vn['mismatches'] and not g_pv['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -1370,7 +1444,7 @@ def main():
                        'report_visible_decision': g_vd, 'report_full_render': g_fr,
                        'ledger_oracle': g_or, 'action_row_parity': g_ar,
                        'visible_semantic': g_vs, 'canonical_view_node_parity': g_vn,
-                       'pass': ok}, fh, indent=2)
+                       'persisted_view_node_parity': g_pv, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

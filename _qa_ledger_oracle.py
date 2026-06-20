@@ -35,6 +35,36 @@ def _starting(h):
     return out
 
 
+def _forced_posts(h, player):
+    """REV14 G: INDEPENDENT poker-rule classification of a player's forced posts — the ante is DEAD
+    (a pot contribution that does NOT count toward matching a wager or a betting total-to); the SB/BB
+    is a LIVE preflop commitment. Derived from the raw ledger only, with NO production import: the
+    live blind is the player's positional blind (the largest 'posts' for the SB/BB seat); the ante is
+    every other forced post."""
+    led = h.get('action_ledger') or []
+    posts = [a for a in led if a.get('player') == player and a.get('action') == 'posts']
+    total = round(sum(_added(a) for a in posts), 4)
+    pos = ''
+    for a in led:
+        if a.get('player') == player and a.get('position') not in (None, '?'):
+            pos = (a.get('position') or '').upper()
+            break
+
+    def _bl(seat):
+        v = [_added(a) for a in led if a.get('action') == 'posts'
+             and (a.get('position') or '').upper() == seat]
+        return max(v) if v else 0.0
+
+    if pos == 'BB':
+        live = min(_bl('BB'), total)
+    elif pos == 'SB':
+        live = min(_bl('SB'), total)
+    else:
+        live = 0.0
+    return {'ante_bb': round(max(0.0, total - live), 2), 'live_blind_bb': round(live, 2),
+            'position': pos, 'total_posts_bb': round(total, 2)}
+
+
 def oracle_identity(h, idx):
     """Independently derive Hero's literal action identity at ledger index `idx`. Returns a dict
     with raw_action / street / amount_added_bb / total_to_bb / hero_stack_before_bb /
@@ -60,9 +90,16 @@ def oracle_identity(h, idx):
     hero_committed_street = sum(_added(a) for i, a in enumerate(led)
                                 if i < idx and a.get('player') == hero and a.get('street') == street)
     stack_before = round(hero_start - hero_committed_before, 2) if hero_start is not None else None
-    stack_after = round(stack_before - added, 2) if stack_before is not None else None
     became_all_in = bool(evt.get('is_all_in')) or (
-        stack_after is not None and added > _EPS and stack_after <= _EPS)
+        stack_before is not None and added > _EPS and (stack_before - added) <= _EPS)
+    # REV14 G: an all-in EXHAUSTS the remaining stack (poker rule) — stack_after is exactly 0,
+    # never an ante-sized residual. A non-all-in action leaves stack_before minus the live amount.
+    stack_after = (0.0 if became_all_in
+                   else (round(stack_before - added, 2) if stack_before is not None else None))
+    # REV14 G: the DEAD ante (preflop only) is excluded from live betting commitment.
+    _fp = _forced_posts(h, hero)
+    dead_ante = _fp['ante_bb'] if street == 'preflop' else 0.0
+    live_committed_street = round(max(0.0, hero_committed_street - dead_ante), 2)
     total_to = round(hero_committed_street + added, 2)
 
     # prior VOLUNTARY actions on this street (forced posts excluded)
@@ -141,7 +178,7 @@ def oracle_identity(h, idx):
         'no_hero_decision': False,
         'raw_action': act,
         'street': street,
-        'amount_added_bb': round(added, 2),
+        'amount_added_bb': round(added, 2),       # RAW ledger added (ante-contaminated; sizing corrects it)
         'total_to_bb': total_to,
         'hero_stack_before_bb': stack_before,
         'hero_stack_after_bb': stack_after,
@@ -151,6 +188,8 @@ def oracle_identity(h, idx):
         'has_voluntary_wager_faced': has_voluntary_wager,
         'to_call_bb': to_call,
         'hero_position': hero_pos,
+        'dead_ante_bb': round(dead_ante, 2),
+        'live_committed_street_bb': live_committed_street,
     }
 
 
@@ -169,39 +208,87 @@ def oracle_sizing(h, idx):
         return {'amount_added_bb': None, 'total_to_bb': None, 'continue_component_bb': None,
                 'raise_increment_bb': None, 'extra_isolation_amount_bb': None,
                 'display_amount_type': None, 'action_semantics': ident.get('action_semantics'),
-                'became_all_in': bool(ident.get('became_all_in'))}
-    added = ident['amount_added_bb']
-    total_to = ident['total_to_bb']
+                'became_all_in': bool(ident.get('became_all_in')), 'callable_amount_bb': None,
+                'contestable_pot_bb': None, 'required_equity_pct': None, 'hero_stack_after_bb': None,
+                'live_betting_total_to_bb': None, 'pot_contribution_total_bb': None}
+    led = h.get('action_ledger') or []
+    hero = h.get('hero', 'Hero')
+    raw_added = ident['amount_added_bb']
     to_call = ident.get('to_call_bb')
     stack_before = ident.get('hero_stack_before_bb')
     sem = ident['action_semantics']
     has_faced = bool(ident.get('has_voluntary_wager_faced'))
     became_all_in = bool(ident.get('became_all_in'))
-    # continue component = the price to MATCH the faced voluntary wager, capped by Hero's stack.
-    continue_component = None
-    if has_faced and to_call is not None and to_call > _EPS:
-        cap = stack_before if stack_before is not None else to_call
-        continue_component = round(min(to_call, cap), 2)
-    # raise increment = amount_added beyond the continue component (only when Hero raised over a wager)
-    raise_increment = None
-    extra_isolation = None
-    if continue_component is not None and sem in ('three_bet', 'four_bet', 're_jam', 'raise'):
-        if added > continue_component + _EPS:
-            raise_increment = round(added - continue_component, 2)
-            extra_isolation = raise_increment
-    # which typed amount a surface should SHOW for this action
+    live_before = ident.get('live_committed_street_bb') or 0.0
+    dead_ante = ident.get('dead_ante_bb') or 0.0
+    # the price to MATCH the faced voluntary wager (the callable amount), capped by Hero's stack.
+    callable_amount = (round(min(to_call, stack_before if stack_before is not None else to_call), 2)
+                       if (to_call and to_call > _EPS) else 0.0)
+    continue_component = callable_amount if (has_faced and callable_amount > _EPS) else None
+    # REV14 G: amount_added is the chips Hero PHYSICALLY removes — an all-in exhausts the stack; a
+    # literal call adds exactly the callable price (no ante, no raise increment); else the raw live.
+    if became_all_in:
+        amount_added = round(stack_before, 2) if stack_before is not None else raw_added
+    elif sem == 'call':
+        amount_added = continue_component if continue_component is not None else raw_added
+    else:
+        amount_added = raw_added
+    hero_after = 0.0 if became_all_in else (round(stack_before - amount_added, 2)
+                                            if stack_before is not None else None)
+    # REV14 G: the live betting total-to is the bet LEVEL Hero reaches — for an aggressive action the
+    # gross street level (= grid "to X"; the ante cancels for all-ins), for a call the live level
+    # (live_before + callable). gross_before is the raw committed-street incl ante (= live + ante).
+    gross_before = round(live_before + dead_ante, 2)
+    if sem in ('check', 'fold'):
+        live_total_to = round(live_before, 2)
+    elif sem == 'call':
+        live_total_to = round(live_before + amount_added, 2)
+    else:
+        live_total_to = round(gross_before + raw_added, 2)
+    pot_contribution_total = round(gross_before + amount_added, 2)
+    # REV14 C2/G: a call/check/fold NEVER has a raise increment; only a bet/raise does.
+    if sem in ('call', 'check', 'fold'):
+        raise_increment = None
+        extra_isolation = None
+    elif continue_component is not None and amount_added > continue_component + _EPS:
+        raise_increment = round(amount_added - continue_component, 2)
+        extra_isolation = raise_increment
+    else:
+        raise_increment = None
+        extra_isolation = None
+    # REV14 E/G: independent CONTESTABLE-POT required equity — Hero can only win up to his own stack
+    # from each contributor, so cap every player's committed chips at hero_cap; this excludes the
+    # uncallable overjam / side-pot chips Hero cannot win (the 83915165 56% vs 37.5% root).
+    committed_total = {}
+    for i, a in enumerate(led):
+        if i >= idx:
+            break
+        committed_total[a.get('player', '')] = committed_total.get(a.get('player', ''), 0.0) + _added(a)
+    hero_committed_total = round(committed_total.get(hero, 0.0), 2)
+    hero_cap = round(hero_committed_total + callable_amount, 2)
+    contestable_pot = round(sum(min(round(v, 2), hero_cap) for v in committed_total.values()), 2)
+    required_equity = None
+    if has_faced and callable_amount > _EPS:
+        denom = contestable_pot + callable_amount
+        required_equity = round(100.0 * callable_amount / denom, 1) if denom > _EPS else None
     if sem in ('open', 'three_bet', 'four_bet', 'open_shove', 're_jam', 'raise'):
-        disp = 'total_to'                       # aggressive: total-to (all-in also labels "adds")
+        disp = 'total_to'
     elif sem == 'call':
         disp = 'callable_component'
-    else:                                       # bet / complete / short_all_in / check / fold
+    else:
         disp = 'amount_added'
     return {
-        'amount_added_bb': added,
-        'total_to_bb': total_to,
+        'amount_added_bb': amount_added,
+        'total_to_bb': live_total_to,
+        'live_betting_total_to_bb': live_total_to,
+        'pot_contribution_total_bb': pot_contribution_total,
         'continue_component_bb': continue_component,
+        'callable_amount_bb': callable_amount if continue_component is not None else None,
         'raise_increment_bb': raise_increment,
         'extra_isolation_amount_bb': extra_isolation,
+        'contestable_pot_bb': contestable_pot,
+        'required_equity_pct': required_equity,
+        'hero_stack_after_bb': hero_after,
         'display_amount_type': disp,
         'action_semantics': sem,
         'became_all_in': became_all_in,

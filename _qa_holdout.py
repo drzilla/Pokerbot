@@ -302,6 +302,8 @@ def main():
     gate_vs = qp.gate_visible_semantic(our_idx, html, real_wl)
     # REV13 F/I: canonical ReviewedDecisionView == serialized decision_node deep parity on the holdout.
     gate_vn = qp.gate_canonical_view_node_parity(our_idx, real_wl)
+    # REV14 H4/B8: PERSISTED view==node parity (reads the stored worklist objects, no rebuild).
+    gate_pv = qp.gate_persisted_view_node_parity(real_wl)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -370,6 +372,10 @@ def main():
     # REV13 F/I: any node/view deep-parity disagreement on the holdout corpus is a violation.
     vn_mismatches = [{'hand': r.get('hand_id'), 'why': 'view_node_parity', 'fields': r['mismatch_fields']}
                      for r in gate_vn.get('records', []) if r.get('mismatch_fields')]
+    # REV14 H4/B8: any PERSISTED view==node disagreement is a violation.
+    pv_mismatches = [{'hand': r.get('hand_id'), 'why': 'persisted_view_node_parity', 'fields': r['mismatch_fields']}
+                     for r in gate_pv.get('records', []) if r.get('mismatch_fields')]
+    vn_mismatches = vn_mismatches + pv_mismatches
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
                   + direct + surface_violations + wl_a_mismatches + oracle_mismatches
                   + ar_mismatches + vs_violations + vn_mismatches)
@@ -393,6 +399,7 @@ def main():
         'action_row_parity_checked': gate_ar.get('authoritative_action_rows_checked', 0),
         'action_row_mismatches': len(ar_mismatches),
         'view_node_parity_checked': gate_vn.get('authoritative_items_checked', 0),
+        'persisted_view_node_parity_checked': gate_pv.get('items_with_both_objects', 0),
         'view_node_parity_mismatches': len(vn_mismatches),
         'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,

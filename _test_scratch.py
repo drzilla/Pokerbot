@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '677a5d59cb7bdff235949c4048de3371a2fa94915aa2d756cac1810194f6b20e',
+      _hg_hash == 'f8baf43b5eef8ae8134ac3dbbf9340496e0e755f16769407cfce53b9b21a507e',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -12269,10 +12269,14 @@ _h_rj12 = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='BTN'), _Lp('preflop
                   _Lp('preflop', 'Hero', 'raises', 19.66, True, pos='BTN')], {'Hero': 22.16, 'HJ': 8.5},
                  hid='TM6095000002')
 _sz = _ds.build_action_sizing_contract(_h_rj12, 2)
-check('T-REV12-03 (A): the ActionSizingContract for a re-jam exposes amount_added != total_to + continue/raise components',
-      _sz['total_to_bb'] > _sz['amount_added_bb'] and _sz['continue_component_bb'] is not None
-      and _sz['extra_isolation_amount_bb'] is not None and _sz['display_amount_type'] == 'total_to'
-      and _sz['became_all_in'] is True and _sz['actual_node_type'] == 're_jam', str(_sz))
+check('T-REV12-03/REV14 (A/C): the re-jam ActionSizingContract exposes amount_added != live total-to + continue/raise + composite display',
+      _sz['live_betting_total_to_bb'] > _sz['amount_added_bb'] and _sz['continue_component_bb'] is not None
+      and _sz['extra_isolation_amount_bb'] is not None
+      and _sz['primary_display']['label'] == 'adds' and _sz['primary_display']['field'] == 'amount_added_bb'
+      and _sz['secondary_display']['label'] == 'all-in to'
+      and _sz['secondary_display']['field'] == 'live_betting_total_to_bb'
+      and _sz['became_all_in'] is True and _sz['hero_stack_after_bb'] == 0.0
+      and _sz['actual_node_type'] == 're_jam', str(_sz))
 
 # --- Part I gate: gate_visible_semantic catches the legacy contradictions (failure injection) ---
 _h_sa12 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
@@ -12446,6 +12450,95 @@ _an_src13 = _io12.open('gem_analyzer.py', encoding='utf-8').read()
 check('T-REV13-13 (D): re-jam/open-shove bounty flag uses subordinate wording, not "wider call"',
       'bounty may widen the continue threshold before the re-jam' in _an_src13
       and 'bounty may widen the open-shove range' in _an_src13, '')
+
+# ===== REV14: forced-post / live-commitment + price / pot-odds unification =====
+import copy as _cp14
+# T1: BB call with ante — the ante is DEAD, the BB is LIVE; the call adds exactly the callable.
+_h14_call = _mkh10([
+    _Lp('preflop', 'UTG', 'posts', 0.12, pos='UTG'), _Lp('preflop', 'Hero', 'posts', 0.12, pos='BB'),
+    _Lp('preflop', 'SB', 'posts', 0.12, pos='SB'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'UTG', 'raises', 2.0, pos='UTG'),
+    _Lp('preflop', 'Hero', 'calls', 1.0, pos='BB'),
+], {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6097000001')
+_idx14c = _ds.infer_reviewed_action_index(_h14_call)
+_c14 = _ds.build_action_sizing_contract(_h14_call, _idx14c)
+_snap14 = _ds.build_decision_snapshot(_h14_call, _idx14c)
+_fp14 = _ds.build_forced_post_context(_h14_call, 'Hero')
+check('T-REV14-01 (I1/T1): BB call with ante — ante 0.12 dead, BB 1.0 live; callable=amount_added=continue=1.0, no raise increment',
+      _fp14['ante_paid_bb'] == 0.12 and _fp14['live_blind_committed_bb'] == 1.0
+      and _snap14['callable_amount_bb'] == 1.0 and _c14['amount_added_bb'] == 1.0
+      and _c14['continue_component_bb'] == 1.0 and _c14['raise_increment_bb'] in (None, 0)
+      and _c14['extra_isolation_amount_bb'] in (None, 0), str(_c14))
+
+# T2: dead vs live — pot_contribution = dead ante + live; the dead ante is exposed.
+check('T-REV14-02 (T2): pot_contribution = dead ante + live total-to; dead ante separated',
+      abs(_c14['pot_contribution_total_bb'] - (_c14['dead_forced_posts_bb'] + _c14['live_betting_total_to_bb'])) < 0.01
+      and _c14['dead_forced_posts_bb'] == 0.12 and _snap14['live_street_committed_before_bb'] == 1.0, str(_c14))
+
+# T3: an all-in EXHAUSTS the stack — stack_after == 0, amount_added == stack_before (with ante).
+_h14_rj = _mkh10([
+    _Lp('preflop', 'SB', 'posts', 0.15, pos='SB'), _Lp('preflop', 'Hero', 'posts', 0.15, pos='BTN'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'HJ', 'raises', 8.0, True, pos='HJ'),
+    _Lp('preflop', 'Hero', 'raises', 21.85, True, pos='BTN'),
+], {'Hero': 22.0, 'HJ': 8.0, 'SB': 30.0, 'BB': 30.0}, hid='TM6097000002')
+_idx14r = _ds.infer_reviewed_action_index(_h14_rj)
+_c_rj = _ds.build_action_sizing_contract(_h14_rj, _idx14r)
+check('T-REV14-03 (T3/I2): an all-in exhausts the stack — stack_after=0, amount_added==stack_before (ante never left behind)',
+      _c_rj['became_all_in'] and abs(_c_rj['hero_stack_after_bb']) <= 0.01
+      and abs(_c_rj['amount_added_bb'] - _c_rj['hero_stack_before_bb']) <= 0.01, str(_c_rj))
+
+# T4: the INDEPENDENT oracle (poker-rule grounded, ante dead) agrees a call adds callable, no raise.
+_oz14 = _orc.oracle_sizing(_h14_call, _idx14c)
+check('T-REV14-04 (T4/G): the independent oracle (ante-dead) — a call adds callable, never a raise increment',
+      abs(_oz14['amount_added_bb'] - 1.0) < 0.01 and _oz14['continue_component_bb'] == 1.0
+      and _oz14['raise_increment_bb'] in (None, 0)
+      and _orc._forced_posts(_h14_call, 'Hero')['ante_bb'] == 0.12, str(_oz14))
+
+# T5/B6/B4: the call numeric gate flags a call carrying a raise increment OR a price != callable.
+_oz_bad = dict(_oz14); _oz_bad['raise_increment_bb'] = 0.15
+check('T-REV14-05 (T8/B6): the call numeric gate flags a call carrying a raise increment + a price != callable',
+      'call_has_raise_increment' in _qp.check_action_row_numeric('call', 1.0, None, _oz_bad)
+      and 'call_value_not_callable' in _qp.check_action_row_numeric('call', 1.12, None, _oz14), '')
+
+# T6/I5/E: required equity uses the CONTESTABLE pot (capped), excluding the uncallable overjam;
+# the independent oracle agrees with the canonical (the 83915165 56% vs 37.5% class).
+_h14_mw = _mkh10([
+    _Lp('preflop', 'SB', 'posts', 0.15, pos='SB'), _Lp('preflop', 'Hero', 'posts', 0.15, pos='BB'),
+    _Lp('preflop', 'BTN', 'posts', 0.15, pos='BTN'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'BTN', 'raises', 100.0, True, pos='BTN'),
+    _Lp('preflop', 'Hero', 'calls', 19.0, True, pos='BB'),
+], {'Hero': 20.0, 'BTN': 100.0, 'SB': 30.0}, hid='TM6097000003')
+_oz_mw = _orc.oracle_sizing(_h14_mw, _ds.infer_reviewed_action_index(_h14_mw))
+_snap_mw = _ds.build_decision_snapshot(_h14_mw, _ds.infer_reviewed_action_index(_h14_mw))
+check('T-REV14-06 (T6/I5/E): required equity uses the contestable (capped) pot, excludes the uncallable overjam; oracle==canonical',
+      _oz_mw['required_equity_pct'] is not None and _snap_mw['required_equity_pct'] is not None
+      and abs(_oz_mw['required_equity_pct'] - _snap_mw['required_equity_pct']) < 0.6
+      and _oz_mw['contestable_pot_bb'] < 100.0, str(_oz_mw))
+
+# T7/B8: PERSISTED parity passes the stored pair, FAILS a post-serialization mutation (no rebuild).
+_view_p = _ds.build_reviewed_decision_view(_h14_rj, _idx14r, None, 'worklist_reviewed_action')
+_node_p = _ds.serialize_reviewed_decision_node(_h14_rj, _idx14r, None, 'worklist_reviewed_action')
+_wl_good = {'items': {'A': {'hand_id': 'A', 'reviewed_decision_view': _view_p, 'decision_node': _node_p}}}
+_view_bad = _cp14.deepcopy(_view_p); _view_bad['price_contract']['callable_amount_bb'] = 99.0
+_wl_bad = {'items': {'A': {'hand_id': 'A', 'reviewed_decision_view': _view_bad, 'decision_node': _node_p}}}
+check('T-REV14-07 (T7/B8): persisted view==node parity PASSES the stored pair, FAILS a post-serialization mutation',
+      _qp.gate_persisted_view_node_parity(_wl_good)['mismatches'] == 0
+      and _qp.gate_persisted_view_node_parity(_wl_bad)['mismatches'] >= 1, '')
+
+# T8: the action-row gate still flags 'adds' == raise_increment (the REV12 B1 defect) AND the raw
+# snapshot callable leak is privatized on a non-price view.
+_oz_aj = {'action_semantics': 're_jam', 'amount_added_bb': 22.16, 'total_to_bb': 22.16,
+          'raise_increment_bb': 12.67, 'continue_component_bb': 9.34, 'callable_amount_bb': None,
+          'became_all_in': True}
+_view_np = _ds.build_reviewed_decision_view(_h14_rj, _idx14r, None, 'worklist_reviewed_action')  # re-jam: non-price
+check('T-REV14-08 (T8): adds==raise_increment still caught; raw snapshot callable privatized on a non-price view',
+      'amount_label_value_mismatch' in _qp.check_action_row_numeric('adds', 12.67, 22.16, _oz_aj)
+      and _view_np['price_contract']['price_applicable'] is False
+      and (_view_np.get('snapshot') or {}).get('callable_amount_bb') is None
+      and '_raw_callable_amount_bb_internal' in (_view_np.get('snapshot') or {}), '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

@@ -553,7 +553,8 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     _canon_by_street_occ = {}
     try:
         from gem_decision_snapshot import (reviewed_action_display as _ds_rad,
-                                           build_decision_snapshot as _ds_bds)
+                                           build_decision_snapshot as _ds_bds,
+                                           build_action_sizing_contract as _ds_asc)
         _led_cg = h.get('action_ledger') or []
         _hero_cg = h.get('hero', 'Hero')
         _occ_cg = {}
@@ -565,8 +566,11 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 try:
                     _snap_cg = _ds_bds(h, _li)
                     _disp_cg = _ds_rad(h, _li, _snap_cg)
-                    _added_cg = round((_la.get('added_bb') if _la.get('added_bb') is not None
-                                       else _la.get('amount_bb', 0)) or 0.0, 2)
+                    # REV14 B/C/D3: the grid consumes the SAME canonical ActionSizingContract +
+                    # DecisionPriceContract the reviewed capsule uses — so a Hero call shows the
+                    # canonical callable price + required equity (NOT a raw amount_bb / running-pot
+                    # recompute), and an all-in's "adds/all-in to" uses the live (ante-excluded) sizes.
+                    _sc_cg = _ds_asc(h, _li)
                     _canon_by_street_occ[(_st, _o)] = {
                         'display_text': _disp_cg.get('display_text'),
                         'display_verb': _disp_cg.get('display_verb'),
@@ -574,10 +578,12 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         'actual_node_type': _snap_cg.get('actual_node_type'),
                         'price_applicable': bool(_snap_cg.get('price_applicable')),
                         'facing': _snap_cg.get('decision_facing_state'),
-                        # REV12 A: the canonical sizing the reviewed line uses — so the grid can
-                        # label both amounts (adds X, all-in to Y) and never show two unexplained sizes.
-                        'amount_added_bb': _added_cg,
-                        'total_to_bb': round((_snap_cg.get('hero_current_street_committed_before_bb') or 0.0) + _added_cg, 2),
+                        # REV14: live (ante-excluded) sizing + the canonical price/equity.
+                        'amount_added_bb': _sc_cg.get('amount_added_bb'),
+                        'total_to_bb': _sc_cg.get('live_betting_total_to_bb'),
+                        'continue_component_bb': _sc_cg.get('continue_component_bb'),
+                        'callable_amount_bb': _snap_cg.get('callable_amount_bb'),
+                        'required_equity_pct': _snap_cg.get('required_equity_pct'),
                         'became_all_in': bool(_snap_cg.get('became_all_in_on_this_action')),
                     }
                 except Exception:
@@ -878,7 +884,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             elif act == 'checks':
                 cls = 'act-check'; text = f'{_ps(p, stk, _pname)} Check'
             elif act == 'calls':
-                cls = 'act-call'; text = f'{_ps(p, stk, _pname)} Call {amt:.1f}BB'
+                cls = 'act-call'
                 # REV11 E1/B2/C2: a Hero 'calls' that is canonically NOT an ordinary priced call
                 # (a first-in complete/limp, an underblind short all-in, or a covering re-jam)
                 # renders the canonical verb and shows NO pot-odds (there is no voluntary wager to
@@ -886,27 +892,34 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 _cg = _canon_by_street_occ.get((street, hero_action_idx_on_street)) if is_h else None
                 _cg_kind = (_cg or {}).get('hero_action_kind')
                 _cg_priced = bool((_cg or {}).get('price_applicable'))
+                # REV14 D3: a Hero priced call shows the CANONICAL callable price (the live amount
+                # Hero can actually commit), never the raw ledger amount_bb (ante-contaminated). The
+                # grid and the reviewed capsule therefore show the SAME call price (83616904: 1.0 vs
+                # 0.88 was the ante; 83914496: 14.7 not 14.85).
+                _call_amt = amt
+                if is_h and _cg is not None and _cg.get('callable_amount_bb') is not None and _cg_priced:
+                    _call_amt = _cg['callable_amount_bb']
+                text = f'{_ps(p, stk, _pname)} Call {_call_amt:.1f}BB'
                 if _cg and _cg_kind == 'short_all_in':
                     cls = 'act-allin'
                     text = f'{_ps(p, stk, _pname)} ⚡ All-in {amt:.2f}BB (short of BB, first-in)'
                 elif _cg and (_cg or {}).get('facing') == 'first_in':
                     _cverb = 'Complete' if p == 'SB' else 'Limp'
-                    text = f'{_ps(p, stk, _pname)} {_cverb} {amt:.1f}BB first-in'
-                # Show required equity ONLY on a genuine priced call (facing a voluntary wager)
-                if is_h and running_pot > 0 and amt > 0 and (_cg is None or _cg_priced):
-                    _req_eq = amt / (running_pot + amt) * 100
-                    _bet_frac = amt / running_pot
-                    if _bet_frac < 0.4:
-                        _sizing = 'small'
-                    elif _bet_frac < 0.8:
-                        _sizing = '~half-pot'
-                    elif _bet_frac < 1.2:
-                        _sizing = '~pot'
-                    else:
-                        _sizing = f'{_bet_frac:.1f}× pot'
-                    text += (f' <span class="pot-pct" title="Call {amt:.1f}BB into '
-                             f'{running_pot:.1f}BB pot ({_sizing})">'
+                    text = f'{_ps(p, stk, _pname)} {_cverb} {_call_amt:.1f}BB first-in'
+                # REV14 D3/E1: required equity comes from the CANONICAL contestable-pot contract (the
+                # same value the reviewed capsule shows), NOT a raw amt/(running_pot+amt) recompute
+                # over the full pot — which over-counts the uncallable overjam / side-pot chips Hero
+                # cannot win (83915165: grid 56% vs capsule 37.5%). Only a genuine priced Hero call.
+                if is_h and _cg is not None and _cg_priced and _cg.get('required_equity_pct') is not None:
+                    _req_eq = _cg['required_equity_pct']
+                    text += (f' <span class="pot-pct" title="Call {_call_amt:.1f}BB — canonical '
+                             f'required equity vs the contestable pot Hero can win">'
                              f'need {_req_eq:.0f}%</span>')
+                elif is_h and _cg is None and running_pot > 0 and amt > 0:
+                    # degenerate fallback (no canonical contract): the descriptive raw pot-odds.
+                    _req_eq = amt / (running_pot + amt) * 100
+                    text += (f' <span class="pot-pct" title="Call {amt:.1f}BB into '
+                             f'{running_pot:.1f}BB pot">need {_req_eq:.0f}%</span>')
                 running_pot += amt
                 _cl_name = a.get('name', a.get('player', '?'))
                 _street_commit[_cl_name] = _street_commit.get(_cl_name, 0) + amt

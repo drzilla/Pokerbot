@@ -285,7 +285,7 @@ def build_decision_snapshot(h, hero_action_index=None):
     eligible_allin_amount = (round(min(eff_at_decision, hero_remaining), 2)
                              if eff_at_decision is not None else None)
 
-    is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+    is_bounty = _is_bounty(h)
     cover_by_opp = {}
     if is_bounty:
         for p in opp_keys:
@@ -347,12 +347,57 @@ def _pos_of(ledger, player):
     return '?'
 
 
+def _is_bounty(h):
+    return bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+
+
 def _coverage(hero_total, opp_total):
     if hero_total is None or opp_total is None:
         return 'unknown'
     if abs(hero_total - opp_total) <= _EPS:
         return 'equal_stack_boundary'
     return 'collectible' if hero_total > opp_total else 'not_collectible'
+
+
+def _classify_bounty(eligible, in_confront, is_bounty, contested_no_eliminable=False):
+    """ONE canonical typed classification of a bounty confrontation -> (aggregate,
+    reason). Both consumer fields derive from this SINGLE function so the aggregate
+    and the reason can NEVER contradict each other (REV3 B2 — the shipped code could
+    return aggregate='mixed' with reason='known_all'). Exhaustive truth table
+    (GPT acceptance):
+
+        no all-in confrontation       -> not_applicable / not_applicable_no_allin_confrontation
+        all eligible collectible      -> all   / known_all
+        all eligible not-collectible  -> none  / known_none
+        only equal-stack boundaries   -> none  / equal_boundary
+        collectible + not/equal       -> mixed / known_mixed
+        unknown stack/eligibility     -> unknown / unknown_missing_stack
+    """
+    if not is_bounty or not in_confront:
+        return ('not_applicable', 'not_applicable_no_allin_confrontation')
+    if not eligible:
+        # Hero is in an all-in confrontation but no opponent is eliminable in the
+        # relevant layer. For the REALIZED view a contested-but-not-eliminable pot
+        # (every caller covers Hero / has chips behind) collects nothing -> known_none;
+        # for a future-blind decision view with no committed opponent it is N/A.
+        if contested_no_eliminable:
+            return ('none', 'known_none')
+        return ('not_applicable', 'not_applicable_no_allin_confrontation')
+    vals = list(eligible.values())
+    if any(v == 'unknown' for v in vals):
+        return ('unknown', 'unknown_missing_stack')
+    has_c = any(v == 'collectible' for v in vals)
+    has_n = any(v == 'not_collectible' for v in vals)
+    has_eq = any(v == 'equal_stack_boundary' for v in vals)
+    if has_c and (has_n or has_eq):
+        return ('mixed', 'known_mixed')
+    if has_c:
+        return ('all', 'known_all')
+    if has_n:
+        return ('none', 'known_none')
+    if has_eq:
+        return ('none', 'equal_boundary')
+    return ('unknown', 'unknown_missing_stack')
 
 
 def _pot_layers(committed_by_player):
@@ -363,6 +408,43 @@ def _pot_layers(committed_by_player):
     for cap in caps:
         elig = sorted(p for p, v in committed_by_player.items() if v + _EPS >= cap)
         layers.append({'from_bb': round(prev, 2), 'to_bb': round(cap, 2), 'participants': elig})
+        prev = cap
+    return layers
+
+
+def _contest_pot_layers(committed_by_player, folded):
+    """Side-pot layering that KEEPS folded 'dead' money inside the pot AMOUNT while
+    excluding folded players from winner ELIGIBILITY (REV3 B4). Folded chips count
+    toward the pot total but never toward who can win it. Each layer reports:
+      kind                    : 'main' (lowest cap) | 'side'
+      from_bb / to_bb         : the cap band this layer covers
+      eligible_participants   : non-folded players who reached this cap
+      eligible_contribution_bb: chips in this layer that CAN be won
+      dead_money_bb           : folded chips trapped in this layer
+      dead_money_by_player    : per-folded-player dead chips in this layer
+      total_layer_bb          : eligible + dead (every chip in the band)
+    Sum of total_layer_bb over all layers == total committed pot (incl. dead money).
+    """
+    contrib = {p: round(v, 2) for p, v in committed_by_player.items() if v > _EPS}
+    if not contrib:
+        return []
+    folded = set(folded or ())
+    caps = sorted(set(contrib.values()))
+    layers, prev = [], 0.0
+    for i, cap in enumerate(caps):
+        band = round(cap - prev, 2)
+        reach = [p for p, v in contrib.items() if v + _EPS >= cap]
+        elig = sorted(p for p in reach if p not in folded)
+        dead = sorted(p for p in reach if p in folded)
+        layers.append({
+            'kind': 'main' if i == 0 else 'side',
+            'from_bb': round(prev, 2), 'to_bb': round(cap, 2),
+            'eligible_participants': elig,
+            'eligible_contribution_bb': round(len(elig) * band, 2),
+            'dead_money_bb': round(len(dead) * band, 2),
+            'dead_money_by_player': {p: round(band, 2) for p in dead},
+            'total_layer_bb': round(len(reach) * band, 2),
+        })
         prev = cap
     return layers
 
@@ -485,11 +567,27 @@ def build_realized_contest(h, hero_action_index=None):
     main_pot = layers[0]['participants'] if layers else participants
     side_participants = sorted(set().union(*[set(l['participants']) for l in layers[1:]])) if len(layers) > 1 else []
 
-    # REV2 B4: bounty eligibility is per opponent and only for opponents Hero can
-    # ELIMINATE in the relevant pot layer — i.e. opponents who are ALL-IN (fully
-    # committed). A pot participant with chips behind (not all-in) cannot be busted in
-    # this confrontation and is NOT bounty-eligible.
-    is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+    # REV3 B4: folded 'dead' money must remain in the pot amount (folded chips count
+    # toward the pot total but never toward winner eligibility). Build the typed
+    # contest pot over EVERY contributor — Hero, live contesters AND folded players —
+    # marking folded chips as dead money so the layer amounts reconcile to the full
+    # committed pot. The earlier `side_pot_layers` (eligible-only) is kept for the
+    # back-compat participant view; `pot_layers` is the reconciling dead-money model.
+    folded_contributors = {p for p in folded_anytime
+                           if committed_total.get(p, 0.0) > _EPS}
+    pot_layers = _contest_pot_layers(
+        {p: v for p, v in committed_total.items() if v > _EPS}, folded_contributors)
+    dead_money_by_player = {p: round(committed_total.get(p, 0.0), 2)
+                            for p in sorted(folded_contributors)}
+    dead_money_bb = round(sum(dead_money_by_player.values()), 2)
+    total_committed_pot_bb = round(sum(v for v in committed_total.values() if v > _EPS), 2)
+
+    # REV2 B4 / REV3: realized bounty eligibility — per opponent and ONLY for opponents
+    # Hero can ELIMINATE in the realized contest (opponents who are ALL-IN, fully
+    # committed). A pot participant with chips behind (not all-in) cannot be busted and
+    # is NOT bounty-eligible. This is the REALIZED description of the hand; the
+    # future-blind DECISION-TIME adjustment is owned by build_decision_bounty_context.
+    is_bounty = _is_bounty(h)
     eligible = {}
     if is_bounty and hero_in_allin_confrontation(h, idx):
         for p in contesting:
@@ -507,6 +605,11 @@ def build_realized_contest(h, hero_action_index=None):
         'main_pot_participants': main_pot,
         'side_pot_participants': side_participants,
         'side_pot_layers': layers,
+        'folded_players': sorted(folded_contributors),
+        'total_committed_pot_bb': total_committed_pot_bb,
+        'dead_money_bb': dead_money_bb,
+        'dead_money_by_player': dead_money_by_player,
+        'pot_layers': pot_layers,
         'eligible_bounties': eligible,
     }
 
@@ -562,74 +665,142 @@ def relevant_effective_stack_bb(h, hero_action_index=None):
     return v
 
 
+# ── DECISION-TIME bounty context (future-blind owner — REV3 B1/B2/B3) ──
+
+def build_decision_bounty_context(h, hero_action_index=None):
+    """The ONE owner of the DECISION-TIME bounty adjustment (REV3 B1).
+
+    FUTURE-BLIND: eligibility uses ONLY opponent all-in state AT or BEFORE the
+    reviewed action index. A LATER opponent all-in (e.g. Deep jams the flop after
+    Hero's reviewed preflop call) — or a later Hero all-in — can NEVER retroactively
+    make a bounty eligible at the earlier decision. Two ledgers identical through the
+    reviewed action therefore produce an identical DecisionBountyContext regardless of
+    what happens afterwards (prefix invariance).
+
+    SEPARATION OF CONCERNS (REV3 B3): a stack-cover relationship is NOT bounty
+    eligibility. `stack_cover_relationship_by_opponent` may name an out-stacked
+    opponent (decision-time knowable) while `eligible_bounties_by_opponent` stays empty
+    because no opponent is ALL-IN / eliminable in the reviewed confrontation. A normal
+    first-in open therefore yields eligible={}, aggregate=not_applicable even though
+    Hero covers a shorter villain.
+
+    The typed aggregate AND reason both derive from the single `_classify_bounty`
+    function so they can never contradict (REV3 B2). RealizedContest is built
+    separately and never overwrites this object.
+    """
+    hero = _hero(h)
+    is_bounty = _is_bounty(h)
+    ref = resolve_decision_ref(h, hero_action_index)
+    idx = ref['hero_action_index']
+    snap = build_decision_snapshot(h, idx)
+    starting = _starting_stacks(h)
+    in_confront = hero_in_allin_confrontation(h, idx)
+
+    allin_before = {o['player'] for o in snap.get('players_all_in_before_action', [])}
+    active = snap.get('players_active_before_action', [])
+    faced = snap.get('faced_aggressor')
+
+    cover_rel, eligible = {}, {}
+    for o in active:
+        p = o['player']
+        cov = _coverage(starting.get(hero), starting.get(p))
+        if is_bounty:
+            cover_rel[p] = cov
+        # ELIGIBLE only if this opponent is committed ALL-IN at/before the reviewed
+        # action AND Hero is in the confrontation. A non-all-in opponent with chips
+        # behind is never eligible; a future all-in is never visible here.
+        if is_bounty and in_confront and p in allin_before:
+            eligible[p] = cov
+
+    aggregate, reason = _classify_bounty(eligible, in_confront, is_bounty)
+
+    # Relevant villain for the SEPARATE cover scalar (not eligibility): the faced
+    # all-in aggressor if any, else the deepest active opponent (the one who could
+    # cover Hero). This drives the worklist's cover-known flag without ever being
+    # treated as bounty eligibility.
+    relevant = faced if faced in cover_rel else None
+    if relevant is None and cover_rel:
+        relevant = max(cover_rel, key=lambda p: (starting.get(p) or 0.0))
+    rel_cov = cover_rel.get(relevant) if relevant else None
+    cover_known = rel_cov is not None and rel_cov != 'unknown'
+    hero_covers_relevant = (rel_cov == 'collectible') if cover_known else None
+
+    return {
+        'hand_id': h.get('id', ''),
+        'street': ref['street'],
+        'hero_action_index': idx,
+        'is_bounty': is_bounty,
+        'hero_in_allin_confrontation': in_confront,
+        'eligible_bounties_by_opponent': eligible,
+        'stack_cover_relationship_by_opponent': cover_rel,
+        'aggregate': aggregate,
+        'reason': reason,
+        'coverage_mixed': aggregate == 'mixed',
+        'relevant_villain_key': relevant,
+        'hero_cover_relationship_known': cover_known,
+        'hero_covers_relevant_villain': hero_covers_relevant,
+        'source_warnings': snap.get('source_warnings', []),
+    }
+
+
+def decision_bounty_aggregate(h, hero_action_index=None):
+    """Future-blind decision-time aggregate (worklist/gate-facing)."""
+    return build_decision_bounty_context(h, hero_action_index)['aggregate']
+
+
+def decision_bounty_reason(h, hero_action_index=None):
+    """Future-blind decision-time reason — always consistent with the aggregate."""
+    return build_decision_bounty_context(h, hero_action_index)['reason']
+
+
+def decision_eligible_bounties_by_opponent(h, hero_action_index=None):
+    """Opponents Hero can ELIMINATE at the reviewed confrontation (committed all-in
+    at/before the decision). Never the stack-cover map."""
+    return build_decision_bounty_context(h, hero_action_index)['eligible_bounties_by_opponent']
+
+
+def stack_cover_relationship_by_opponent(h, hero_action_index=None):
+    """SEPARATE stack-cover facts (REV3 B3) — cover relationship vs each live
+    opponent. This is NOT bounty eligibility and must never be read as such."""
+    return build_decision_bounty_context(h, hero_action_index)['stack_cover_relationship_by_opponent']
+
+
+# ── REALIZED bounty accessors (describe the actual hand; report-facing stamp) ──
+
 def bounty_coverage_by_opponent(h, hero_action_index=None):
-    rc = build_realized_contest(h, hero_action_index)
-    elig = rc.get('eligible_bounties') or {}
-    if elig:
-        return elig
-    return build_decision_snapshot(h, hero_action_index).get('bounty_coverage_by_opponent', {})
+    """REALIZED per-opponent eligibility — opponents Hero could ELIMINATE in the
+    realized contest (all-in, did not fold). REV3 B3: NO fallback to the stack-cover
+    map; when no opponent is eliminable this returns {} (a cover relationship is not
+    bounty eligibility)."""
+    return dict(build_realized_contest(h, hero_action_index).get('eligible_bounties') or {})
 
 
 def bounty_aggregate(h, hero_action_index=None):
-    """Typed aggregate: all / none / mixed / unknown / not_applicable.
-    not_applicable when there is no realized all-in confrontation."""
-    is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+    """REALIZED typed aggregate: all / none / mixed / unknown / not_applicable.
+    Derived from the single `_classify_bounty` truth table so it can never contradict
+    `bounty_reason` (REV3 B2)."""
+    is_bounty = _is_bounty(h)
     if not is_bounty:
         return 'not_applicable'
     rc = build_realized_contest(h, hero_action_index)
-    cover = rc.get('eligible_bounties') or {}
-    if not cover:
-        # REV2 B4: an all-in confrontation that was CONTESTED but where Hero can
-        # eliminate no one (every caller covers Hero / is not all-in) collects no
-        # bounty -> 'none'. Only a genuinely uncontested / non-all-in spot is N/A.
-        if (rc.get('realized_contesting_opponents')
-                and hero_in_allin_confrontation(h, hero_action_index)):
-            return 'none'
-        return 'not_applicable'
-    vals = list(cover.values())
-    known = [v for v in vals if v in ('collectible', 'not_collectible', 'equal_stack_boundary')]
-    if not known:
-        return 'unknown'
-    has_c = any(v == 'collectible' for v in known)
-    has_n = any(v in ('not_collectible', 'equal_stack_boundary') for v in known)
-    if has_c and has_n:
-        return 'mixed'
-    return 'all' if has_c else 'none'
+    elig = rc.get('eligible_bounties') or {}
+    in_confront = hero_in_allin_confrontation(h, hero_action_index)
+    contested = bool(rc.get('realized_contesting_opponents') and in_confront)
+    return _classify_bounty(elig, in_confront, is_bounty, contested_no_eliminable=contested)[0]
 
 
 def bounty_reason(h, hero_action_index=None):
-    """Typed reason for the bounty coverage status (worklist/report-facing):
-    known_all / known_none / known_mixed / equal_boundary /
+    """REALIZED typed reason — always consistent with `bounty_aggregate` (one
+    `_classify_bounty` source). known_all / known_none / known_mixed / equal_boundary /
     not_applicable_no_allin_confrontation / unknown_missing_stack."""
-    is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+    is_bounty = _is_bounty(h)
     if not is_bounty:
         return 'not_applicable_no_allin_confrontation'
-    if not hero_in_allin_confrontation(h, hero_action_index):
-        return 'not_applicable_no_allin_confrontation'
     rc = build_realized_contest(h, hero_action_index)
-    cover = rc.get('eligible_bounties') or {}
-    if not cover:
-        # REV2 B4: Hero IS in an all-in confrontation; if it was contested but no
-        # opponent is eliminable (all callers cover Hero / are not all-in) Hero
-        # collects no bounty -> known_none. Only an uncontested jam is N/A.
-        if rc.get('realized_contesting_opponents'):
-            return 'known_none'
-        return 'not_applicable_no_allin_confrontation'
-    vals = list(cover.values())
-    if any(v == 'unknown' for v in vals):
-        return 'unknown_missing_stack'
-    has_c = any(v == 'collectible' for v in vals)
-    has_n = any(v == 'not_collectible' for v in vals)
-    has_eq = any(v == 'equal_stack_boundary' for v in vals)
-    if has_c and has_n:
-        return 'known_mixed'
-    if has_c:
-        return 'known_all'
-    if has_n:
-        return 'known_none'
-    if has_eq:
-        return 'equal_boundary'
-    return 'unknown_missing_stack'
+    elig = rc.get('eligible_bounties') or {}
+    in_confront = hero_in_allin_confrontation(h, hero_action_index)
+    contested = bool(rc.get('realized_contesting_opponents') and in_confront)
+    return _classify_bounty(elig, in_confront, is_bounty, contested_no_eliminable=contested)[1]
 
 
 def bounty_coverage(h, hero_action_index=None):

@@ -8207,6 +8207,12 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                 _stack, [_opp_stk] if _opp_stk else [],
                 h.get('bounty_value_bb', 0), is_bounty=_is_bnt)
         h['bounty_collectible'] = _collect
+        # REV3 B1: route the canonical FUTURE-BLIND decision-time bounty context onto
+        # the hand the report renders, so the report consumes the SAME canonical object
+        # the worklist grades from — never an independently reconstructed bounty truth.
+        if _is_bnt:
+            from gem_decision_snapshot import build_decision_bounty_context as _ds_dbc
+            h['decision_bounty_context'] = _ds_dbc(h)
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),
             'final_table': _phase in ('final_table', 'ft_zone'),

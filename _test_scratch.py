@@ -10888,6 +10888,246 @@ check('T-REV2-10: call_vs_jam facing >1BB bet -> decision depth not ~0 (parity i
 
 
 # ============================================================
+# REV3 (Iteration 1 FINAL) — decision-time bounty context, dead-money pot layers,
+# and the strengthened parity gate. Future-blind decision-time ownership; cover is
+# NOT eligibility; one typed (aggregate,reason); folded dead money stays in the pot.
+# ============================================================
+import _qa_parity as _qp
+from gem_analyst_worklist import _reviewed_action_index as _rai
+import copy as _i1f_copy
+
+
+def _Lb(street, p, act, added, allin=False):
+    return {'street': street, 'player': p, 'action': act, 'added_bb': added,
+            'amount_bb': added, 'is_all_in': allin}
+
+
+# ---- B1 mandatory paired fixture: a future opponent all-in cannot change earlier ctx ----
+_b1_pre = [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Deep', 'calls', 5),
+           _Lb('preflop', 'Hero', 'calls', 5)]
+_b1_ssb = {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}
+_b1_base = {'id': 'B1BASE', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': dict(_b1_ssb), 'board': [], 'action_ledger': list(_b1_pre)}
+_b1_fut = {'id': 'B1FUT', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': dict(_b1_ssb), 'board': ['2c', '7d', 'Js'],
+           'action_ledger': list(_b1_pre) + [_Lb('flop', 'Deep', 'bets', 55, True),
+                                             _Lb('flop', 'Hero', 'calls', 35, True)]}
+_b1_ridx = 2   # Hero's preflop call
+_dbc_base = _ds.build_decision_bounty_context(_b1_base, _b1_ridx)
+_dbc_fut = _ds.build_decision_bounty_context(_b1_fut, _b1_ridx)
+check('T-I1F-01: B1 earlier ctx -> eligible {Short}, aggregate all, reason known_all',
+      _dbc_base['eligible_bounties_by_opponent'] == {'Short': 'collectible'}
+      and _dbc_base['aggregate'] == 'all' and _dbc_base['reason'] == 'known_all',
+      str(_dbc_base['eligible_bounties_by_opponent']))
+check('T-I1F-02: later opponent (Deep) flop all-in does NOT alter the earlier bounty ctx',
+      all(_dbc_base[k] == _dbc_fut[k] for k in _qp._DBC_INVARIANT_KEYS),
+      [k for k in _qp._DBC_INVARIANT_KEYS if _dbc_base[k] != _dbc_fut[k]])
+
+# (#2) later opponent FOLD must not alter the earlier DecisionSnapshot.
+_b1_fold = {'id': 'B1FOLD', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': dict(_b1_ssb), 'board': ['2c', '7d', 'Js'],
+            'action_ledger': list(_b1_pre) + [_Lb('flop', 'Deep', 'folds', 0)]}
+check('T-I1F-03: later opponent FOLD does not alter the earlier DecisionSnapshot',
+      {k: v for k, v in _ds.build_decision_snapshot(_b1_base, _b1_ridx).items() if k != 'hand_id'}
+      == {k: v for k, v in _ds.build_decision_snapshot(_b1_fold, _b1_ridx).items() if k != 'hand_id'}, '')
+
+# (#3) later HERO all-in must not alter the earlier preflop-open bounty ctx.
+_b3_open = {'id': 'B3OPEN', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.2), _Lb('preflop', 'V', 'calls', 2.2)]}
+_b3_fut = {'id': 'B3FUT', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0}, 'board': ['2c', '7d', 'Js'],
+           'action_ledger': _b3_open['action_ledger'] + [_Lb('flop', 'Hero', 'bets', 30, True),
+                                                          _Lb('flop', 'V', 'calls', 30, True)]}
+_dbc_b3 = _ds.build_decision_bounty_context(_b3_open, 0)
+check('T-I1F-04: later HERO all-in does not alter the earlier open bounty ctx (future-blind)',
+      _dbc_b3['hero_in_allin_confrontation'] is False and _dbc_b3['aggregate'] == 'not_applicable'
+      and all(_dbc_b3[k] == _ds.build_decision_bounty_context(_b3_fut, 0)[k]
+              for k in _qp._DBC_INVARIANT_KEYS), str(_dbc_b3['aggregate']))
+
+# (#4) no all-in confrontation -> no eligible bounty opponents (cover stays separate).
+_b4_open = {'id': 'B4OPEN', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+_dbc_open = _ds.build_decision_bounty_context(_b4_open, 0)
+check('T-I1F-05: first-in open, no all-in -> eligible {}, not_applicable / no_allin_confrontation',
+      _dbc_open['eligible_bounties_by_opponent'] == {} and _dbc_open['aggregate'] == 'not_applicable'
+      and _dbc_open['reason'] == 'not_applicable_no_allin_confrontation', str(_dbc_open['aggregate']))
+check('T-I1F-06: realized accessor no longer falls back to the cover map (returns {})',
+      _ds.bounty_coverage_by_opponent(_b4_open, 0) == {}, _ds.bounty_coverage_by_opponent(_b4_open, 0))
+
+# (#5) cover relationship remains available separately while eligible stays empty.
+check('T-I1F-07: stack-cover relationship is a SEPARATE fact (Hero covers V) — not eligibility',
+      _dbc_open['stack_cover_relationship_by_opponent'].get('V') == 'collectible'
+      and _ds.stack_cover_relationship_by_opponent(_b4_open, 0).get('V') == 'collectible'
+      and _dbc_open['eligible_bounties_by_opponent'] == {}, str(_dbc_open['stack_cover_relationship_by_opponent']))
+
+# ---- (#6/#7 + B2) exhaustive decision-time truth table (Hero CALLS into committed all-ins) ----
+def _tt(opps, hero_stack=30.0, hero_added=None):
+    """opps: list of (name, stack, jam_added). Each jams all-in, then Hero calls."""
+    led = [_Lb('preflop', n, 'raises', a, True) for n, _s, a in opps]
+    ha = hero_added if hero_added is not None else max(a for _n, _s, a in opps)
+    led.append(_Lb('preflop', 'Hero', 'calls', ha, ha >= hero_stack - 0.01))
+    ssb = {'Hero': hero_stack}
+    for n, s, _a in opps:
+        if s is not None:
+            ssb[n] = s
+    return {'id': 'TT', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': ssb,
+            'board': [], 'action_ledger': led}, len(led) - 1
+
+_tt_all, _i = _tt([('Short', 5.0, 5.0)])
+_tt_none, _i = _tt([('Big', 80.0, 80.0)], hero_stack=10.0, hero_added=10.0)
+_tt_eq, _i = _tt([('V', 20.0, 20.0)], hero_stack=20.0, hero_added=20.0)
+_tt_mix, _i = _tt([('Short', 5.0, 5.0), ('Big', 80.0, 80.0)], hero_stack=30.0, hero_added=30.0)
+_tt_ceq, _i = _tt([('Short', 5.0, 5.0), ('Eq', 30.0, 30.0)], hero_stack=30.0, hero_added=30.0)
+_tt_unk, _i = _tt([('Mystery', None, 8.0)], hero_stack=20.0, hero_added=8.0)
+def _ar(h, ridx):
+    d = _ds.build_decision_bounty_context(h, ridx)
+    return (d['aggregate'], d['reason'])
+check('T-I1F-08: truth table — all collectible -> (all, known_all)',
+      _ar(_tt_all, 1) == ('all', 'known_all'), _ar(_tt_all, 1))
+check('T-I1F-09: truth table — all not-collectible -> (none, known_none)',
+      _ar(_tt_none, 1) == ('none', 'known_none'), _ar(_tt_none, 1))
+check('T-I1F-10: truth table — only equal boundary -> (none, equal_boundary)',
+      _ar(_tt_eq, 1) == ('none', 'equal_boundary'), _ar(_tt_eq, 1))
+check('T-I1F-11: truth table — collectible + not-collectible -> (mixed, known_mixed)',
+      _ar(_tt_mix, 2) == ('mixed', 'known_mixed'), _ar(_tt_mix, 2))
+check('T-I1F-12: truth table — collectible + equal boundary -> (mixed, known_mixed)',
+      _ar(_tt_ceq, 2) == ('mixed', 'known_mixed'), _ar(_tt_ceq, 2))
+check('T-I1F-13: truth table — unknown stack present -> (unknown, unknown_missing_stack)',
+      _ar(_tt_unk, 1) == ('unknown', 'unknown_missing_stack'), _ar(_tt_unk, 1))
+# every decision-time pair must be valid under the truth table (never a contradiction).
+check('T-I1F-14: every decision-time (aggregate,reason) is a valid truth-table pair',
+      all(_qp.aggregate_reason_consistent(*_ar(h, i)) for h, i in
+          [(_tt_all, 1), (_tt_none, 1), (_tt_eq, 1), (_tt_mix, 2), (_tt_ceq, 2),
+           (_tt_unk, 1), (_b4_open, 0), (_b1_base, 2)]), '')
+
+# ---- (#8/#9/#10 + B4) folded dead money stays in the pot; folder never eligible ----
+# 1 folded contributor (the GPT mandatory fixture): Folder 2 (folds), Short 5 ai, Deep 5, Hero 5.
+_dead1 = {'id': 'DEAD1', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 50.0, 'Folder': 30.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 5, True),
+                            _Lb('preflop', 'Deep', 'calls', 5), _Lb('preflop', 'Folder', 'folds', 0),
+                            _Lb('preflop', 'Hero', 'calls', 5)]}
+_rc_d1 = _ds.build_realized_contest(_dead1, 4)
+check('T-I1F-15: 1 folded contributor -> total 17, dead 2, main eligible {Hero,Short,Deep}, reconciles',
+      _rc_d1['total_committed_pot_bb'] == 17.0 and _rc_d1['dead_money_bb'] == 2.0
+      and set(_rc_d1['pot_layers'][0]['eligible_participants']) == {'Hero', 'Short', 'Deep'}
+      and 'Folder' not in _rc_d1['eligible_bounties']
+      and _qp.pot_reconciliation_violation(_rc_d1) is None,
+      (_rc_d1['total_committed_pot_bb'], _rc_d1['dead_money_bb']))
+# several folded contributors.
+_dead2 = {'id': 'DEAD2', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'F1': 10.0, 'F2': 12.0, 'Short': 5.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'F1', 'calls', 2), _Lb('preflop', 'F2', 'calls', 3),
+                            _Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5),
+                            _Lb('preflop', 'F1', 'folds', 0), _Lb('preflop', 'F2', 'folds', 0)]}
+_rc_d2 = _ds.build_realized_contest(_dead2, 3)
+check('T-I1F-16: several folded contributors -> dead 5 (F1 2 + F2 3) stays in pot, reconciles',
+      _rc_d2['dead_money_bb'] == 5.0 and _rc_d2['dead_money_by_player'] == {'F1': 2.0, 'F2': 3.0}
+      and _qp.pot_reconciliation_violation(_rc_d2) is None, str(_rc_d2['dead_money_by_player']))
+# folded blind/ante money stays as dead money.
+_dead3 = {'id': 'DEAD3', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'SB': 18.0, 'V': 9.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'V', 'raises', 9, True),
+                            _Lb('preflop', 'Hero', 'calls', 9), _Lb('preflop', 'SB', 'folds', 0)]}
+_rc_d3 = _ds.build_realized_contest(_dead3, 2)
+check('T-I1F-17: folded blind money is dead money (SB 0.5), pot reconciles',
+      _rc_d3['dead_money_by_player'].get('SB') == 0.5 and 'SB' not in _rc_d3['eligible_bounties']
+      and _qp.pot_reconciliation_violation(_rc_d3) is None, str(_rc_d3['dead_money_by_player']))
+# dead money + one short all-in.
+_dead4 = {'id': 'DEAD4', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 3.0, 'Folder': 20.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 3, True),
+                            _Lb('preflop', 'Hero', 'calls', 3), _Lb('preflop', 'Folder', 'folds', 0)]}
+_rc_d4 = _ds.build_realized_contest(_dead4, 2)
+check('T-I1F-18: dead money + one short all-in -> dead 2, Short eligible, reconciles',
+      _rc_d4['dead_money_bb'] == 2.0 and _rc_d4['eligible_bounties'].get('Short') == 'collectible'
+      and _qp.pot_reconciliation_violation(_rc_d4) is None, str(_rc_d4))
+# dead money + multiple side pots.
+_dead5 = {'id': 'DEAD5', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Mid': 15.0, 'Folder': 25.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 5, True),
+                            _Lb('preflop', 'Mid', 'raises', 15, True), _Lb('preflop', 'Hero', 'calls', 15),
+                            _Lb('preflop', 'Folder', 'folds', 0)]}
+_rc_d5 = _ds.build_realized_contest(_dead5, 3)
+check('T-I1F-19: dead money + multiple side pots -> layers reconcile, dead 2 preserved, >=2 side layers',
+      _qp.pot_reconciliation_violation(_rc_d5) is None and _rc_d5['dead_money_bb'] == 2.0
+      and sum(1 for l in _rc_d5['pot_layers'] if l['kind'] == 'side') >= 2, str([l['to_bb'] for l in _rc_d5['pot_layers']]))
+# sum of all layer amounts == total committed pot (every fixture above).
+check('T-I1F-20: sum(layer totals) == total committed pot for every dead-money fixture',
+      all(abs(sum(l['total_layer_bb'] for l in rc['pot_layers']) - rc['total_committed_pot_bb']) < 0.02
+          for rc in (_rc_d1, _rc_d2, _rc_d3, _rc_d4, _rc_d5)), '')
+
+# ---- (#11) worklist consumes the canonical decision-time bounty context ----
+_w_hand = {'id': 'TM_PKOW', 'tournament_hand_id': 'TM_PKOW', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': dict(_b1_ssb), 'board': [], 'action_ledger': list(_b1_pre)}
+_w_cand = _mk_cand(id='TM_PKOW', cards='AhKh', position='BB', pf_allin=True, format='BOUNTY',
+                   jammer_position='UTG', jammer_stack_bb=5.0,
+                   decision_math={'key_decision_street': 'preflop',
+                                  'streets': {'preflop': {'hero_call_amount_bb': 5.0}}})
+_w_wl = _awl.build_analyst_worklist({'all_in_review': [_w_cand]}, {}, {}, [_w_hand], '20260101')
+_w_item = _w_wl['items']['TM_PKOW']
+_w_bnt = _w_item['bounty_context']
+_w_ridx = _rai(_w_hand, _w_item.get('decision_kind') or _w_item.get('bucket'))
+_w_dbc = _ds.build_decision_bounty_context(_w_hand, _w_ridx)
+check('T-I1F-21: worklist bounty_context consumes the canonical decision-time object',
+      _w_bnt.get('coverage_aggregate') == _w_dbc['aggregate']
+      and _w_bnt.get('reason') == _w_dbc['reason']
+      and _w_bnt.get('eligible_bounties_by_opponent') == _w_dbc['eligible_bounties_by_opponent']
+      and _qp.aggregate_reason_consistent(_w_bnt.get('coverage_aggregate'), _w_bnt.get('reason')),
+      str(_w_bnt.get('coverage_aggregate')) + '/' + str(_w_bnt.get('reason')))
+
+# ---- (#12) report consumes the SAME canonical object (analyzer stamp wiring) ----
+_ana_src = open('gem_analyzer.py', encoding='utf-8').read()
+_wl_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check('T-I1F-22: report + worklist both consume the canonical decision context (no independent reconstruction)',
+      "h['decision_bounty_context'] = _ds_dbc(h)" in _ana_src
+      and 'build_decision_bounty_context' in _wl_src
+      and _ds.build_decision_bounty_context(_w_hand) == _ds.build_decision_bounty_context(_w_hand), '')
+
+# ---- (#13) parity gate CATCHES intentionally injected future contamination ----
+_fut_actions = [_Lb('flop', 'Deep', 'bets', 55, True), _Lb('flop', 'Hero', 'calls', 35, True)]
+def _contaminated_ctx(h, ridx):
+    rc = _ds.build_realized_contest(h, ridx)
+    return {'eligible_bounties_by_opponent': dict(rc.get('eligible_bounties') or {}),
+            'aggregate': _ds.bounty_aggregate(h, ridx), 'reason': _ds.bounty_reason(h, ridx),
+            'coverage_mixed': _ds.bounty_aggregate(h, ridx) == 'mixed',
+            'hero_in_allin_confrontation': _ds.hero_in_allin_confrontation(h, ridx),
+            'stack_cover_relationship_by_opponent': {}, 'hero_covers_relevant_villain': None}
+_clean_v = _qp.prefix_invariance_violations(_b1_base, _b1_ridx, _fut_actions)
+_dirty_v = _qp.prefix_invariance_violations(_b1_base, _b1_ridx, _fut_actions, ctx_fn=_contaminated_ctx)
+check('T-I1F-23: gate prefix-invariance — clean model invariant, CONTAMINATED model detected',
+      _clean_v == [] and len(_dirty_v) > 0, (_clean_v, _dirty_v))
+
+# ---- (#14) parity gate CATCHES intentionally removed dead money ----
+check('T-I1F-24a: pot reconciliation passes on a valid dead-money contest',
+      _qp.pot_reconciliation_violation(_rc_d1) is None, '')
+_bad_dead = _i1f_copy.deepcopy(_rc_d1); _bad_dead['dead_money_bb'] = 0.0
+_bad_total = _i1f_copy.deepcopy(_rc_d1); _bad_total['total_committed_pot_bb'] = 15.0  # the GPT 17->15 bug
+check('T-I1F-24b: gate CATCHES removed dead money AND a dropped folded total (17->15)',
+      _qp.pot_reconciliation_violation(_bad_dead) is not None
+      and _qp.pot_reconciliation_violation(_bad_total) is not None, '')
+
+# ---- (#15) parity gate CATCHES an aggregate/reason contradiction ----
+check('T-I1F-25: gate accepts valid pairs and CATCHES the mixed/known_all contradiction',
+      _qp.aggregate_reason_consistent('mixed', 'known_mixed')
+      and _qp.aggregate_reason_consistent('none', 'equal_boundary')
+      and not _qp.aggregate_reason_consistent('mixed', 'known_all')
+      and not _qp.aggregate_reason_consistent('all', 'known_none'), '')
+
+# prefix-invariance is a no-op when Hero has NO reviewed decision (blind-fold around):
+# an injected Hero action would CREATE a first decision, not contaminate an earlier one.
+_nodec = {'id': 'NODEC', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'V': 18.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),
+                            _Lb('preflop', 'V', 'folds', 0)]}
+check('T-I1F-26: prefix-invariance is a no-op when Hero has no reviewed decision (ridx None)',
+      _ds.resolve_decision_ref(_nodec)['hero_action_index'] is None
+      and _qp.prefix_invariance_violations(_nodec, None, _fut_actions) == [], '')
+
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')

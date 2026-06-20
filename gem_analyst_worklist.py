@@ -1027,16 +1027,30 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
                                    .replace('re-jam', 'call vs jam')
                                    .replace('rejam', 'call vs jam'))
         if hand is not None and bnt.get('is_pko'):
-            from gem_decision_snapshot import (bounty_aggregate as _bagg,
-                                               bounty_reason as _brsn)
+            # REV3 B1/B2/B3: the worklist consumes the ONE canonical FUTURE-BLIND
+            # decision-time bounty context (a later opponent/Hero all-in can never
+            # change this earlier decision). Every typed field is read from the SAME
+            # object so aggregate and reason can never contradict.
+            from gem_decision_snapshot import build_decision_bounty_context
             _bidx = _reviewed_action_index(hand, kind)
-            _agg = _bagg(hand, _bidx)
+            _dbc = build_decision_bounty_context(hand, _bidx)
+            _agg = _dbc['aggregate']
             bnt['coverage_aggregate'] = _agg
-            bnt['reason'] = _brsn(hand, _bidx)
-            if _agg in ('all', 'none', 'mixed'):
+            bnt['reason'] = _dbc['reason']
+            bnt['coverage_mixed'] = _dbc['coverage_mixed']
+            # eligibility (committed all-in opponents) and the stack-cover relationship
+            # are SEPARATE facts — never conflate cover with collectibility (B3).
+            bnt['eligible_bounties_by_opponent'] = _dbc['eligible_bounties_by_opponent']
+            bnt['stack_cover_relationship_by_opponent'] = _dbc['stack_cover_relationship_by_opponent']
+            # `collectibility_known` here means "is Hero's cover relationship vs the
+            # relevant villain resolved" (decision-time knowable, e.g. an open-shove
+            # over coverable shorts) — NOT bounty eligibility. Drive it (and the
+            # auto-clear gate) from the resolved cover relationship, not the
+            # future-blind eligibility aggregate, so a jam's later callers don't grade
+            # the jam retroactively.
+            if _dbc['hero_cover_relationship_known']:
                 bnt['collectibility_known'] = True
-                bnt['hero_covers_relevant_villain'] = (_agg == 'all')
-                bnt['coverage_mixed'] = (_agg == 'mixed')
+                bnt['hero_covers_relevant_villain'] = _dbc['hero_covers_relevant_villain']
             else:
                 bnt['collectibility_known'] = False
                 bnt['hero_covers_relevant_villain'] = None

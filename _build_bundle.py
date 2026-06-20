@@ -30,7 +30,11 @@ PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
 # _qa_v817_rc3_acceptance.py`) work directly from the bundle — RC2 shipped them
 # package-level only, so the documented command failed from the extracted dir.
 QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
-              '_qa_v817_assert.py', '_qa_v817_rc2_assert.py', '_qa_decode_lazy.py']
+              '_qa_v817_assert.py', '_qa_v817_rc2_assert.py', '_qa_decode_lazy.py',
+              # v8.17.1 Iter-1 (REV3): the end-to-end parity/semantic gate is now a
+              # suite dependency (_test_scratch imports it for the gate-catches tests),
+              # so it must extract with the runtime or the clean-room suite breaks.
+              '_qa_parity.py']
 
 # Stage-A kill list — never bundled
 KILL = {

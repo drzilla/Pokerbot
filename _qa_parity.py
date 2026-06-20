@@ -103,16 +103,27 @@ def gate_worklist(hands_idx, worklist):
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'effective_bb', 'worklist': wl_eff,
                      'snapshot': round(sn_eff, 2)})
-        # --- bounty aggregate ---
+        # --- bounty aggregate (REV3: worklist consumes the FUTURE-BLIND decision-time
+        #     context, so parity is checked against decision_bounty_aggregate) ---
         bnt = it.get('bounty_context') or it.get('bounty') or {}
         wl_agg = bnt.get('coverage_aggregate') or bnt.get('aggregate')
         try:
-            sn_agg = ds.bounty_aggregate(h, ridx)
+            sn_agg = ds.decision_bounty_aggregate(h, ridx)
         except Exception:
             sn_agg = None
         if wl_agg and sn_agg and wl_agg != sn_agg:
             out['mismatches'].append(
-                {'hand': hid, 'field': 'bounty_aggregate', 'worklist': wl_agg, 'snapshot': sn_agg})
+                {'hand': hid, 'field': 'decision_bounty_aggregate', 'worklist': wl_agg, 'snapshot': sn_agg})
+        # --- worklist eligible map must equal the canonical decision-time eligible map ---
+        wl_elig = bnt.get('eligible_bounties_by_opponent')
+        if wl_elig is not None:
+            try:
+                sn_elig = ds.decision_eligible_bounties_by_opponent(h, ridx)
+            except Exception:
+                sn_elig = None
+            if sn_elig is not None and wl_elig != sn_elig:
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'eligible_bounties', 'worklist': wl_elig, 'snapshot': sn_elig})
     return out
 
 
@@ -193,10 +204,96 @@ def gate_report(hands_idx, html):
 _ALLIN_KINDS = ('call_vs_jam', 'call_off', 'open_shove',
                 'rejam_over_live_raise', 'overjam_with_side_pot')
 
+# ── REV3 reusable semantic helpers (importable so the suite can prove the GATE
+#    catches an intentionally-injected bug, not just that the model is correct) ──
+
+_DBC_INVARIANT_KEYS = ('eligible_bounties_by_opponent', 'aggregate', 'reason',
+                       'coverage_mixed', 'hero_in_allin_confrontation',
+                       'stack_cover_relationship_by_opponent',
+                       'hero_covers_relevant_villain')
+
+# the ONLY valid (aggregate, reason) pairs — the canonical truth table.
+_VALID_AGG_REASON = frozenset({
+    ('all', 'known_all'), ('none', 'known_none'), ('none', 'equal_boundary'),
+    ('mixed', 'known_mixed'), ('unknown', 'unknown_missing_stack'),
+    ('not_applicable', 'not_applicable_no_allin_confrontation'),
+})
+
+
+def aggregate_reason_consistent(agg, reason):
+    return (agg, reason) in _VALID_AGG_REASON
+
+
+def _opp_all_in_at_or_before(h, opp, ridx):
+    """Was `opp` all-in at or before the reviewed action index (future-blind)?"""
+    led = h.get('action_ledger') or []
+    for i, a in enumerate(led):
+        if ridx is not None and i > ridx:
+            break
+        if a.get('player') == opp and a.get('is_all_in'):
+            return True
+    return False
+
+
+def prefix_invariance_violations(h, ridx, future_actions, ctx_fn=None):
+    """Append synthetic FUTURE actions strictly after the reviewed index; the
+    decision bounty context (evaluated at the SAME fixed index) must stay byte-identical
+    (future blindness). Returns the list of changed fields ([] == invariant). Pass a
+    deliberately-contaminated builder as `ctx_fn` to prove the gate DETECTS contamination
+    (suite tests #13).
+
+    `ridx` must be a CONCRETE reviewed-action index. With no reviewed decision
+    (ridx is None) there is nothing to contaminate — an injected Hero action would merely
+    *create* a first decision, not change an earlier one — so this returns []."""
+    if ridx is None:
+        return []
+    ctx_fn = ctx_fn or ds.build_decision_bounty_context
+    led = list(h.get('action_ledger') or [])
+    h2 = dict(h)
+    h2['action_ledger'] = led + list(future_actions)
+    a = ctx_fn(h, ridx)
+    b = ctx_fn(h2, ridx)
+    return [k for k in _DBC_INVARIANT_KEYS if a.get(k) != b.get(k)]
+
+
+def pot_reconciliation_violation(rc):
+    """A realized contest reconciles iff sum(layer totals) == total committed pot,
+    sum(layer dead) == total dead money, and each layer total == eligible + dead.
+    Returns a reason string or None."""
+    layers = rc.get('pot_layers') or []
+    total = rc.get('total_committed_pot_bb')
+    if total is None:
+        return 'missing_total_committed_pot'
+    lsum = round(sum(l.get('total_layer_bb', 0.0) for l in layers), 2)
+    if abs(lsum - total) > 0.02:
+        return 'layer_sum_%s_!=_total_%s' % (lsum, total)
+    dsum = round(sum(l.get('dead_money_bb', 0.0) for l in layers), 2)
+    if abs(dsum - (rc.get('dead_money_bb') or 0.0)) > 0.02:
+        return 'dead_layer_sum_%s_!=_dead_%s' % (dsum, rc.get('dead_money_bb'))
+    for l in layers:
+        if abs(round(l.get('eligible_contribution_bb', 0.0)
+                     + l.get('dead_money_bb', 0.0), 2)
+               - l.get('total_layer_bb', 0.0)) > 0.02:
+            return 'layer_eligible+dead_!=_total'
+    return None
+
+
+# a synthetic future opponent all-in to append AFTER the reviewed action — a model
+# that (wrongly) reads the full ledger would let this change the earlier context.
+def _future_contamination_actions(street):
+    return [{'street': street, 'player': '__GATE_FUTURE__', 'action': 'raises',
+             'added_bb': 99.0, 'amount_bb': 99.0, 'is_all_in': True},
+            {'street': street, 'player': 'Hero', 'action': 'calls',
+             'added_bb': 99.0, 'amount_bb': 99.0, 'is_all_in': True}]
+
 
 def gate_semantic(hands_idx, worklist):
-    """REV2 B6/B7: semantic invariants on EVERY worklist decision item (not just
-    cross-surface agreement). Catches a wrong MODEL the agreement gates can't."""
+    """REV2/REV3: semantic invariants on EVERY worklist decision item (not just
+    cross-surface agreement). Catches a wrong MODEL the agreement gates can't.
+
+    Depth invariants (INV1-3) run on all-in decisions; the REV3 decision-time bounty
+    invariants (INV4-8) run on every bounty item; pot reconciliation (INV9) runs on
+    every item with a realized contest."""
     items = worklist.get('items') or {}
     if isinstance(items, dict):
         items = list(items.values())
@@ -213,37 +310,66 @@ def gate_semantic(hands_idx, worklist):
         snap = ds.build_decision_snapshot(h, ridx)
         sn_kind = snap.get('hero_action_kind')
         dn = it.get('decision_node') or {}
-        if sn_kind not in _ALLIN_KINDS:
-            continue
         out['checked'] += 1
-        # INV1: a call/call-off facing a >1BB bet may not grade at ~0 depth.
-        if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('to_call_bb') or 0) > 1.0:
+
+        if sn_kind in _ALLIN_KINDS:
+            # INV1: a call/call-off facing a >1BB bet may not grade at ~0 depth.
+            if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('to_call_bb') or 0) > 1.0:
+                eff = _f(dn.get('effective_bb_vs_relevant_villain'))
+                if eff is not None and eff <= 1.0:
+                    out['violations'].append({'hand': hid, 'inv': 'depth_collapsed', 'eff': eff})
+            # INV2: an exact ledger call must not be 'unavailable' when the snapshot has one.
+            if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('callable_amount_bb') or 0) > 0:
+                if dn.get('price_unavailable') or dn.get('price_source') == 'unavailable':
+                    out['violations'].append({'hand': hid, 'inv': 'unjustified_unavailable',
+                                              'snapshot_callable': snap.get('callable_amount_bb')})
+            # INV3: the all-in bettor's remaining-after must never BE the decision depth.
+            fa_rem = snap.get('faced_aggressor_remaining_after_action_bb')
             eff = _f(dn.get('effective_bb_vs_relevant_villain'))
-            if eff is not None and eff <= 1.0:
-                out['violations'].append({'hand': hid, 'inv': 'depth_collapsed', 'eff': eff})
-        # INV2: an exact ledger call must not be 'unavailable' when the snapshot has one.
-        if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('callable_amount_bb') or 0) > 0:
-            if dn.get('price_unavailable') or dn.get('price_source') == 'unavailable':
-                out['violations'].append({'hand': hid, 'inv': 'unjustified_unavailable',
-                                          'snapshot_callable': snap.get('callable_amount_bb')})
-        # INV3: the all-in bettor's remaining-after must never BE the decision depth.
-        fa_rem = snap.get('faced_aggressor_remaining_after_action_bb')
-        eff = _f(dn.get('effective_bb_vs_relevant_villain'))
-        if (fa_rem is not None and fa_rem < 0.5 and eff is not None and eff < 0.5
-                and snap.get('faced_aggressor_all_in')):
-            out['violations'].append({'hand': hid, 'inv': 'depth_used_remaining_after_allin'})
-        # INV4: per-opponent bounty eligibility — only all-in opponents are eligible.
-        rc = ds.build_realized_contest(h, ridx)
-        elig = set((rc.get('eligible_bounties') or {}).keys())
-        allin_opps = {o['player'] for o in snap.get('players_all_in_before_action', [])}
-        # an opponent all-in only on a later street is captured by realized contest;
-        # union with realized all-in detection via committed+is_all_in:
-        non_allin_elig = elig - allin_opps - {p for p in elig
-                                              if any(a.get('player') == p and a.get('is_all_in')
-                                                     for a in (h.get('action_ledger') or []))}
-        if non_allin_elig:
-            out['violations'].append({'hand': hid, 'inv': 'non_allin_bounty_eligible',
-                                      'who': sorted(non_allin_elig)})
+            if (fa_rem is not None and fa_rem < 0.5 and eff is not None and eff < 0.5
+                    and snap.get('faced_aggressor_all_in')):
+                out['violations'].append({'hand': hid, 'inv': 'depth_used_remaining_after_allin'})
+
+        # ── REV3 decision-time bounty invariants (future-blind) ──
+        dbc = ds.build_decision_bounty_context(h, ridx)
+        if dbc.get('is_bounty'):
+            elig = dbc.get('eligible_bounties_by_opponent') or {}
+            cover = dbc.get('stack_cover_relationship_by_opponent') or {}
+            # INV4 (eligibility): every eligible opponent must be all-in AT or BEFORE
+            # the reviewed action (no future-only all-in, no non-all-in chips-behind).
+            future_or_nonallin = [p for p in elig if not _opp_all_in_at_or_before(h, p, ridx)]
+            if future_or_nonallin:
+                out['violations'].append({'hand': hid, 'inv': 'non_allin_or_future_bounty_eligible',
+                                          'who': sorted(future_or_nonallin)})
+            # INV5 (no all-in confrontation -> empty eligible, not_applicable).
+            if not dbc.get('hero_in_allin_confrontation'):
+                if elig or dbc.get('aggregate') != 'not_applicable':
+                    out['violations'].append({'hand': hid, 'inv': 'eligible_without_confrontation',
+                                              'agg': dbc.get('aggregate'), 'elig': elig})
+            # INV6 (typed consistency): aggregate/reason pair under the truth table.
+            if not aggregate_reason_consistent(dbc.get('aggregate'), dbc.get('reason')):
+                out['violations'].append({'hand': hid, 'inv': 'aggregate_reason_contradiction',
+                                          'agg': dbc.get('aggregate'), 'reason': dbc.get('reason')})
+            # INV6b: coverage_mixed must agree with the aggregate.
+            if bool(dbc.get('coverage_mixed')) != (dbc.get('aggregate') == 'mixed'):
+                out['violations'].append({'hand': hid, 'inv': 'coverage_mixed_disagrees_aggregate'})
+            # INV7 (cover != eligibility): an opponent in the cover map but NOT all-in
+            # at/before the decision must NOT be in the eligible map.
+            cover_leak = [p for p in cover if p in elig and not _opp_all_in_at_or_before(h, p, ridx)]
+            if cover_leak:
+                out['violations'].append({'hand': hid, 'inv': 'cover_used_as_eligibility',
+                                          'who': sorted(cover_leak)})
+            # INV8 (prefix invariance): a later opponent/Hero all-in must not change
+            # this earlier decision-time context.
+            pv = prefix_invariance_violations(h, ridx,
+                                              _future_contamination_actions(snap.get('street', 'preflop')))
+            if pv:
+                out['violations'].append({'hand': hid, 'inv': 'future_contaminated_bounty_context',
+                                          'fields': pv})
+        # INV9 (pot reconciliation): folded dead money preserved + layers reconcile.
+        prv = pot_reconciliation_violation(ds.build_realized_contest(h, ridx))
+        if prv:
+            out['violations'].append({'hand': hid, 'inv': 'pot_unreconciled', 'why': prv})
     return out
 
 

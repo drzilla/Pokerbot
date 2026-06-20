@@ -413,16 +413,22 @@ def _pot_layers(committed_by_player):
 
 
 def _contest_pot_layers(committed_by_player, folded):
-    """Side-pot layering that KEEPS folded 'dead' money inside the pot AMOUNT while
-    excluding folded players from winner ELIGIBILITY (REV3 B4). Folded chips count
-    toward the pot total but never toward who can win it. Each layer reports:
-      kind                    : 'main' (lowest cap) | 'side'
-      from_bb / to_bb         : the cap band this layer covers
-      eligible_participants   : non-folded players who reached this cap
-      eligible_contribution_bb: chips in this layer that CAN be won
-      dead_money_bb           : folded chips trapped in this layer
-      dead_money_by_player    : per-folded-player dead chips in this layer
-      total_layer_bb          : eligible + dead (every chip in the band)
+    """Side-pot layering that keeps folded 'dead' money in the pot AMOUNT while
+    excluding folded players from winner ELIGIBILITY (REV4 B3/B4).
+
+    Bands are split at every contribution cap, then ADJACENT bands with the SAME
+    eligible participant set are MERGED — a new side pot begins ONLY when the eligible
+    winner set changes because of an all-in cap. A folded player's smaller dead
+    contribution therefore can NOT manufacture a fake `side` layer (the REV3 bug where
+    `Folder 2 / Short,Deep,Hero 5` produced main 0-2 + side 2-5 with the SAME eligible
+    set). Each layer reports:
+      kind                    : 'main' (lowest) | 'side' (eligible set genuinely changed)
+      from_bb / to_bb / cap_bb
+      eligible_participants    : non-folded players who reached this layer's top
+      eligible_contribution_bb : chips in this layer that CAN be won
+      dead_money_bb            : folded chips trapped in this layer
+      dead_money_by_player     : per-folded-player dead chips in this layer
+      total_layer_bb           : eligible_contribution + dead_money
     Sum of total_layer_bb over all layers == total committed pot (incl. dead money).
     """
     contrib = {p: round(v, 2) for p, v in committed_by_player.items() if v > _EPS}
@@ -430,23 +436,45 @@ def _contest_pot_layers(committed_by_player, folded):
         return []
     folded = set(folded or ())
     caps = sorted(set(contrib.values()))
-    layers, prev = [], 0.0
-    for i, cap in enumerate(caps):
+    raw, prev = [], 0.0
+    for cap in caps:
         band = round(cap - prev, 2)
-        reach = [p for p, v in contrib.items() if v + _EPS >= cap]
-        elig = sorted(p for p in reach if p not in folded)
-        dead = sorted(p for p in reach if p in folded)
-        layers.append({
-            'kind': 'main' if i == 0 else 'side',
-            'from_bb': round(prev, 2), 'to_bb': round(cap, 2),
-            'eligible_participants': elig,
-            'eligible_contribution_bb': round(len(elig) * band, 2),
-            'dead_money_bb': round(len(dead) * band, 2),
-            'dead_money_by_player': {p: round(band, 2) for p in dead},
-            'total_layer_bb': round(len(reach) * band, 2),
-        })
+        if band <= _EPS:
+            prev = cap
+            continue
+        elig = sorted(p for p, v in contrib.items() if v + _EPS >= cap and p not in folded)
+        dead_by = {}
+        for p in folded:
+            amt = round(min(contrib[p], cap) - prev, 2)
+            if amt > _EPS:
+                dead_by[p] = amt
+        dead = round(sum(dead_by.values()), 2)
+        raw.append({'from_bb': round(prev, 2), 'to_bb': round(cap, 2), 'cap_bb': round(cap, 2),
+                    'eligible_participants': elig,
+                    'eligible_contribution_bb': round(len(elig) * band, 2),
+                    'dead_money_bb': dead, 'dead_money_by_player': dead_by,
+                    'total_layer_bb': round(len(elig) * band + dead, 2)})
         prev = cap
-    return layers
+    if not raw:
+        return []
+    # MERGE adjacent bands with identical eligible sets (no winner-set change = one pot).
+    merged = [raw[0]]
+    for L in raw[1:]:
+        m = merged[-1]
+        if L['eligible_participants'] == m['eligible_participants']:
+            m['to_bb'] = L['to_bb']
+            m['cap_bb'] = L['cap_bb']
+            m['eligible_contribution_bb'] = round(m['eligible_contribution_bb']
+                                                  + L['eligible_contribution_bb'], 2)
+            m['dead_money_bb'] = round(m['dead_money_bb'] + L['dead_money_bb'], 2)
+            for p, a in L['dead_money_by_player'].items():
+                m['dead_money_by_player'][p] = round(m['dead_money_by_player'].get(p, 0.0) + a, 2)
+            m['total_layer_bb'] = round(m['total_layer_bb'] + L['total_layer_bb'], 2)
+        else:
+            merged.append(L)
+    for i, L in enumerate(merged):
+        L['kind'] = 'main' if i == 0 else 'side'
+    return merged
 
 
 # ── action-kind taxonomy (ledger-based, future-blind) ──────────────
@@ -556,27 +584,36 @@ def build_realized_contest(h, hero_action_index=None):
                 callers_after.append(p)
             elif act == 'folds':
                 folds_after.append(p)
-    # realized contesters = everyone who put chips in and never folded (any street),
-    # so a prior-street all-in persists.
+    # realized contesters = opponents who put chips in and never folded (any street),
+    # so a prior-street all-in persists. Used only for the realized bounty-eligibility
+    # loop below; every PARTICIPANT view is derived from the canonical pot layers.
     contesting = sorted(p for p, v in committed_total.items()
                         if p != hero and v > _EPS and p not in folded_anytime)
 
-    participants = [hero] + contesting
-    layers = _pot_layers({p: committed_total.get(p, 0.0) for p in participants
-                          if committed_total.get(p, 0.0) > _EPS})
-    main_pot = layers[0]['participants'] if layers else participants
-    side_participants = sorted(set().union(*[set(l['participants']) for l in layers[1:]])) if len(layers) > 1 else []
-
-    # REV3 B4: folded 'dead' money must remain in the pot amount (folded chips count
-    # toward the pot total but never toward winner eligibility). Build the typed
-    # contest pot over EVERY contributor — Hero, live contesters AND folded players —
-    # marking folded chips as dead money so the layer amounts reconcile to the full
-    # committed pot. The earlier `side_pot_layers` (eligible-only) is kept for the
-    # back-compat participant view; `pot_layers` is the reconciling dead-money model.
+    # REV4 B4/B5: the canonical typed pot layers are the ONE participant model. Folded
+    # 'dead' money stays in the pot AMOUNT but folded players (INCLUDING a folded Hero)
+    # are excluded from every eligible/participant view — they can never be both dead
+    # money AND a "contesting participant" (the REV3 self-contradiction). Derive
+    # main/side participants, contesting opponents and the realized participant COUNT
+    # from the pot layers so a second, independently-calculated participant model can
+    # never disagree.
     folded_contributors = {p for p in folded_anytime
                            if committed_total.get(p, 0.0) > _EPS}
     pot_layers = _contest_pot_layers(
         {p: v for p, v in committed_total.items() if v > _EPS}, folded_contributors)
+    eligible_all = sorted(set().union(*[set(l['eligible_participants']) for l in pot_layers])
+                          if pot_layers else set())
+    main_pot = pot_layers[0]['eligible_participants'] if pot_layers else []
+    side_participants = sorted(set().union(
+        *[set(l['eligible_participants']) for l in pot_layers if l['kind'] == 'side'])) \
+        if any(l['kind'] == 'side' for l in pot_layers) else []
+    realized_contesting_opponents = [p for p in eligible_all if p != hero]
+    realized_participant_count = len(eligible_all)
+    contributing_player_count = sum(1 for v in committed_total.values() if v > _EPS)
+    # back-compat eligible-only side-pot layers (folded excluded), for older readers.
+    side_pot_layers = _pot_layers({p: committed_total.get(p, 0.0) for p in eligible_all
+                                   if committed_total.get(p, 0.0) > _EPS})
+
     dead_money_by_player = {p: round(committed_total.get(p, 0.0), 2)
                             for p in sorted(folded_contributors)}
     dead_money_bb = round(sum(dead_money_by_player.values()), 2)
@@ -600,11 +637,12 @@ def build_realized_contest(h, hero_action_index=None):
         'hero_action_index': idx,
         'callers_after_hero_action': callers_after,
         'folds_after_hero_action': folds_after,
-        'realized_contesting_opponents': contesting,
-        'realized_participant_count': 1 + len(contesting),
+        'realized_contesting_opponents': realized_contesting_opponents,
+        'realized_participant_count': realized_participant_count,
+        'contributing_player_count': contributing_player_count,
         'main_pot_participants': main_pot,
         'side_pot_participants': side_participants,
-        'side_pot_layers': layers,
+        'side_pot_layers': side_pot_layers,
         'folded_players': sorted(folded_contributors),
         'total_committed_pot_bb': total_committed_pot_bb,
         'dead_money_bb': dead_money_bb,
@@ -714,16 +752,27 @@ def build_decision_bounty_context(h, hero_action_index=None):
 
     aggregate, reason = _classify_bounty(eligible, in_confront, is_bounty)
 
-    # Relevant villain for the SEPARATE cover scalar (not eligibility): the faced
-    # all-in aggressor if any, else the deepest active opponent (the one who could
-    # cover Hero). This drives the worklist's cover-known flag without ever being
-    # treated as bounty eligibility.
+    # Relevant villain for the SEPARATE stack-cover relationship (NOT eligibility): the
+    # faced all-in aggressor if any, else the deepest active opponent (the one who could
+    # cover Hero). This is a cover fact only — it must never be read as collectibility.
     relevant = faced if faced in cover_rel else None
     if relevant is None and cover_rel:
         relevant = max(cover_rel, key=lambda p: (starting.get(p) or 0.0))
     rel_cov = cover_rel.get(relevant) if relevant else None
-    cover_known = rel_cov is not None and rel_cov != 'unknown'
-    hero_covers_relevant = (rel_cov == 'collectible') if cover_known else None
+    cover_relationship_known = rel_cov is not None and rel_cov != 'unknown'
+    hero_covers_relevant_by_cover = (rel_cov == 'collectible') if cover_relationship_known else None
+
+    # REV4 B1: bounty ELIGIBILITY (collectibility) is a DIFFERENT fact from cover.
+    # `bounty_eligibility_known` is true only when there is a real all-in confrontation
+    # with a definite verdict (all / none / mixed). `hero_covers_relevant_villain` is
+    # eligibility-based and MUST be null when the bounty is not applicable (invariant:
+    # not_applicable => eligible {} => hero_covers null). For mixed/all Hero covers at
+    # least one ELIGIBLE villain; for none Hero covers no eligible villain.
+    bounty_eligibility_known = aggregate in ('all', 'none', 'mixed')
+    if bounty_eligibility_known:
+        hero_covers_relevant_villain = any(v == 'collectible' for v in eligible.values())
+    else:
+        hero_covers_relevant_villain = None
 
     return {
         'hand_id': h.get('id', ''),
@@ -731,14 +780,21 @@ def build_decision_bounty_context(h, hero_action_index=None):
         'hero_action_index': idx,
         'is_bounty': is_bounty,
         'hero_in_allin_confrontation': in_confront,
+        # eligibility (collectibility) — the decision-time bounty truth
         'eligible_bounties_by_opponent': eligible,
-        'stack_cover_relationship_by_opponent': cover_rel,
-        'aggregate': aggregate,
-        'reason': reason,
+        'coverage_aggregate': aggregate,
+        'coverage_reason': reason,
+        'aggregate': aggregate,            # back-compat alias
+        'reason': reason,                  # back-compat alias
         'coverage_mixed': aggregate == 'mixed',
+        'bounty_eligibility_known': bounty_eligibility_known,
+        'hero_covers_relevant_villain': hero_covers_relevant_villain,
+        # stack-cover relationship — a SEPARATE fact, never eligibility (REV3/REV4 B3)
+        'stack_cover_relationship_by_opponent': cover_rel,
         'relevant_villain_key': relevant,
-        'hero_cover_relationship_known': cover_known,
-        'hero_covers_relevant_villain': hero_covers_relevant,
+        'cover_relationship_known': cover_relationship_known,
+        'hero_cover_relationship_known': cover_relationship_known,   # back-compat alias
+        'hero_covers_relevant_villain_by_cover': hero_covers_relevant_by_cover,
         'source_warnings': snap.get('source_warnings', []),
     }
 

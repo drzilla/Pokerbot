@@ -779,9 +779,18 @@ def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
         return False, 'multiway'
     if c.get('side_pot') or c.get('has_side_pot'):
         return False, 'side_pot'
-    # req: bounty must be certain (PKO -> collectibility known)
-    if bnt.get('is_pko') and not bnt.get('collectibility_known'):
-        return False, 'bounty_uncertain'
+    # req: bounty certainty branches on the typed aggregate (REV4 B1):
+    #   not_applicable -> no bounty adjustment exists, no uncertainty block
+    #   unknown        -> block (missing-stack uncertainty)
+    #   all/none/mixed -> collectibility known, use the canonical context (no block)
+    # With no canonical context (hand absent) fall back to the pko-research flag.
+    if bnt.get('is_pko'):
+        _bagg = bnt.get('coverage_aggregate')
+        if _bagg is None:
+            if not bnt.get('collectibility_known'):
+                return False, 'bounty_uncertain'
+        elif _bagg == 'unknown':
+            return False, 'bounty_uncertain'
     # req: known action node (price available + facing known) OR a rich,
     # ledger-built action line the analyst can read end-to-end.
     rich_line = bool(action_line and '|' in action_line)
@@ -1027,32 +1036,44 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
                                    .replace('re-jam', 'call vs jam')
                                    .replace('rejam', 'call vs jam'))
         if hand is not None and bnt.get('is_pko'):
-            # REV3 B1/B2/B3: the worklist consumes the ONE canonical FUTURE-BLIND
-            # decision-time bounty context (a later opponent/Hero all-in can never
-            # change this earlier decision). Every typed field is read from the SAME
-            # object so aggregate and reason can never contradict.
+            # REV4 B1: rebuild EVERY dependent bounty field from the ONE canonical
+            # FUTURE-BLIND decision-time context — no stale field may survive from the
+            # earlier _bounty_context() (the REV3 bug where collectibility_known and
+            # adjustment_applied_to_decision contradicted not_applicable). Eligibility
+            # (collectibility) and the stack-cover relationship are SEPARATE typed facts
+            # (B3); collectibility_known means bounty eligibility known — NOT merely that
+            # stack sizes compare.
             from gem_decision_snapshot import build_decision_bounty_context
             _bidx = _reviewed_action_index(hand, kind)
             _dbc = build_decision_bounty_context(hand, _bidx)
-            _agg = _dbc['aggregate']
+            _agg = _dbc['coverage_aggregate']
+            # eligibility / collectibility
             bnt['coverage_aggregate'] = _agg
-            bnt['reason'] = _dbc['reason']
+            bnt['coverage_reason'] = _dbc['coverage_reason']
+            bnt['reason'] = _dbc['coverage_reason']            # back-compat alias
             bnt['coverage_mixed'] = _dbc['coverage_mixed']
-            # eligibility (committed all-in opponents) and the stack-cover relationship
-            # are SEPARATE facts — never conflate cover with collectibility (B3).
             bnt['eligible_bounties_by_opponent'] = _dbc['eligible_bounties_by_opponent']
+            bnt['bounty_eligibility_known'] = _dbc['bounty_eligibility_known']
+            # back-compat: collectibility_known == bounty eligibility known (NOT cover)
+            bnt['collectibility_known'] = _dbc['bounty_eligibility_known']
+            bnt['hero_covers_relevant_villain'] = _dbc['hero_covers_relevant_villain']
+            # stack-cover relationship — separate fact, never eligibility (B3)
             bnt['stack_cover_relationship_by_opponent'] = _dbc['stack_cover_relationship_by_opponent']
-            # `collectibility_known` here means "is Hero's cover relationship vs the
-            # relevant villain resolved" (decision-time knowable, e.g. an open-shove
-            # over coverable shorts) — NOT bounty eligibility. Drive it (and the
-            # auto-clear gate) from the resolved cover relationship, not the
-            # future-blind eligibility aggregate, so a jam's later callers don't grade
-            # the jam retroactively.
-            if _dbc['hero_cover_relationship_known']:
-                bnt['collectibility_known'] = True
-                bnt['hero_covers_relevant_villain'] = _dbc['hero_covers_relevant_villain']
-            else:
-                bnt['collectibility_known'] = False
+            bnt['cover_relationship_known'] = _dbc['cover_relationship_known']
+            # adjustment: recomputed from the canonical context — true ONLY when a real
+            # discount was applied to an ELIGIBLE, collectible bounty state (B1 invariant:
+            # not_applicable/none/unknown => adjustment false).
+            _discount = _f(c.get('bounty_discount_pp')) > 0
+            _adj = bool(_discount and _agg in ('all', 'mixed')
+                        and any(v == 'collectible' for v in
+                                (_dbc['eligible_bounties_by_opponent'] or {}).values()))
+            bnt['adjustment_applied_to_decision'] = _adj
+            bnt['adjustment_source'] = 'pko_discount_on_eligible_bounty' if _adj else None
+            # INVARIANT enforcement (defensive — must already hold from the context):
+            if _agg == 'not_applicable':
+                bnt['eligible_bounties_by_opponent'] = {}
+                bnt['adjustment_applied_to_decision'] = False
+                bnt['adjustment_source'] = None
                 bnt['hero_covers_relevant_villain'] = None
         action_line = _canonical_action_line(c, hand, kind)
         src_truth = _source_truth(c, pko, dev)

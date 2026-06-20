@@ -4290,8 +4290,12 @@ check('T-CC-05: game context format in facts',
       _cc_f05['game_context']['format'] == 'FREEZEOUT',
       'format not stored in game_context')
 
-# T-CC-06: Bounty arithmetic
-_cc_h06 = _cc_hand(format='BOUNTY', bounty_value_bb=5, bounty_type='pko')
+# T-CC-06: Bounty arithmetic. REV4 B2: coaching reads the canonical decision context,
+# so the covered bounty all-in needs a real ledger (CO jams 22, Hero 25 calls -> covers).
+_cc_allin_led = [{'street': 'preflop', 'player': 'CO', 'action': 'raises', 'added_bb': 22, 'amount_bb': 22, 'is_all_in': True},
+                 {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'added_bb': 22, 'amount_bb': 22}]
+_cc_h06 = _cc_hand(format='BOUNTY', bounty_value_bb=5, bounty_type='pko',
+                   seat_stack_by_player={'Hero': 25, 'CO': 22}, action_ledger=_cc_allin_led)
 _cc_f06 = _build_decision_facts(_cc_h06, _cc_stats, _cc_rd)
 _cc_t06 = _select_template(_cc_f06, derive_quality_gates(_cc_f06)[0])
 check('T-CC-06: bounty card produced for BOUNTY format',
@@ -4305,9 +4309,10 @@ check('T-CC-07: mystery bounty gets medium confidence',
       _cc_f07['bounty_facts']['bounty_confidence'] == 'medium',
       'mystery bounty should be medium confidence')
 
-# T-CC-08: Bounty-only call wording
+# T-CC-08: Bounty-only call wording (covered all-in, equity below chip threshold).
 _cc_h08 = _cc_hand(format='BOUNTY', bounty_value_bb=10, bounty_type='pko',
-                    eai_hero_equity=35.0, required_eq_pct=40.0)
+                    eai_hero_equity=35.0, required_eq_pct=40.0,
+                    seat_stack_by_player={'Hero': 25, 'CO': 22}, action_ledger=_cc_allin_led)
 _cc_f08 = _build_decision_facts(_cc_h08, _cc_stats, _cc_rd)
 _cc_t08 = _select_template(_cc_f08, derive_quality_gates(_cc_f08)[0])
 check('T-CC-08: bounty-only call mentions bounty in headline',
@@ -5438,9 +5443,16 @@ _hg_src141 = open('gem_report_draft/_hand_grid.py', encoding='utf-8').read()
 _cc141 = open('gem_coaching_cards.py', encoding='utf-8').read()
 _ana141b = open('gem_analyzer.py', encoding='utf-8').read()
 
-# B1: trust strip renders for a collectible bounty hand (REAL helper, real reconcile)
+# B1: trust strip renders for a collectible bounty hand (REAL helper, real reconcile).
+# REV4 B2: the strip reads the canonical decision context (not the legacy scalar), so the
+# fixture carries a stamped decision_bounty_context (aggregate=all -> collectible).
 _h141_coll = {'format': 'BOUNTY', 'bounty_value_bb': 4.0,
-              'bounty_collectible': 'collectible', 'jammer_position': 'BTN'}
+              'bounty_collectible': 'collectible', 'jammer_position': 'BTN',
+              'decision_bounty_context': {
+                  'is_bounty': True, 'coverage_aggregate': 'all', 'coverage_reason': 'known_all',
+                  'aggregate': 'all', 'reason': 'known_all',
+                  'eligible_bounties_by_opponent': {'BTN': 'collectible'},
+                  'hero_covers_relevant_villain': True}}
 _po141_coll = {'required_eq_pct': 39.2, 'required_eq_bounty_pct': None,
                'n_players_at_showdown': 2, 'bounty': {'value_bb': 4.0, 'discount_pp': 0}}
 _strip_coll = _bts141({}, _h141_coll, _po141_coll)
@@ -5473,11 +5485,15 @@ for _stk, _opp in [(64, [6]), (53, [60]), (53, []), (40, [40])]:
     _card_notcoll = (_c141 == 'not_collectible')
     if _icm_covers and _card_notcoll:
         _mx_ok = False
-check('T-H141-23: bounty cover is ONE source of truth (flag + card mutually exclusive + both read it)',
+# REV4 B2: cover/collectibility is ONE source of truth — the canonical DECISION-TIME
+# context. The icm flag, coaching card and trust strip all derive from it (not the
+# legacy realized scalar). _mx_ok still holds (collectible/not_collectible mutually
+# exclusive at the model level).
+check('T-H141-23: bounty cover is ONE source of truth (canonical decision context drives flag + card)',
       _mx_ok
-      and "h['bounty_collectible'] = _collect" in _ana141b
-      and "'bounty_covers_villain': (_collect == 'collectible')" in _ana141b
-      and "h.get('bounty_collectible')" in _cc141
+      and "h['realized_bounty_collectible'] = _collect" in _ana141b
+      and "'bounty_covers_villain': bool(_dbc_default and _dbc_default.get('hero_covers_relevant_villain'))" in _ana141b
+      and "h.get('decision_bounty_context')" in _cc141
       and "bf.get('collectibility') != 'not_collectible'" in _cc141, '')
 
 # B4: raw chart ids gone from the REAL _hand_grid verdict copy; human labels used
@@ -5523,10 +5539,13 @@ check('T-H141-29: call-jam verdict reconciles vs analyst + states nearest-chart 
 # can't list a hand the per-hand flag + trust strip call collectible (the legacy
 # eff>=jammer test mis-read Hero-covers-a-short-jammer spots like 73281442).
 _pkor141 = open('gem_pko_research.py', encoding='utf-8').read()
-check('T-H141-30: PKO all-in audit defers to canonical bounty_collectible (one source w/ icm + trust strip)',
-      "_canon_collect = h.get('bounty_collectible')" in _pkor141
-      and "if _canon_collect == 'collectible':" in _pkor141
-      and "elif _canon_collect == 'not_collectible':" in _pkor141, '')
+# REV4 B2: the PKO all-in audit defers to the canonical DECISION-TIME context (not the
+# legacy realized scalar) — eligibility when there is a committed confrontation, else the
+# decision-time stack-cover relationship for an open jam.
+check('T-H141-30: PKO all-in audit defers to the canonical decision context (one source w/ icm + trust strip)',
+      "_dbc_pko = h.get('decision_bounty_context')" in _pkor141
+      and "if _dbc_pko.get('bounty_eligibility_known'):" in _pkor141
+      and "elif _dbc_pko.get('cover_relationship_known'):" in _pkor141, '')
 
 # ============================================================
 # v8.14.1-preview rev-4 — remaining real-output blockers (T-H141-31..35)
@@ -5568,9 +5587,12 @@ check('T-H141-34: Correct-range lines use human chart labels, not raw ids',
       and 'Correct range — `{cn}`' not in _helpers141, '')
 
 # rev-4 Blocker D: explicit PKO-unavailable note for unresolved BOUNTY all-ins (XIV.A + XIV.B)
+# REV4 B2: the PKO bounty-math note gates on the canonical DECISION-TIME aggregate
+# (not the legacy realized scalar) in BOTH real hand-detail paths (XIV.A + XIV.B).
 check('T-H141-35: PKO bounty-math-unavailable note renders for unresolved BOUNTY all-ins (XIV.A + XIV.B)',
       _xiv141.count('**PKO bounty math:** cover/collectibility') == 2
-      and _xiv141.count("h.get('bounty_collectible') in (None, 'unknown')") == 2, '')
+      and _xiv141.count("_dbc_agg_pko in (None, 'not_applicable', 'unknown')") == 1
+      and _xiv141.count("_dbc_agg_pko_b in (None, 'not_applicable', 'unknown')") == 1, '')
 
 # ============================================================
 # v8.14.1-preview xway-fix — "X-way" must mean LIVE contenders at the decision,
@@ -11044,16 +11066,22 @@ _rc_d4 = _ds.build_realized_contest(_dead4, 2)
 check('T-I1F-18: dead money + one short all-in -> dead 2, Short eligible, reconciles',
       _rc_d4['dead_money_bb'] == 2.0 and _rc_d4['eligible_bounties'].get('Short') == 'collectible'
       and _qp.pot_reconciliation_violation(_rc_d4) is None, str(_rc_d4))
-# dead money + multiple side pots.
+# dead money + multiple GENUINE side pots (distinct all-in caps among eligible players;
+# the folded player's smaller cap must NOT create an extra side layer — it merges away).
 _dead5 = {'id': 'DEAD5', 'hero': 'Hero', 'format': 'BOUNTY',
-          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Mid': 15.0, 'Folder': 25.0}, 'board': [],
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Mid': 15.0, 'Deep': 30.0, 'Folder': 25.0}, 'board': [],
           'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 5, True),
-                            _Lb('preflop', 'Mid', 'raises', 15, True), _Lb('preflop', 'Hero', 'calls', 15),
-                            _Lb('preflop', 'Folder', 'folds', 0)]}
-_rc_d5 = _ds.build_realized_contest(_dead5, 3)
-check('T-I1F-19: dead money + multiple side pots -> layers reconcile, dead 2 preserved, >=2 side layers',
+                            _Lb('preflop', 'Mid', 'raises', 15, True), _Lb('preflop', 'Deep', 'raises', 30, True),
+                            _Lb('preflop', 'Hero', 'calls', 30), _Lb('preflop', 'Folder', 'folds', 0)]}
+_rc_d5 = _ds.build_realized_contest(_dead5, 4)
+_d5_sides = [l for l in _rc_d5['pot_layers'] if l['kind'] == 'side']
+check('T-I1F-19: dead money + 2 genuine side pots (folded cap merged away) -> reconciles, dead 2, main {Deep,Hero,Mid,Short}',
       _qp.pot_reconciliation_violation(_rc_d5) is None and _rc_d5['dead_money_bb'] == 2.0
-      and sum(1 for l in _rc_d5['pot_layers'] if l['kind'] == 'side') >= 2, str([l['to_bb'] for l in _rc_d5['pot_layers']]))
+      and sum(1 for l in _rc_d5['pot_layers'] if l['kind'] == 'main') == 1
+      and len(_d5_sides) == 2
+      and all(len(l['eligible_participants']) >= 2 for l in _d5_sides)
+      and set(_rc_d5['pot_layers'][0]['eligible_participants']) == {'Deep', 'Hero', 'Mid', 'Short'},
+      str([(l['kind'], l['from_bb'], l['to_bb'], l['eligible_participants']) for l in _rc_d5['pot_layers']]))
 # sum of all layer amounts == total committed pot (every fixture above).
 check('T-I1F-20: sum(layer totals) == total committed pot for every dead-money fixture',
       all(abs(sum(l['total_layer_bb'] for l in rc['pot_layers']) - rc['total_committed_pot_bb']) < 0.02
@@ -11082,7 +11110,8 @@ check('T-I1F-21: worklist bounty_context consumes the canonical decision-time ob
 _ana_src = open('gem_analyzer.py', encoding='utf-8').read()
 _wl_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
 check('T-I1F-22: report + worklist both consume the canonical decision context (no independent reconstruction)',
-      "h['decision_bounty_context'] = _ds_dbc(h)" in _ana_src
+      "h['decision_bounty_context'] = _dbc_default" in _ana_src
+      and "h['decision_bounty_context_by_action_index'] = _by_idx" in _ana_src
       and 'build_decision_bounty_context' in _wl_src
       and _ds.build_decision_bounty_context(_w_hand) == _ds.build_decision_bounty_context(_w_hand), '')
 
@@ -11125,6 +11154,143 @@ _nodec = {'id': 'NODEC', 'hero': 'Hero', 'format': 'BOUNTY',
 check('T-I1F-26: prefix-invariance is a no-op when Hero has no reviewed decision (ridx None)',
       _ds.resolve_decision_ref(_nodec)['hero_action_index'] is None
       and _qp.prefix_invariance_violations(_nodec, None, _fut_actions) == [], '')
+
+
+# ============================================================
+# REV4 (Iteration 1 consumer routing + pot-layer truth) — T-I1G-01..NN
+#  - rendered report bounty context == canonical (data attrs, not source strings)
+#  - worklist bounty fields rebuilt from ONE object (no contradictions)
+#  - dead money never creates a fake side pot; folded Hero is dead money only
+#  - the strengthened gates CATCH injected consumer + pot-layer corruption
+# ============================================================
+from gem_report_draft.sections_xiv import _bounty_data_attrs as _bdav, _decision_bounty_view as _dbv
+import re as _re_g
+
+
+def _rendered_bounty(h):
+    """Stamp the canonical context (as the analyzer does) and parse the RENDERED data
+    attributes — proves the renderer emits the canonical aggregate/reason, not a
+    reconstructed scalar."""
+    h2 = dict(h)
+    h2['decision_bounty_context'] = _ds.build_decision_bounty_context(h2)
+    s = _bdav(h2)
+    ma = _re_g.search(r"data-bounty-aggregate='([^']*)'", s)
+    mr = _re_g.search(r"data-bounty-reason='([^']*)'", s)
+    return (ma.group(1) if ma else None, mr.group(1) if mr else None)
+
+
+def _canon_ar(h, idx=None):
+    d = _ds.build_decision_bounty_context(h, idx)
+    return (d['coverage_aggregate'], d['coverage_reason'])
+
+# (#1-#6) rendered report bounty == canonical for each confrontation shape
+_g_hu_coll = {'id': 'GHU1', 'hero': 'Hero', 'format': 'BOUNTY',
+              'seat_stack_by_player': {'Hero': 20.0, 'V': 5.0}, 'board': [],
+              'action_ledger': [_Lb('preflop', 'V', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_g_hu_not = {'id': 'GHU2', 'hero': 'Hero', 'format': 'BOUNTY',
+             'seat_stack_by_player': {'Hero': 10.0, 'V': 80.0}, 'board': [],
+             'action_ledger': [_Lb('preflop', 'V', 'raises', 80, True), _Lb('preflop', 'Hero', 'calls', 10, True)]}
+_g_eq = {'id': 'GEQ', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 20.0}, 'board': [],
+         'action_ledger': [_Lb('preflop', 'V', 'raises', 20, True), _Lb('preflop', 'Hero', 'calls', 20, True)]}
+_g_mix = {'id': 'GMIX', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'Short': 5.0, 'Big': 80.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Big', 'raises', 80, True),
+                            _Lb('preflop', 'Hero', 'calls', 30, True)]}
+_g_unk = {'id': 'GUNK', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'raises', 8, True), _Lb('preflop', 'Hero', 'calls', 8)]}
+_g_noai = {'id': 'GNOAI', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+           'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+check('T-I1G-01: rendered == canonical — HU collectible all-in (all/known_all)',
+      _rendered_bounty(_g_hu_coll) == _canon_ar(_g_hu_coll) == ('all', 'known_all'), _rendered_bounty(_g_hu_coll))
+check('T-I1G-02: rendered == canonical — HU non-collectible all-in (none/known_none)',
+      _rendered_bounty(_g_hu_not) == _canon_ar(_g_hu_not) == ('none', 'known_none'), _rendered_bounty(_g_hu_not))
+check('T-I1G-03: rendered == canonical — equal-stack boundary (none/equal_boundary)',
+      _rendered_bounty(_g_eq) == _canon_ar(_g_eq) == ('none', 'equal_boundary'), _rendered_bounty(_g_eq))
+check('T-I1G-04: rendered == canonical — mixed multiway eligibility (mixed/known_mixed)',
+      _rendered_bounty(_g_mix) == _canon_ar(_g_mix) == ('mixed', 'known_mixed'), _rendered_bounty(_g_mix))
+check('T-I1G-05: rendered == canonical — unknown opponent stack (unknown/unknown_missing_stack)',
+      _rendered_bounty(_g_unk) == _canon_ar(_g_unk) == ('unknown', 'unknown_missing_stack'), _rendered_bounty(_g_unk))
+check('T-I1G-06: rendered == canonical — no all-in confrontation (not_applicable)',
+      _rendered_bounty(_g_noai) == _canon_ar(_g_noai) == ('not_applicable', 'not_applicable_no_allin_confrontation'),
+      _rendered_bounty(_g_noai))
+
+# (#7) earlier decision then later OPPONENT all-in — earlier rendered ctx unchanged
+_g7_base = {'id': 'G7B', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Deep', 'calls', 5),
+                              _Lb('preflop', 'Hero', 'calls', 5)]}
+_g7_fut = dict(_g7_base); _g7_fut = {'id': 'G7F', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': _g7_base['action_ledger'] + [_Lb('flop', 'Deep', 'bets', 55, True), _Lb('flop', 'Hero', 'calls', 35, True)]}
+check('T-I1G-07: earlier decision rendered ctx is unchanged by a later OPPONENT all-in',
+      _canon_ar(_g7_base, 2) == _canon_ar(_g7_fut, 2) == ('all', 'known_all'), '')
+
+# (#8) earlier decision then later HERO all-in — earlier ctx unchanged
+_g8 = {'id': 'G8', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.2), _Lb('preflop', 'V', 'calls', 2.2),
+                                                       _Lb('flop', 'Hero', 'bets', 30, True), _Lb('flop', 'V', 'calls', 30, True)]}
+check('T-I1G-08: earlier decision (idx 0) ctx unchanged by a later HERO all-in',
+      _canon_ar(_g8, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation'), _canon_ar(_g8, 0))
+
+# (#9) several Hero decisions in one hand -> action-indexed contexts differ per index:
+# Hero's preflop OPEN (idx 0) has no all-in confrontation; Hero's flop CALL vs V's jam
+# (idx 3) is a covered all-in. A single default context would mislabel one of them.
+_g9 = {'id': 'G9', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 40.0, 'V': 30.0},
+       'board': ['2c', '7d', 'Js'],
+       'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                         _Lb('flop', 'V', 'bets', 27.5, True), _Lb('flop', 'Hero', 'calls', 27.5)]}
+check('T-I1G-09: several Hero decisions -> the right action-indexed ctx per index (not one default)',
+      _canon_ar(_g9, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation')  # preflop open
+      and _canon_ar(_g9, 3) == ('all', 'known_all')      # flop call vs V's jam, Hero covers
+      and _canon_ar(_g9, 0) != _canon_ar(_g9, 3), (_canon_ar(_g9, 0), _canon_ar(_g9, 3)))
+
+# (#13/F1) gate_report_bounty CATCHES a renderer that reconstructs coverage (wrong attr)
+_gi_hands = [dict(_g_hu_coll)]
+_gi_hands[0]['tournament_hand_id'] = 'GHU1'
+_gi_idx = _qp._hand_index(_gi_hands)
+_good_html = ("<article class='hand-detail-card' data-hand-id='GHU1' "
+              + _bdav({**_g_hu_coll, 'decision_bounty_context': _ds.build_decision_bounty_context(_g_hu_coll)}) + ">x</article>")
+_bad_html = "<article class='hand-detail-card' data-hand-id='GHU1' data-bounty-aggregate='none' data-bounty-reason='known_none'>x</article>"
+check('T-I1G-10: gate_report_bounty PASSES canonical render, CATCHES a reconstructed (wrong) bounty render',
+      len(_qp.gate_report_bounty(_gi_idx, _good_html)['mismatches']) == 0
+      and len(_qp.gate_report_bounty(_gi_idx, _bad_html)['mismatches']) == 1, '')
+
+# (#14/F2) pot_semantic_violations CATCHES injected pot-layer corruption
+_pc_rc = _ds.build_realized_contest(_dead1, 4)   # valid one-folder contest
+check('T-I1G-11: pot_semantic gate PASSES a valid contest', _qp.pot_semantic_violations(_pc_rc) == [], '')
+_pc_bad1 = _i1f_copy.deepcopy(_pc_rc); _pc_bad1['main_pot_participants'] = _pc_bad1['main_pot_participants'] + ['Folder']
+_pc_bad2 = _i1f_copy.deepcopy(_pc_rc); _pc_bad2['pot_layers'] = _pc_bad2['pot_layers'] + [dict(_pc_bad2['pot_layers'][0], kind='side')]
+_pc_bad3 = _i1f_copy.deepcopy(_pc_rc); _pc_bad3['realized_participant_count'] = 99
+check('T-I1G-12: pot_semantic gate CATCHES folded-in-main, unmerged-side, and bad participant count',
+      _qp.pot_semantic_violations(_pc_bad1)
+      and _qp.pot_semantic_violations(_pc_bad2)
+      and _qp.pot_semantic_violations(_pc_bad3), '')
+
+# (#15/F3) worklist_bounty_consistency CATCHES the REV3 contradictions
+check('T-I1G-13: worklist_bounty_consistency PASSES a clean not_applicable bnt',
+      _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'collectibility_known': False,
+           'adjustment_applied_to_decision': False, 'hero_covers_relevant_villain': None,
+           'bounty_eligibility_known': False}) == [], '')
+check('T-I1G-14: worklist_bounty_consistency CATCHES not_applicable+collectibility_known and +adjustment (the REV3 52/7 bugs)',
+      'not_applicable_with_collectibility_known' in _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'collectibility_known': True, 'bounty_eligibility_known': True})
+      and 'not_applicable_with_adjustment_applied' in _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'adjustment_applied_to_decision': True}), '')
+
+# the worklist invariant on a REAL canonical context for an open jam / not_applicable
+_g_open_ctx = _ds.build_decision_bounty_context(_g_noai)
+check('T-I1G-15: a not_applicable canonical context yields null hero_covers + unknown-not eligibility-known',
+      _g_open_ctx['coverage_aggregate'] == 'not_applicable'
+      and _g_open_ctx['hero_covers_relevant_villain'] is None
+      and _g_open_ctx['bounty_eligibility_known'] is False
+      and _g_open_ctx['eligible_bounties_by_opponent'] == {}, '')
 
 
 # ============================================================

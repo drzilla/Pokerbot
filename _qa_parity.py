@@ -287,6 +287,96 @@ def _future_contamination_actions(street):
              'added_bb': 99.0, 'amount_bb': 99.0, 'is_all_in': True}]
 
 
+def worklist_bounty_consistency_violations(bnt):
+    """REV4 B1: a worklist bounty_context must be internally consistent with its typed
+    aggregate — no field may contradict not_applicable / empty eligibility. Returns a
+    list of violation tokens ([] == ok)."""
+    out = []
+    agg = bnt.get('coverage_aggregate')
+    if agg is None:
+        return out   # no canonical context (hand absent) — out of scope for this gate
+    elig = bnt.get('eligible_bounties_by_opponent')
+    if agg == 'not_applicable':
+        if elig:
+            out.append('not_applicable_with_nonempty_eligible')
+        if bnt.get('adjustment_applied_to_decision'):
+            out.append('not_applicable_with_adjustment_applied')
+        if bnt.get('hero_covers_relevant_villain') is not None:
+            out.append('not_applicable_with_hero_covers_not_null')
+        if bnt.get('collectibility_known'):
+            out.append('not_applicable_with_collectibility_known')
+    if agg in ('all', 'mixed') and not elig:
+        out.append('collectible_aggregate_with_empty_eligible')
+    bek = bnt.get('bounty_eligibility_known')
+    if bek is not None and bool(bnt.get('collectibility_known')) != bool(bek):
+        out.append('collectibility_known_is_not_eligibility_known')
+    if bnt.get('adjustment_applied_to_decision') and agg not in ('all', 'mixed'):
+        out.append('adjustment_applied_without_eligible_collectible')
+    if not aggregate_reason_consistent(agg, bnt.get('coverage_reason') or bnt.get('reason')):
+        out.append('aggregate_reason_contradiction')
+    return out
+
+
+def pot_semantic_violations(rc):
+    """REV4 B3/B4/B5: main/side-pot SEMANTICS (not just arithmetic) on a realized
+    contest. A side pot exists only when the eligible winner set changes; folded players
+    are dead money only; legacy participant fields equal the canonical pot layers."""
+    out = []
+    layers = rc.get('pot_layers') or []
+    for a, b in zip(layers, layers[1:]):
+        if a['eligible_participants'] == b['eligible_participants']:
+            out.append('unmerged_adjacent_identical_eligible')
+            break
+    for i in range(1, len(layers)):
+        if layers[i]['kind'] == 'side' and \
+                layers[i]['eligible_participants'] == layers[i - 1]['eligible_participants']:
+            out.append('side_without_eligible_change')
+            break
+    mains = [i for i, l in enumerate(layers) if l['kind'] == 'main']
+    if layers and mains != [0]:
+        out.append('main_not_single_lowest')
+    main_set = set(layers[0]['eligible_participants']) if layers else set()
+    if set(rc.get('main_pot_participants') or []) != main_set:
+        out.append('main_participants_mismatch')
+    side_set = (set().union(*[set(l['eligible_participants']) for l in layers if l['kind'] == 'side'])
+                if any(l['kind'] == 'side' for l in layers) else set())
+    if set(rc.get('side_pot_participants') or []) != side_set:
+        out.append('side_participants_mismatch')
+    folded = set(rc.get('folded_players') or [])
+    for l in layers:
+        if folded & set(l['eligible_participants']):
+            out.append('folded_in_eligible_set')
+            break
+    elig_all = (set().union(*[set(l['eligible_participants']) for l in layers]) if layers else set())
+    if rc.get('realized_participant_count') != len(elig_all):
+        out.append('participant_count_ne_eligible')
+    prv = pot_reconciliation_violation(rc)
+    if prv:
+        out.append('reconcile:' + prv)
+    return out
+
+
+def gate_report_bounty(hands_idx, html):
+    """REV4 B2: every rendered BOUNTY hand carries data-bounty-aggregate / -reason equal
+    to the canonical decision-time context — proving the report consumes the canonical
+    object and never reconstructs coverage from the legacy scalar."""
+    out = {'checked': 0, 'mismatches': []}
+    for m in re.finditer(
+            r"<article[^>]*data-hand-id='(\w+)'[^>]*data-bounty-aggregate='([^']*)'"
+            r"[^>]*data-bounty-reason='([^']*)'", html):
+        hid, agg, rsn = m.group(1), m.group(2), m.group(3)
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        out['checked'] += 1
+        ctx = ds.build_decision_bounty_context(h)
+        if (ctx.get('coverage_aggregate') != agg) or (ctx.get('coverage_reason') != rsn):
+            out['mismatches'].append(
+                {'hand': hid, 'field': 'rendered_bounty_ne_canonical', 'rendered': [agg, rsn],
+                 'canonical': [ctx.get('coverage_aggregate'), ctx.get('coverage_reason')]})
+    return out
+
+
 def gate_semantic(hands_idx, worklist):
     """REV2/REV3: semantic invariants on EVERY worklist decision item (not just
     cross-surface agreement). Catches a wrong MODEL the agreement gates can't.
@@ -366,10 +456,15 @@ def gate_semantic(hands_idx, worklist):
             if pv:
                 out['violations'].append({'hand': hid, 'inv': 'future_contaminated_bounty_context',
                                           'fields': pv})
-        # INV9 (pot reconciliation): folded dead money preserved + layers reconcile.
-        prv = pot_reconciliation_violation(ds.build_realized_contest(h, ridx))
-        if prv:
-            out['violations'].append({'hand': hid, 'inv': 'pot_unreconciled', 'why': prv})
+        # INV9 (pot semantics): main/side semantics + folded dead money + reconciliation.
+        psv = pot_semantic_violations(ds.build_realized_contest(h, ridx))
+        if psv:
+            out['violations'].append({'hand': hid, 'inv': 'pot_semantics', 'why': psv})
+        # INV10 (worklist field consistency): no bounty_context field may contradict the
+        # typed aggregate (not_applicable => no eligible/adjustment/cover/known).
+        wbv = worklist_bounty_consistency_violations(it.get('bounty_context') or {})
+        if wbv:
+            out['violations'].append({'hand': hid, 'inv': 'worklist_bounty_inconsistent', 'why': wbv})
     return out
 
 
@@ -388,6 +483,7 @@ def main():
     g_wl = gate_worklist(hands_idx, worklist)
     g_rp = gate_report(hands_idx, html)
     g_sem = gate_semantic(hands_idx, worklist)
+    g_rb = gate_report_bounty(hands_idx, html)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -404,13 +500,19 @@ def main():
           f"{len(g_sem['violations'])} violation(s)")
     for mm in g_sem['violations'][:40]:
         print('   ✗', mm)
-    ok = not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
+    print(f"D. RENDERED BOUNTY == CANONICAL : {g_rb['checked']} bounty hands checked, "
+          f"{len(g_rb['mismatches'])} mismatch(es)")
+    for mm in g_rb['mismatches'][:40]:
+        print('   ✗', mm)
+    ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
+          and not g_rb['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
     if out_json:
         with io.open(out_json, 'w', encoding='utf-8') as fh:
-            json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem, 'pass': ok}, fh, indent=2)
+            json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
+                       'report_bounty': g_rb, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

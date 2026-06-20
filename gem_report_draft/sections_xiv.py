@@ -125,6 +125,50 @@ def _pko_bounty_usd(rd, h):
         return None
 
 
+def _decision_bounty_view(h):
+    """Canonical DECISION-TIME bounty view for the reviewed all-in confrontation
+    (REV4 B2). Reads h['decision_bounty_context'] (stamped by the analyzer) or builds it
+    on the fly — NEVER the legacy realized scalar h['bounty_collectible']. Maps the typed
+    aggregate to (collect_scalar, cover_bucket, can_collect), preserving mixed and
+    equal-boundary distinctly. Returns (dbc, collect_scalar, cover_bucket, can_collect)."""
+    dbc = h.get('decision_bounty_context')
+    if dbc is None:
+        try:
+            from gem_decision_snapshot import build_decision_bounty_context
+            dbc = build_decision_bounty_context(h)
+        except Exception:
+            dbc = {}
+    dbc = dbc or {}
+    agg = dbc.get('coverage_aggregate') or dbc.get('aggregate')
+    rsn = dbc.get('coverage_reason') or dbc.get('reason')
+    if agg == 'all':
+        return dbc, 'collectible', 'Hero covers', True
+    if agg == 'mixed':
+        return dbc, 'mixed', 'Mixed', None
+    if agg == 'none':
+        if rsn == 'equal_boundary':
+            return dbc, 'equal', 'Equal', None
+        return dbc, 'not_collectible', 'Hero covered', False
+    return dbc, None, '', None   # unknown / not_applicable / non-bounty
+
+
+def _bounty_data_attrs(h):
+    """Emit the canonical decision-time bounty aggregate/reason/eligibility as data
+    attributes on the rendered hand so the report carries the SAME canonical context the
+    worklist grades from (REV4 B2). Read by _qa_parity to prove rendered == canonical and
+    that no renderer reconstructs coverage from the legacy scalar."""
+    dbc = h.get('decision_bounty_context') or {}
+    if not dbc.get('is_bounty'):
+        return ''
+    agg = dbc.get('coverage_aggregate') or dbc.get('aggregate') or ''
+    rsn = dbc.get('coverage_reason') or dbc.get('reason') or ''
+    hc = dbc.get('hero_covers_relevant_villain')
+    hc_s = '' if hc is None else ('1' if hc else '0')
+    n_elig = len(dbc.get('eligible_bounties_by_opponent') or {})
+    return (f" data-bounty-aggregate='{agg}' data-bounty-reason='{rsn}'"
+            f" data-bounty-eligible-n='{n_elig}' data-bounty-hero-covers='{hc_s}'")
+
+
 def _bounty_trust_strip_md(rd, h, _po):
     """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
     rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
@@ -132,28 +176,27 @@ def _bounty_trust_strip_md(rd, h, _po):
     push / call-jam all-ins the user actually flagged (73281442, 73559949).
 
     Reuses the pure, tested reconcile_pko_trust() so cover / collectibility /
-    $ bounty / chip-vs-PKO threshold are reconciled in ONE place; the cover state
-    comes from the canonical h['bounty_collectible'] (the same one-source-of-truth
-    fact the analyzer's "bounty covers villain" flag and the coaching card use),
-    so the strip can never contradict them. When no chip-vs-PKO threshold was
-    modelled, the strip says so explicitly rather than implying a silent verdict.
-    Returns '' for non-bounty hands or when there is nothing concrete to say.
+    $ bounty / chip-vs-PKO threshold are reconciled in ONE place. REV4 B2: the cover /
+    collectibility state comes from the canonical DECISION-TIME bounty context
+    (h['decision_bounty_context'], via _decision_bounty_view) — the SAME object the icm
+    flag, coaching card and worklist consume — NEVER the legacy realized scalar
+    h['bounty_collectible']. When no chip-vs-PKO threshold was modelled, the strip says
+    so explicitly. Returns '' for non-bounty hands or when there is nothing concrete.
     """
     _po = _po or {}
     _fmt = h.get('format', '')
     _bnt = _po.get('bounty') or {}
     _bv = _bnt.get('value_bb') or h.get('bounty_value_bb') or 0
-    _collect = h.get('bounty_collectible')
-    if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible'):
+    # REV4 B2: the cover/collectibility state comes from the canonical DECISION-TIME
+    # bounty context (never the legacy realized scalar h['bounty_collectible']),
+    # preserving mixed / equal-boundary distinctly.
+    _dbc, _collect, _cover_bucket, _can_collect = _decision_bounty_view(h)
+    if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible', 'mixed', 'equal'):
         return ''
     try:
         from gem_pko_research import reconcile_pko_trust
     except Exception:
         return ''
-    _cover_bucket = {'collectible': 'Hero covers',
-                     'not_collectible': 'Hero covered'}.get(_collect, '')
-    _can_collect = (True if _collect == 'collectible'
-                    else False if _collect == 'not_collectible' else None)
     _vpos = h.get('jammer_position') or ''
     if _collect == 'collectible':
         _cover_label = (f'Hero covers the {_vpos}; bounty collectible' if _vpos
@@ -161,6 +204,10 @@ def _bounty_trust_strip_md(rd, h, _po):
     elif _collect == 'not_collectible':
         _cover_label = (f'{_vpos} covers Hero; bounty not collectible' if _vpos
                         else 'Villain covers Hero; bounty not collectible')
+    elif _collect == 'mixed':
+        _cover_label = 'Multiway: Hero covers some all-in villains but not others'
+    elif _collect == 'equal':
+        _cover_label = 'Equal stacks at the boundary; no bounty collected on a chop'
     else:
         _cover_label = ''
     _n_sd = _po.get('n_players_at_showdown') or 2
@@ -2029,7 +2076,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
               f"data-canonical-verdict='{_cvv_art}' "
-              f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'>")
+              f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'"
+              f"{_bounty_data_attrs(h)}>")
         # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
         doc.w("<div class='mh-top'><div class='mh-title'>")
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -3358,20 +3406,25 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # strip (no _po) nor a PKO pill (not a BB-defense pko_context) \u2014 so the
         # bounty math was silently absent (73559949). Render an explicit note so
         # the user knows WHY rather than leaving it silent. Never fabricates math.
+        _dbc_pko = h.get('decision_bounty_context') or {}
+        _dbc_agg_pko = _dbc_pko.get('coverage_aggregate') or _dbc_pko.get('aggregate')
         if (not _po and not _pko_ctx.get('enabled')
                 and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                and h.get('bounty_collectible') in (None, 'unknown')):
-            # v8.17.1 Iteration 1: separate a genuine UNCONTESTED jam (everyone
-            # folded -> no bounty in play, collectibility undefined) from a real
-            # data gap. With canonical coverage now resolved for every CONTESTED
-            # all-in, the only residual unknowns are uncontested jams; say so
-            # precisely rather than implying the HH export is missing data.
+                and _dbc_agg_pko in (None, 'not_applicable', 'unknown')):
+            # REV4 B2: gate on the canonical DECISION-TIME aggregate (not the legacy
+            # realized scalar). not_applicable = no committed all-in opponent at the
+            # decision (uncontested jam, or an open jam whose callers are future and so
+            # not a decision-time bounty factor); unknown = a real missing-stack data gap.
             from gem_decision_snapshot import contesting_count as _ds_cc
             doc.w("<div class='analyst-notes' data-street='preflop'>")
-            if _ds_cc(h) <= 1:
+            if _dbc_agg_pko != 'unknown' and _ds_cc(h) <= 1:
                 doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
                       "Hero's jam took it down uncontested, so no bounty was at stake "
                       "this hand.")
+            elif _dbc_agg_pko != 'unknown':
+                doc.w("\U0001f3af **PKO bounty math:** no committed all-in opponent at "
+                      "the decision, so the bounty was not a decision-time factor; this "
+                      "verdict uses chip-chart logic only.")
             else:
                 doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
                       "from the HH export, so this verdict uses chip-chart logic only. "
@@ -3560,7 +3613,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
-                      f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'>")
+                      f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'"
+                      f"{_bounty_data_attrs(h)}>")
                 # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
                 doc.w("<div class='mh-top'><div class='mh-title'>")
                 doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -4297,17 +4351,24 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # v8.14.1 rev-4 (Blocker D): explicit PKO-unavailable note for a
                 # BOUNTY all-in with unresolved collectibility that got neither a
                 # pot-odds Bounty-trust strip nor a PKO pill (XIV.B parity).
+                _dbc_pko_b = h.get('decision_bounty_context') or {}
+                _dbc_agg_pko_b = _dbc_pko_b.get('coverage_aggregate') or _dbc_pko_b.get('aggregate')
                 if (not _po_b and not _pko_ctx_b.get('enabled')
                         and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                        and h.get('bounty_collectible') in (None, 'unknown')):
-                    # v8.17.1 Iteration 1: uncontested jam (folded out) -> no bounty
-                    # confrontation, not a data gap. Canonical contesting count owns it.
+                        and _dbc_agg_pko_b in (None, 'not_applicable', 'unknown')):
+                    # REV4 B2: gate on the canonical DECISION-TIME aggregate (not the
+                    # legacy realized scalar). not_applicable = no committed all-in
+                    # opponent at the decision; unknown = a missing-stack data gap.
                     from gem_decision_snapshot import contesting_count as _ds_cc
                     doc.w("<div class='analyst-notes' data-street='preflop'>")
-                    if _ds_cc(h) <= 1:
+                    if _dbc_agg_pko_b != 'unknown' and _ds_cc(h) <= 1:
                         doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
                               "— Hero's jam took it down uncontested, so no bounty "
                               "was at stake this hand.")
+                    elif _dbc_agg_pko_b != 'unknown':
+                        doc.w("\U0001f3af **PKO bounty math:** no committed all-in "
+                              "opponent at the decision, so the bounty was not a "
+                              "decision-time factor; chip-chart logic only.")
                     else:
                         doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
                               "unresolved from the HH export, so this verdict uses "

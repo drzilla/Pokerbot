@@ -121,23 +121,23 @@ def _build_decision_facts(h, stats, report_data):
 
     bounty_bb = h.get('bounty_value_bb', 0) if fmt == 'BOUNTY' else 0
     hero_stack = h.get('stack_bb', 0)
-    hero_covers = all(hero_stack > vs for vs in villain_stacks.values()) if villain_stacks else False
-    # v8.14.1 rev-3 (Blocker 2): the canonical bounty collectibility stamped by
-    # the analyzer is the ONE source of truth shared with the "bounty covers
-    # villain" flag, so the not-collectible card can never contradict it. Fall
-    # back to the shared helper (all-in opponent effective stack) only if the
-    # analyzer hasn't run. NOTE: this is deliberately NOT the all-seats
-    # `hero_covers` above — that wrongly counts FOLDED big stacks as "covering".
-    _collectibility = h.get('bounty_collectible')
-    if _collectibility is None:
-        from gem_bounty import bounty_collectibility as _bounty_collectibility
-        # jammer_stack_bb is the ONLY field that reliably names the all-in
-        # opponent; eff_stack_bb is the shortest table villain, so it must NOT be
-        # used as a cover proxy (see gem_analyzer rev-3 note). Absent -> 'unknown'.
-        _opp_stk = h.get('jammer_stack_bb')
-        _collectibility = _bounty_collectibility(
-            hero_stack, [_opp_stk] if _opp_stk else [], bounty_bb,
-            is_bounty=(fmt == 'BOUNTY'))
+    # REV4 B2: decision-time bounty collectibility + cover are read from the ONE
+    # canonical decision-time context (never the legacy realized scalar
+    # h['bounty_collectible']). `hero_covers` means Hero covers an ELIGIBLE all-in
+    # villain at the decision (not the all-seats stack compare, which wrongly counts
+    # folded big stacks); `_collectibility` preserves mixed distinctly. The context is
+    # stamped by the analyzer; build it on the fly if the analyzer hasn't run.
+    _dbc_cc = h.get('decision_bounty_context')
+    if _dbc_cc is None and (fmt == 'BOUNTY' or bounty_bb):
+        try:
+            _dbc_cc = _ds.build_decision_bounty_context(h)
+        except Exception:
+            _dbc_cc = {}
+    _dbc_cc = _dbc_cc or {}
+    _cc_agg = _dbc_cc.get('coverage_aggregate') or _dbc_cc.get('aggregate')
+    _collectibility = {'all': 'collectible', 'none': 'not_collectible', 'mixed': 'mixed',
+                       'unknown': 'unknown', 'not_applicable': None}.get(_cc_agg)
+    hero_covers = bool(_dbc_cc.get('hero_covers_relevant_villain'))
 
     range_facts = []
     for vpos, vdata in h.get('villains', {}).items():

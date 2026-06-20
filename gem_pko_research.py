@@ -940,20 +940,24 @@ def _allin_audit_rows(hands, pot_odds_by_hand):
             a.get('player') == h.get('hero') and a.get('street') == 'preflop'
             and a.get('action') in ('raises', 'bets') and a.get('is_all_in')
             for a in (h.get('action_ledger') or []))
-        # v8.14.1 rev-3 (Blocker 2): prefer the canonical h['bounty_collectible']
-        # (stamped by the analyzer from jammer_stack_bb) so this all-in audit
-        # family agrees with the per-hand "bounty covers villain" flag and the
-        # on-page Bounty-trust strip — ONE source of truth. The legacy
-        # can_collect_bounty(eff, jammer_bb) test passed the CALL amount (eff ~=
-        # the jam, not Hero's stack) as the cover stack, so a Hero-covers-a-short-
-        # jammer spot read "not collectible" (73281442: Hero 64BB covers a 5.9BB
-        # BTN jam, but eff 5.88 < jammer 5.9 flipped it). Fall back to the legacy
-        # heuristic only when the canonical is 'unknown' / unstamped.
-        _canon_collect = h.get('bounty_collectible')
-        if _canon_collect == 'collectible':
-            collect = True
-        elif _canon_collect == 'not_collectible':
-            collect = False
+        # REV4 B2: this PKO all-in audit consumes the canonical DECISION-TIME bounty
+        # context (never the legacy realized scalar h['bounty_collectible']). For a
+        # COMMITTED confrontation (Hero calls a jam) eligibility owns `collect`; for an
+        # open jam (no committed opponent at the decision) the decision-time stack-cover
+        # relationship vs the relevant villain owns it (would Hero collect if called).
+        # Fall back to the legacy heuristic only when the context is absent/unresolved.
+        _dbc_pko = h.get('decision_bounty_context')
+        if _dbc_pko is None:
+            try:
+                from gem_decision_snapshot import build_decision_bounty_context as _ds_dbc_pko
+                _dbc_pko = _ds_dbc_pko(h)
+            except Exception:
+                _dbc_pko = {}
+        _dbc_pko = _dbc_pko or {}
+        if _dbc_pko.get('bounty_eligibility_known'):
+            collect = bool(_dbc_pko.get('hero_covers_relevant_villain'))
+        elif _dbc_pko.get('cover_relationship_known'):
+            collect = bool(_dbc_pko.get('hero_covers_relevant_villain_by_cover'))
         else:
             collect = can_collect_bounty(eff, jammer_bb) if jammer_bb else \
                 bool(h.get('hero_covers_all', h.get('covers', False)))

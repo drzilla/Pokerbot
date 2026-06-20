@@ -8206,18 +8206,38 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             _collect = _bounty_collectibility(
                 _stack, [_opp_stk] if _opp_stk else [],
                 h.get('bounty_value_bb', 0), is_bounty=_is_bnt)
+        # h['bounty_collectible'] is the REALIZED collectibility (describes the played
+        # hand). It MUST NOT drive decision-time teaching/pricing/verdicts/trust strips/
+        # coaching — those consume h['decision_bounty_context'] (REV4 B2).
+        h['realized_bounty_collectible'] = _collect
         h['bounty_collectible'] = _collect
-        # REV3 B1: route the canonical FUTURE-BLIND decision-time bounty context onto
-        # the hand the report renders, so the report consumes the SAME canonical object
-        # the worklist grades from — never an independently reconstructed bounty truth.
+        # REV3/REV4 B2: route the canonical FUTURE-BLIND decision-time bounty context
+        # onto the hand the report renders (default = the reviewed all-in confrontation)
+        # PLUS an action-indexed map for hands with several Hero actions, so every
+        # decision-time consumer reads the SAME canonical object at the SAME index — never
+        # an independently reconstructed bounty truth.
+        _dbc_default = None
         if _is_bnt:
-            from gem_decision_snapshot import build_decision_bounty_context as _ds_dbc
-            h['decision_bounty_context'] = _ds_dbc(h)
+            from gem_decision_snapshot import (build_decision_bounty_context as _ds_dbc,
+                                               resolve_decision_ref as _ds_ref)
+            _dbc_default = _ds_dbc(h)
+            h['decision_bounty_context'] = _dbc_default
+            _ledger = h.get('action_ledger') or []
+            _hero_nm = h.get('hero', 'Hero')
+            _by_idx = {}
+            for _ai, _a in enumerate(_ledger):
+                if _a.get('player') == _hero_nm and _a.get('action') != 'posts':
+                    _by_idx[_ai] = _ds_dbc(h, _ai)
+            h['decision_bounty_context_by_action_index'] = _by_idx
+        # decision-time bounty flag (teaching: "bounty may justify wider call") comes from
+        # the canonical context — Hero covers an ELIGIBLE villain (all/mixed), not the
+        # realized scalar.
+        _dbc_agg = (_dbc_default or {}).get('coverage_aggregate')
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),
             'final_table': _phase in ('final_table', 'ft_zone'),
             'satellite': _fmt == 'SATELLITE',
-            'bounty_covers_villain': (_collect == 'collectible'),
+            'bounty_covers_villain': bool(_dbc_default and _dbc_default.get('hero_covers_relevant_villain')),
             'hero_covered': (_stack or 0) < (h.get('jammer_stack_bb') or 0) if h.get('jammer_stack_bb') else False,
             'stack_utility': ('low' if _stack < 15 else 'high' if _stack > 80 else 'medium'),
             'icm_flag': None,

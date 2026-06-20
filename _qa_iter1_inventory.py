@@ -62,6 +62,13 @@ def main():
         'non_allin_eligible_bounty_opponents': [],
         'unreconciled_pot_totals': [],
         'unjustified_unavailable_call_prices': [],
+        # REV4 additions
+        'fake_side_pot_layers': [],
+        'folded_players_in_eligible_sets': [],
+        'legacy_canonical_participant_mismatches': [],
+        'rendered_report_bounty_mismatches': [],
+        'collectibility_known_with_not_applicable': [],
+        'adjustment_applied_with_not_applicable_none_unknown': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -99,10 +106,19 @@ def main():
             if pv:
                 viol['future_contaminated_bounty_contexts'].append({'hand': hid, 'fields': pv})
 
-        # (3) pots with dead money + (4) layer reconciliation
+        # (3) pots with dead money + (4) layer reconciliation + REV4 pot semantics
         prv = qp.pot_reconciliation_violation(rc)
         if prv:
             viol['unreconciled_pot_totals'].append({'hand': hid, 'why': prv})
+        psv = qp.pot_semantic_violations(rc)
+        for v in psv:
+            if v in ('unmerged_adjacent_identical_eligible', 'side_without_eligible_change'):
+                viol['fake_side_pot_layers'].append({'hand': hid, 'why': v})
+            elif v == 'folded_in_eligible_set':
+                viol['folded_players_in_eligible_sets'].append({'hand': hid})
+            elif v in ('main_participants_mismatch', 'side_participants_mismatch',
+                       'participant_count_ne_eligible', 'main_not_single_lowest'):
+                viol['legacy_canonical_participant_mismatches'].append({'hand': hid, 'why': v})
         if (rc.get('dead_money_bb') or 0) > 0.001:
             inv['pots_with_dead_money'].append(
                 {'hand': hid, 'total_committed_pot_bb': rc['total_committed_pot_bb'],
@@ -144,6 +160,26 @@ def main():
                 and (dn.get('price_unavailable') or dn.get('price_source') == 'unavailable')):
             viol['unjustified_unavailable_call_prices'].append(
                 {'hand': hid, 'snapshot_callable': snap.get('callable_amount_bb')})
+        # REV4: worklist bounty-field contradictions
+        _bnt = it.get('bounty_context') or {}
+        if (_bnt.get('coverage_aggregate') == 'not_applicable'
+                and (_bnt.get('eligible_bounties_by_opponent') in ({}, None))):
+            if _bnt.get('collectibility_known') is True:
+                viol['collectibility_known_with_not_applicable'].append({'hand': hid})
+        if (_bnt.get('adjustment_applied_to_decision') is True
+                and _bnt.get('coverage_aggregate') in ('not_applicable', 'none', 'unknown')):
+            viol['adjustment_applied_with_not_applicable_none_unknown'].append(
+                {'hand': hid, 'aggregate': _bnt.get('coverage_aggregate')})
+        for v in qp.worklist_bounty_consistency_violations(_bnt):
+            if v == 'not_applicable_with_collectibility_known' and \
+                    not any(x['hand'] == hid for x in viol['collectibility_known_with_not_applicable']):
+                viol['collectibility_known_with_not_applicable'].append({'hand': hid})
+
+    # REV4: rendered-report bounty context == canonical (data-attr parity)
+    _grb = qp.gate_report_bounty(by_id, html)
+    for mm in _grb.get('mismatches', []):
+        viol['rendered_report_bounty_mismatches'].append(mm)
+    inv['rendered_bounty_hands_checked'] = _grb.get('checked', 0)
 
     # ---- preserve-list named fixtures ----
     def _depth(hid):

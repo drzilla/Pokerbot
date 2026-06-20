@@ -5474,8 +5474,8 @@ check('T-H141-21: trust strip states threshold-unavailable when PKO threshold mi
 # B1 wiring (anti rev-1): the strip is invoked in BOTH real hand-detail paths
 check('T-H141-22: bounty trust strip is wired into BOTH real hand-detail paths (XIV.A + XIV.B)',
       'def _bounty_trust_strip_md' in _xiv141
-      and '_bounty_trust_strip_md(rd, h, _po)' in _xiv141
-      and '_bounty_trust_strip_md(rd, h, _po_b)' in _xiv141, '')
+      and '_bounty_trust_strip_md(rd, h, _po, dbc_override=' in _xiv141
+      and '_bounty_trust_strip_md(rd, h, _po_b, dbc_override=' in _xiv141, '')
 
 # B2: collectibility is ONE source — flag + card can never both fire on a hand
 _mx_ok = True
@@ -5492,7 +5492,9 @@ for _stk, _opp in [(64, [6]), (53, [60]), (53, []), (40, [40])]:
 check('T-H141-23: bounty cover is ONE source of truth (canonical decision context drives flag + card)',
       _mx_ok
       and "h['realized_bounty_collectible'] = _collect" in _ana141b
-      and "'bounty_covers_villain': bool(_dbc_default and _dbc_default.get('hero_covers_relevant_villain'))" in _ana141b
+      # REV7 A5: the icm bounty-covers flag derives from the REVIEWED-action bounty context
+      # (an eligible committed bounty there), never the hand-level default.
+      and "'bounty_covers_villain': bool(_rev_bagg_icm in ('all', 'mixed')" in _ana141b
       and "h.get('decision_bounty_context')" in _cc141
       and "bf.get('collectibility') != 'not_collectible'" in _cc141, '')
 
@@ -5511,7 +5513,7 @@ check('T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key}
 # B5: required-equity teaching attaches to the compact XIV.B line too (not only XIV.A)
 check('T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)',
       _xiv141.count('not how often you are') >= 2
-      and '_po_lines_b' in _xiv141 and 'if _req_b and not _mw_sup_b:' in _xiv141,
+      and '_po_lines_b' in _xiv141 and '_req_b and not _mw_sup_b:' in _xiv141,
       'teach-copy count=' + str(_xiv141.count('not how often you are')))
 
 # B6: settlement-date label lands in the REAL results-attribution table path
@@ -5672,8 +5674,8 @@ check('T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to R
 # (the generic pot-odds strip + the specific PKO-pill strip). Both XIV.A and
 # XIV.B suppress the generic strip when the PKO pill will render its own.
 check('T-CONSIST-01: generic Bounty-trust strip suppressed when PKO pill renders its own (XIV.A + XIV.B)',
-      "_bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)" in _xiv141
-      and "_bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)" in _xiv141
+      "_bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po, dbc_override=" in _xiv141
+      and "_bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=" in _xiv141
       and _xiv141.count('_pko_will_strip') >= 2, '')
 
 # T-CONSIST-02: a quick analyst re-render refreshes the run manifest + run log so
@@ -11585,8 +11587,9 @@ check('T-B2-07: visible-decision gate CATCHES a visible block missing data-decis
 _badcall_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
                  f"**Reviewed decision:** {_b2_st}, call 99BB, effective depth ≈{_b2_depth:.2f}BB</div>")
 _gv_badcall = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _badcall_body}))
-check('T-B2-08: visible-decision gate CATCHES a visible call amount that differs from the snapshot',
-      any(m['field'] == 'visible_call_ne_snapshot' for m in _gv_badcall['mismatches']), str(_gv_badcall))
+check('T-B2-08: visible-decision gate CATCHES a visible call amount that differs from the canonical display',
+      any(m['field'] == 'visible_action_ne_canonical_display' for m in _gv_badcall['mismatches'])
+      and any(m['field'] == 'visible_call_gt_callable' for m in _gv_badcall['mismatches']), str(_gv_badcall))
 # article-default replaces reviewed context: the visible block uses the EARLIER turn action
 # (idx 5) while the reviewed action is the RIVER call (idx 7) — consistent numbers for idx 5
 # but the WRONG (earlier) decision is graded.
@@ -11597,6 +11600,110 @@ _turn_body = (f"<div class='analyst-notes' data-decision-action-index='5'>"
 _gv_turn = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _turn_body}))
 check('T-B2-09: visible-decision gate CATCHES a block grading an EARLIER street than the reviewed action',
       any(m['field'] == 'rendered_idx_not_reviewed_action' for m in _gv_turn['mismatches']), str(_gv_turn))
+
+# ============================================================
+# REV7: DecisionPriceContract (A1) + typed ActionDisplay (A2) + visible semantic gates (B)
+# ============================================================
+# A1: the canonical price contract uses the CALLABLE amount + CONTESTABLE pot, never raw to_call.
+_ov = {'id': 'OVERJAM', 'tournament_hand_id': '85000001', 'hero': 'Hero', 'format': 'NLHE',
+       'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0}, 'board': [],
+       'action_ledger': [_Lb('preflop', 'Hero', 'posts', 1.0),
+                         _Lb('preflop', 'V', 'raises', 100.0, True),
+                         _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
+_ov_s = _ds.build_decision_snapshot(_ov, 2)
+check('T-REV7-01 (A1): Hero 20bb (posted 1) vs Villain jam 100 -> callable 19, raw-to-match 99, overjam 80',
+      _ov_s['callable_amount_bb'] == 19.0 and _ov_s['raw_amount_to_match_bb'] == 99.0
+      and _ov_s['uncallable_overjam_bb'] == 80.0 and _ov_s['price_applicable'] is True
+      and _ov_s['contestable_pot_before_action_bb'] == 21.0,
+      str((_ov_s['callable_amount_bb'], _ov_s['raw_amount_to_match_bb'], _ov_s['uncallable_overjam_bb'])))
+check('T-REV7-02 (A1): required equity uses the CONTESTABLE pot + callable, NEVER the raw overjam',
+      _ov_s['required_equity_pct'] == round(100.0 * 19.0 / (21.0 + 19.0), 1)
+      and _ov_s['required_equity_pct'] != round(100.0 * 99.0 / (_ov_s['pot_before_action_bb'] + 99.0), 1),
+      str(_ov_s['required_equity_pct']))
+_ov_disp = _ds.reviewed_action_display(_ov, 2, _ov_s)
+check('T-REV7-03 (A2): the overjam call displays the CALLABLE amount, not the raw 99',
+      _ov_disp['display_text'] == 'call 19BB', _ov_disp['display_text'])
+# A2: each action TYPE renders its own verb (never a generic 'call').
+def _disp_for(led, ssb, idx, fmt='NLHE', board=None):
+    h = {'id': 'AD', 'hero': 'Hero', 'format': fmt, 'seat_stack_by_player': ssb,
+         'board': board or [], 'action_ledger': led}
+    return _ds.reviewed_action_display(h, idx)['display_text']
+_d_call = _disp_for([_Lb('preflop', 'V', 'raises', 10, True), _Lb('preflop', 'Hero', 'calls', 10, True)], {'Hero': 30.0, 'V': 10.0}, 1)
+_d_fold = _disp_for([_Lb('preflop', 'V', 'raises', 6), _Lb('preflop', 'Hero', 'folds', 0)], {'Hero': 30.0, 'V': 30.0}, 1)
+_d_check = _disp_for([_Lb('flop', 'Hero', 'checks', 0)], {'Hero': 30.0, 'V': 30.0}, 0, board=['2c', '7d', 'Js'])
+_d_open = _disp_for([_Lb('preflop', 'Hero', 'raises', 2.5)], {'Hero': 30.0, 'V': 30.0}, 0)
+_d_bet = _disp_for([_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                    _Lb('flop', 'Hero', 'bets', 4.0)], {'Hero': 30.0, 'V': 30.0}, 2, board=['2c', '7d', 'Js'])
+_d_3bet = _disp_for([_Lb('preflop', 'V', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 9)], {'Hero': 40.0, 'V': 40.0}, 1)
+_d_oshove = _disp_for([_Lb('preflop', 'Hero', 'raises', 12, True)], {'Hero': 12.0, 'V': 40.0}, 0)
+_d_rejam = _disp_for([_Lb('preflop', 'V', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 18, True)], {'Hero': 18.0, 'V': 40.0}, 1)
+check('T-REV7-04 (A2): every action TYPE renders its own verb (call/fold/check/open/bet/3-bet/open-shove/re-jam)',
+      _d_call.startswith('call ') and _d_fold.startswith('fold facing ') and _d_check == 'check'
+      and _d_open.startswith('open to ') and _d_bet.startswith('bet ') and _d_3bet.startswith('3-bet to ')
+      and _d_oshove.startswith('open-shove ') and 're-jam' in _d_rejam and 'over a' in _d_rejam,
+      str([_d_call, _d_fold, _d_check, _d_open, _d_bet, _d_3bet, _d_oshove, _d_rejam]))
+check('T-REV7-05 (A1): a non-call decision (open/bet/check) has price_applicable False (no call price)',
+      _ds.build_decision_snapshot({'id': 'O', 'hero': 'Hero', 'format': 'NLHE',
+          'seat_stack_by_player': {'Hero': 30.0, 'V': 30.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}, 0)['price_applicable'] is False, '')
+# B (gate failure injection): the visible-decision gate catches each REV7 semantic violation.
+_ov_hidx = _qp._hand_index([_ov])
+def _gov(phrase):
+    body = ("<div class='analyst-notes' data-decision-action-index='2'>"
+            "**Reviewed decision:** preflop, %s, effective depth ≈20.00BB</div>" % phrase)
+    return _qp.gate_report_visible_decision(_ov_hidx, _mk_lazy_html({'85000001': body}))
+check('T-REV7-06 (B): gate CATCHES the raw overjam (call 99BB) rendered as Hero\'s price',
+      any(m['field'] == 'visible_call_is_raw_overjam' for m in _gov('call 99BB')['mismatches'])
+      and any(m['field'] == 'visible_call_gt_effective_depth' for m in _gov('call 99BB')['mismatches']), '')
+check('T-REV7-07 (B): gate CATCHES a re-jam / bet / fold rendered with the wrong (call) verb',
+      any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('re-jam 19BB over a 99BB price')['mismatches'])
+      and any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('call 0BB')['mismatches'])
+      and any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('fold facing 99BB')['mismatches']), '')
+check('T-REV7-08 (B): gate PASSES the correct callable-amount render (call 19BB)',
+      _gov('call 19BB')['mismatches'] == [], str(_gov('call 19BB')))
+
+# ---- REV7 B5: METAMORPHIC invariants (the repair is GENERIC, not fitted to hand IDs) ----
+def _price_tuple(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    d = _ds.reviewed_action_display(h, idx, s)
+    return (s['callable_amount_bb'], s['raw_amount_to_match_bb'], s['uncallable_overjam_bb'],
+            s['required_equity_pct'], d['display_text'], s['street'], s['hero_action_kind'])
+_base = {'id': 'BASE', 'tournament_hand_id': '85100001', 'hero': 'Hero', 'format': 'BOUNTY',
+         'cards': '7h7d', 'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0, 'X': 50.0}, 'board': [],
+         'action_ledger': [_Lb('preflop', 'X', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),
+                           _Lb('preflop', 'V', 'raises', 100.0, True), _Lb('preflop', 'X', 'folds', 0),
+                           _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
+_base_pt = _price_tuple(_base, 4)
+# 1) changing the hand ID does not change the result
+_m1 = _i1f_copy.deepcopy(_base); _m1['id'] = 'WHATEVER'; _m1['tournament_hand_id'] = '99999999'
+check('T-META-01: changing the hand ID does not change the canonical price/action',
+      _price_tuple(_m1, 4) == _base_pt, '')
+# 2) renaming players does not change the result
+_m2 = _i1f_copy.deepcopy(_base)
+for _a in _m2['action_ledger']:
+    if _a['player'] == 'V': _a['player'] = 'Villain_Renamed'
+_m2['seat_stack_by_player']['Villain_Renamed'] = _m2['seat_stack_by_player'].pop('V')
+check('T-META-02: renaming players does not change the canonical price/action',
+      _price_tuple(_m2, 4) == _base_pt, '')
+# 3) changing irrelevant hole cards does not change the price
+_m3 = _i1f_copy.deepcopy(_base); _m3['cards'] = 'AsKs'
+check('T-META-03: changing Hero hole cards does not change the price/action',
+      _price_tuple(_m3, 4) == _base_pt, '')
+# 4) appending FUTURE actions does not alter the earlier reviewed decision (future-blind)
+_m4 = _i1f_copy.deepcopy(_base)
+_m4['action_ledger'] += [_Lb('flop', 'V', 'bets', 30, True), _Lb('flop', 'Hero', 'folds', 0)]
+check('T-META-04: appending future actions does not alter the reviewed (idx 4) decision',
+      _price_tuple(_m4, 4) == _base_pt, '')
+# 5) changing later board cards does not alter a preflop decision
+_m5 = _i1f_copy.deepcopy(_base); _m5['board'] = ['As', 'Kd', 'Qc', '2h', '3s']
+check('T-META-05: changing later board cards does not alter the preflop decision',
+      _price_tuple(_m5, 4) == _base_pt, '')
+# 6) changing an UNRELATED folded player's stack does not alter Hero's CALLABLE price
+_m6 = _i1f_copy.deepcopy(_base); _m6['seat_stack_by_player']['X'] = 999.0
+_m6_pt = _price_tuple(_m6, 4)
+check('T-META-06: an unrelated folded player does not alter Hero\'s callable price/raw/overjam',
+      _m6_pt[0] == _base_pt[0] and _m6_pt[1] == _base_pt[1] and _m6_pt[2] == _base_pt[2]
+      and _m6_pt[4] == _base_pt[4], str((_m6_pt[:3], _base_pt[:3])))
 
 # ---- B4: realized eligibility does NOT survive Hero's later fold ----
 _b4_fold = {'id': 'B4F', 'hero': 'Hero', 'format': 'BOUNTY',

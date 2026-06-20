@@ -471,9 +471,12 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
                 wl_ridx[_hid[-8:]] = _ri
     bodies = decode_lazy_hands(html)
     out = {'checked': 0, 'mismatches': []}
+    # REV7: the action phrase is action-TYPED ('call XBB' / 'open to XBB' / 'fold facing XBB' /
+    # 're-jam XBB over a YBB price'), so capture the whole phrase between street and depth.
     line_pat = re.compile(
-        r"Reviewed decision:(?:\s*</strong>|\s*\*\*)?\s*([A-Za-z]+),\s*call\s*"
-        r"([0-9.]+)\s*BB,\s*effective depth\s*[≈~]?\s*([0-9.]+)\s*BB")
+        r"Reviewed decision:(?:\s*</strong>|\s*\*\*)?\s*([A-Za-z]+),\s*(.+?),\s*"
+        r"effective depth\s*[≈~]?\s*([0-9.]+)\s*BB")
+    call_amt_pat = re.compile(r"\bcall\s+([0-9.]+)\s*BB")
     idx_pat = re.compile(r"data-decision-action-index='(\d+)'")
     for hid, body in bodies.items():
         h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
@@ -483,29 +486,55 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
         if not lm:
             continue
         out['checked'] += 1
-        v_street, v_call, v_depth = lm.group(1).lower(), _f(lm.group(2)), _f(lm.group(3))
+        v_street, v_phrase, v_depth = lm.group(1).lower(), lm.group(2).strip(), _f(lm.group(3))
         # the data-decision-action-index belongs to the DIV CONTAINING the visible reviewed
-        # line — i.e. the NEAREST PRECEDING attribute, NOT the first in the body (which is a
-        # hidden per-decision-bounty-meta span at an earlier Hero action index).
+        # line — i.e. the NEAREST PRECEDING attribute, NOT the first in the body (a hidden
+        # per-decision-bounty-meta span at an earlier Hero action index).
         pre = list(idx_pat.finditer(body[:lm.start()]))
         if not pre:
             out['mismatches'].append({'hand': hid, 'field': 'missing_decision_action_index'})
             continue
         ridx = int(pre[-1].group(1))
         snap = _ds.build_decision_snapshot(h, ridx)
+        disp = _ds.reviewed_action_display(h, ridx, snap)
         if (snap.get('street') or '').lower() != v_street:
             out['mismatches'].append(
                 {'hand': hid, 'field': 'visible_street_ne_snapshot',
                  'visible': v_street, 'snapshot': snap.get('street'), 'idx': ridx})
-        if abs(_f(snap.get('to_call_bb')) - v_call) > 0.15:
+        # REV7 A2: the visible action phrase must EXACTLY equal the canonical action-typed
+        # display (catches a non-call action rendered as 'call', or a wrong amount).
+        if v_phrase != (disp.get('display_text') or ''):
             out['mismatches'].append(
-                {'hand': hid, 'field': 'visible_call_ne_snapshot',
-                 'visible': v_call, 'snapshot': snap.get('to_call_bb'), 'idx': ridx})
+                {'hand': hid, 'field': 'visible_action_ne_canonical_display',
+                 'visible': v_phrase, 'canonical': disp.get('display_text'), 'idx': ridx})
         sd = snap.get('effective_stack_at_decision_bb')
         if sd is not None and abs(_f(sd) - v_depth) > 0.15:
             out['mismatches'].append(
                 {'hand': hid, 'field': 'visible_depth_ne_snapshot',
                  'visible': v_depth, 'snapshot': sd, 'idx': ridx})
+        # REV7 B1: independent semantic invariants on the VISIBLE call amount — NOT derived
+        # from the same raw to_call. A displayed call must be the CALLABLE amount, never exceed
+        # Hero's effective depth, and never be the raw overjam.
+        cm = call_amt_pat.search(v_phrase)
+        if cm:
+            v_call = _f(cm.group(1))
+            callable_amt = _f(snap.get('callable_amount_bb'))
+            raw_to_match = _f(snap.get('raw_amount_to_match_bb'))
+            if sd is not None and v_call > _f(sd) + 0.20:
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'visible_call_gt_effective_depth',
+                     'visible_call': v_call, 'depth': sd, 'idx': ridx})
+            if v_call > callable_amt + 0.20:
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'visible_call_gt_callable',
+                     'visible_call': v_call, 'callable': callable_amt, 'idx': ridx})
+            # if there is an uncallable overjam, the visible price must be the CALLABLE amount,
+            # never the raw to_match (the REV6 83974506 'call 111.46BB' bug).
+            if (raw_to_match - callable_amt) > 0.20 and abs(v_call - raw_to_match) <= 0.20:
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'visible_call_is_raw_overjam',
+                     'visible_call': v_call, 'raw_to_match': raw_to_match,
+                     'callable': callable_amt, 'idx': ridx})
         # authoritative reviewed action: the worklist's (decision_kind-aware) if present,
         # else the ledger-inferred default.
         canon_idx = (wl_ridx.get(str(hid)) or wl_ridx.get(str(hid)[-8:])

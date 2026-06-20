@@ -125,13 +125,24 @@ def _pko_bounty_usd(rd, h):
         return None
 
 
-def _decision_bounty_view(h):
+# REV7 A2/A3: the canonical reviewed-action kinds that are genuine all-in confrontations,
+# and their display labels for the "Decision:" line (derived from the REVIEWED action, never
+# the hand-level pf_allin classification — a first-in open is never "Call vs jam").
+_ALLIN_REVIEW_KINDS = ('call_vs_jam', 'call_off', 'open_shove',
+                       'rejam_over_live_raise', 'overjam_with_side_pot')
+_REV_KIND_LABEL = {
+    'call_vs_jam': 'Call vs jam', 'call_off': 'Call-off', 'open_shove': 'Open-shove',
+    'rejam_over_live_raise': 'Re-jam', 'overjam_with_side_pot': 'Overjam',
+}
+
+
+def _decision_bounty_view(h, dbc_override=None):
     """Canonical DECISION-TIME bounty view for the reviewed all-in confrontation
-    (REV4 B2). Reads h['decision_bounty_context'] (stamped by the analyzer) or builds it
-    on the fly — NEVER the legacy realized scalar h['bounty_collectible']. Maps the typed
-    aggregate to (collect_scalar, cover_bucket, can_collect), preserving mixed and
-    equal-boundary distinctly. Returns (dbc, collect_scalar, cover_bucket, can_collect)."""
-    dbc = h.get('decision_bounty_context')
+    (REV4 B2 / REV7 A5). Reads the bounty context AT THE REVIEWED ACTION INDEX when supplied
+    (dbc_override), else h['decision_bounty_context'] — NEVER the legacy realized scalar
+    h['bounty_collectible']. Maps the typed aggregate to (collect_scalar, cover_bucket,
+    can_collect), preserving mixed and equal-boundary distinctly."""
+    dbc = dbc_override if dbc_override is not None else h.get('decision_bounty_context')
     if dbc is None:
         try:
             from gem_decision_snapshot import build_decision_bounty_context
@@ -220,40 +231,73 @@ def _reviewed_ref(rd, h, hid, hid_short):
             or h.get('reviewed_decision_ref') or {})
 
 
+def _reviewed_bounty_ctx(h, _rdref):
+    """REV7 A5: the FULL decision-time bounty context AT the reviewed action index — the
+    object the bounty trust strip / applicability note must consume so they describe the
+    graded action's bounty, never a later all-in's cover on a first-in open. None if no ref."""
+    if not _rdref:
+        return None
+    idx = _rdref.get('hero_action_index')
+    if idx is None:
+        return None
+    try:
+        from gem_decision_snapshot import build_decision_bounty_context as _bdbc
+        return _bdbc(h, idx)
+    except Exception:
+        return None
+
+
 def _reconcile_po_to_reviewed(_po, _rdref):
-    """REV6 B2: force the VISIBLE pot-odds block to describe the canonical reviewed action.
-    gem_pot_odds reconstructs the FIRST all-in call, which on multi-street hands is a
-    DIFFERENT action than the worklist graded (83526894: visible 'turn 7.9BB' vs canonical
-    'river 13.5BB'; 84295102: visible 'preflop 6.9BB' vs canonical 'turn 2.3BB'). If _po is
-    absent OR grades a different street/call than the reviewed decision, rebuild the visible
-    street / call / required-equity / pot from the canonical ref (chip pot-odds). If _po
-    already matches, keep its richer equity/range fields but PIN the action index + depth.
-    Every routed block carries decision_action_index for the data attribute + parity gate."""
+    """REV6 B2 / REV7 A1-A5: force the VISIBLE pot-odds block to describe the canonical
+    reviewed action AND its CALLABLE price (never the raw to_call / overjam).
+
+    REV7 A1: the displayed price is `callable_amount_bb` (what Hero can actually commit) and
+    required equity uses the `contestable_pot` (excludes the uncallable overjam) — the REV6
+    bug rendered the raw to_call (83974506 'call 111.46BB'). REV7 A2: the action-typed display
+    text travels on the block. REV7 A5: the reviewed-index bounty applicability/certainty/
+    aggregate travel on the block so the trust strip / note never read a hand-level default."""
     if not _rdref:
         return _po
     out = dict(_po) if _po else {}
     canon_street = _rdref.get('street')
-    canon_call = _rdref.get('to_call_bb')
+    canon_call = _rdref.get('callable_amount_bb')          # REV7 A1: CALLABLE, never raw to_call
     out['decision_action_index'] = _rdref.get('hero_action_index')
     out['reviewed_selection_source'] = _rdref.get('selection_source')
+    out['reviewed_selection_confidence'] = _rdref.get('selection_confidence')
     out['reviewed_street'] = canon_street
     out['reviewed_call_bb'] = canon_call
+    out['reviewed_action_display'] = (_rdref.get('action_display') or {}).get('display_text')
+    out['reviewed_action_kind'] = _rdref.get('hero_action_kind')
+    out['reviewed_price_applicable'] = _rdref.get('price_applicable')
+    out['reviewed_raw_to_match_bb'] = _rdref.get('raw_amount_to_match_bb')
+    out['reviewed_overjam_bb'] = _rdref.get('uncallable_overjam_bb')
+    out['reviewed_contestable_pot_bb'] = _rdref.get('contestable_pot_before_action_bb')
     out['effective_stack_bb'] = _rdref.get('effective_stack_at_decision_bb')
+    # REV7 A5: bounty context AT the reviewed action index travels on the block
+    out['reviewed_bounty_applicability'] = _rdref.get('bounty_applicability')
+    out['reviewed_bounty_certainty'] = _rdref.get('bounty_certainty')
+    out['reviewed_bounty_aggregate'] = _rdref.get('bounty_aggregate')
+    # ALWAYS pin the PRICE to the canonical contract — callable / contestable / required-eq —
+    # regardless of whether gem_pot_odds graded the same action, so the displayed price can
+    # never be the raw overjam and required equity can never include uncallable chips.
+    out['call_bb'] = canon_call
+    out['pot_before_call_bb'] = _rdref.get('contestable_pot_before_action_bb')
+    if _rdref.get('price_applicable'):
+        out['required_eq_pct'] = _rdref.get('required_eq_pct')
+    else:
+        out['required_eq_pct'] = None
+    _pb, _tc = _rdr_f(_rdref.get('contestable_pot_before_action_bb')), _rdr_f(canon_call)
+    out['pot_odds'] = (f"{_pb / _tc:.1f}:1" if (_tc > 0 and _rdref.get('price_applicable'))
+                       else (_po.get('pot_odds') if _po else '—'))
     matches = (_po and _po.get('street') == canon_street
-               and abs(_rdr_f(_po.get('call_bb')) - _rdr_f(canon_call)) <= 0.15)
+               and abs(_rdr_f(_po.get('call_bb')) - _rdr_f(canon_call)) <= 0.30)
     if matches:
         out['reviewed_routed'] = False
-        return out
-    # mismatch (or no _po): OVERRIDE the visible fields with the canonical reviewed action,
-    # and drop equity/range/per-street facts that belonged to the OTHER (un-graded) action.
+        return out   # keep gem_pot_odds' richer equity / range fields for the SAME action
+    # mismatch (or no _po): the equity/range/per-street facts belonged to the OTHER (un-graded)
+    # action — drop them so a stale equity is never shown beside the corrected action.
     out['reviewed_routed'] = True
     out['street'] = canon_street
-    out['call_bb'] = canon_call
-    out['pot_before_call_bb'] = _rdref.get('pot_before_action_bb')
-    out['required_eq_pct'] = _rdref.get('required_eq_pct')
-    _pb, _tc = _rdr_f(_rdref.get('pot_before_action_bb')), _rdr_f(canon_call)
-    out['pot_odds'] = (f"{_pb / _tc:.1f}:1" if _tc > 0
-                       else (_po.get('pot_odds') if _po else '—'))
     for _k in ('hero_equity_pct', 'realized_equity_vs_shown', 'villain_range_spec',
                'equity_mode', 'per_street_summary', 'required_eq_note', 'mode',
                'is_overbet', 'bet_pct_of_pot'):
@@ -262,29 +306,33 @@ def _reconcile_po_to_reviewed(_po, _rdref):
 
 
 def _reviewed_decision_line_md(_po):
-    """REV6 B2: the explicit VISIBLE line the parity gate parses — street, call amount and
-    effective depth of the canonical reviewed action, so the user-facing lesson states the
-    SAME decision the worklist graded (never only a hidden span / data-attribute)."""
+    """REV6 B2 / REV7 A2: the explicit VISIBLE line the parity gate parses — the ACTION-TYPED
+    description of the canonical reviewed action (call / fold / check / open / 3-bet / bet /
+    open-shove / re-jam) plus its effective depth. NEVER a generic 'call XBB' for a non-call
+    action (the REV6 bug), and the call price is the CALLABLE amount, never the raw to_call."""
     st = _po.get('reviewed_street')
-    call = _po.get('reviewed_call_bb')
-    depth = _po.get('effective_stack_bb')
     if not st:
         return ''
-    parts = [f"**Reviewed decision:** {st}"]
-    if call is not None:
-        parts.append(f"call {_rdr_f(call):g}BB")
+    disp = _po.get('reviewed_action_display')
+    depth = _po.get('effective_stack_bb')
+    if disp:
+        action_phrase = disp
+    else:
+        # fallback (no action display): name the action kind, never assume 'call'
+        call = _po.get('reviewed_call_bb')
+        action_phrase = (f"call {_rdr_f(call):g}BB" if call is not None else 'decision')
+    parts = [f"**Reviewed decision:** {st}, {action_phrase}"]
     if depth is not None:
         parts.append(f"effective depth ≈{_rdr_f(depth):.2f}BB")
     return ', '.join(parts)
 
 
-def _bounty_applicability_note_md(h):
-    """REV6 B3/B4: the VISIBLE disclosure of a COMBINED bounty opportunity (an already-
-    committed all-in bounty AND an unresolved potential caller — 84990829) or a committed
-    bounty whose collectibility is unresolved (missing stack). The REV5 report collapsed
-    exact+potential to a scalar and the explanation discussed only the committed opponent;
-    this states BOTH so the user (and EV gate) see the unresolved potential caller."""
-    dbc = h.get('decision_bounty_context') or {}
+def _bounty_applicability_note_md(h, dbc_override=None):
+    """REV6 B3/B4 / REV7 A5: the VISIBLE disclosure of a COMBINED bounty opportunity
+    (committed + unresolved potential caller — 84990829) or an unresolved committed stack.
+    REV7: reads the bounty context AT THE REVIEWED ACTION INDEX (passed in), NEVER the
+    hand-level default — so a first-in open (84074364/83765091) shows no all-in bounty note."""
+    dbc = dbc_override if dbc_override is not None else (h.get('decision_bounty_context') or {})
     app = dbc.get('bounty_applicability')
     cert = dbc.get('bounty_certainty')
     if app == 'exact_and_potential':
@@ -297,7 +345,7 @@ def _bounty_applicability_note_md(h):
     return ''
 
 
-def _bounty_trust_strip_md(rd, h, _po):
+def _bounty_trust_strip_md(rd, h, _po, dbc_override=None):
     """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
     rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
     hand — NOT gated on the BB-defense pko_context, which never enables for the
@@ -318,7 +366,13 @@ def _bounty_trust_strip_md(rd, h, _po):
     # REV4 B2: the cover/collectibility state comes from the canonical DECISION-TIME
     # bounty context (never the legacy realized scalar h['bounty_collectible']),
     # preserving mixed / equal-boundary distinctly.
-    _dbc, _collect, _cover_bucket, _can_collect = _decision_bounty_view(h)
+    # REV7 A5: read the bounty context AT THE REVIEWED ACTION INDEX (dbc_override) when the
+    # caller supplied it, so the strip never describes a later all-in's cover on a first-in
+    # open (84074364/83765091). A not_applicable reviewed context yields no strip.
+    _dbc, _collect, _cover_bucket, _can_collect = _decision_bounty_view(h, dbc_override)
+    if dbc_override is not None and (_dbc.get('bounty_applicability') == 'not_applicable'
+                                     or not _dbc.get('is_bounty')):
+        return ''
     if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible', 'mixed', 'equal'):
         return ''
     try:
@@ -3057,8 +3111,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _rdref_lead = _reviewed_ref(rd, h, hid, hid_short)
             _po_lead = _reconcile_po_to_reviewed(_po_lead, _rdref_lead) or {}
             _rev_lead = locals().get('_rev_xiva') or {}
+            # REV7 A2/A3: the capsule Decision label derives from the REVIEWED action kind, so
+            # a first-in open is never labelled "Call vs jam" (84074364).
             _capdec_lead = ''
-            if h.get('pf_allin'):
+            _rev_kind_lead = _po_lead.get('reviewed_action_kind')
+            if _rev_kind_lead in _ALLIN_REVIEW_KINDS:
+                _capdec_lead = _REV_KIND_LABEL[_rev_kind_lead]
+            elif _rev_kind_lead is None and h.get('pf_allin'):
                 _kc_lead = _canon_allin_kind(h, _cpa_lead(h)[0])
                 if _kc_lead != 'not_allin':
                     _capdec_lead = _akl_lead(_kc_lead)
@@ -3230,22 +3289,29 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _rev_line = _reviewed_decision_line_md(_po)
             if _rev_line:
                 _po_lines.append(_rev_line)
-            _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
-                             f"(call {_po.get('call_bb', '\u2014')}BB into "
-                             f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
-            # v8.16.4 DTI Blocker 2: the SAME structurally-provable all-in
-            # decision-kind label the compact path carries, on the XIV.A full
-            # card too (same _po object family / same hand fields, no recompute).
-            # Unprovable -> "All-in decision (exact node type unavailable)".
-            try:
-                from gem_review_trust import (classify_preflop_allin as _cpa_a,
-                                              allin_kind_label as _akl_a)
-                if h.get('pf_allin'):
+            # REV7 A1: the "Pot odds" call/price line renders ONLY for a CALL/FOLD decision
+            # facing a wager (price_applicable). A first-in open / bet / raise / jam SETS the
+            # price, so 'call XBB into YBB' would be nonsense (84074364 'call 1BB' bug).
+            _price_appl = _po.get('reviewed_price_applicable')
+            if _price_appl is not False:
+                _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
+                                 f"(call {_po.get('call_bb', '\u2014')}BB into "
+                                 f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
+            # REV7 A2/A3: the all-in Decision label derives from the REVIEWED action kind
+            # (not hand-level pf_allin), so a first-in open is never labelled "Call vs jam".
+            _rev_kind_a = _po.get('reviewed_action_kind')
+            if _rev_kind_a in _ALLIN_REVIEW_KINDS:
+                _po_lines.append("**Decision:** " + _REV_KIND_LABEL[_rev_kind_a])
+            elif _rev_kind_a is None and h.get('pf_allin'):
+                # no reviewed ref \u2014 fall back to the structural all-in label
+                try:
+                    from gem_review_trust import (classify_preflop_allin as _cpa_a,
+                                                  allin_kind_label as _akl_a)
                     _k_a = _canon_allin_kind(h, _cpa_a(h)[0])
                     if _k_a != 'not_allin':
                         _po_lines.append("**Decision:** " + _akl_a(_k_a))
-            except Exception:
-                pass
+                except Exception:
+                    pass
             # v8.16.4 Obj 8: a multiway all-in is NOT a heads-up spot. Suppress the
             # single heads-up "Required equity" threshold (valid only vs one
             # villain) and frame the decision against the FIELD; flag uncertainty
@@ -3263,7 +3329,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # block (de-gated from `if _po:` so it covers every scored/evidenced
             # hand, not only pot-odds hands). Here _po only contributes the
             # detailed Math notes below; the capsule was already emitted as the lead.
-            if not _mw_plan.get('suppress_hu_required_equity'):
+            # REV7 A1: required equity renders ONLY for a CALL/FOLD decision (price_applicable).
+            if _price_appl is not False and not _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
                 # v8.12.8 QA3: side-pot-aware price carries its basis
                 if _po.get('required_eq_note'):
@@ -3276,7 +3343,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         "*This is the share you need to win versus the betting/"
                         "jamming range (including draws and worse hands) to break "
                         "even \u2014 not how often you are ahead right now.*")
-            else:
+            elif _price_appl is not False and _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(
                     f"**{_mw_plan.get('label') or 'Multiway all-in'}** \u2014 heads-up "
                     "required equity is not shown here; compare your equity to the "
@@ -3400,12 +3467,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # two Bounty-trust lines for the same decision (prefer the specific one).
             _pko_will_strip = bool(((rd.get('pko_research') or {}).get('by_hand', {})
                                     .get(hid) or h.get('pko_context') or {}).get('enabled'))
-            _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)
+            # REV7 A5: the bounty trust strip + applicability note read the bounty context AT
+            # THE REVIEWED ACTION INDEX, never the hand-level default — so a first-in open
+            # (84074364/83765091) shows no all-in cover/collectibility strip.
+            _rev_dbc_a = _reviewed_bounty_ctx(h, _rdref_po)
+            _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po, dbc_override=_rev_dbc_a)
             if _bts:
                 _po_lines.append(_bts)
             # REV6 B3/B4: disclose a COMBINED exact+potential bounty opportunity (or an
             # unresolved committed-stack) in the visible lesson, never just the committed one.
-            _bapp_note = _bounty_applicability_note_md(h)
+            _bapp_note = _bounty_applicability_note_md(h, dbc_override=_rev_dbc_a)
             if _bapp_note:
                 _po_lines.append(_bapp_note)
             _ev = _po.get('ev_call_bb')
@@ -3482,7 +3553,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
         _pko_ctx = ((rd.get('pko_research') or {}).get('by_hand', {})
                     .get(hid) or h.get('pko_context') or {})
-        if _pko_ctx.get('enabled'):
+        # REV7 A5: the PKO BB-defense pill (and its bounty trust strip) describes the PREFLOP
+        # spot — render it ONLY when the reviewed/graded decision IS preflop. If the graded
+        # decision moved to a later street, the preflop pill's bounty cover would contradict
+        # the reviewed action (83914369/84074399 flop opens).
+        _rev_street_pko = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('street')
+        if _pko_ctx.get('enabled') and _rev_street_pko in (None, 'preflop'):
             _pk_rng = _pko_ctx.get('delta_range_pp') or [0, 0]
             _pk_d = (f"{_pk_rng[0]:+.1f} to {_pk_rng[1]:+.1f}pp"
                      if _pk_rng[0] != _pk_rng[1] else f"{_pk_rng[0]:+.1f}pp")
@@ -4014,8 +4090,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _rdref_bl = _reviewed_ref(rd, h, hid, hid_short)
                         _po_bl = _reconcile_po_to_reviewed(_po_bl, _rdref_bl) or {}
                         _rev_bl = _hre_bl(h) or {}
+                        # REV7 A2/A3: capsule Decision label from the REVIEWED action kind.
                         _capdec_bl = ''
-                        if h.get('pf_allin'):
+                        _rev_kind_bl = _po_bl.get('reviewed_action_kind')
+                        if _rev_kind_bl in _ALLIN_REVIEW_KINDS:
+                            _capdec_bl = _REV_KIND_LABEL[_rev_kind_bl]
+                        elif _rev_kind_bl is None and h.get('pf_allin'):
                             _kc_bl = _canon_allin_kind(h, _cpa_bl(h)[0])
                             if _kc_bl != 'not_allin':
                                 _capdec_bl = _akl_bl(_kc_bl)
@@ -4099,13 +4179,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _rev_line_b = _reviewed_decision_line_md(_po_b)
                     if _rev_line_b:
                         _po_lines_b.append(_rev_line_b)
-                    _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
-                                       f"(call {_po_b.get('call_bb', '—')}BB)")
-                    # v8.16.4 DTI Blocker 2: the COMPACT path (the one most hands
-                    # actually open) now carries the SAME decision evidence as the
-                    # full card — consuming the SAME _po_b object, no recompute:
-                    # a structurally-provable all-in DECISION-KIND label, and the
-                    # multiway suppression of the heads-up required-equity line.
+                    # REV7 A1: the call/price line renders ONLY for a CALL/FOLD decision.
+                    _price_appl_b = _po_b.get('reviewed_price_applicable')
+                    if _price_appl_b is not False:
+                        _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
+                                           f"(call {_po_b.get('call_bb', '—')}BB)")
+                    # v8.16.4 DTI Blocker 2: the COMPACT path carries the SAME decision
+                    # evidence as the full card. REV7 A2/A3: the all-in Decision label derives
+                    # from the REVIEWED action kind, never hand-level pf_allin.
                     try:
                         from gem_review_trust import (
                             multiway_render_plan as _mwp_b,
@@ -4113,7 +4194,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _mw_b = _mwp_b(
                             n_live_opponents=max(0, (_po_b.get('n_players_at_showdown') or 0) - 1),
                             players_still_to_act=_po_b.get('players_still_to_act', 0) or 0)
-                        if h.get('pf_allin'):
+                        _rev_kind_b = _po_b.get('reviewed_action_kind')
+                        if _rev_kind_b in _ALLIN_REVIEW_KINDS:
+                            _po_lines_b.append("**Decision:** " + _REV_KIND_LABEL[_rev_kind_b])
+                        elif _rev_kind_b is None and h.get('pf_allin'):
                             _k_b = _canon_allin_kind(h, _cpa_b(h)[0])
                             if _k_b != 'not_allin':
                                 _po_lines_b.append("**Decision:** " + _akl_b(_k_b))
@@ -4122,12 +4206,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                  'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
                     _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
-                    # v8.17.1 P1: the §9 decision-capsule LEAD now renders ABOVE
-                    # (de-gated from `if _po_b:` so it covers every scored/evidenced
-                    # compact-path hand). Here _po_b only emits the detailed lines.
-                    if _req_b and not _mw_sup_b:
+                    # REV7 A1: required equity renders ONLY for a CALL/FOLD decision.
+                    if _price_appl_b is not False and _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
-                    elif _mw_sup_b:
+                    elif _price_appl_b is not False and _mw_sup_b:
                         _po_lines_b.append(
                             (_mw_b.get('label') or 'Multiway all-in')
                             + " — compare your equity to the FIELD, not one villain"
@@ -4152,7 +4234,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         # teaching line to EVERY visible Required-equity line, not
                         # only the comprehensive XIV.A block. This is the compact
                         # XIV.B path that 73281169 / 72696769 actually render on.
-                        if _req_b and not _mw_sup_b:
+                        if _price_appl_b is not False and _req_b and not _mw_sup_b:
                             doc.w("")
                             doc.w("*This is the share you need to win versus the "
                                   "betting/jamming range (including draws and worse "
@@ -4167,13 +4249,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _pko_will_strip_b = bool(((rd.get('pko_research') or {})
                                                   .get('by_hand', {}).get(hid)
                                                   or h.get('pko_context') or {}).get('enabled'))
-                        _bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)
+                        # REV7 A5: bounty strip + note read the bounty context AT the reviewed
+                        # action index (never hand-level), so a first-in open shows no all-in
+                        # cover/collectibility (84074364/83765091 on the compact path).
+                        _rev_dbc_b = _reviewed_bounty_ctx(h, _rdref_b)
+                        _bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=_rev_dbc_b)
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
                         # REV6 B3/B4: disclose a COMBINED exact+potential bounty (or an
                         # unresolved committed stack) on the compact path too (84990829).
-                        _bapp_note_b = _bounty_applicability_note_md(h)
+                        _bapp_note_b = _bounty_applicability_note_md(h, dbc_override=_rev_dbc_b)
                         if _bapp_note_b:
                             doc.w("")
                             doc.w(_bapp_note_b)
@@ -4260,7 +4346,9 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
                 _pko_ctx_b = ((rd.get('pko_research') or {}).get('by_hand', {})
                               .get(hid) or h.get('pko_context') or {})
-                if _pko_ctx_b.get('enabled'):
+                # REV7 A5: PKO BB-defense pill renders only when the reviewed decision is preflop.
+                _rev_street_pko_b = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('street')
+                if _pko_ctx_b.get('enabled') and _rev_street_pko_b in (None, 'preflop'):
                     _pkb_rng = _pko_ctx_b.get('delta_range_pp') or [0, 0]
                     _pkb_d = (f"{_pkb_rng[0]:+.1f} to {_pkb_rng[1]:+.1f}pp"
                               if _pkb_rng[0] != _pkb_rng[1]

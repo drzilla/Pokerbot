@@ -8240,14 +8240,22 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         except Exception:
             pass
         # decision-time bounty flag (teaching: "bounty may justify wider call") comes from
-        # the canonical context — Hero covers an ELIGIBLE villain (all/mixed), not the
-        # realized scalar.
+        # the canonical context AT THE REVIEWED ACTION INDEX (REV7 A5) — never the hand-level
+        # default (a first-in open whose LATER all-in covers a villain must NOT show the flag,
+        # 84074364/83765091). Hero covers an ELIGIBLE villain (all/mixed) at the reviewed
+        # action, with a real committed bounty opportunity there.
         _dbc_agg = (_dbc_default or {}).get('coverage_aggregate')
+        _rdref_icm = h.get('reviewed_decision_ref') or {}
+        _rev_bapp_icm = _rdref_icm.get('bounty_applicability')
+        _rev_bagg_icm = _rdref_icm.get('bounty_aggregate')
+        _rev_kind_icm = _rdref_icm.get('hero_action_kind')
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),
             'final_table': _phase in ('final_table', 'ft_zone'),
             'satellite': _fmt == 'SATELLITE',
-            'bounty_covers_villain': bool(_dbc_default and _dbc_default.get('hero_covers_relevant_villain')),
+            # REV7 A5: cover at the REVIEWED action (an eligible committed bounty there)
+            'bounty_covers_villain': bool(_rev_bagg_icm in ('all', 'mixed')
+                                          and _rev_bapp_icm in ('exact_committed', 'exact_and_potential')),
             'hero_covered': (_stack or 0) < (h.get('jammer_stack_bb') or 0) if h.get('jammer_stack_bb') else False,
             'stack_utility': ('low' if _stack < 15 else 'high' if _stack > 80 else 'medium'),
             'icm_flag': None,
@@ -8259,7 +8267,9 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             _icm['icm_flag'] = 'Near bubble with big stack — ICM says fold wider than chipEV'
         elif _icm['near_bubble'] and _stack < _avg_stack * 0.5:
             _icm['icm_flag'] = 'Near bubble short — ICM pressure high, pick spots carefully'
-        elif _icm['bounty_covers_villain'] and h.get('pf_allin'):
+        elif _icm['bounty_covers_villain'] and _rev_kind_icm in (
+                'call_vs_jam', 'call_off', 'open_shove', 'rejam_over_live_raise',
+                'overjam_with_side_pot'):
             _icm['icm_flag'] = 'Bounty covers villain — bounty may justify wider call'
         h['icm_context'] = _icm
 

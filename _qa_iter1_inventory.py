@@ -96,6 +96,13 @@ def main():
         'exact_and_potential_collapsed': [],
         'committed_unknown_stack_not_flagged': [],
         'visible_decision_not_reviewed_action': [],
+        # REV7 required zero-counts (visible callable-price / action-typed truth)
+        'visible_call_gt_callable': [],
+        'visible_call_gt_effective_depth': [],
+        'raw_overjam_rendered_as_price': [],
+        'non_call_action_rendered_as_call': [],
+        'visible_call_0bb': [],
+        'capsule_or_action_mismatch': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -314,11 +321,32 @@ def main():
     for mm in _gpd.get('mismatches', []):
         viol['rendered_wrong_action_index'].append(mm)
     inv['rendered_decision_blocks_checked'] = _gpd.get('checked', 0)
-    # REV6 B2/B5: the VISIBLE decision lesson grades the reviewed action (parses rendered md)
+    # REV6 B2/B5 + REV7 B1: the VISIBLE decision lesson grades the reviewed action AND uses
+    # the callable price / action-typed display (parses rendered markdown).
     _gvd = qp.gate_report_visible_decision(by_id, html, worklist)
+    _REV7_CATS = {
+        'visible_call_gt_callable': 'visible_call_gt_callable',
+        'visible_call_gt_effective_depth': 'visible_call_gt_effective_depth',
+        'visible_call_is_raw_overjam': 'raw_overjam_rendered_as_price',
+        'visible_action_ne_canonical_display': 'capsule_or_action_mismatch',
+    }
     for mm in _gvd.get('mismatches', []):
-        viol['visible_decision_not_reviewed_action'].append(mm)
+        _fld = mm.get('field')
+        if _fld in _REV7_CATS:
+            viol[_REV7_CATS[_fld]].append(mm)
+            # a canonical 'call ...' phrase rendered for a non-call canonical action is the
+            # 'non-call rendered as call' case; an injected 'call 0BB' lands here too.
+            if _fld == 'visible_action_ne_canonical_display':
+                if str(mm.get('visible', '')).strip().lower().startswith('call'):
+                    viol['non_call_action_rendered_as_call'].append(mm)
+        else:
+            viol['visible_decision_not_reviewed_action'].append(mm)
     inv['visible_decision_blocks_checked'] = _gvd.get('checked', 0)
+    # REV7: report-wide scans for the impossible-render signatures.
+    import re as _re_rev7
+    _decoded = ' '.join((qp.decode_lazy_hands(html) or {}).values())
+    for _m in _re_rev7.finditer(r'Reviewed decision:[^<]*?,\s*(call 0\s*BB)', _decoded):
+        viol['visible_call_0bb'].append({'token': _m.group(1)})
     # REV5 B1: the OLD "bounty irrelevant / not a decision-time factor" copy must be GONE
     for _bad in ('not a decision-time factor', 'no committed all-in opponent at the decision'):
         _n = html.count(_bad)

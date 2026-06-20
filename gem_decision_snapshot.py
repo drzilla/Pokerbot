@@ -285,6 +285,37 @@ def build_decision_snapshot(h, hero_action_index=None):
     eligible_allin_amount = (round(min(eff_at_decision, hero_remaining), 2)
                              if eff_at_decision is not None else None)
 
+    # ── REV7 A1: DECISION-TIME PRICE CONTRACT — the chips Hero can actually CALL and WIN ──
+    # `to_call` (raw_amount_to_match) is the full wager to match the aggressor; it can exceed
+    # Hero's stack and include overjam chips Hero can never win — it must NEVER be Hero's
+    # displayed price. `callable_amount` is what Hero can actually commit. The CONTESTABLE pot
+    # caps every contributor at Hero's total-if-call (hero_cap), so an opponent's overjam above
+    # Hero's stack — and any side-pot layer above Hero — is excluded from required equity.
+    hero_cap = round(hero_committed_total + callable_amount, 2)
+    # contestable pot BEFORE Hero's call: every player's committed chips capped at hero_cap
+    # (folded dead money included up to the cap; the uncallable overjam is excluded).
+    contestable_pot_before_action = round(
+        sum(min(round(v, 2), hero_cap) for v in committed_total.values()), 2)
+    uncallable_overjam = round(max(0.0, to_call - callable_amount), 2)
+    # required equity (call/fold pot odds) applies ONLY to a CALL/FOLD decision. A first-in
+    # open / bet / raise / jam SETS the price (Hero is the aggressor) — there is no call price.
+    _hkind = hero_action_kind(h, idx)
+    _is_call_decision = _hkind in ('call', 'call_vs_jam', 'call_off', 'fold')
+    if _is_call_decision and to_call > _EPS and callable_amount > _EPS:
+        _denom = contestable_pot_before_action + callable_amount
+        required_equity_pct = round(100.0 * callable_amount / _denom, 1) if _denom > _EPS else None
+        price_applicable = True
+        price_reason = 'call_or_fold_facing_wager'
+    else:
+        required_equity_pct = None
+        price_applicable = False
+        if not _is_call_decision:
+            price_reason = 'hero_aggressive_action_sets_price'
+        elif to_call <= _EPS:
+            price_reason = 'no_wager_to_call'
+        else:
+            price_reason = 'no_callable_chips'
+
     is_bounty = _is_bounty(h)
     cover_by_opp = {}
     if is_bounty:
@@ -299,7 +330,7 @@ def build_decision_snapshot(h, hero_action_index=None):
         'hand_id': h.get('id', ''),
         'street': street,
         'hero_action_index': idx,
-        'hero_action_kind': hero_action_kind(h, idx),
+        'hero_action_kind': _hkind,
         'board_at_decision': board_at_decision(h.get('board'), street),
 
         'pot_before_action_bb': pot_before,
@@ -326,6 +357,14 @@ def build_decision_snapshot(h, hero_action_index=None):
         'hero_committed_before_decision_bb': hero_committed_total,
         'callable_amount_bb': callable_amount,
         'eligible_allin_amount_bb': eligible_allin_amount,
+        # REV7 A1: decision-time price contract (callable/contestable truth — see
+        # decision_price_contract()). raw_amount_to_match == to_call_bb (diagnostic only).
+        'raw_amount_to_match_bb': to_call,
+        'contestable_pot_before_action_bb': contestable_pot_before_action,
+        'uncallable_overjam_bb': uncallable_overjam,
+        'required_equity_pct': required_equity_pct,
+        'price_applicable': price_applicable,
+        'price_reason': price_reason,
         'effective_stack_at_start_of_street_bb': eff_at_start_of_street,
         'effective_stack_at_decision_bb': eff_at_decision,
         'effective_stack_by_opponent': eff_by_opp,
@@ -369,38 +408,182 @@ def infer_reviewed_action_index(h):
     return pf[0] if pf else allh[0]
 
 
+def _g(x):
+    """compact bb formatter (no trailing zeros)."""
+    try:
+        return ('%g' % round(float(x), 2))
+    except (TypeError, ValueError):
+        return '?'
+
+
+def reviewed_action_display(h, hero_action_index, snap=None):
+    """REV7 A2: the ONE typed ACTION-DISPLAY for the reviewed action. NEVER renders a
+    non-call decision as 'call XBB' (the REV6 bug where folds/checks/bets/opens/jams/re-jams
+    all said 'call'). The display verb + text are chosen by the canonical hero_action_kind;
+    the amount is the CALLABLE amount for a call, the bet/raise SIZE for aggression, and the
+    faced price for a fold. Returns a serialisable dict."""
+    led = h.get('action_ledger') or []
+    idx = hero_action_index
+    evt = led[idx] if (idx is not None and 0 <= idx < len(led)) else {}
+    snap = snap if snap is not None else build_decision_snapshot(h, idx)
+    actual = evt.get('action', '')
+    kind = snap.get('hero_action_kind') or actual
+    added = round(_added(evt), 2) if evt else 0.0
+    total_to = round((snap.get('hero_current_street_committed_before_bb') or 0.0) + added, 2)
+    callable_amt = round(snap.get('callable_amount_bb') or 0.0, 2)
+    facing = round(snap.get('to_call_bb') or 0.0, 2)          # raw price faced (fold/raise context)
+    faced_added = snap.get('faced_action_added_bb')
+    street = snap.get('street')
+    _preflop = (street == 'preflop')
+    if kind in ('call', 'call_vs_jam', 'call_off'):
+        verb, text = 'call', 'call %sBB' % _g(callable_amt)
+    elif kind == 'fold':
+        verb, text = 'fold', ('fold facing %sBB' % _g(facing) if facing > _EPS else 'fold')
+    elif kind == 'check':
+        verb, text = 'check', 'check'
+    elif kind == 'first_in_open':
+        # preflop first-in = an OPEN (raise-to); postflop first-in = a BET (lead).
+        if _preflop:
+            verb, text = 'open', 'open to %sBB' % _g(total_to)
+        else:
+            verb, text = 'bet', 'bet %sBB' % _g(total_to)
+    elif kind == 'open_shove':
+        verb, text = ('open-shove', 'open-shove %sBB' % _g(total_to)) if _preflop \
+            else ('shove', 'shove %sBB' % _g(total_to))
+    elif kind == '3bet':
+        verb, text = '3-bet', '3-bet to %sBB' % _g(total_to)
+    elif kind == '4bet':
+        verb, text = '4-bet', '4-bet to %sBB' % _g(total_to)
+    elif kind == '5bet_plus':
+        verb, text = '5-bet', '5-bet to %sBB' % _g(total_to)
+    elif kind == 'rejam_over_live_raise':
+        verb, text = 're-jam', ('re-jam %sBB over a %sBB price' % (_g(total_to), _g(facing))
+                                if facing > _EPS else 're-jam %sBB' % _g(total_to))
+    elif kind == 'overjam_with_side_pot':
+        verb, text = 'overjam', ('overjam %sBB over a %sBB price' % (_g(total_to), _g(facing))
+                                 if facing > _EPS else 'overjam %sBB' % _g(total_to))
+    elif actual == 'bets':
+        verb, text = 'bet', 'bet %sBB' % _g(added)
+    elif actual == 'raises':
+        verb, text = 'raise', 'raise to %sBB' % _g(total_to)
+    elif actual == 'calls':
+        verb, text = 'call', 'call %sBB' % _g(callable_amt)
+    elif actual == 'checks':
+        verb, text = 'check', 'check'
+    elif actual == 'folds':
+        verb, text = 'fold', ('fold facing %sBB' % _g(facing) if facing > _EPS else 'fold')
+    else:
+        verb, text = (actual or 'act'), (actual or 'act')
+    return {
+        'hero_action_kind': kind,
+        'hero_actual_action': actual,
+        'facing_action_kind': snap.get('faced_action_kind'),
+        'facing_price_bb': facing,
+        'action_added_bb': added,
+        'action_total_to_bb': total_to,
+        'callable_amount_bb': callable_amt,
+        'faced_action_added_bb': faced_added,
+        'display_verb': verb,
+        'display_text': text,
+    }
+
+
 def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
                                 selection_source='analyzer_inferred'):
-    """REV6 B2: the ONE canonical reviewed-decision reference every VISIBLE decision-bearing
-    block (capsule, pot-odds, bounty trust strip, call amount, required equity, effective
-    depth, range evidence, coaching) must route through — so the visible lesson can never
-    grade a different action than the worklist (the 83526894 'turn 7.9BB' vs canonical
-    'river 13.5BB' bug). All numeric facts are derived from build_decision_snapshot at the
-    canonical index, NOT from gem_pot_odds' independent first-all-in-call reconstruction.
+    """REV6 B2 / REV7 A1-A3: the ONE canonical reviewed-decision reference (a serialisable
+    ReviewedDecisionView) every VISIBLE decision-bearing block (capsule, pot-odds, bounty
+    trust strip, call amount, required equity, effective depth, range evidence, coaching)
+    must route through — so the visible lesson can never grade a different action than the
+    worklist, and never shows a price/action Hero cannot actually make.
 
-    required_eq_pct is the chip pot-odds at the reviewed action (to_call / (pot+to_call)),
-    so the visible street / call / required-equity always describe the SAME decision."""
+    REV7 A1: the displayed price is the CALLABLE amount (what Hero can actually commit), the
+    required equity uses the CONTESTABLE pot (excludes the uncallable overjam) — NEVER the raw
+    to_call. `raw_amount_to_match_bb` is kept for diagnostics only and must never be displayed.
+    REV7 A2: `action_display` carries the action-typed verb/text (no generic 'call' template).
+    REV7 A4: `selection_source`/`selection_confidence` flag whether this is the worklist's
+    authoritative graded action ('worklist_reviewed_action') or a ledger-inferred fallback."""
     idx = hero_action_index if hero_action_index is not None else infer_reviewed_action_index(h)
     snap = build_decision_snapshot(h, idx)
-    to_call = snap.get('to_call_bb') or 0.0
-    pot_before = snap.get('pot_before_action_bb') or 0.0
-    denom = pot_before + to_call
-    req = round(100.0 * to_call / denom, 1) if (to_call > _EPS and denom > _EPS) else None
+    disp = reviewed_action_display(h, idx, snap)
+    # decision-time bounty context AT THIS action index (REV5 B2 / REV7 A5) — never hand-level
+    try:
+        dbc = build_decision_bounty_context(h, idx)
+    except Exception:
+        dbc = {}
+    src = selection_source or 'analyzer_inferred'
+    confidence = ('authoritative' if src == 'worklist_reviewed_action' else 'inferred')
     return {
         'hand_id': h.get('id', ''),
         'hero_action_index': snap.get('hero_action_index'),
         'street': snap.get('street'),
         'decision_kind': decision_kind,
-        'selection_source': selection_source,
+        'selection_source': src,
+        'selection_confidence': confidence,
         'hero_action_kind': snap.get('hero_action_kind'),
-        'to_call_bb': round(to_call, 2),
+        # ── REV7 A1 price contract (callable/contestable truth) ──
         'callable_amount_bb': snap.get('callable_amount_bb'),
+        'raw_amount_to_match_bb': snap.get('raw_amount_to_match_bb'),
+        'contestable_pot_before_action_bb': snap.get('contestable_pot_before_action_bb'),
+        'uncallable_overjam_bb': snap.get('uncallable_overjam_bb'),
+        'required_eq_pct': snap.get('required_equity_pct'),
+        'price_applicable': snap.get('price_applicable'),
+        'price_reason': snap.get('price_reason'),
         'eligible_allin_amount_bb': snap.get('eligible_allin_amount_bb'),
-        'required_eq_pct': req,
-        'pot_before_action_bb': round(pot_before, 2),
+        'pot_before_action_bb': snap.get('pot_before_action_bb'),
         'effective_stack_at_decision_bb': snap.get('effective_stack_at_decision_bb'),
+        # legacy/back-compat: to_call_bb == raw (diagnostic). Consumers must NOT display it.
+        'to_call_bb': snap.get('to_call_bb'),
         'faced_aggressor': snap.get('faced_aggressor'),
         'faced_action_kind': snap.get('faced_action_kind'),
+        # ── REV7 A2 action display ──
+        'action_display': disp,
+        'display_text': disp.get('display_text'),
+        'display_verb': disp.get('display_verb'),
+        # ── REV7 A5 bounty context AT this action index ──
+        'bounty_applicability': dbc.get('bounty_applicability'),
+        'bounty_certainty': dbc.get('bounty_certainty'),
+        'bounty_aggregate': dbc.get('coverage_aggregate'),
+        'bounty_reason': dbc.get('coverage_reason'),
+        'is_bounty': dbc.get('is_bounty'),
+        'hero_in_allin_confrontation': dbc.get('hero_in_allin_confrontation'),
+    }
+
+
+def build_reviewed_decision_view(h, hero_action_index=None, decision_kind=None,
+                                 selection_source='analyzer_inferred'):
+    """REV7 A3: the ONE typed ReviewedDecisionView object for the selected reviewed action.
+    Bundles the serialisable ref (decision_ref + price_contract + action_display + bounty)
+    with the live snapshot and full bounty context so EVERY visible consumer reads the SAME
+    object at the SAME action index — capsule, decision label, price, pot-odds, required
+    equity, effective depth, bounty trust strip, bounty applicability note, range, coaching.
+    No visible renderer may independently reconstruct any of these or read a hand-level
+    default when a reviewed action is selected."""
+    idx = hero_action_index if hero_action_index is not None else infer_reviewed_action_index(h)
+    snap = build_decision_snapshot(h, idx)
+    ref = build_reviewed_decision_ref(h, idx, decision_kind, selection_source)
+    try:
+        dbc = build_decision_bounty_context(h, idx)
+    except Exception:
+        dbc = {}
+    return {
+        'decision_ref': ref,
+        'snapshot': snap,
+        'action_display': ref.get('action_display'),
+        'price_contract': {
+            'callable_amount_bb': ref.get('callable_amount_bb'),
+            'raw_amount_to_match_bb': ref.get('raw_amount_to_match_bb'),
+            'contestable_pot_before_action_bb': ref.get('contestable_pot_before_action_bb'),
+            'uncallable_overjam_bb': ref.get('uncallable_overjam_bb'),
+            'required_equity_pct': ref.get('required_eq_pct'),
+            'price_applicable': ref.get('price_applicable'),
+            'price_reason': ref.get('price_reason'),
+        },
+        'bounty_context': dbc,
+        'street': ref.get('street'),
+        'hero_action_index': ref.get('hero_action_index'),
+        'hero_action_kind': ref.get('hero_action_kind'),
+        'selection_source': ref.get('selection_source'),
+        'selection_confidence': ref.get('selection_confidence'),
     }
 
 

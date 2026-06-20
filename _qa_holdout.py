@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
-"""REV7 B6: GENERATED-CORPUS holdout validation — proves the canonical decision-price /
-action-display repair is GENERIC, not fitted to the named acceptance hands.
+"""REV7 B6 / REV9 B1: REAL PRODUCTION-RENDER holdout — proves the canonical decision model is
+GENERIC (not fitted to acceptance hand IDs) by running each generated hand through the ACTUAL
+hand-detail renderer used for the June report:
 
-Generates synthetic hands across the canonical action classes (call_vs_jam / call_off /
-first-in open / postflop bet / fold / check / 3-bet / open-shove / re-jam / overjam-with-
-side-pot), stack sizes, streets, opponent counts, side-pot structures and ante structures —
-NONE of which are acceptance hand IDs. For each it builds the canonical ReviewedDecisionView,
-renders the visible reviewed-decision line + pot-odds block through the SAME report helpers
-the real report uses, then runs the visible-decision gate AND independent price-contract
-invariants. Required: semantic violations == 0.
+    _qa_v817_synthetic.build()  ->  report_data + stats + base hands
+    + generated facing-class hands (full fields + stamped ReviewedDecisionRef + analyst_commentary)
+    -> render_html(stats, report_data, hands, sections=['XIV'])   <-- THE PRODUCTION RENDERER
+    -> decode lazyHands -> gate_report_visible_decision + gate_report_full_render
+
+This is NOT a helper-fragment holdout: the bodies under test are produced by the real
+sections_xiv hand-detail pipeline (capsule, price, range evidence, verdict, all-in math, PKO /
+bounty consumers, ICM flags, lazyHands serialization), then decoded and gated. Required:
+full-render semantic violations == 0.
 
 Usage: python _qa_holdout.py <out_json> <out_log>
 """
-import base64
 import io
 import json
+import os
 import sys
-import zlib
 
 import gem_decision_snapshot as ds
 import _qa_parity as qp
-from gem_report_draft.sections_xiv import (_reconcile_po_to_reviewed,
-                                           _reviewed_decision_line_md)
+from _qa_decode_lazy import decode_lazy_hands
+
+PROD_RENDER_ENTRYPOINT = 'gem_report_draft.render_html(stats, report_data, hands, sections=["XIV"])'
 
 
 def _L(street, player, action, added, allin=False, pos=None):
@@ -29,16 +32,78 @@ def _L(street, player, action, added, allin=False, pos=None):
             'amount_bb': added, 'is_all_in': allin, 'position': pos}
 
 
+_HID = [90000000]
+
+
+def _mk(led, ssb, idx, tags, fmt='NLHE', board=None, pos=None, cards=('Ah', 'Kd')):
+    _HID[0] += 1
+    hid = 'TM60' + str(_HID[0])
+    hero_pos = pos or next((a.get('position') for a in led
+                            if a.get('player') == 'Hero' and a.get('position')), 'BTN')
+    h = {'id': hid, 'hero': 'Hero', 'format': fmt, 'cards': list(cards), 'position': hero_pos,
+         'stack_bb': round(ssb.get('Hero', 30.0), 1), 'eff_stack_bb': round(ssb.get('Hero', 30.0), 1),
+         'net_bb': -1.0, 'tournament': 'Synthetic Holdout', 'date': '2026-06-16', 'level': '12',
+         'tournament_phase': 'middle', 'board': board or [], 'hero_street_actions': {},
+         'pf_allin': any(a.get('is_all_in') and a.get('player') == 'Hero' for a in led),
+         'pf_action': '', 'seat_stack_by_player': ssb, 'action_ledger': led}
+    return (h, idx, tags)
+
+
+def _gen_corpus():
+    corpus = []
+    for hero_stk in (8.0, 13.5, 22.0, 31.71, 55.0, 103.0):
+        for ante in (0.0, 0.12, 0.5):
+            posts = []
+            if ante:
+                posts = [_L('preflop', 'Hero', 'posts', ante, pos='BB'),
+                         _L('preflop', 'V', 'posts', ante, pos='SB')]
+            vj = min(hero_stk, 40.0)
+            corpus.append(_mk(posts + [_L('preflop', 'V', 'raises', vj, True, pos='BTN'),
+                                       _L('preflop', 'Hero', 'calls', min(vj, hero_stk - ante), True, pos='BB')],
+                              {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['call_vs_jam', 'hu'], fmt='BOUNTY'))
+            corpus.append(_mk(posts + [_L('preflop', 'V', 'raises', 120.0, True, pos='BTN'),
+                                       _L('preflop', 'Hero', 'calls', hero_stk - ante, True, pos='BB')],
+                              {'Hero': hero_stk, 'V': 140.0}, len(posts) + 1, ['call_vs_jam', 'overjam', 'hu'], fmt='BOUNTY'))
+            corpus.append(_mk(posts + [_L('preflop', 'Hero', 'raises', min(2.3, hero_stk - ante), pos='CO')],
+                              {'Hero': hero_stk, 'V': 40.0}, len(posts), ['first_in_open', 'preflop'], pos='CO'))
+            if hero_stk <= 22.0:
+                corpus.append(_mk(posts + [_L('preflop', 'Hero', 'raises', hero_stk - ante, True, pos='HJ')],
+                                  {'Hero': hero_stk, 'V': 40.0}, len(posts), ['open_shove', 'preflop'], fmt='BOUNTY', pos='HJ'))
+            corpus.append(_mk(posts + [_L('preflop', 'V', 'raises', 3.0, pos='BTN'),
+                                       _L('preflop', 'Hero', 'folds', 0, pos='BB')],
+                              {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['fold', 'facing_raise'], pos='BB'))
+            if hero_stk >= 22.0:
+                corpus.append(_mk(posts + [_L('preflop', 'V', 'raises', 2.5, pos='CO'),
+                                           _L('preflop', 'Hero', 'raises', 8.0, pos='BTN')],
+                                  {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['3bet', 'preflop'], pos='BTN'))
+            if hero_stk <= 31.71:
+                corpus.append(_mk(posts + [_L('preflop', 'V', 'raises', 2.5, pos='CO'),
+                                           _L('preflop', 'Hero', 'raises', hero_stk - ante, True, pos='BTN')],
+                                  {'Hero': hero_stk, 'V': 60.0}, len(posts) + 1, ['rejam', 'preflop'], fmt='BOUNTY', pos='BTN'))
+            corpus.append(_mk([_L('preflop', 'Short', 'raises', 5.0, True, pos='UTG'),
+                               _L('preflop', 'Hero', 'calls', 5.0, pos='BB'),
+                               _L('preflop', 'Deep', 'calls', 5.0, pos='BTN'),
+                               _L('flop', 'Deep', 'bets', 15.0, True, pos='BTN'),
+                               _L('flop', 'Hero', 'calls', min(15.0, hero_stk - 5.0), True, pos='BB')],
+                              {'Hero': hero_stk, 'Short': 5.0, 'Deep': 80.0}, 4,
+                              ['call_vs_jam', 'multiway', 'sidepot'], board=['2c', '7d', 'Js'], fmt='BOUNTY', pos='BB'))
+            corpus.append(_mk([_L('preflop', 'Hero', 'raises', 2.5, pos='CO'), _L('preflop', 'V', 'calls', 2.5, pos='BB'),
+                               _L('flop', 'Hero', 'bets', min(4.0, hero_stk - 2.5), pos='CO')],
+                              {'Hero': hero_stk, 'V': 40.0}, 2, ['first_in_open', 'postflop', 'bet'],
+                              board=['2c', '7d', 'Js'], pos='CO'))
+            corpus.append(_mk([_L('preflop', 'Hero', 'raises', 2.5, pos='CO'), _L('preflop', 'V', 'calls', 2.5, pos='BB'),
+                               _L('flop', 'Hero', 'checks', 0, pos='CO')],
+                              {'Hero': hero_stk, 'V': 40.0}, 2, ['check', 'postflop'], board=['2c', '7d', 'Js'], pos='CO'))
+    corpus.extend(_gen_first_in_folds())
+    corpus.extend(_gen_limp_cases())
+    return corpus
+
+
 def _gen_first_in_folds():
-    """REV8 E4: unopened FIRST-IN folds at every position + BB check + limped pot — the class
-    responsible for the 254 real REV7 failures. Returns (hand, idx, tags)."""
     out = []
-    hid = 91000000
-    for pos in ('UTG', 'UTG+1', 'MP', 'HJ', 'CO', 'BTN', 'SB'):
-        hid += 1
+    order = ['UTG', 'UTG+1', 'MP', 'HJ', 'CO', 'BTN', 'SB']
+    for pos in order:
         led = [_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB')]
-        # everyone before `pos` folds; Hero (at pos) folds first-in
-        order = ['UTG', 'UTG+1', 'MP', 'HJ', 'CO', 'BTN', 'SB']
         for q in order:
             if q == pos:
                 break
@@ -46,196 +111,161 @@ def _gen_first_in_folds():
                 led.append(_L('preflop', q, 'folds', 0, pos=q))
         idx = len(led)
         led.append(_L('preflop', 'Hero', 'folds', 0, pos=pos))
-        out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero',
-                     'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0},
-                     'board': [], 'action_ledger': led}, idx, ['first_in_fold', pos]))
+        out.append(_mk(led, {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0}, idx, ['first_in_fold', pos], fmt='BOUNTY', pos=pos))
     # BB check option (limped pot)
-    hid += 1
-    out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero', 'format': 'NLHE',
-                 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BTN': 30.0}, 'board': [],
-                 'action_ledger': [_L('preflop', 'SB', 'posts', 0.5, pos='SB'),
-                                   _L('preflop', 'Hero', 'posts', 1.0, pos='BB'),
-                                   _L('preflop', 'BTN', 'calls', 1.0, pos='BTN'),
-                                   _L('preflop', 'Hero', 'checks', 0, pos='BB')]}, 3, ['check_option', 'BB']))
-    # limped pot, Hero on BTN folds over a limp
-    hid += 1
-    out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero', 'format': 'NLHE',
-                 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'MP': 30.0}, 'board': [],
-                 'action_ledger': [_L('preflop', 'SB', 'posts', 0.5, pos='SB'),
-                                   _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
-                                   _L('preflop', 'MP', 'calls', 1.0, pos='MP'),
-                                   _L('preflop', 'Hero', 'folds', 0, pos='BTN')]}, 3, ['facing_limp', 'BTN']))
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'BTN', 'calls', 1.0, pos='BTN'), _L('preflop', 'Hero', 'checks', 0, pos='BB')],
+                   {'Hero': 30.0, 'SB': 30.0, 'BTN': 30.0}, 3, ['check_option', 'BB'], pos='BB'))
     return out
 
 
-def _mk_lazy_html(cards):
-    co = zlib.compressobj(9, zlib.DEFLATED, -15)
-    raw = co.compress(json.dumps(cards).encode('utf-8')) + co.flush()
-    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
-            % base64.b64encode(raw).decode('ascii'))
+def _gen_limp_cases():
+    """REV9 A: facing-limp folds / overlimp / SB complete / iso-raise (1 and 2 limpers)."""
+    out = []
+    # fold over ONE limp
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'MP', 'calls', 1.0, pos='MP'), _L('preflop', 'Hero', 'folds', 0, pos='BTN')],
+                   {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'MP': 30.0}, 3, ['facing_limp', 'fold_over_limp'], pos='BTN'))
+    # fold after TWO limpers
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'UTG', 'calls', 1.0, pos='UTG'), _L('preflop', 'MP', 'calls', 1.0, pos='MP'),
+                    _L('preflop', 'Hero', 'folds', 0, pos='CO')],
+                   {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'UTG': 30.0, 'MP': 30.0}, 4, ['facing_limp', 'fold_2_limpers'], pos='CO'))
+    # overlimp (BTN calls over a limp)
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'MP', 'calls', 1.0, pos='MP'), _L('preflop', 'Hero', 'calls', 1.0, pos='BTN')],
+                   {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'MP': 30.0}, 3, ['facing_limp', 'overlimp'], pos='BTN'))
+    # SB complete after a limp
+    out.append(_mk([_L('preflop', 'Hero', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'MP', 'calls', 1.0, pos='MP'), _L('preflop', 'Hero', 'calls', 0.5, pos='SB')],
+                   {'Hero': 30.0, 'BB': 30.0, 'MP': 30.0}, 3, ['facing_limp', 'sb_complete'], pos='SB'))
+    # iso-raise over ONE limp
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'MP', 'calls', 1.0, pos='MP'), _L('preflop', 'Hero', 'raises', 5.0, pos='BTN')],
+                   {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3, ['facing_limp', 'iso_raise_1'], pos='BTN'))
+    # iso-raise over TWO limps
+    out.append(_mk([_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                    _L('preflop', 'UTG', 'calls', 1.0, pos='UTG'), _L('preflop', 'MP', 'calls', 1.0, pos='MP'),
+                    _L('preflop', 'Hero', 'raises', 6.0, pos='CO')],
+                   {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4, ['facing_limp', 'iso_raise_2'], pos='CO'))
+    return out
 
 
-def _gen_corpus():
-    """Return a list of (hand, reviewed_index, tags) generated across canonical classes."""
-    corpus = []
-    hid = 90000000
-
-    def add(led, ssb, idx, tags, fmt='NLHE', board=None):
-        nonlocal hid
-        hid += 1
-        h = {'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero', 'format': fmt,
-             'seat_stack_by_player': ssb, 'board': board or [], 'action_ledger': led}
-        corpus.append((h, idx, tags))
-
-    # vary stacks / antes / opponents systematically
-    for hero_stk in (8.0, 13.5, 22.0, 31.71, 55.0, 103.0):
-        for ante in (0.0, 0.12, 0.5):
-            posts = []
-            if ante:
-                posts = [_L('preflop', 'Hero', 'posts', ante), _L('preflop', 'V', 'posts', ante)]
-            # (a) CALL vs JAM (HU, Hero covers): V jams to min(hero,villain), Hero calls
-            vj = min(hero_stk, 40.0)
-            add(posts + [_L('preflop', 'V', 'raises', vj, True),
-                         _L('preflop', 'Hero', 'calls', min(vj, hero_stk - ante), True)],
-                {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['call_vs_jam', 'hu'], fmt='BOUNTY')
-            # (b) OVERJAM: V (deep) jams far above Hero -> callable capped, big overjam
-            add(posts + [_L('preflop', 'V', 'raises', 120.0, True),
-                         _L('preflop', 'Hero', 'calls', hero_stk - ante, True)],
-                {'Hero': hero_stk, 'V': 140.0}, len(posts) + 1, ['call_vs_jam', 'overjam', 'hu'],
-                fmt='BOUNTY')
-            # (c) FIRST-IN OPEN preflop
-            add(posts + [_L('preflop', 'Hero', 'raises', min(2.3, hero_stk - ante))],
-                {'Hero': hero_stk, 'V': 40.0}, len(posts), ['first_in_open', 'preflop'])
-            # (d) OPEN-SHOVE preflop (short)
-            if hero_stk <= 22.0:
-                add(posts + [_L('preflop', 'Hero', 'raises', hero_stk - ante, True)],
-                    {'Hero': hero_stk, 'V': 40.0}, len(posts), ['open_shove', 'preflop'], fmt='BOUNTY')
-            # (e) FOLD facing a raise
-            add(posts + [_L('preflop', 'V', 'raises', 3.0), _L('preflop', 'Hero', 'folds', 0)],
-                {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['fold', 'preflop'])
-            # (f) 3-BET (not all-in)
-            if hero_stk >= 22.0:
-                add(posts + [_L('preflop', 'V', 'raises', 2.5),
-                             _L('preflop', 'Hero', 'raises', 8.0)],
-                    {'Hero': hero_stk, 'V': 40.0}, len(posts) + 1, ['3bet', 'preflop'])
-            # (g) RE-JAM over a live raise
-            if hero_stk <= 31.71:
-                add(posts + [_L('preflop', 'V', 'raises', 2.5),
-                             _L('preflop', 'Hero', 'raises', hero_stk - ante, True)],
-                    {'Hero': hero_stk, 'V': 60.0}, len(posts) + 1, ['rejam', 'preflop'], fmt='BOUNTY')
-            # (h) postflop CALL vs JAM (multiway + side pot): Short all-in, Deep over, Hero calls
-            add([_L('preflop', 'Short', 'raises', 5.0, True), _L('preflop', 'Hero', 'calls', 5.0),
-                 _L('preflop', 'Deep', 'calls', 5.0),
-                 _L('flop', 'Deep', 'bets', 15.0, True),
-                 _L('flop', 'Hero', 'calls', min(15.0, hero_stk - 5.0), True)],
-                {'Hero': hero_stk, 'Short': 5.0, 'Deep': 80.0}, 4, ['call_vs_jam', 'multiway', 'sidepot'],
-                board=['2c', '7d', 'Js'], fmt='BOUNTY')
-            # (i) postflop BET (lead)
-            add([_L('preflop', 'Hero', 'raises', 2.5), _L('preflop', 'V', 'calls', 2.5),
-                 _L('flop', 'Hero', 'bets', min(4.0, hero_stk - 2.5))],
-                {'Hero': hero_stk, 'V': 40.0}, 2, ['first_in_open', 'postflop', 'bet'],
-                board=['2c', '7d', 'Js'])
-            # (j) CHECK
-            add([_L('preflop', 'Hero', 'raises', 2.5), _L('preflop', 'V', 'calls', 2.5),
-                 _L('flop', 'Hero', 'checks', 0)],
-                {'Hero': hero_stk, 'V': 40.0}, 2, ['check', 'postflop'], board=['2c', '7d', 'Js'])
-    # REV8 E4: unopened first-in folds at every position + BB check + limped pot
-    corpus.extend(_gen_first_in_folds())
-    return corpus
+def _kind_for(tags):
+    if 'postflop' in tags or 'multiway' in tags or 'sidepot' in tags:
+        return 'postflop_call_fold'
+    if any(t in tags for t in ('call_vs_jam', 'open_shove', 'rejam')):
+        return 'preflop_allin'
+    return 'preflop_deviation'
 
 
 def main():
     out_json = sys.argv[1] if len(sys.argv) > 1 else 'holdout_validation.json'
     out_log = sys.argv[2] if len(sys.argv) > 2 else 'holdout_validation.log'
+
+    import _qa_v817_synthetic as syn
+    from gem_report_draft import render_html
+    stats, rd, base_hands = syn.build()
+    rd.setdefault('reviewed_decision_ref_by_hand', {})
+    rd.setdefault('analyst_commentary', {})
+    rd.setdefault('pot_odds_by_hand', {})
+
     corpus = _gen_corpus()
-    cards = {}
-    tag_counts, hands_idx = {}, {}
-    overjam_n = multiway_n = bounty_n = 0
-    direct_violations = []
-    for h, idx, tags in corpus:
-        hands_idx[h['id']] = h
+    holdout_hands, our_idx, wl_items = [], {}, {}
+    tag_counts = {}
+    n_authoritative = n_inferred = 0
+    for i, (h, idx, tags) in enumerate(corpus):
         for t in tags:
             tag_counts[t] = tag_counts.get(t, 0) + 1
-        ref = ds.build_reviewed_decision_ref(h, idx, None, 'worklist_reviewed_action')
-        snap = ds.build_decision_snapshot(h, idx)
-        if (snap.get('uncallable_overjam_bb') or 0) > 0.2:
-            overjam_n += 1
-        if 'multiway' in tags:
-            multiway_n += 1
+        kind = _kind_for(tags)
+        # alternate authoritative (worklist ref) vs inferred (analyzer fallback) coverage
+        authoritative = (i % 4 != 0)
+        if authoritative:
+            ref = ds.build_reviewed_decision_ref(h, idx, kind, 'worklist_reviewed_action')
+            rd['reviewed_decision_ref_by_hand'][h['id']] = ref
+            rd['reviewed_decision_ref_by_hand'][h['id'][-8:]] = ref
+            wl_items[h['id']] = {'hand_id': h['id'], 'decision_kind': kind}
+            n_authoritative += 1
+        else:
+            h['reviewed_decision_ref'] = ds.build_reviewed_decision_ref(h)  # inferred fallback
+            n_inferred += 1
+        rd['analyst_commentary'][h['id']] = {'verdict': 'III.2', 'hand_strength': 'holdout case'}
+        rd['appendix_hand_ids_all'].append(h['id'])
         if h.get('format') == 'BOUNTY':
-            bounty_n += 1
-        # render the visible block through the SAME report helpers
-        _po = _reconcile_po_to_reviewed(None, ref)
-        rev_line = _reviewed_decision_line_md(_po)
-        lines = [rev_line]
-        if _po.get('reviewed_price_applicable') is not False and _po.get('reviewed_price_applicable'):
-            lines.append("**Pot odds:** %s (call %sBB into %sBB)" % (
-                _po.get('pot_odds', '—'), _po.get('call_bb', '—'), _po.get('pot_before_call_bb', '—')))
-        dai = _po.get('decision_action_index')
-        body = ("<div class='analyst-notes' data-decision-action-index='%s'>📊 %s</div>"
-                % (dai, ' · '.join(lines)))
-        cards[h['id']] = body
-        # ---- independent price-contract invariants (NOT via the gate) ----
-        ctext = _po.get('reviewed_action_display') or ''
-        if 'call' in ctext.lower() and ctext.lower().startswith('call'):
-            v_call = snap['callable_amount_bb']
-            depth = snap.get('effective_stack_at_decision_bb')
-            if depth is not None and v_call > depth + 0.2:
-                direct_violations.append({'hand': h['id'], 'why': 'callable_gt_depth'})
-            if (snap['raw_amount_to_match_bb'] - v_call) > 0.2 and abs(_po.get('call_bb', 0) - snap['raw_amount_to_match_bb']) <= 0.2:
-                direct_violations.append({'hand': h['id'], 'why': 'displayed_raw_overjam'})
-        # required equity only when price applies
-        if _po.get('reviewed_price_applicable') is False and _po.get('required_eq_pct') is not None:
-            direct_violations.append({'hand': h['id'], 'why': 'required_eq_on_nonprice_action'})
-        # REV8: a first-in / check / over-limps fold has NO price and must display "fold
-        # first-in" (never "fold facing"); the body must carry no pot odds.
-        if 'first_in_fold' in tags or 'facing_limp' in tags:
-            if snap.get('price_applicable') is not False:
-                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_priced'})
-            if 'fold facing' in (_po.get('reviewed_action_display') or ''):
-                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_facing_wording'})
-            if 'Pot odds:' in body:
-                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_pot_odds'})
+            try:
+                h['decision_bounty_context'] = ds.build_decision_bounty_context(h, idx)
+                h['decision_bounty_context_by_action_index'] = {idx: h['decision_bounty_context']}
+            except Exception:
+                pass
+        holdout_hands.append(h)
+        our_idx[h['id']] = h
+        our_idx[h['id'][-8:]] = h
 
-    html = _mk_lazy_html(cards)
-    gate = qp.gate_report_visible_decision(hands_idx, html)
-    gate_fr = qp.gate_report_full_render(hands_idx, html)
-    violations = (list(direct_violations) + list(gate.get('mismatches', []))
-                  + list(gate_fr.get('mismatches', [])))
+    prev = os.environ.get('GEM_LAZY_HANDS')
+    os.environ['GEM_LAZY_HANDS'] = '1'
+    try:
+        html = render_html(stats, rd, base_hands + holdout_hands, sections=['XIV'])
+    finally:
+        if prev is None:
+            os.environ.pop('GEM_LAZY_HANDS', None)
+        else:
+            os.environ['GEM_LAZY_HANDS'] = prev
 
+    cards = decode_lazy_hands(html)
+    wl = {'items': wl_items}
+    gate_vd = qp.gate_report_visible_decision(our_idx, html, wl)
+    gate_fr = qp.gate_report_full_render(our_idx, html, wl)
+    # direct invariant: every facing-limp / first-in fold renders correctly + no pot odds
+    direct = []
+    for h, idx, tags in corpus:
+        s = ds.build_decision_snapshot(h, idx)
+        disp = ds.reviewed_action_display(h, idx, s)['display_text']
+        b = cards.get(h['id'][-8:]) or cards.get(h['id']) or ''
+        if 'facing_limp' in tags:
+            if 'first-in' in disp:
+                direct.append({'hand': h['id'], 'why': 'facing_limp_rendered_first_in'})
+            if 'fold_over_limp' in tags and 'fold over limp' not in b:
+                direct.append({'hand': h['id'], 'why': 'limp_fold_wording_missing'})
+        if ('first_in_fold' in tags or 'facing_limp' in tags) and s.get('price_applicable') and disp.startswith('fold'):
+            direct.append({'hand': h['id'], 'why': 'first_in_or_limp_fold_priced'})
+
+    violations = list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', [])) + direct
+    rendered = sum(1 for h, _, _ in corpus if (cards.get(h['id'][-8:]) or cards.get(h['id'])))
     summary = {
-        'hands_tested': len(corpus),
-        'decisions_tested': gate.get('checked', 0),
+        'production_render_entrypoint': PROD_RENDER_ENTRYPOINT,
+        'hands_generated': len(corpus),
+        'hands_rendered_in_report': rendered,
+        'visible_decision_blocks_checked': gate_vd.get('checked', 0),
+        'full_render_blocks_checked': gate_fr.get('checked', 0),
+        'authoritative_cases': n_authoritative,
+        'inferred_cases': n_inferred,
         'action_type_distribution': tag_counts,
-        'overjam_cases': overjam_n,
-        'multiway_cases': multiway_n,
-        'bounty_cases': bounty_n,
-        'gate_mismatches': len(gate.get('mismatches', [])),
-        'full_render_gate_mismatches': len(gate_fr.get('mismatches', [])),
-        'direct_invariant_violations': len(direct_violations),
-        'first_in_fold_cases': tag_counts.get('first_in_fold', 0),
+        'visible_decision_mismatches': len(gate_vd.get('mismatches', [])),
+        'full_render_mismatches': len(gate_fr.get('mismatches', [])),
+        'direct_invariant_violations': len(direct),
         'semantic_violations': len(violations),
-        'violations': violations[:50],
-        'pass': len(violations) == 0,
+        'violations': violations[:60],
+        'pass': len(violations) == 0 and rendered > 0 and gate_fr.get('checked', 0) > 0,
     }
     with io.open(out_json, 'w', encoding='utf-8') as fh:
         json.dump(summary, fh, indent=2, ensure_ascii=False)
-    lines = ['=' * 64, 'REV7 B6 — GENERATED-CORPUS HOLDOUT VALIDATION (generic, not hand-ID-fitted)',
-             '=' * 64,
-             'hands tested            : %d' % summary['hands_tested'],
-             'decisions tested (gate) : %d' % summary['decisions_tested'],
-             'overjam cases           : %d' % overjam_n,
-             'multiway cases          : %d' % multiway_n,
-             'bounty cases            : %d' % bounty_n,
-             'action-type distribution: %s' % json.dumps(tag_counts),
-             'gate mismatches         : %d' % summary['gate_mismatches'],
-             'direct invariant viols  : %d' % summary['direct_invariant_violations'],
+    lines = ['=' * 64, 'REV9 B1 — REAL PRODUCTION-RENDER HOLDOUT', '=' * 64,
+             'production renderer : ' + PROD_RENDER_ENTRYPOINT,
+             'hands generated     : %d' % len(corpus),
+             'hands rendered      : %d' % rendered,
+             'full-render checked : %d' % gate_fr.get('checked', 0),
+             'visible-dec checked : %d' % gate_vd.get('checked', 0),
+             'authoritative/inferred: %d / %d' % (n_authoritative, n_inferred),
+             'action-type dist   : %s' % json.dumps(tag_counts),
              '-' * 64,
-             'semantic violations     : %d' % summary['semantic_violations'],
+             'visible-decision mismatches : %d' % len(gate_vd.get('mismatches', [])),
+             'full-render mismatches      : %d' % len(gate_fr.get('mismatches', [])),
+             'direct invariant violations : %d' % len(direct),
+             'semantic violations         : %d' % len(violations),
              'RESULT: %s' % ('PASS' if summary['pass'] else 'FAIL')]
     if violations:
         lines.append('VIOLATIONS:')
-        for v in violations[:50]:
+        for v in violations[:60]:
             lines.append('  ' + json.dumps(v))
     with io.open(out_log, 'w', encoding='utf-8') as fh:
         fh.write('\n'.join(lines) + '\n')

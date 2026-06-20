@@ -49,6 +49,17 @@ def main():
                 by_id[str(key)] = h
                 by_id[_bare(key)] = h
 
+    # REV9 C2: load the persisted report_data (for coaching-card ownership) if available.
+    import glob as _glob_inv
+    report_data = {}
+    try:
+        _rd_files = sorted(_glob_inv.glob('/home/claude/gem_report_data_*.json')
+                           + _glob_inv.glob('C:/home/claude/gem_report_data_*.json'))
+        if _rd_files:
+            report_data = json.load(io.open(_rd_files[-1], 'r', encoding='utf-8'))
+    except Exception:
+        report_data = {}
+
     inv = {
         'decision_time_eligible_bounties': [],
         'aggregate_reason_combinations': {},
@@ -111,6 +122,12 @@ def main():
         'postflop_selected_shows_preflop_range_as_selected': [],
         'not_applicable_bounty_collectible_teaching': [],
         'inferred_labelled_reviewed': [],
+        # REV9 required zero-counts (facing-limp + structured range + coaching ownership)
+        'facing_limp_rendered_first_in': [],
+        'facing_limp_using_first_in_price_reason': [],
+        'facing_limp_using_first_in_range_as_selected': [],
+        'range_block_wrong_node_as_selected': [],
+        'coaching_selected_action_mismatch': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -366,12 +383,49 @@ def main():
         'postflop_selected_shows_preflop_range_as_selected': 'postflop_selected_shows_preflop_range_as_selected',
         'not_applicable_bounty_collectible_teaching': 'not_applicable_bounty_collectible_teaching',
         'not_applicable_bounty_positive_incentive': 'not_applicable_bounty_collectible_teaching',
+        'facing_limp_rendered_first_in': 'facing_limp_rendered_first_in',
     }
     for mm in _gfr.get('mismatches', []):
         _c = _FR_CATS.get(mm.get('field'))
         if _c:
             viol[_c].append(mm)
     inv['full_render_blocks_checked'] = _gfr.get('checked', 0)
+    # REV9 A/D/C2: model-level facing-limp + structured range-node + coaching ownership.
+    from gem_report_draft.sections_xiv import range_ownership_record as _ror
+    from gem_report_draft._helpers import hand_range_evidence as _hre_inv
+    for h in hands:
+        _hid_inv = (h.get('tournament_hand_id') or h.get('id'))
+        _idx_inv = ds.infer_reviewed_action_index(h)
+        if _idx_inv is None:
+            continue
+        _s_inv = ds.build_decision_snapshot(h, _idx_inv)
+        _ref_inv = ds.build_reviewed_decision_ref(h, _idx_inv)
+        if _s_inv.get('decision_facing_state') == 'facing_limp':
+            # a facing-limp decision must use the limp price reason, never a first-in one.
+            if str(_s_inv.get('price_reason') or '').startswith('first_in'):
+                viol['facing_limp_using_first_in_price_reason'].append({'hand': _hid_inv})
+            _ev_inv = _hre_inv(h) or {}
+            if _ev_inv.get('role') in ('rfi', 'open', 'first_in'):
+                _rec = _ror(h, _ev_inv, _ref_inv)
+                if _rec.get('ownership') == 'selected':
+                    viol['facing_limp_using_first_in_range_as_selected'].append({'hand': _hid_inv})
+        # structured range-node: a SELECTED range block must share the reviewed node family.
+        _ev2 = _hre_inv(h) or {}
+        if _ev2.get('role'):
+            _rec2 = _ror(h, _ev2, _ref_inv)
+            inv.setdefault('range_ownership_records', []).append(_rec2)
+            if _rec2.get('ownership') == 'selected' and _rec2.get('selected_node_type') != _rec2.get('range_node_type'):
+                from gem_report_draft.sections_xiv import _NODE_COMPAT as _NC
+                if _rec2.get('range_node_type') not in _NC.get(_rec2.get('selected_node_type'), set()):
+                    viol['range_block_wrong_node_as_selected'].append(_rec2)
+    # REV9 C2: coaching-card bounty context must derive from the reviewed action index.
+    _cc_inv = report_data.get('coaching_cards') or {}
+    inv['coaching_cards_checked'] = sum(len(v) for v in _cc_inv.values())
+    for _hid_cc, _cards_cc in _cc_inv.items():
+        for _card in _cards_cc:
+            if (_card.get('bounty_context_owner') == 'hand_level_default'):
+                viol['coaching_selected_action_mismatch'].append(
+                    {'hand': _hid_cc, 'card': _card.get('card_type')})
     # REV8 A2: a first-in / check / over-limps fold must never carry a call price.
     for h in hands:
         idx2 = ds.infer_reviewed_action_index(h)

@@ -127,10 +127,21 @@ def _build_decision_facts(h, stats, report_data):
     # villain at the decision (not the all-seats stack compare, which wrongly counts
     # folded big stacks); `_collectibility` preserves mixed distinctly. The context is
     # stamped by the analyzer; build it on the fly if the analyzer hasn't run.
-    _dbc_cc = h.get('decision_bounty_context')
-    if _dbc_cc is None and (fmt == 'BOUNTY' or bounty_bb):
+    # REV9 C2: the coaching card teaches the SELECTED decision, so its bounty context comes
+    # from the REVIEWED action index (the worklist-authored ref in report_data, else the
+    # analyzer/ledger-inferred ref) — NEVER the hand-level default (Hero's last action).
+    _rdref_cc = ((report_data.get('reviewed_decision_ref_by_hand') or {}).get(hid)
+                 or (report_data.get('reviewed_decision_ref_by_hand') or {}).get(
+                     hid[-8:] if len(hid) > 8 else hid)
+                 or h.get('reviewed_decision_ref') or {})
+    _rev_idx_cc = _rdref_cc.get('hero_action_index')
+    _dbc_cc = None
+    if fmt == 'BOUNTY' or bounty_bb:
         try:
-            _dbc_cc = _ds.build_decision_bounty_context(h)
+            if _rev_idx_cc is not None:
+                _dbc_cc = _ds.build_decision_bounty_context(h, _rev_idx_cc)
+            else:
+                _dbc_cc = h.get('decision_bounty_context') or _ds.build_decision_bounty_context(h)
         except Exception:
             _dbc_cc = {}
     _dbc_cc = _dbc_cc or {}
@@ -174,6 +185,11 @@ def _build_decision_facts(h, stats, report_data):
     facts = {
         'hand_id': hid,
         'street': street,
+        # REV9 C2: the selected reviewed action this card teaches (for the ownership inventory).
+        'reviewed_action_index': _rev_idx_cc,
+        'reviewed_selection_source': _rdref_cc.get('selection_source'),
+        'bounty_context_owner': ('reviewed_action_index' if _rev_idx_cc is not None
+                                 else ('hand_level_default' if (fmt == 'BOUNTY' or bounty_bb) else 'not_applicable')),
         'decision_meta': {
             'pf_action': h.get('pf_action', ''),
             'hero_bets': len(h.get('hero_bets', [])) if isinstance(h.get('hero_bets', []), (list, tuple)) else (h.get('hero_bets', 0) or 0),
@@ -1128,6 +1144,11 @@ def _build_display_card(facts, gates, interp, confidence):
         'variant': interp.get('variant', ''),
         'display_confidence': confidence,
         'provenance': facts['provenance'],
+        # REV9 C2: the selected reviewed action this card's decision facts derive from
+        # (the consumer-ownership inventory proves coaching-card bounty context is the
+        # reviewed action, never the hand-level default).
+        'reviewed_action_index': facts.get('reviewed_action_index'),
+        'bounty_context_owner': facts.get('bounty_context_owner'),
     }
 
 

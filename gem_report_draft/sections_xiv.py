@@ -247,29 +247,106 @@ def _reviewed_bounty_ctx(h, _rdref):
         return None
 
 
+def _ev_range_node_type(ev):
+    """REV9 D: map the range-evidence object to a canonical NODE TYPE."""
+    role = (ev or {}).get('role') or ''
+    act = (ev or {}).get('hero_action') or ''
+    if role in ('rfi', 'open', 'first_in'):
+        return 'first_in_open'
+    if role in ('call_jam', 'callvjam'):
+        return 'call_vs_jam'
+    if role in ('3bet', 'threebet'):
+        return 'three_bet'
+    if role in ('4bet',):
+        return 'four_bet'
+    if role in ('bb_defend', 'defend'):
+        return 'bb_defend'
+    if role in ('rejam', 're_jam'):
+        return 're_jam'
+    if role in ('open_shove', 'push'):
+        return 'open_shove'
+    return ('first_in_open' if act == 'raise' else ('call_vs_jam' if act == 'call' else 'unknown'))
+
+
+def _reviewed_node_type(rdref):
+    """REV9 D: map the reviewed action (kind + facing state) to a canonical NODE TYPE."""
+    kind = (rdref or {}).get('hero_action_kind') or ''
+    facing = (rdref or {}).get('decision_facing_state') or ''
+    street = (rdref or {}).get('street') or ''
+    if street and street != 'preflop':
+        return 'postflop'
+    if facing == 'facing_limp':
+        if kind == 'fold':
+            return 'fold_over_limp'
+        return 'iso_raise'        # iso-raise / overlimp / complete over a limp — NOT a first-in RFI
+    if kind == 'first_in_open':
+        return 'first_in_open'
+    if kind == 'fold':
+        return 'fold_first_in' if facing in ('first_in', 'check_option') else 'call_vs_jam'
+    if kind in ('3bet',):
+        return 'three_bet'
+    if kind in ('4bet', '5bet_plus'):
+        return 'four_bet'
+    if kind in ('call_vs_jam', 'call_off', 'call'):
+        return 'call_vs_jam'
+    if kind == 'open_shove':
+        return 'open_shove'
+    if kind in ('rejam_over_live_raise', 'overjam_with_side_pot'):
+        return 're_jam'
+    return 'unknown'
+
+
+# node-type families that may legitimately share a range chart
+_NODE_COMPAT = {
+    'first_in_open': {'first_in_open'},
+    'iso_raise': {'iso_raise'},               # NEVER first_in_open (a limp changed the spot)
+    'three_bet': {'three_bet'},
+    'four_bet': {'four_bet'},
+    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
+    'open_shove': {'open_shove', 'first_in_open'},
+    're_jam': {'re_jam', 'three_bet'},
+    'fold_first_in': {'first_in_open', 'fold_first_in'},
+    'fold_over_limp': {'iso_raise', 'fold_over_limp'},
+}
+
+
 def _range_evidence_ownership(ev, rdref):
-    """REV8 B2/B5: decide whether the PREFLOP range-evidence block describes the SELECTED
-    reviewed action. Returns (mode, label):
-      'selected' — render as the reviewed decision's range evidence;
-      'earlier'  — render only under an explicit 'earlier preflop context' label (the reviewed
-                   action is on a later street — 9 postflop hands had a preflop range block);
-      'suppress' — the block describes a DIFFERENT preflop action than the reviewed one
-                   (84074364: reviewed first-in OPEN but the range block is a 'call a jam')."""
+    """REV8 B2/B5 / REV9 D: decide whether the PREFLOP range-evidence block describes the
+    SELECTED reviewed action, by ACTION INDEX + STREET + NODE TYPE (not merely raise-vs-call).
+    Returns (mode, label):
+      'selected' — the range NODE matches the reviewed action's node;
+      'earlier'  — the reviewed action is on a later street (label as earlier preflop context);
+      'suppress' — the range describes a DIFFERENT node than the reviewed one (84074364 open vs
+                   'call a jam'; a facing-limp iso-raise must NOT use a first-in RFI chart)."""
     if not rdref:
         return 'selected', ''
     rstreet = rdref.get('street')
-    rkind = rdref.get('hero_action_kind') or ''
     if rstreet and rstreet != 'preflop':
         return 'earlier', ("*Earlier preflop context — not the reviewed %s decision.*" % rstreet)
-    ev_act = (ev or {}).get('hero_action')   # 'raise' (open/3-bet) | 'call'
-    _aggr = rkind in ('first_in_open', '3bet', '4bet', '5bet_plus', 'open_shove',
-                      'rejam_over_live_raise', 'overjam_with_side_pot')
-    _callk = rkind in ('call_vs_jam', 'call_off', 'call')
-    if _aggr and ev_act == 'call':
-        return 'suppress', ''
-    if _callk and ev_act == 'raise':
-        return 'suppress', ''
-    return 'selected', ''
+    rev_node = _reviewed_node_type(rdref)
+    ev_node = _ev_range_node_type(ev)
+    if ev_node == 'unknown' or rev_node == 'unknown':
+        return 'selected', ''   # nothing to contradict
+    if ev_node in _NODE_COMPAT.get(rev_node, {rev_node}):
+        return 'selected', ''
+    return 'suppress', ''
+
+
+def range_ownership_record(h, ev, rdref):
+    """REV9 D: structured per-block range ownership record for the inventory/gate."""
+    mode, _ = _range_evidence_ownership(ev, rdref)
+    return {
+        'hand_id': h.get('id', ''),
+        'selected_action_index': (rdref or {}).get('hero_action_index'),
+        'selected_street': (rdref or {}).get('street'),
+        'range_street': 'preflop',
+        'selected_node_type': _reviewed_node_type(rdref),
+        'range_node_type': _ev_range_node_type(ev),
+        'hero_position': (rdref or {}).get('hero_position') or (ev or {}).get('position'),
+        'effective_depth_bb': (rdref or {}).get('effective_stack_at_decision_bb'),
+        'chart_key': (ev or {}).get('chart_key'),
+        'ownership': mode,
+    }
 
 
 def _reconcile_po_to_reviewed(_po, _rdref):

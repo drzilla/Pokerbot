@@ -10556,6 +10556,14 @@ if __name__ == '__main__':
     if _n_cc:
         print(f"  Coaching cards: {_n_cc} cards for "
               f"{len(report_data['coaching_cards'])} hands")
+    # REV9 C2/C3: the report_data JSON was dumped BEFORE coaching_cards were built, so the
+    # persisted file lacked them (consumer-ownership evidence read 0). Re-dump now so the
+    # coaching-card ownership (reviewed_action_index) is in the file post-hoc consumers read.
+    try:
+        with open(rd_path, 'w', encoding='utf-8') as _ccf:
+            json.dump(report_data, _ccf, indent=2, default=str, ensure_ascii=False)
+    except Exception:
+        pass
 
     _t0 = _time.perf_counter()
     # Perf fix (Ron 2026-05-30): render_both() builds the Doc ONCE and

@@ -644,6 +644,10 @@ def gate_report_full_render(hands_idx, html, worklist=None):
                 viol('not_applicable_bounty_collectible_teaching')
             if 'positive incentive to continue' in body:
                 viol('not_applicable_bounty_positive_incentive')
+        # 6) REV9: a FACING-LIMP decision must NEVER render as first-in (another player limped).
+        if facing == 'facing_limp' and re.search(
+                r'(?:Reviewed decision|Inferred decision context):</strong>\s*[a-z]+,\s*fold first-in', body):
+            viol('facing_limp_rendered_first_in')
     return out
 
 

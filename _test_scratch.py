@@ -11734,12 +11734,102 @@ _bb_co = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', '
              {'Hero': 40.0, 'SB': 40.0, 'BTN': 40.0}, 3)
 check('T-REV8-03 (A1): BB unraised -> check_option, price NOT applicable',
       _bb_co[0] == 'check_option' and _bb_co[1] is False, str(_bb_co))
-# limper, no raise, Hero on BTN -> facing_limp, no price
+# REV9 A1/A2: limp, no raise, Hero BTN folds -> facing_limp (DISTINCT from first_in),
+# no pot-odds price, but the display is "fold over limp" (NEVER "fold first-in").
 _lp = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
            _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BTN')],
           {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
-check('T-REV8-04 (A1): fold over a limp (no raise) -> facing_limp, price NOT applicable, "fold first-in"',
-      _lp == ('facing_limp', False, 'fold first-in'), str(_lp))
+check('T-REV9-01 (A2): fold over ONE limp -> facing_limp, price NOT applicable, "fold over limp" (not first-in)',
+      _lp == ('facing_limp', False, 'fold over limp'), str(_lp))
+# fold after TWO limpers -> "fold after 2 limpers"
+_lp2 = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'calls', 1.0, 'MP'),
+            _Lp('preflop', 'Hero', 'folds', 0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-02 (A2): fold after TWO limpers -> "fold after 2 limpers"',
+      _lp2 == ('facing_limp', False, 'fold after 2 limpers'), str(_lp2))
+# overlimp call (BTN calls 1 over a limp) -> "overlimp 1BB"
+_ol = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'calls', 1.0, 'BTN')],
+          {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-03 (A2): overlimp (BTN calls over a limp) -> facing_limp, "overlimp 1BB", overlimp_cost preserved',
+      _ol[0] == 'facing_limp' and _ol[2] == 'overlimp 1BB', str(_ol))
+# SB complete after limp -> "complete 0.5BB after 1 limper"
+_sc = _fs([_Lp('preflop', 'Hero', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'calls', 0.5, 'SB')],
+          {'Hero': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-04 (A2): SB complete after a limp -> facing_limp, "complete 0.5BB after 1 limper"',
+      _sc[0] == 'facing_limp' and _sc[2] == 'complete 0.5BB after 1 limper', str(_sc))
+# BB check after limp -> check_option (already), display "check"
+_bbc = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'checks', 0, 'BB')],
+           {'Hero': 40.0, 'SB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-05 (A2): BB check after a limp -> check_option (to_call 0), display "check"',
+      _bbc[0] == 'check_option' and _bbc[2] == 'check', str(_bbc))
+# iso-raise after ONE limp -> "iso-raise to XBB over 1 limper"
+_iso = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'raises', 5.0, 'BTN')],
+           {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-06 (A2): iso-raise over ONE limp -> facing_limp, "iso-raise to 5BB over 1 limper" (not "open to")',
+      _iso[0] == 'facing_limp' and _iso[2] == 'iso-raise to 5BB over 1 limper', str(_iso))
+# iso-raise after TWO limps -> "iso-raise to XBB over 2 limpers"
+_iso2 = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+             _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'calls', 1.0, 'MP'),
+             _Lp('preflop', 'Hero', 'raises', 6.0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-07 (A2): iso-raise over TWO limps -> "iso-raise to 6BB over 2 limpers"',
+      _iso2[0] == 'facing_limp' and _iso2[2] == 'iso-raise to 6BB over 2 limpers', str(_iso2))
+# limp THEN raise, then Hero acts -> facing_raise (a raise reopened), priced
+_lr = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'raises', 4.0, 'MP'),
+           _Lp('preflop', 'Hero', 'folds', 0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-08 (A2): limp THEN raise, Hero acts -> facing_raise (priced), "fold facing 4BB"',
+      _lr[0] == 'facing_raise' and _lr[1] is True and _lr[2].startswith('fold facing '), str(_lr))
+# ---- REV9 E: failure-injection + structured-range-node + ownership gates ----
+import base64 as _r9b64, zlib as _r9z, json as _r9j
+def _mk_lazy9(cards):
+    _co = _r9z.compressobj(9, _r9z.DEFLATED, -15)
+    _raw = _co.compress(_r9j.dumps(cards).encode('utf-8')) + _co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _r9b64.b64encode(_raw).decode('ascii'))
+# (1) HJ limps, Hero BTN folds, renderer WRONGLY says "fold first-in" -> gate catches
+_r9_limp = {'id': '87000001', 'tournament_hand_id': '87000001', 'hero': 'Hero', 'format': 'NLHE',
+            'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'HJ': 30.0}, 'board': [],
+            'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                              _Lp('preflop', 'HJ', 'calls', 1.0, 'HJ'), _Lp('preflop', 'Hero', 'folds', 0, 'BTN')]}
+_r9_hidx = _qp._hand_index([_r9_limp])
+_bad_limp = ("<article><div data-decision-action-index='3'><strong>Reviewed decision:</strong> preflop, "
+             "fold first-in, effective depth ≈30.00BB</div></article>")
+_g_limp = _qp.gate_report_full_render(_r9_hidx, _mk_lazy9({'87000001': _bad_limp}))
+check('T-REV9-09 (E): full-render gate CATCHES a facing-limp fold rendered as "fold first-in"',
+      any(m['field'] == 'facing_limp_rendered_first_in' for m in _g_limp['mismatches']), str(_g_limp['mismatches']))
+# (2) structured range-node: an iso-raise (facing_limp) must NOT accept a first-in RFI chart as
+# selected merely because both are 'raise'.
+from gem_report_draft.sections_xiv import _range_evidence_ownership as _reo9, _reviewed_node_type as _rnt9, _ev_range_node_type as _evn9
+_iso_ref = _ds.build_reviewed_decision_ref({'id': 'ISO', 'hero': 'Hero', 'format': 'NLHE',
+    'seat_stack_by_player': {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 'board': [],
+    'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                      _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'raises', 5.0, 'BTN')]}, 3)
+_rfi_ev = {'role': 'rfi', 'hero_action': 'raise', 'chart_key': 'OPEN_30BB_BTN'}
+check('T-REV9-10 (D): an iso-raise (facing_limp) does NOT accept a first-in RFI chart as selected (node-exact)',
+      _rnt9(_iso_ref) == 'iso_raise' and _evn9(_rfi_ev) == 'first_in_open'
+      and _reo9(_rfi_ev, _iso_ref)[0] == 'suppress', str((_rnt9(_iso_ref), _reo9(_rfi_ev, _iso_ref))))
+# (3) coaching card bounty context reads the REVIEWED action index, not hand-level default
+_cc_src9 = open('gem_coaching_cards.py', encoding='utf-8').read()
+check('T-REV9-11 (C2): coaching-card bounty context derives from the reviewed action index',
+      "build_decision_bounty_context(h, _rev_idx_cc)" in _cc_src9
+      and "'bounty_context_owner'" in _cc_src9
+      and "report_data.get('reviewed_decision_ref_by_hand')" in _cc_src9, '')
+# (4) the holdout runs the REAL production renderer (not helper fragments)
+_ho_src9 = open('_qa_holdout.py', encoding='utf-8').read()
+check('T-REV9-12 (B1/E): the holdout invokes the REAL production hand-detail renderer (render_html)',
+      'render_html(stats' in _ho_src9 and "sections=['XIV']" in _ho_src9
+      and '_reviewed_decision_line_md' not in _ho_src9, '')
+# (5) a 3-bet range is NOT accepted merely because source and target are both 'raise'
+_3b_ref = _ds.build_reviewed_decision_ref({'id': '3B', 'hero': 'Hero', 'format': 'NLHE',
+    'seat_stack_by_player': {'Hero': 40.0, 'V': 40.0}, 'board': [],
+    'action_ledger': [_Lp('preflop', 'V', 'raises', 2.5, 'CO'), _Lp('preflop', 'Hero', 'raises', 9.0, 'BTN')]}, 1)
+_open_ev = {'role': 'rfi', 'hero_action': 'raise'}
+check('T-REV9-13 (D): a reviewed 3-bet does NOT accept a first-in OPEN range (both raise) as selected',
+      _rnt9(_3b_ref) == 'three_bet' and _reo9(_open_ev, _3b_ref)[0] == 'suppress', str(_reo9(_open_ev, _3b_ref)))
 # facing a real raise -> facing_raise, PRICE applicable, 'fold facing XBB'
 _fr = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
            _Lp('preflop', 'MP', 'raises', 2.5, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BB')],

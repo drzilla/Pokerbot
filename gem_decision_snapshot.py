@@ -350,7 +350,9 @@ def build_decision_snapshot(h, hero_action_index=None):
         elif facing_state == 'check_option':
             price_reason = 'check_option_no_price'
         elif facing_state == 'facing_limp':
-            price_reason = 'facing_limp_no_voluntary_raise'
+            # REV9 A3: a limp is NOT a voluntary raise, so no call/fold pot-odds are shown —
+            # but the cost to overlimp/complete is preserved (overlimp_cost_bb), never erased.
+            price_reason = 'limp_strategy_node'
         elif to_call <= _EPS:
             price_reason = 'no_wager_to_call'
         else:
@@ -408,6 +410,11 @@ def build_decision_snapshot(h, hero_action_index=None):
         # REV8 A1: canonical facing state at the reviewed action (forced posts excluded)
         'decision_facing_state': facing_state,
         'hero_position': _hero_pos,
+        # REV9 A3: limp context — the real call/complete option a limp creates is preserved as a
+        # typed field even when pot odds are not shown for a fold over a limp.
+        'limpers_before_hero': n_street_limps_before,
+        'overlimp_cost_bb': (callable_amount if facing_state == 'facing_limp' else None),
+        'iso_raise_context': (facing_state == 'facing_limp' and n_street_limps_before > 0),
         'effective_stack_at_start_of_street_bb': eff_at_start_of_street,
         'effective_stack_at_decision_bb': eff_at_decision,
         'effective_stack_by_opponent': eff_by_opp,
@@ -480,11 +487,40 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     _preflop = (street == 'preflop')
     _facing = snap.get('decision_facing_state')
     _faces_wager_disp = _facing in ('facing_raise', 'facing_bet', 'facing_jam', 'facing_reopen')
+    hero_pos = snap.get('hero_position')
+    n_limp = int(snap.get('limpers_before_hero') or 0)
+    # ── REV9 A2: FACING-LIMP is DISTINCT from first-in — another player has entered the pot.
+    # A fold over a limp is 'fold over limp' (never 'fold first-in'); a call is an overlimp /
+    # SB complete; a raise is an iso-raise. ──
+    if _facing == 'facing_limp':
+        _lw = 'limper' if n_limp <= 1 else 'limpers'
+        if kind in ('call', 'call_vs_jam', 'call_off') or actual == 'calls':
+            if hero_pos == 'SB':
+                verb, text = 'complete', 'complete %sBB after %d %s' % (_g(callable_amt), n_limp, _lw)
+            else:
+                verb, text = 'overlimp', 'overlimp %sBB' % _g(callable_amt)
+        elif kind == 'open_shove' or (actual == 'raises' and evt.get('is_all_in')):
+            verb, text = 'iso-shove', 'iso-shove %sBB over %d %s' % (_g(total_to), n_limp, _lw)
+        elif kind in ('first_in_open', '3bet', '4bet', '5bet_plus') or actual == 'raises':
+            verb, text = 'iso-raise', 'iso-raise to %sBB over %d %s' % (_g(total_to), n_limp, _lw)
+        elif kind == 'check' or actual == 'checks':
+            verb, text = 'check', 'check'
+        elif kind == 'fold' or actual == 'folds':
+            verb, text = 'fold', ('fold over limp' if n_limp <= 1 else 'fold after %d limpers' % n_limp)
+        else:
+            verb, text = (actual or 'act'), (actual or 'act')
+        return {
+            'hero_action_kind': kind, 'hero_actual_action': actual,
+            'facing_action_kind': snap.get('faced_action_kind'), 'facing_price_bb': facing,
+            'action_added_bb': added, 'action_total_to_bb': total_to, 'callable_amount_bb': callable_amt,
+            'faced_action_added_bb': faced_added, 'display_verb': verb, 'display_text': text,
+            'limpers_before_hero': n_limp, 'overlimp_cost_bb': snap.get('overlimp_cost_bb'),
+        }
     if kind in ('call', 'call_vs_jam', 'call_off'):
         verb, text = 'call', 'call %sBB' % _g(callable_amt)
     elif kind == 'fold':
-        # REV8 A3: a FIRST-IN / over-limps / check-option fold faced NO voluntary wager — never
-        # render 'fold facing 1BB' (the forced big blind). It is a decline-to-open decision.
+        # REV8 A3: a FIRST-IN / check-option fold faced NO voluntary wager — never render
+        # 'fold facing 1BB' (the forced big blind). It is a decline-to-open decision.
         if _faces_wager_disp and facing > _EPS:
             verb, text = 'fold', 'fold facing %sBB' % _g(facing)
         else:
@@ -580,6 +616,8 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
         'price_reason': snap.get('price_reason'),
         'decision_facing_state': snap.get('decision_facing_state'),
         'hero_position': snap.get('hero_position'),
+        'limpers_before_hero': snap.get('limpers_before_hero'),
+        'overlimp_cost_bb': snap.get('overlimp_cost_bb'),
         'eligible_allin_amount_bb': snap.get('eligible_allin_amount_bb'),
         'pot_before_action_bb': snap.get('pot_before_action_bb'),
         'effective_stack_at_decision_bb': snap.get('effective_stack_at_decision_bb'),

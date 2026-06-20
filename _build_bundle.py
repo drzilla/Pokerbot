@@ -34,7 +34,11 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               # v8.17.1 Iter-1 (REV3): the end-to-end parity/semantic gate is now a
               # suite dependency (_test_scratch imports it for the gate-catches tests),
               # so it must extract with the runtime or the clean-room suite breaks.
-              '_qa_parity.py']
+              '_qa_parity.py',
+              # v8.17.1 Iter-1 (REV9): the real production-render holdout — the suite
+              # (T-REV9-12) reads its source to prove it invokes render_html, so it must
+              # extract with the runtime.
+              '_qa_holdout.py']
 
 # Stage-A kill list — never bundled
 KILL = {

@@ -247,6 +247,31 @@ def _reviewed_bounty_ctx(h, _rdref):
         return None
 
 
+def _range_evidence_ownership(ev, rdref):
+    """REV8 B2/B5: decide whether the PREFLOP range-evidence block describes the SELECTED
+    reviewed action. Returns (mode, label):
+      'selected' — render as the reviewed decision's range evidence;
+      'earlier'  — render only under an explicit 'earlier preflop context' label (the reviewed
+                   action is on a later street — 9 postflop hands had a preflop range block);
+      'suppress' — the block describes a DIFFERENT preflop action than the reviewed one
+                   (84074364: reviewed first-in OPEN but the range block is a 'call a jam')."""
+    if not rdref:
+        return 'selected', ''
+    rstreet = rdref.get('street')
+    rkind = rdref.get('hero_action_kind') or ''
+    if rstreet and rstreet != 'preflop':
+        return 'earlier', ("*Earlier preflop context — not the reviewed %s decision.*" % rstreet)
+    ev_act = (ev or {}).get('hero_action')   # 'raise' (open/3-bet) | 'call'
+    _aggr = rkind in ('first_in_open', '3bet', '4bet', '5bet_plus', 'open_shove',
+                      'rejam_over_live_raise', 'overjam_with_side_pot')
+    _callk = rkind in ('call_vs_jam', 'call_off', 'call')
+    if _aggr and ev_act == 'call':
+        return 'suppress', ''
+    if _callk and ev_act == 'raise':
+        return 'suppress', ''
+    return 'selected', ''
+
+
 def _reconcile_po_to_reviewed(_po, _rdref):
     """REV6 B2 / REV7 A1-A5: force the VISIBLE pot-odds block to describe the canonical
     reviewed action AND its CALLABLE price (never the raw to_call / overjam).
@@ -321,7 +346,13 @@ def _reviewed_decision_line_md(_po):
         # fallback (no action display): name the action kind, never assume 'call'
         call = _po.get('reviewed_call_bb')
         action_phrase = (f"call {_rdr_f(call):g}BB" if call is not None else 'decision')
-    parts = [f"**Reviewed decision:** {st}, {action_phrase}"]
+    # REV8 D1: only a WORKLIST-authoritative selection may be presented as the analyst-selected
+    # "Reviewed decision"; a ledger-inferred fallback is labelled "Inferred decision context"
+    # so it is never presented as analyst-selected and never feeds final verdict/status truth.
+    _label = ('Reviewed decision'
+              if _po.get('reviewed_selection_confidence') == 'authoritative'
+              else 'Inferred decision context')
+    parts = [f"**{_label}:** {st}, {action_phrase}"]
     if depth is not None:
         parts.append(f"effective depth ≈{_rdr_f(depth):.2f}BB")
     return ', '.join(parts)
@@ -3185,8 +3216,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         try:
             from gem_report_draft._helpers import range_evidence_md as _rem
             _rev = locals().get('_rev_xiva')
-            if _rev:
+            # REV8 B2: the preflop range block is the SELECTED decision's evidence only when
+            # the reviewed action is a matching preflop action; a postflop reviewed action gets
+            # it relabelled as earlier context, and a different preflop action suppresses it.
+            _re_mode, _re_label = _range_evidence_ownership(
+                _rev, _reviewed_ref(rd, h, hid, hid_short))
+            if _rev and _re_mode != 'suppress':
                 doc.w("")
+                if _re_label:
+                    doc.w(_re_label)
                 doc.w(_rem(_rev))
                 # Backstop lint: fire only on an ASSERTIVE inside/standard
                 # membership claim that survives the data corrections + the
@@ -3481,7 +3519,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 _po_lines.append(_bapp_note)
             _ev = _po.get('ev_call_bb')
             _vh = _po.get('verdict_hint', '')
-            if _ev is not None:
+            # REV8 B2: the EV-of-call / call verdict applies ONLY to a CALL/FOLD decision
+            # facing a wager. A first-in open / 3-bet / bet (price not applicable) must never
+            # show a 'call +EV vs shown' verdict (83765091).
+            if _ev is not None and _po.get('reviewed_price_applicable') is not False:
                 _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
             # v8.16.4 DTI: OPTIONAL root/downstream attribution render support on
             # the XIV.A full card too. Renders ONLY when a producer stamped
@@ -3534,7 +3575,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # never an empty/partial body or a bare verdict. Suppressed when the lead
         # capsule already states the gap (register == no_clear_lesson). Stamps
         # h['_allin_register'] for the build-gate validator (gem_analyzer Check 15).
-        if h.get('pf_allin'):
+        # REV8 B2: the all-in math note describes the SELECTED action — render it only when the
+        # REVIEWED action is an all-in CONFRONTATION (call-vs-jam / call-off / open-shove /
+        # re-jam / overjam), never when the reviewed action is a first-in open / 3-bet / bet /
+        # call / fold (84074364: a first-in open must not show 'call-vs-jam math').
+        _rev_kind_acn = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('hero_action_kind')
+        if h.get('pf_allin') and _rev_kind_acn in _ALLIN_REVIEW_KINDS:
             try:
                 from gem_review_trust import (classify_preflop_allin as _cpa_ac,
                                               allin_completeness_note as _acn)
@@ -3553,11 +3599,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
         _pko_ctx = ((rd.get('pko_research') or {}).get('by_hand', {})
                     .get(hid) or h.get('pko_context') or {})
-        # REV7 A5: the PKO BB-defense pill (and its bounty trust strip) describes the PREFLOP
-        # spot — render it ONLY when the reviewed/graded decision IS preflop. If the graded
-        # decision moved to a later street, the preflop pill's bounty cover would contradict
-        # the reviewed action (83914369/84074399 flop opens).
-        _rev_street_pko = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('street')
+        # REV7 A5: the PKO BB-defense pill describes the PREFLOP spot — render it ONLY when the
+        # reviewed decision is preflop (a later-street graded decision suppresses it).
+        # REV8 C1: preflop street equality is NOT enough for the bounty COVER claim — when the
+        # reviewed action's bounty_applicability is not_applicable, the cover/collectibility
+        # strip and positive-incentive teaching are suppressed and the pill is relabelled as
+        # population research (83793494 / 84074559), keeping the Δ-aggregate range note only.
+        _pko_ref = _reviewed_ref(rd, h, hid, hid_short) or {}
+        _rev_street_pko = _pko_ref.get('street')
+        _rev_bapp_pko = _pko_ref.get('bounty_applicability')
+        _pko_not_applicable = (_rev_bapp_pko == 'not_applicable')
         if _pko_ctx.get('enabled') and _rev_street_pko in (None, 'preflop'):
             _pk_rng = _pko_ctx.get('delta_range_pp') or [0, 0]
             _pk_d = (f"{_pk_rng[0]:+.1f} to {_pk_rng[1]:+.1f}pp"
@@ -3595,17 +3646,23 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                   f"\u00b7 {_pk_players} "
                   f"\u00b7 \u0394 {_pk_d} aggregate"
                   + (f" \u00b7 {_cov_lbl}"
-                     if _cov_lbl else ""))
+                     if (_cov_lbl and not _pko_not_applicable) else ""))
+            # REV8 C1: a not_applicable reviewed action gets the PKO aggregate as labelled
+            # POPULATION RESEARCH only \u2014 no cover/collectibility claim, no positive incentive.
+            if _pko_not_applicable:
+                doc.w("")
+                doc.w("  *PKO aggregate is population research for this spot family \u2014 not the "
+                      "selected decision's bounty eligibility (no committed bounty at this action).*")
             # Slice E rev-2: compact reconciled "Bounty trust:" strip (cover /
             # collectibility / bounty $ / chip-vs-PKO threshold), with a visible
             # contradiction flag so a bounty conclusion can never fight its math.
-            if _pk_render.get('strip_md'):
+            if _pk_render.get('strip_md') and not _pko_not_applicable:
                 doc.w("")
                 doc.w("  " + _pk_render['strip_md'])
             # v8.17 Epic B (B7): the explicit "how the bounty changes the decision"
             # coaching line — built by pko_trust_render from the SAME reconciled
             # facts (no recompute). Empty on a contradiction / no-bounty / Hero-covered.
-            if _pk_render.get('how_changes_md'):
+            if _pk_render.get('how_changes_md') and not _pko_not_applicable:
                 doc.w("")
                 doc.w("  " + _pk_render['how_changes_md'])
             # v8.16.4 Obj 9 / v8.17 B6: user-visible bounty PROVENANCE — one of the
@@ -4159,8 +4216,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             hand_range_evidence as _hre_b,
                             range_evidence_md as _rem_b)
                         _rev_b = _hre_b(h)
-                        if _rev_b:
+                        # REV8 B2: same ownership gate as XIV.A — selected / earlier-labelled /
+                        # suppressed depending on whether the range describes the reviewed action.
+                        _re_mode_b, _re_label_b = _range_evidence_ownership(
+                            _rev_b, _reviewed_ref(rd, h, hid, hid_short))
+                        if _rev_b and _re_mode_b != 'suppress':
                             doc.w("")
+                            if _re_label_b:
+                                doc.w(_re_label_b)
                             doc.w(_rem_b(_rev_b))
                     except Exception:
                         pass
@@ -4219,7 +4282,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     if _eq_b is not None:
                         _po_lines_b.append(f"**Hero equity vs range:** {_eq_b:.1f}%")
                     _vh_b = _po_b.get('verdict_hint', '')
-                    if _vh_b:
+                    # REV8 B2: a call verdict only on a CALL/FOLD decision (not an open/3-bet).
+                    if _vh_b and _po_b.get('reviewed_price_applicable') is not False:
                         _po_lines_b.append(f"**Verdict:** _{_vh_b}_")
                     if _po_lines_b:
                         _po_st_b = _street_attr(_po_b.get('street'))
@@ -4320,7 +4384,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # XIV.A (complete math OR explicit no_clear_lesson naming the gap;
                 # suppressed when the capsule already states it). Stamps the register
                 # for the build-gate validator.
-                if h.get('pf_allin'):
+                # REV8 B2: gate the compact all-in math on the REVIEWED action being an all-in
+                # confrontation (never a first-in open / 3-bet) — same rule as XIV.A.
+                _rev_kind_acnb = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('hero_action_kind')
+                if h.get('pf_allin') and _rev_kind_acnb in _ALLIN_REVIEW_KINDS:
                     try:
                         from gem_review_trust import (
                             classify_preflop_allin as _cpa_acb,
@@ -4346,8 +4413,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
 
                 _pko_ctx_b = ((rd.get('pko_research') or {}).get('by_hand', {})
                               .get(hid) or h.get('pko_context') or {})
-                # REV7 A5: PKO BB-defense pill renders only when the reviewed decision is preflop.
-                _rev_street_pko_b = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('street')
+                # REV7 A5 / REV8 C1: PKO pill renders only when the reviewed decision is preflop;
+                # a not_applicable reviewed bounty suppresses the cover claim + incentive.
+                _pko_ref_b = _reviewed_ref(rd, h, hid, hid_short) or {}
+                _rev_street_pko_b = _pko_ref_b.get('street')
+                _pko_not_applicable_b = (_pko_ref_b.get('bounty_applicability') == 'not_applicable')
                 if _pko_ctx_b.get('enabled') and _rev_street_pko_b in (None, 'preflop'):
                     _pkb_rng = _pko_ctx_b.get('delta_range_pp') or [0, 0]
                     _pkb_d = (f"{_pkb_rng[0]:+.1f} to {_pkb_rng[1]:+.1f}pp"
@@ -4390,11 +4460,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                           f"· {_pkb_pl} "
                           f"· Δ {_pkb_d} aggregate"
                           + (f" · {_pkb_cov}"
-                             if _pkb_cov else ""))
-                    if _pkb_render.get('strip_md'):
+                             if (_pkb_cov and not _pko_not_applicable_b) else ""))
+                    if _pko_not_applicable_b:
+                        doc.w("")
+                        doc.w("  *PKO aggregate is population research for this spot family — not "
+                              "the selected decision's bounty eligibility (no committed bounty at "
+                              "this action).*")
+                    if _pkb_render.get('strip_md') and not _pko_not_applicable_b:
                         doc.w("")
                         doc.w("  " + _pkb_render['strip_md'])
-                    if _pkb_render.get('how_changes_md'):
+                    if _pkb_render.get('how_changes_md') and not _pko_not_applicable_b:
                         doc.w("")
                         doc.w("  " + _pkb_render['how_changes_md'])
                     try:

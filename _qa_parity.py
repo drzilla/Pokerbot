@@ -473,9 +473,13 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
     out = {'checked': 0, 'mismatches': []}
     # REV7: the action phrase is action-TYPED ('call XBB' / 'open to XBB' / 'fold facing XBB' /
     # 're-jam XBB over a YBB price'), so capture the whole phrase between street and depth.
+    # REV8 D1: an authoritative selection renders 'Reviewed decision'; a ledger-inferred
+    # fallback renders 'Inferred decision context'. The gate parses BOTH and validates the
+    # SAME semantic invariants; a separate check below verifies the label matches the ref's
+    # selection_confidence.
     line_pat = re.compile(
-        r"Reviewed decision:(?:\s*</strong>|\s*\*\*)?\s*([A-Za-z]+),\s*(.+?),\s*"
-        r"effective depth\s*[≈~]?\s*([0-9.]+)\s*BB")
+        r"(Reviewed decision|Inferred decision context):(?:\s*</strong>|\s*\*\*)?\s*"
+        r"([A-Za-z]+),\s*(.+?),\s*effective depth\s*[≈~]?\s*([0-9.]+)\s*BB")
     call_amt_pat = re.compile(r"\bcall\s+([0-9.]+)\s*BB")
     idx_pat = re.compile(r"data-decision-action-index='(\d+)'")
     for hid, body in bodies.items():
@@ -486,7 +490,8 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
         if not lm:
             continue
         out['checked'] += 1
-        v_street, v_phrase, v_depth = lm.group(1).lower(), lm.group(2).strip(), _f(lm.group(3))
+        v_label = lm.group(1)
+        v_street, v_phrase, v_depth = lm.group(2).lower(), lm.group(3).strip(), _f(lm.group(4))
         # the data-decision-action-index belongs to the DIV CONTAINING the visible reviewed
         # line — i.e. the NEAREST PRECEDING attribute, NOT the first in the body (a hidden
         # per-decision-bounty-meta span at an earlier Hero action index).
@@ -546,6 +551,99 @@ def gate_report_visible_decision(hands_idx, html, worklist=None):
                     {'hand': hid, 'field': 'rendered_idx_not_reviewed_action',
                      'rendered_idx': ridx, 'reviewed_idx': canon_idx,
                      'rendered_street': snap.get('street'), 'reviewed_street': cs.get('street')})
+        # REV8 D1: the visible LABEL must match the selection AUTHORITY — a worklist-selected
+        # decision is "Reviewed decision"; a ledger-inferred fallback must be "Inferred
+        # decision context" and never presented as analyst-selected. Only enforced when the
+        # worklist is supplied (the authority source).
+        if worklist is not None:
+            _is_auth = (str(hid) in wl_ridx or str(hid)[-8:] in wl_ridx)
+            if _is_auth and v_label != 'Reviewed decision':
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'authoritative_labelled_inferred', 'label': v_label})
+            if (not _is_auth) and v_label == 'Reviewed decision':
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'inferred_labelled_reviewed', 'label': v_label})
+    return out
+
+
+def _gate_reviewed_ref(h, hid, wl_kind):
+    """Build the reviewed ref the SAME way the report does: worklist decision_kind (kind-aware)
+    when present, else ledger-inferred. Returns the canonical ref dict."""
+    import gem_decision_snapshot as _ds
+    kind = wl_kind.get(str(hid)) or wl_kind.get(str(hid)[-8:])
+    if kind:
+        from gem_analyst_worklist import _reviewed_action_index as _wl_rai
+        ridx = _wl_rai(h, kind)
+        return _ds.build_reviewed_decision_ref(h, ridx, kind, 'worklist_reviewed_action')
+    return _ds.build_reviewed_decision_ref(h)
+
+
+def gate_report_full_render(hands_idx, html, worklist=None):
+    """REV8 E1: parse the COMPLETE rendered hand article (not only the reviewed-decision line)
+    and prove EVERY decision-specific consumer agrees with the selected action's canonical
+    view — range evidence, verdict text, all-in math, PKO bounty teaching, price applicability,
+    and the authoritative/inferred label. Catches the REV7 boundary leaks that gate F (which
+    only validated the reviewed-decision sentence) missed."""
+    import gem_decision_snapshot as _ds
+    wl_kind = {}
+    if worklist:
+        _items = worklist.get('items') or {}
+        _items = list(_items.values()) if isinstance(_items, dict) else _items
+        for _it in _items:
+            _hid = str(_it.get('hand_id') or '')
+            if _hid and _it.get('decision_kind'):
+                wl_kind[_hid] = _it['decision_kind']
+                wl_kind[_hid[-8:]] = _it['decision_kind']
+    bodies = decode_lazy_hands(html)
+    out = {'checked': 0, 'mismatches': []}
+    _AGGR = ('first_in_open', '3bet', '4bet', '5bet_plus', 'open_shove',
+             'rejam_over_live_raise', 'overjam_with_side_pot', 'bet')
+    _ALLIN = ('call_vs_jam', 'call_off', 'open_shove', 'rejam_over_live_raise',
+              'overjam_with_side_pot')
+    for hid, body in bodies.items():
+        h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
+        if h is None:
+            continue
+        ref = _gate_reviewed_ref(h, hid, wl_kind)
+        if not ref:
+            continue
+        out['checked'] += 1
+        kind = ref.get('hero_action_kind')
+        street = ref.get('street')
+        price_appl = ref.get('price_applicable')
+        bapp = ref.get('bounty_applicability')
+        facing = ref.get('decision_facing_state')
+
+        def viol(field, **kw):
+            d = {'hand': hid, 'field': field}
+            d.update(kw)
+            out['mismatches'].append(d)
+
+        # 1) a non-price decision (first-in / open / bet / check) must not show a call price
+        if price_appl is False:
+            if 'Pot odds:' in body:
+                viol('nonprice_action_shows_pot_odds', kind=kind, facing=facing)
+            if 'Required equity:' in body:
+                viol('nonprice_action_shows_required_equity', kind=kind, facing=facing)
+            if 'EV of call:' in body or '**Verdict:** _' in body:
+                viol('nonprice_action_shows_call_verdict', kind=kind)
+        # 2) a NON-all-in reviewed action must not show all-in (call-vs-jam) math as selected
+        if kind not in _ALLIN and re.search(r'All-in math|call-vs-jam math|the complete call-vs-jam', body):
+            viol('non_allin_action_shows_allin_math', kind=kind)
+        # 3) an AGGRESSIVE preflop reviewed action must not show a 'call a jam' range as selected
+        if kind in _AGGR and re.search(r'call a (UTG|MP|HJ|CO|BTN|SB|LJ)', body):
+            viol('aggressive_action_shows_call_jam_range', kind=kind)
+        # 4) a POSTFLOP reviewed action that shows a preflop range block must label it as
+        #    earlier context (never present it as the selected decision's range evidence)
+        if street and street != 'preflop' and re.search(r'(first-in open|Range Logic|RFI core)', body):
+            if 'Earlier preflop context' not in body:
+                viol('postflop_selected_shows_preflop_range_as_selected', street=street)
+        # 5) a not_applicable bounty action must show NO collectible-bounty / positive-incentive
+        if bapp == 'not_applicable':
+            if 'bounty collectible' in body:
+                viol('not_applicable_bounty_collectible_teaching')
+            if 'positive incentive to continue' in body:
+                viol('not_applicable_bounty_positive_incentive')
     return out
 
 
@@ -668,6 +766,7 @@ def main():
     g_rb = gate_report_bounty(hands_idx, html)
     g_pd = gate_report_decision_bounty(hands_idx, html)
     g_vd = gate_report_visible_decision(hands_idx, html, worklist)
+    g_fr = gate_report_full_render(hands_idx, html, worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -696,8 +795,13 @@ def main():
           f"{len(g_vd['mismatches'])} mismatch(es)")
     for mm in g_vd['mismatches'][:40]:
         print('   ✗', mm)
+    print(f"G. FULL-RENDER CONSUMER OWNERSHIP : {g_fr['checked']} hand bodies checked, "
+          f"{len(g_fr['mismatches'])} mismatch(es)")
+    for mm in g_fr['mismatches'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
-          and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches'])
+          and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
+          and not g_fr['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -705,7 +809,8 @@ def main():
         with io.open(out_json, 'w', encoding='utf-8') as fh:
             json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
                        'report_bounty': g_rb, 'report_decision_bounty': g_pd,
-                       'report_visible_decision': g_vd, 'pass': ok}, fh, indent=2)
+                       'report_visible_decision': g_vd, 'report_full_render': g_fr,
+                       'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

@@ -29,6 +29,45 @@ def _L(street, player, action, added, allin=False, pos=None):
             'amount_bb': added, 'is_all_in': allin, 'position': pos}
 
 
+def _gen_first_in_folds():
+    """REV8 E4: unopened FIRST-IN folds at every position + BB check + limped pot — the class
+    responsible for the 254 real REV7 failures. Returns (hand, idx, tags)."""
+    out = []
+    hid = 91000000
+    for pos in ('UTG', 'UTG+1', 'MP', 'HJ', 'CO', 'BTN', 'SB'):
+        hid += 1
+        led = [_L('preflop', 'SB', 'posts', 0.5, pos='SB'), _L('preflop', 'BB', 'posts', 1.0, pos='BB')]
+        # everyone before `pos` folds; Hero (at pos) folds first-in
+        order = ['UTG', 'UTG+1', 'MP', 'HJ', 'CO', 'BTN', 'SB']
+        for q in order:
+            if q == pos:
+                break
+            if q not in ('SB', 'BB'):
+                led.append(_L('preflop', q, 'folds', 0, pos=q))
+        idx = len(led)
+        led.append(_L('preflop', 'Hero', 'folds', 0, pos=pos))
+        out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero',
+                     'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0},
+                     'board': [], 'action_ledger': led}, idx, ['first_in_fold', pos]))
+    # BB check option (limped pot)
+    hid += 1
+    out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero', 'format': 'NLHE',
+                 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BTN': 30.0}, 'board': [],
+                 'action_ledger': [_L('preflop', 'SB', 'posts', 0.5, pos='SB'),
+                                   _L('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                                   _L('preflop', 'BTN', 'calls', 1.0, pos='BTN'),
+                                   _L('preflop', 'Hero', 'checks', 0, pos='BB')]}, 3, ['check_option', 'BB']))
+    # limped pot, Hero on BTN folds over a limp
+    hid += 1
+    out.append(({'id': str(hid), 'tournament_hand_id': str(hid), 'hero': 'Hero', 'format': 'NLHE',
+                 'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'MP': 30.0}, 'board': [],
+                 'action_ledger': [_L('preflop', 'SB', 'posts', 0.5, pos='SB'),
+                                   _L('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                                   _L('preflop', 'MP', 'calls', 1.0, pos='MP'),
+                                   _L('preflop', 'Hero', 'folds', 0, pos='BTN')]}, 3, ['facing_limp', 'BTN']))
+    return out
+
+
 def _mk_lazy_html(cards):
     co = zlib.compressobj(9, zlib.DEFLATED, -15)
     raw = co.compress(json.dumps(cards).encode('utf-8')) + co.flush()
@@ -100,6 +139,8 @@ def _gen_corpus():
             add([_L('preflop', 'Hero', 'raises', 2.5), _L('preflop', 'V', 'calls', 2.5),
                  _L('flop', 'Hero', 'checks', 0)],
                 {'Hero': hero_stk, 'V': 40.0}, 2, ['check', 'postflop'], board=['2c', '7d', 'Js'])
+    # REV8 E4: unopened first-in folds at every position + BB check + limped pot
+    corpus.extend(_gen_first_in_folds())
     return corpus
 
 
@@ -146,10 +187,21 @@ def main():
         # required equity only when price applies
         if _po.get('reviewed_price_applicable') is False and _po.get('required_eq_pct') is not None:
             direct_violations.append({'hand': h['id'], 'why': 'required_eq_on_nonprice_action'})
+        # REV8: a first-in / check / over-limps fold has NO price and must display "fold
+        # first-in" (never "fold facing"); the body must carry no pot odds.
+        if 'first_in_fold' in tags or 'facing_limp' in tags:
+            if snap.get('price_applicable') is not False:
+                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_priced'})
+            if 'fold facing' in (_po.get('reviewed_action_display') or ''):
+                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_facing_wording'})
+            if 'Pot odds:' in body:
+                direct_violations.append({'hand': h['id'], 'why': 'first_in_fold_pot_odds'})
 
     html = _mk_lazy_html(cards)
     gate = qp.gate_report_visible_decision(hands_idx, html)
-    violations = list(direct_violations) + list(gate.get('mismatches', []))
+    gate_fr = qp.gate_report_full_render(hands_idx, html)
+    violations = (list(direct_violations) + list(gate.get('mismatches', []))
+                  + list(gate_fr.get('mismatches', [])))
 
     summary = {
         'hands_tested': len(corpus),
@@ -159,7 +211,9 @@ def main():
         'multiway_cases': multiway_n,
         'bounty_cases': bounty_n,
         'gate_mismatches': len(gate.get('mismatches', [])),
+        'full_render_gate_mismatches': len(gate_fr.get('mismatches', [])),
         'direct_invariant_violations': len(direct_violations),
+        'first_in_fold_cases': tag_counts.get('first_in_fold', 0),
         'semantic_violations': len(violations),
         'violations': violations[:50],
         'pass': len(violations) == 0,

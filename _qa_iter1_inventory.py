@@ -103,6 +103,14 @@ def main():
         'non_call_action_rendered_as_call': [],
         'visible_call_0bb': [],
         'capsule_or_action_mismatch': [],
+        # REV8 required zero-counts (facing-state + full consumer ownership)
+        'first_in_fold_priced': [],
+        'nonprice_action_shows_pot_odds': [],
+        'non_allin_action_shows_allin_math': [],
+        'aggressive_action_shows_call_jam_range': [],
+        'postflop_selected_shows_preflop_range_as_selected': [],
+        'not_applicable_bounty_collectible_teaching': [],
+        'inferred_labelled_reviewed': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -341,7 +349,41 @@ def main():
                     viol['non_call_action_rendered_as_call'].append(mm)
         else:
             viol['visible_decision_not_reviewed_action'].append(mm)
+    # REV8 D1: an inferred decision labelled "Reviewed decision" (gate F, worklist authority).
+    for mm in _gvd.get('mismatches', []):
+        if mm.get('field') == 'inferred_labelled_reviewed':
+            viol['inferred_labelled_reviewed'].append(mm)
     inv['visible_decision_blocks_checked'] = _gvd.get('checked', 0)
+    # REV8 E1: the FULL-RENDER consumer-ownership gate (range / verdict / all-in math / PKO /
+    # price applicability across the complete hand body).
+    _gfr = qp.gate_report_full_render(by_id, html, worklist)
+    _FR_CATS = {
+        'nonprice_action_shows_pot_odds': 'nonprice_action_shows_pot_odds',
+        'nonprice_action_shows_required_equity': 'nonprice_action_shows_pot_odds',
+        'nonprice_action_shows_call_verdict': 'nonprice_action_shows_pot_odds',
+        'non_allin_action_shows_allin_math': 'non_allin_action_shows_allin_math',
+        'aggressive_action_shows_call_jam_range': 'aggressive_action_shows_call_jam_range',
+        'postflop_selected_shows_preflop_range_as_selected': 'postflop_selected_shows_preflop_range_as_selected',
+        'not_applicable_bounty_collectible_teaching': 'not_applicable_bounty_collectible_teaching',
+        'not_applicable_bounty_positive_incentive': 'not_applicable_bounty_collectible_teaching',
+    }
+    for mm in _gfr.get('mismatches', []):
+        _c = _FR_CATS.get(mm.get('field'))
+        if _c:
+            viol[_c].append(mm)
+    inv['full_render_blocks_checked'] = _gfr.get('checked', 0)
+    # REV8 A2: a first-in / check / over-limps fold must never carry a call price.
+    for h in hands:
+        idx2 = ds.infer_reviewed_action_index(h)
+        if idx2 is None:
+            continue
+        s2 = ds.build_decision_snapshot(h, idx2)
+        if (s2.get('hero_action_kind') == 'fold'
+                and s2.get('decision_facing_state') in ('first_in', 'facing_limp', 'check_option')
+                and s2.get('price_applicable')):
+            viol['first_in_fold_priced'].append(
+                {'hand': (h.get('tournament_hand_id') or h.get('id')),
+                 'facing': s2.get('decision_facing_state'), 'pos': s2.get('hero_position')})
     # REV7: report-wide scans for the impossible-render signatures.
     import re as _re_rev7
     _decoded = ' '.join((qp.decode_lazy_hands(html) or {}).values())

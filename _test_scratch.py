@@ -11536,7 +11536,7 @@ _b2h = {'id': '84000001', 'tournament_hand_id': '84000001', 'hero': 'Hero', 'for
                           _Lb('turn', 'V', 'bets', 6.0), _Lb('turn', 'Hero', 'calls', 6.0),
                           _Lb('river', 'V', 'raises', 17.5, True), _Lb('river', 'Hero', 'calls', 17.5, True)]}
 _b2_idx = _ds.infer_reviewed_action_index(_b2h)
-_b2_ref = _ds.build_reviewed_decision_ref(_b2h, _b2_idx)
+_b2_ref = _ds.build_reviewed_decision_ref(_b2h, _b2_idx, 'postflop', 'worklist_reviewed_action')
 check('T-B2-01: canonical reviewed ref selects the RIVER jam-call (not the first all-in call)',
       _b2_ref['street'] == 'river' and _b2_ref['hero_action_index'] == 7
       and abs(_b2_ref['to_call_bb'] - 17.5) < 0.01, str(_b2_ref))
@@ -11704,6 +11704,81 @@ _m6_pt = _price_tuple(_m6, 4)
 check('T-META-06: an unrelated folded player does not alter Hero\'s callable price/raw/overjam',
       _m6_pt[0] == _base_pt[0] and _m6_pt[1] == _base_pt[1] and _m6_pt[2] == _base_pt[2]
       and _m6_pt[4] == _base_pt[4], str((_m6_pt[:3], _base_pt[:3])))
+
+# ============================================================
+# REV8: facing-state model (A1) + first-in-fold price (A2/A3) + full-render gate (E)
+# ============================================================
+def _Lp(street, p, act, added, pos=None, allin=False):
+    d = _Lb(street, p, act, added, allin); d['position'] = pos
+    return d
+def _fs(led, ssb, idx, fmt='NLHE', board=None):
+    h = {'id': 'FS', 'tournament_hand_id': '86000001', 'hero': 'Hero', 'format': fmt,
+         'seat_stack_by_player': ssb, 'board': board or [], 'action_ledger': led}
+    s = _ds.build_decision_snapshot(h, idx)
+    return s['decision_facing_state'], s['price_applicable'], _ds.reviewed_action_display(h, idx, s)['display_text']
+# A1: facing-state derived from VOLUNTARY action + forced-post state, never to_call>0
+# UTG first-in fold (only blinds before) -> first_in, no price, 'fold first-in'
+_u_fi = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+             _Lp('preflop', 'Hero', 'folds', 0, 'UTG')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0}, 2)
+check('T-REV8-01 (A1/A2): UTG first-in fold -> facing_state first_in, price NOT applicable, "fold first-in"',
+      _u_fi == ('first_in', False, 'fold first-in'), str(_u_fi))
+# SB unopened fold -> first_in (special), no price
+_sb_fi = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+              _Lp('preflop', 'BTN', 'folds', 0, 'BTN'), _Lp('preflop', 'Hero', 'folds', 0, 'SB')],
+             {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'BTN': 40.0}, 3)
+check('T-REV8-02 (A1): SB unopened fold -> first_in (special), price NOT applicable',
+      _sb_fi[0] == 'first_in' and _sb_fi[1] is False, str(_sb_fi))
+# BB with no raise -> check_option
+_bb_co = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+              _Lp('preflop', 'BTN', 'calls', 1.0, 'BTN'), _Lp('preflop', 'Hero', 'checks', 0, 'BB')],
+             {'Hero': 40.0, 'SB': 40.0, 'BTN': 40.0}, 3)
+check('T-REV8-03 (A1): BB unraised -> check_option, price NOT applicable',
+      _bb_co[0] == 'check_option' and _bb_co[1] is False, str(_bb_co))
+# limper, no raise, Hero on BTN -> facing_limp, no price
+_lp = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BTN')],
+          {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV8-04 (A1): fold over a limp (no raise) -> facing_limp, price NOT applicable, "fold first-in"',
+      _lp == ('facing_limp', False, 'fold first-in'), str(_lp))
+# facing a real raise -> facing_raise, PRICE applicable, 'fold facing XBB'
+_fr = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'raises', 2.5, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BB')],
+          {'Hero': 40.0, 'SB': 40.0, 'MP': 40.0}, 3)
+check('T-REV8-05 (A1/A2): fold facing a RAISE -> facing_raise, PRICE applicable, "fold facing 1.5BB"',
+      _fr[0] == 'facing_raise' and _fr[1] is True and _fr[2].startswith('fold facing '), str(_fr))
+# facing a jam -> facing_jam, price applicable
+_fj = _fs([_Lp('preflop', 'V', 'raises', 30, 'BTN', True), _Lp('preflop', 'Hero', 'folds', 0, 'BB')],
+          {'Hero': 25.0, 'V': 30.0}, 1)
+check('T-REV8-06 (A1): fold facing a JAM -> facing_jam, PRICE applicable',
+      _fj[0] == 'facing_jam' and _fj[1] is True, str(_fj))
+# E (full-render gate) failure injection
+import base64 as _r8b64, zlib as _r8z, json as _r8j
+def _mk_lazy(cards):
+    co = _r8z.compressobj(9, _r8z.DEFLATED, -15)
+    raw = co.compress(_r8j.dumps(cards).encode('utf-8')) + co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _r8b64.b64encode(raw).decode('ascii'))
+# a first-in-fold hand (UTG fold) whose body WRONGLY shows Pot odds -> gate catches
+_r8h = {'id': '86000002', 'tournament_hand_id': '86000002', 'hero': 'Hero', 'format': 'NLHE',
+        'seat_stack_by_player': {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0}, 'board': [],
+        'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                          _Lp('preflop', 'Hero', 'folds', 0, 'UTG')]}
+_r8_hidx = _qp._hand_index([_r8h])
+_bad_fr = "<article><div>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB · **Pot odds:** 2:1 (call 1BB into 1.5BB) · **Required equity:** 33.0%</div></article>"
+_g_fr_bad = _qp.gate_report_full_render(_r8_hidx, _mk_lazy({'86000002': _bad_fr}))
+check('T-REV8-07 (E): full-render gate CATCHES a first-in fold rendered with pot odds + required equity',
+      any(m['field'] == 'nonprice_action_shows_pot_odds' for m in _g_fr_bad['mismatches'])
+      and any(m['field'] == 'nonprice_action_shows_required_equity' for m in _g_fr_bad['mismatches']), str(_g_fr_bad['mismatches']))
+_good_fr = "<article><div>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB</div></article>"
+_g_fr_ok = _qp.gate_report_full_render(_r8_hidx, _mk_lazy({'86000002': _good_fr}))
+check('T-REV8-08 (E): full-render gate PASSES a clean first-in fold (no price shown)',
+      _g_fr_ok['mismatches'] == [], str(_g_fr_ok))
+# inferred-labelled-as-Reviewed failure injection (gate F, worklist supplied)
+_wl_stub = {'items': {}}   # 86000002 NOT in worklist -> inferred; labelling it "Reviewed decision" is a violation
+_bad_lbl = "<article><div data-decision-action-index='2'>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB</div></article>"
+_g_lbl = _qp.gate_report_visible_decision(_r8_hidx, _mk_lazy({'86000002': _bad_lbl}), _wl_stub)
+check('T-REV8-09 (D/E): visible gate CATCHES an inferred decision labelled "Reviewed decision"',
+      any(m['field'] == 'inferred_labelled_reviewed' for m in _g_lbl['mismatches']), str(_g_lbl['mismatches']))
 
 # ---- B4: realized eligibility does NOT survive Hero's later fold ----
 _b4_fold = {'id': 'B4F', 'hero': 'Hero', 'format': 'BOUNTY',

@@ -165,6 +165,11 @@ def build_decision_snapshot(h, hero_action_index=None):
     faced_action_index = None
     faced_action_added = 0.0
     faced_aggressor_committed_before_faced = 0.0  # aggressor's commit just before this action
+    # REV8 A1: facing-state counters — voluntary raises/bets and limps (calls) by OTHER
+    # players on Hero's street BEFORE Hero's action. Forced posts are excluded so a blind/
+    # ante is never mistaken for a voluntary wager Hero faces.
+    n_street_raises_before = 0
+    n_street_limps_before = 0
     for i, a in enumerate(ledger):
         p = a.get('player', '')
         if p:
@@ -192,9 +197,12 @@ def build_decision_snapshot(h, hero_action_index=None):
             faced_aggressor_all_in = bool(a.get('is_all_in'))
             faced_action_index = i
             faced_action_added = add
+            n_street_raises_before += 1
             # commit the aggressor had on THIS street strictly before this action
             faced_aggressor_committed_before_faced = round(
                 committed_total.get(p, 0.0) - add, 2)
+        if st == street and p != hero and act == 'calls':
+            n_street_limps_before += 1
 
     def remaining_before(p):
         return round(starting.get(p, 0.0) - committed_total.get(p, 0.0), 2)
@@ -297,11 +305,37 @@ def build_decision_snapshot(h, hero_action_index=None):
     contestable_pot_before_action = round(
         sum(min(round(v, 2), hero_cap) for v in committed_total.values()), 2)
     uncallable_overjam = round(max(0.0, to_call - callable_amount), 2)
-    # required equity (call/fold pot odds) applies ONLY to a CALL/FOLD decision. A first-in
-    # open / bet / raise / jam SETS the price (Hero is the aggressor) — there is no call price.
+    # ── REV8 A1: canonical DECISION-FACING STATE (NOT inferred from to_call_bb > 0) ──
+    # A forced big blind makes to_call>0 even when Hero is first-in; pricing a first-in fold
+    # as a 'call 1BB' is wrong. Derive the facing state from the VOLUNTARY action before Hero.
     _hkind = hero_action_kind(h, idx)
+    _hero_pos = _pos_of(ledger, hero)
+    if faced_aggressor is not None:
+        if faced_aggressor_all_in:
+            facing_state = 'facing_jam'
+        elif n_street_raises_before >= 2:
+            facing_state = 'facing_reopen'
+        elif street == 'preflop':
+            facing_state = 'facing_raise'
+        else:
+            facing_state = 'facing_bet'
+    elif street == 'preflop' and n_street_limps_before > 0:
+        # limper(s) but NO voluntary raise. If Hero already matches the limp level (to_call==0,
+        # e.g. the BB) he can CHECK; otherwise he faces the limp price.
+        facing_state = 'check_option' if to_call <= _EPS else 'facing_limp'
+    elif street == 'preflop':
+        # no voluntary aggression before Hero: a player who already matches the level (BB,
+        # to_call==0) has a check option; everyone else is first-in (UTG..BTN unopened, and the
+        # SB unopened special case — both a decline-to-open decision, not a priced call).
+        facing_state = 'check_option' if (_hero_pos == 'BB' or to_call <= _EPS) else 'first_in'
+    else:
+        facing_state = 'check_option'       # postflop, first to act, unbet
+    # price applicability is driven by the FACING STATE, never by to_call>0. Only a CALL/FOLD
+    # that FACES a voluntary raise/bet/jam has a call price; a first-in / check-option / over-
+    # limps fold faces no voluntary wager (forced posts are not a wager).
     _is_call_decision = _hkind in ('call', 'call_vs_jam', 'call_off', 'fold')
-    if _is_call_decision and to_call > _EPS and callable_amount > _EPS:
+    _faces_wager = facing_state in ('facing_raise', 'facing_bet', 'facing_jam', 'facing_reopen')
+    if _is_call_decision and _faces_wager and to_call > _EPS and callable_amount > _EPS:
         _denom = contestable_pot_before_action + callable_amount
         required_equity_pct = round(100.0 * callable_amount / _denom, 1) if _denom > _EPS else None
         price_applicable = True
@@ -311,6 +345,12 @@ def build_decision_snapshot(h, hero_action_index=None):
         price_applicable = False
         if not _is_call_decision:
             price_reason = 'hero_aggressive_action_sets_price'
+        elif facing_state == 'first_in':
+            price_reason = ('first_in_no_wager_sb' if _hero_pos == 'SB' else 'first_in_no_wager')
+        elif facing_state == 'check_option':
+            price_reason = 'check_option_no_price'
+        elif facing_state == 'facing_limp':
+            price_reason = 'facing_limp_no_voluntary_raise'
         elif to_call <= _EPS:
             price_reason = 'no_wager_to_call'
         else:
@@ -365,6 +405,9 @@ def build_decision_snapshot(h, hero_action_index=None):
         'required_equity_pct': required_equity_pct,
         'price_applicable': price_applicable,
         'price_reason': price_reason,
+        # REV8 A1: canonical facing state at the reviewed action (forced posts excluded)
+        'decision_facing_state': facing_state,
+        'hero_position': _hero_pos,
         'effective_stack_at_start_of_street_bb': eff_at_start_of_street,
         'effective_stack_at_decision_bb': eff_at_decision,
         'effective_stack_by_opponent': eff_by_opp,
@@ -435,10 +478,17 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     faced_added = snap.get('faced_action_added_bb')
     street = snap.get('street')
     _preflop = (street == 'preflop')
+    _facing = snap.get('decision_facing_state')
+    _faces_wager_disp = _facing in ('facing_raise', 'facing_bet', 'facing_jam', 'facing_reopen')
     if kind in ('call', 'call_vs_jam', 'call_off'):
         verb, text = 'call', 'call %sBB' % _g(callable_amt)
     elif kind == 'fold':
-        verb, text = 'fold', ('fold facing %sBB' % _g(facing) if facing > _EPS else 'fold')
+        # REV8 A3: a FIRST-IN / over-limps / check-option fold faced NO voluntary wager — never
+        # render 'fold facing 1BB' (the forced big blind). It is a decline-to-open decision.
+        if _faces_wager_disp and facing > _EPS:
+            verb, text = 'fold', 'fold facing %sBB' % _g(facing)
+        else:
+            verb, text = 'fold', 'fold first-in'
     elif kind == 'check':
         verb, text = 'check', 'check'
     elif kind == 'first_in_open':
@@ -528,6 +578,8 @@ def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
         'required_eq_pct': snap.get('required_equity_pct'),
         'price_applicable': snap.get('price_applicable'),
         'price_reason': snap.get('price_reason'),
+        'decision_facing_state': snap.get('decision_facing_state'),
+        'hero_position': snap.get('hero_position'),
         'eligible_allin_amount_bb': snap.get('eligible_allin_amount_bb'),
         'pot_before_action_bb': snap.get('pot_before_action_bb'),
         'effective_stack_at_decision_bb': snap.get('effective_stack_at_decision_bb'),

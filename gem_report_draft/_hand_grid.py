@@ -565,6 +565,8 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 try:
                     _snap_cg = _ds_bds(h, _li)
                     _disp_cg = _ds_rad(h, _li, _snap_cg)
+                    _added_cg = round((_la.get('added_bb') if _la.get('added_bb') is not None
+                                       else _la.get('amount_bb', 0)) or 0.0, 2)
                     _canon_by_street_occ[(_st, _o)] = {
                         'display_text': _disp_cg.get('display_text'),
                         'display_verb': _disp_cg.get('display_verb'),
@@ -572,6 +574,11 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         'actual_node_type': _snap_cg.get('actual_node_type'),
                         'price_applicable': bool(_snap_cg.get('price_applicable')),
                         'facing': _snap_cg.get('decision_facing_state'),
+                        # REV12 A: the canonical sizing the reviewed line uses — so the grid can
+                        # label both amounts (adds X, all-in to Y) and never show two unexplained sizes.
+                        'amount_added_bb': _added_cg,
+                        'total_to_bb': round((_snap_cg.get('hero_current_street_committed_before_bb') or 0.0) + _added_cg, 2),
+                        'became_all_in': bool(_snap_cg.get('became_all_in_on_this_action')),
                     }
                 except Exception:
                     pass
@@ -981,6 +988,16 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             else:
                 cls = ''; text = f'{_ps(p, stk, _pname)} {act} {amt:.1f}BB'
 
+            # REV12 A2/A3: a Hero all-in raise/bet whose canonical TOTAL-TO differs from the
+            # displayed ADDED amount (a re-jam: adds 12.7BB but is all-in to 22.16BB) labels BOTH,
+            # so the grid never shows an unexplained size next to the reviewed "re-jam to YBB" line.
+            if is_h and cls == 'act-allin':
+                _cgz = _canon_by_street_occ.get((street, hero_action_idx_on_street))
+                if (_cgz and _cgz.get('total_to_bb') is not None
+                        and abs(_cgz['total_to_bb'] - amt) > 0.05):
+                    text = text.replace(f'⚡ JAM {amt:.1f}BB',
+                                        f'⚡ JAM adds {amt:.1f}BB, all-in to {_cgz["total_to_bb"]:.1f}BB', 1)
+
             # Hero annotation
             # B54/B57 (v7.55):
             # - No analyst note attached → 👍 (yellow thumbs-up): standard play, fine
@@ -1252,7 +1269,14 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
         from gem_report_draft._helpers import _hand_preflop_range_role as _role_hg
         _hero_role_hg = _role_hg(h)
         _hero_jammed_pf = (_hero_role_hg == 'open_shove')
-        if (_hero_jammed_pf
+        # REV12 C1: a forced first-in UNDERBLIND short all-in (<1BB) is NOT a strategic open-shove —
+        # never render a "Wrong/Correct push" verdict or an 8BB-proxy push chart for it (84078253).
+        _is_short_allin_pv = False
+        for _ce in _canon_by_street_occ.values():
+            if _ce.get('actual_node_type') == 'first_in_short_all_in' or _ce.get('hero_action_kind') == 'short_all_in':
+                _is_short_allin_pv = True
+                break
+        if (_hero_jammed_pf and not _is_short_allin_pv
                 and (h.get('eff_stack_bb_at_decision') or h.get('stack_bb', 99)) <= 15):
             _ppos = h.get('position', '?')
             _pcards = h.get('cards', [])

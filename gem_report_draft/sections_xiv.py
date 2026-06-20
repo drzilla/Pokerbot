@@ -1078,6 +1078,17 @@ def _xivb_flag_note(hid, s, rd, h=None):
     for m in (s.get('mistakes', []) or []):
         if isinstance(m, dict) and m.get('id') == hid:
             t = m.get('type', 'Flagged')
+            # REV12 D2: a canonical RE-JAM must NEVER be headlined as a "Call Villain Jam" — the
+            # continue/call component is SUBORDINATE to the literal re-jam. Relabel the CVJ flag.
+            _cvj_rejam = False
+            if 'CVJ' in t or 'Call Villain Jam' in t:
+                try:
+                    from gem_decision_snapshot import hero_action_kind as _hak_cvj
+                    if _hak_cvj(h) in ('rejam_over_live_raise', 'overjam_with_side_pot'):
+                        _cvj_rejam = True
+                        t = 'Re-jam decision — continue component vs the jam (subordinate to the re-jam)'
+                except Exception:
+                    pass
             asum = (m.get('action_summary') or '').rstrip('.')
             expl = (t + '. ' + asum).strip().rstrip('.') + '.'
             # B159 (Ron 2026-05-23): feedback loop — when the flag is a
@@ -1135,10 +1146,16 @@ def _xivb_flag_note(hid, s, rd, h=None):
             # the clause in m['note'] after a "| Villain ..." marker; lift it
             # into the appendix note so Ron sees what was called, vs what,
             # at what price - not just "outside threshold".
-            if ('CVJ' in t or 'Iso-Jam' in t) and m.get('note'):
+            if ('CVJ' in t or 'Iso-Jam' in t or _cvj_rejam) and m.get('note'):
                 _ci = m['note'].find('| Villain ')
                 if _ci != -1:
-                    expl = expl.rstrip('.') + '. ' + m['note'][_ci + 2:].strip() + '.'
+                    _cvj_clause = m['note'][_ci + 2:].strip()
+                    # REV12 D2: for a canonical re-jam, the villain-range/call-price clause is a
+                    # SUBORDINATE reference continue threshold, NOT an "acceptable call" verdict.
+                    if _cvj_rejam:
+                        _cvj_clause = ('Continue/call threshold vs the jam (reference only, subordinate '
+                                       'to the literal re-jam): ' + _cvj_clause)
+                    expl = expl.rstrip('.') + '. ' + _cvj_clause + '.'
             # B-RANGE (Ron 2026-05-30): append correct chart/iso range for
             # detector-flagged deviations so the hand card shows what range
             # Hero deviated from. Skip when open_range_core already renders
@@ -3298,8 +3315,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _capdec_lead = _akl_lead(_kc_lead)
             # Range line: the canonical membership (single source of truth; the
             # full proxy/closest coverage is disclosed by the range block below).
+            # REV12 C1: a forced first-in UNDERBLIND short all-in (<1BB) has NO meaningful strategic
+            # decision — suppress the "call +EV vs range" verdict + the 8BB-proxy range in the Read
+            # capsule (the structured evidence is already suppressed); a neutral note may remain.
+            _short_allin_lead = ((_rdref_lead or {}).get('actual_node_type') == 'first_in_short_all_in'
+                                 or (_po_lead or {}).get('reviewed_actual_node_type') == 'first_in_short_all_in')
             _rng_lead = ''
-            if (_rev_lead.get('hero_hand')
+            if (not _short_allin_lead and _rev_lead.get('hero_hand')
                     and _rev_lead.get('membership') in ('inside', 'outside')):
                 # v8.17.1 verify: humanize the chart key (PUSH_8BB_HJ ->
                 # readable) so the capsule Range role never leaks a raw chart id.
@@ -3320,13 +3342,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     pass
             _why_lead = ((rd.get('analyst_commentary') or {}).get(hid, {})
                          or {}).get('hand_strength', '')
+            # REV12 C1/C2: for a forced short all-in, suppress the call verdict + required-equity and
+            # carry the neutral factual note instead.
+            _vh_lead = '' if _short_allin_lead else (_po_lead.get('verdict_hint', '') if _po_lead else '')
+            if _short_allin_lead and not _why_lead:
+                _why_lead = ('Hero had less than one big blind and was forced all-in — not a meaningful '
+                             'open-shove or call-off decision; no strategic range grade is assigned.')
             _cap_lead = _dcs_lead(
                 (_po_lead.get('street') if _po_lead else None)
                     or (h.get('hero_decision_street') or '').lower() or 'preflop',
                 decision_label=_capdec_lead,
-                verdict_hint=_po_lead.get('verdict_hint', '') if _po_lead else '',
+                verdict_hint=_vh_lead,
                 analyst_why=_why_lead,
-                required_eq_pct=_po_lead.get('required_eq_pct') if _po_lead else None,
+                required_eq_pct=(None if _short_allin_lead else (_po_lead.get('required_eq_pct') if _po_lead else None)),
                 multiway_suppressed=bool(_mwp_l.get('suppress_hu_required_equity')),
                 range_line=_rng_lead)
             # Emit only with a real anchor OR a gradable decision (no_clear_lesson
@@ -4303,8 +4331,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             _kc_bl = _canon_allin_kind(h, _cpa_bl(h)[0])
                             if _kc_bl != 'not_allin':
                                 _capdec_bl = _akl_bl(_kc_bl)
+                        # REV12 C1: suppress the call-verdict + 8BB-proxy range for a forced short
+                        # all-in on the compact path too (84078253 renders here).
+                        _short_allin_bl = ((_rdref_bl or {}).get('actual_node_type') == 'first_in_short_all_in'
+                                           or (_po_bl or {}).get('reviewed_actual_node_type') == 'first_in_short_all_in')
                         _rng_bl = ''
-                        if (_rev_bl.get('hero_hand')
+                        if (not _short_allin_bl and _rev_bl.get('hero_hand')
                                 and _rev_bl.get('membership') in ('inside', 'outside')):
                             # v8.17.1 verify: humanize the chart key (no raw id leak).
                             _ck_raw_bl = _rev_bl.get('chart_key')
@@ -4324,13 +4356,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                 pass
                         _why_bl = ((rd.get('analyst_commentary') or {}).get(hid, {})
                                    or {}).get('hand_strength', '')
+                        _vh_bl = '' if _short_allin_bl else (_po_bl.get('verdict_hint', '') if _po_bl else '')
+                        if _short_allin_bl and not _why_bl:
+                            _why_bl = ('Hero had less than one big blind and was forced all-in — not a meaningful '
+                                       'open-shove or call-off decision; no strategic range grade is assigned.')
                         _cap_bl = _dcs_b(
                             (_po_bl.get('street') if _po_bl else None)
                                 or (h.get('hero_decision_street') or '').lower() or 'preflop',
                             decision_label=_capdec_bl,
-                            verdict_hint=_po_bl.get('verdict_hint', '') if _po_bl else '',
+                            verdict_hint=_vh_bl,
                             analyst_why=_why_bl,
-                            required_eq_pct=_po_bl.get('required_eq_pct') if _po_bl else None,
+                            required_eq_pct=(None if _short_allin_bl else (_po_bl.get('required_eq_pct') if _po_bl else None)),
                             multiway_suppressed=bool(_mwp_bp.get('suppress_hu_required_equity')),
                             range_line=_rng_bl)
                         if _cap_bl and (_cap_bl.get('has_anchor') or _capdec_bl):

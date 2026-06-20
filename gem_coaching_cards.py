@@ -1180,9 +1180,37 @@ def _build_display_card(facts, gates, interp, confidence):
         _ownclass = 'selected_action'
     _dco['ownership'] = _ownclass
     _dco['card_context_street'] = _content_street
-    _dco['context_action_index'] = (None if _ownclass in ('selected_action', 'whole_hand')
-                                    else _dco.get('reviewed_action_index'))
-    _dco['decision_question'] = _dco.get('decision_question') or _dco.get('reviewed_actual_node_type')
+    # REV12 E2/E3: for an earlier-context card, derive the ACTUAL earlier action index + node from
+    # the ledger on the card's CONTEXT street (the preflop flat) — NEVER reuse reviewed_action_index
+    # (the later reviewed action). 84295885: a preflop-flat card on a flop re-jam must point at the
+    # preflop flat, not the flop action.
+    _ctx_idx = None
+    _ctx_node = None
+    _ctx_sem = None
+    if _ownclass == 'earlier_context':
+        _h_cc = facts.get('_hand') or {}
+        _led_cc = _h_cc.get('action_ledger') or []
+        _hero_cc = _h_cc.get('hero', 'Hero')
+        for _i_cc, _a_cc in enumerate(_led_cc):
+            if (_a_cc.get('player') == _hero_cc and _a_cc.get('action') != 'posts'
+                    and _a_cc.get('street') == _content_street):
+                _ctx_idx = _i_cc                       # last Hero action on the context street
+        if _ctx_idx is not None and _h_cc:
+            try:
+                _csnap = _ds.build_decision_snapshot(_h_cc, _ctx_idx)
+                _ctx_node = _csnap.get('actual_node_type')
+                _ctx_sem = _csnap.get('hero_action_kind')
+            except Exception:
+                pass
+    elif _ownclass == 'population_research':
+        _ctx_idx = _dco.get('reviewed_action_index')
+    _dco['context_action_index'] = _ctx_idx
+    _dco['context_node_type'] = _ctx_node
+    _dco['context_action_semantics'] = _ctx_sem
+    _dco['context_linked'] = (_ctx_idx is not None) if _ownclass == 'earlier_context' else None
+    # the decision_question reflects the CONTEXT node for an earlier-context card, else the reviewed node
+    _dco['decision_question'] = (_ctx_node if (_ownclass == 'earlier_context' and _ctx_node)
+                                 else (_dco.get('decision_question') or _dco.get('reviewed_actual_node_type')))
     for _k in ('price_owner', 'bounty_owner', 'range_owner', 'verdict_owner'):
         _dco.setdefault(_k, ('selected_action' if _ownclass == 'selected_action'
                              else ('whole_hand' if _ownclass == 'whole_hand' else _ownclass)))

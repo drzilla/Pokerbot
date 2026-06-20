@@ -1229,7 +1229,22 @@ _MODAL_HTML = r"""
         +'<span class="source-chip">'+_esc(card.display_confidence||'')+'</span>'
         +'</div>';
     }
-    el.innerHTML=hd+body+metrics+ranges+learn+src;
+    /* REV12 B3/B4: VISIBLE coaching ownership label (desktop + mobile share this fn). An
+       earlier-context / population-research / whole-hand card must say so, so a user never reads
+       it as selected-action coaching/eligibility. */
+    var own=(card.decision_content_ownership&&card.decision_content_ownership.ownership)||card.ownership||'';
+    var ownHtml='';
+    if(own==='earlier_context'){
+      var cs=(card.decision_content_ownership&&card.decision_content_ownership.card_context_street)||'';
+      var csl=cs?(cs.charAt(0).toUpperCase()+cs.slice(1)):'Earlier';
+      ownHtml='<div class="ownership-label ownership-earlier">⏮ Earlier '+_esc(cs||'')+' context — not the selected-action decision</div>';
+      if(!cs)ownHtml='<div class="ownership-label ownership-earlier">⏮ Earlier preflop context — not the selected-action decision</div>';
+    }else if(own==='population_research'){
+      ownHtml='<div class="ownership-label ownership-population">📊 Population research — not selected-action bounty eligibility</div>';
+    }else if(own==='whole_hand'){
+      ownHtml='<div class="ownership-label ownership-wholehand">🗂 Whole-hand lesson — not a single-action grade</div>';
+    }
+    el.innerHTML=hd+ownHtml+body+metrics+ranges+learn+src;
     return el;
   }
   /* v8.10.0: render all coaching cards for a hand into a container */
@@ -6658,6 +6673,12 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .coach-stack {{ display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }}
   .learn-card {{ border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
     background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }}
+  /* REV12 B3/B4: visible coaching-card ownership labels (desktop + mobile) */
+  .ownership-label {{ font-size: 11px; font-weight: 600; padding: 4px 10px; line-height: 1.3;
+    border-bottom: 1px solid #e2e8f0; }}
+  .ownership-earlier {{ background: #fef3c7; color: #92400e; }}
+  .ownership-population {{ background: #e0e7ff; color: #3730a3; }}
+  .ownership-wholehand {{ background: #f1f5f9; color: #475569; }}
   .learn-card.good {{ border-color: #86efac; }}
   .learn-card.warn {{ border-color: #fbbf24; }}
   .learn-card.bad {{ border-color: #f87171; }}

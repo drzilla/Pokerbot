@@ -563,7 +563,20 @@ def canonical_node_type(facing_state, hero_action_kind, street, hero_position,
         return _POSTFLOP_NODE.get(k, 'postflop_call')
     # ── preflop ──
     if facing_state == 'check_option':
-        return 'check_option'
+        # REV12 B5: a BB with the option who CHECKS is a check_option; but a BB who RAISES from the
+        # option is an open/iso-raise, and one who completes/shoves is classified by the action —
+        # never a 'check_option' node for a non-check action (84107169).
+        if k == 'check':
+            return 'check_option'
+        if k == 'fold':
+            return 'fold_first_in'
+        if k == 'short_all_in':
+            return 'first_in_short_all_in'
+        if k == 'open_shove' or _aggr_jam:
+            return 'first_in_open_shove'
+        if k in ('call', 'call_vs_jam', 'call_off'):
+            return 'first_in_limp'
+        return 'first_in_open'
     if facing_state == 'first_in':
         if k == 'fold':
             return 'fold_first_in'
@@ -877,6 +890,62 @@ def build_reviewed_decision_view(h, hero_action_index=None, decision_kind=None,
         'hero_action_kind': ref.get('hero_action_kind'),
         'selection_source': ref.get('selection_source'),
         'selection_confidence': ref.get('selection_confidence'),
+    }
+
+
+def build_action_sizing_contract(h, hero_action_index=None):
+    """REV12 A: the ONE explicit ActionSizingContract for the reviewed action — every visible
+    surface (action grid, reviewed line, all-in math) reads its amounts from here so a single
+    action never shows two unexplained sizes. Each field is derived from the ledger / snapshot,
+    NEVER from a display string. `display_amount_type` names which amount a surface should show
+    (an aggressive action -> total_to; a call -> callable_component; a postflop lead -> amount_added)."""
+    snap = build_decision_snapshot(h, hero_action_index)
+    idx = snap.get('hero_action_index')
+    led = h.get('action_ledger') or []
+    evt = led[idx] if (idx is not None and 0 <= idx < len(led)) else {}
+    added = round(_added(evt), 2) if evt else 0.0
+    street_committed_before = round(snap.get('hero_current_street_committed_before_bb') or 0.0, 2)
+    total_to = round(street_committed_before + added, 2)
+    faced_added = snap.get('faced_action_added_bb')
+    faced_committed = snap.get('faced_aggressor_committed_before_action_bb')
+    faced_total_to = (round((faced_committed or 0.0) + (faced_added or 0.0), 2)
+                      if (faced_added is not None) else None)
+    # the amount to MATCH the faced voluntary wager, capped by Hero's stack (the continue/call price)
+    continue_component = snap.get('faced_voluntary_price_bb')
+    if continue_component is not None:
+        continue_component = round(min(continue_component, snap.get('hero_stack_before_action_bb') or continue_component), 2)
+    raise_increment = (round(total_to - faced_total_to, 2)
+                       if (faced_total_to is not None and total_to >= faced_total_to) else None)
+    # the chips Hero put in BEYOND simply continuing (matching the faced wager)
+    extra_isolation = (round(added - continue_component, 2)
+                       if (continue_component is not None and added > continue_component) else None)
+    hero_before = snap.get('hero_stack_before_action_bb')
+    hero_after = round((hero_before or 0.0) - added, 2)
+    kind = snap.get('hero_action_kind')
+    if kind in ('first_in_open', '3bet', '4bet', '5bet_plus', 'open_shove',
+                'rejam_over_live_raise', 'overjam_with_side_pot'):
+        disp_type = 'total_to'
+    elif kind in ('call', 'call_vs_jam', 'call_off'):
+        disp_type = 'callable_component'
+    else:                                        # bet / short_all_in / complete / check / fold
+        disp_type = 'amount_added'
+    return {
+        'hand_id': h.get('id', ''),
+        'action_index': idx,
+        'street': snap.get('street'),
+        'amount_added_bb': added,
+        'total_to_bb': total_to,
+        'faced_total_to_bb': faced_total_to,
+        'faced_amount_added_bb': (round(faced_added, 2) if faced_added is not None else None),
+        'continue_component_bb': continue_component,
+        'raise_increment_bb': raise_increment,
+        'extra_isolation_amount_bb': extra_isolation,
+        'hero_stack_before_bb': hero_before,
+        'hero_stack_after_bb': hero_after,
+        'became_all_in': bool(snap.get('became_all_in_on_this_action')),
+        'display_amount_type': disp_type,
+        'hero_action_kind': kind,
+        'actual_node_type': snap.get('actual_node_type'),
     }
 
 

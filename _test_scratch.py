@@ -2696,7 +2696,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'feb8dc717cec29d92179fb727d534c2c808bb20bf50b04688d8df297d1235c79',
+      _hg_hash == 'b8d42cc60a648570180ed3b9f815b2b357c6ee6a4b5056484dbd555bdaf7061c',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -12248,6 +12248,85 @@ check('T-REV11-15: the oracle gate PASSES the clean canonical fixtures (no seman
                              'first_in_complete_typed_call_vs_jam', 'underblind_all_in_typed_ordinary_call',
                              'no_wager_carries_raw_price')
               for m in _qp.gate_ledger_oracle(_idx11, _wl_clean, _mk_lazy_html({'95000001': ''}))['mismatches']), '')
+
+# ============================================================
+# REV12 — visible-truth closure (T-REV12-*)
+# ============================================================
+# --- F1/B5: strict oracle — complete is NOT call_off / call_vs_jam ---
+check('T-REV12-01 (B5): the oracle does NOT accept complete -> call_off / call_vs_jam (kind)',
+      _orc.semantic_consistent('complete', 'call') is True
+      and _orc.semantic_consistent('complete', 'call_off') is False
+      and _orc.semantic_consistent('complete', 'call_vs_jam') is False, '')
+check('T-REV12-02 (B5): the oracle node check — complete -> first_in_limp, NOT call_vs_jam / call_off node',
+      _orc.node_consistent('complete', 'first_in_limp') is True
+      and _orc.node_consistent('complete', 'call_vs_jam') is False
+      and _orc.node_consistent('short_all_in', 'first_in_short_all_in') is True
+      and _orc.node_consistent('re_jam', 'call_vs_jam') is False, '')
+
+# --- A: ActionSizingContract for a re-jam carries added != total-to with a display amount type ---
+# Hero opens 2.5, HJ jams to 8.5 over it, Hero re-jams all-in to 22.16 (adds 19.66, continue 6.0).
+_h_rj12 = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='BTN'), _Lp('preflop', 'HJ', 'raises', 8.5, True, pos='HJ'),
+                  _Lp('preflop', 'Hero', 'raises', 19.66, True, pos='BTN')], {'Hero': 22.16, 'HJ': 8.5},
+                 hid='TM6095000002')
+_sz = _ds.build_action_sizing_contract(_h_rj12, 2)
+check('T-REV12-03 (A): the ActionSizingContract for a re-jam exposes amount_added != total_to + continue/raise components',
+      _sz['total_to_bb'] > _sz['amount_added_bb'] and _sz['continue_component_bb'] is not None
+      and _sz['extra_isolation_amount_bb'] is not None and _sz['display_amount_type'] == 'total_to'
+      and _sz['became_all_in'] is True and _sz['actual_node_type'] == 're_jam', str(_sz))
+
+# --- Part I gate: gate_visible_semantic catches the legacy contradictions (failure injection) ---
+_h_sa12 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                  _Lp('preflop', 'Hero', 'calls', 0.12, True, pos='MP')], {'Hero': 0.12, 'SB': 30.0, 'BB': 30.0})
+_idx12 = _qp._hand_index([_h_sa12, _h_rj12])
+def _vsg(hid, body, hand):
+    return _qp.gate_visible_semantic(_qp._hand_index([hand]), _mk_lazy_html({hid: body}), None)
+check('T-REV12-04 (J1/J2/J3): visible-semantic gate CATCHES a short-all-in body with call +EV / Wrong push / 8BB proxy',
+      any(m['field'] == 'short_all_in_with_call_verdict' for m in _vsg('95000001', 'Verdict: call +EV vs range', _h_sa12)['violations'])
+      and any(m['field'] == 'short_all_in_with_push_flag' for m in _vsg('95000001', '❌ Wrong push — Q8o outside HJ open-shove, 8BB', _h_sa12)['violations']), '')
+check('T-REV12-05 (J4): visible-semantic gate CATCHES a re-jam body with a Wide CVJ (Call Villain Jam) headline',
+      any(m['field'] == 'rejam_with_wide_cvj_headline' for m in _vsg('95000002', 'Flagged: Wide CVJ (Call Villain Jam)', _h_rj12)['violations']), '')
+check('T-REV12-06: visible-semantic gate PASSES a clean short-all-in / re-jam body (no per-hand contradictions)',
+      not [m for m in _vsg('95000001', 'all-in for 0.12BB first-in, short of the big blind', _h_sa12)['violations'] if m['hand'] != '_renderer']
+      and not [m for m in _vsg('95000002', 'Re-jam decision — continue component vs the jam', _h_rj12)['violations'] if m['hand'] != '_renderer'], '')
+
+# --- Part G gate: gate_action_row_parity reads the actual Hero rows (failure injection) ---
+def _arg(hid, body, hand, kind):
+    wl = {'items': {hand['id']: {'hand_id': hand['id'], 'decision_kind': kind}}}
+    return _qp.gate_action_row_parity(_qp._hand_index([hand]), wl, _mk_lazy_html({hid: body}))
+# a re-jam whose Hero row is a plain "Call X / need Y%" must be CAUGHT
+_rj_bad_row = "<span class='grid-action act-call'>BTN Call 9.3BB <span class='pot-pct'>need 42%</span></span>"
+check('T-REV12-07 (J10/G): action-row gate READS the Hero row and CATCHES a re-jam shown as a plain priced Call',
+      _arg(_h_rj12['id'][-8:], _rj_bad_row, _h_rj12, 'preflop_allin')['authoritative_action_rows_checked'] >= 1
+      and any(m['field'] in ('action_row_plain_call_potodds', 'action_row_verb_missing')
+              for m in _arg(_h_rj12['id'][-8:], _rj_bad_row, _h_rj12, 'preflop_allin')['mismatches']), '')
+# a re-jam JAM row WITHOUT the "all-in to Y" label (only added) must be flagged as unlabelled amount type
+_rj_unlabelled = "<span class='grid-action act-allin'>BTN ⚡ JAM 12.7BB</span>"
+check('T-REV12-08 (J5/A2): action-row gate CATCHES a JAM row that shows only the added amount (no all-in-to label)',
+      any(m['field'] == 'jam_amount_type_unlabelled'
+          for m in _arg(_h_rj12['id'][-8:], _rj_unlabelled, _h_rj12, 'preflop_allin')['mismatches']), '')
+
+# --- E2/E3 failure injection: earlier-context card pointing at the reviewed action is CAUGHT ---
+def _vsg_cc(hid, cards, hand, body='re-jam decision body'):
+    html = _mk_lazy_html({hid: body}) + ('<script>window.coachingCards=%s;</script>' % json.dumps({hid: cards}))
+    return _qp.gate_visible_semantic(_qp._hand_index([hand]), html, None)
+_bad_cc = [{'card_type': 'range_awareness', 'ownership': 'earlier_context',
+            'decision_content_ownership': {'ownership': 'earlier_context', 'reviewed_action_index': 17,
+                                           'context_action_index': 17}}]
+check('T-REV12-09 (E2/E3): gate CATCHES an earlier-context card whose context index equals the reviewed action index',
+      any(m['field'] == 'earlier_context_card_points_to_reviewed_action'
+          for m in _vsg_cc('95000002', _bad_cc, _h_rj12)['violations']), '')
+
+# --- B3/B4: the JS renderer emits the ownership labels (renderer-presence gate) ---
+import io as _io12
+_html12 = _io12.open(os.path.join('gem_report_draft', '_html.py'), encoding='utf-8').read()
+check('T-REV12-10 (B3/B4): _renderCoachingCard renders the ownership labels (earlier_context / population_research / whole_hand)',
+      'ownership-earlier' in _html12 and 'Population research — not selected-action bounty eligibility' in _html12
+      and 'ownership-population' in _html12 and 'Whole-hand lesson' in _html12
+      and 'card.decision_content_ownership' in _html12, '')
+# the gate flags a MISSING renderer label (failure injection)
+check('T-REV12-11 (J8): the visible-semantic gate flags a MISSING ownership-label renderer',
+      any(m['field'] == 'ownership_label_renderer_missing'
+          for m in _qp.gate_visible_semantic(_qp._hand_index([_h_rj12]), _mk_lazy_html({'95000002': 'x'}), None)['violations']), '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

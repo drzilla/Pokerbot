@@ -297,6 +297,9 @@ def main():
     gate_fr = qp.gate_report_full_render(our_idx, html, wl)
     # REV11 G: run the INDEPENDENT ledger oracle on the holdout corpus too.
     gate_or = qp.gate_ledger_oracle(our_idx, real_wl, html)
+    # REV12 G/I: real action-row parity + visible-semantic gates on the holdout.
+    gate_ar = qp.gate_action_row_parity(our_idx, real_wl, html)
+    gate_vs = qp.gate_visible_semantic(our_idx, html, real_wl)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -340,8 +343,13 @@ def main():
     surface_violations = [{'why': 'consumer_surface_not_activated', 'surface': k} for k in surface_zero]
     wl_a_mismatches = list(gate_a.get('mismatches', []))
     oracle_mismatches = list(gate_or.get('mismatches', []))
+    # REV12: action-row + visible-semantic mismatches (exclude the global _renderer presence check —
+    # the holdout's render_html DOES emit the renderer, but guard against accidental absence below).
+    ar_mismatches = list(gate_ar.get('mismatches', []))
+    vs_violations = [v for v in gate_vs.get('violations', []) if v.get('hand') != '_renderer']
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
-                  + direct + surface_violations + wl_a_mismatches + oracle_mismatches)
+                  + direct + surface_violations + wl_a_mismatches + oracle_mismatches
+                  + ar_mismatches + vs_violations)
     rendered = sum(1 for h, _, _ in corpus if (cards.get(h['id'][-8:]) or cards.get(h['id'])))
     summary = {
         'production_render_entrypoint': PROD_RENDER_ENTRYPOINT,
@@ -359,6 +367,9 @@ def main():
         'real_worklist_gate_a_checked': gate_a.get('checked', 0),
         'real_worklist_gate_a_mismatches': len(wl_a_mismatches),
         'ledger_oracle_mismatches': len(oracle_mismatches),
+        'action_row_parity_checked': gate_ar.get('authoritative_action_rows_checked', 0),
+        'action_row_mismatches': len(ar_mismatches),
+        'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,
         'visible_decision_mismatches': len(gate_vd.get('mismatches', [])),
         'full_render_mismatches': len(gate_fr.get('mismatches', [])),

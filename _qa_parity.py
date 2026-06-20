@@ -813,6 +813,153 @@ def gate_ledger_oracle(hands_idx, worklist, html):
     return out
 
 
+_NODE_GRID_VERB = {
+    'first_in_limp': ('complete', 'limp'),
+    'sb_complete_after_limp': ('complete',),
+    'overlimp': ('limp', 'overlimp', 'call'),
+    'first_in_open': ('open to', 'raise', 'bet'),
+    'fold_first_in': ('fold',), 'fold_over_limp': ('fold',), 'fold_vs_open': ('fold',),
+    'fold_vs_jam': ('fold',), 'fold_vs_three_bet': ('fold',), 'postflop_fold': ('fold',),
+    'check_option': ('check',), 'postflop_check': ('check',),
+    'first_in_short_all_in': ('all-in',),
+    'first_in_open_shove': ('jam', 'all-in'), 'iso_shove': ('jam', 'all-in'),
+    're_jam': ('jam', 'all-in'), 'postflop_jam': ('jam', 'all-in'),
+    'three_bet': ('3-bet to', 'raise'), 'four_bet': ('4-bet to', 'raise'),
+    'iso_raise': ('raise', 'open to'),
+    'call_vs_jam': ('call',), 'call_vs_open': ('call',), 'call_vs_three_bet': ('call',),
+    'postflop_call': ('call',), 'postflop_bet': ('bet',), 'postflop_raise': ('raise',),
+}
+# nodes whose grid row must NEVER read as an ordinary priced "Call X / need Y%"
+_NO_PLAIN_CALL_ROW = ('first_in_limp', 'sb_complete_after_limp', 'first_in_short_all_in',
+                      're_jam', 'first_in_open_shove', 'iso_shove')
+
+
+def gate_action_row_parity(hands_idx, worklist, html):
+    """REV12 G/B6: REAL action-row parity for ALL authoritative selected actions. Parses the Hero
+    rows from the rendered action grid and compares the SELECTED action's visible verb + sizing
+    to the canonical reviewed action — so a re-jam can never show a plain 'Call' row and an
+    underblind shove can never show a 'Call X / need Y%' row. (Gate H earlier claimed this without
+    reading the grid.)"""
+    bodies = decode_lazy_hands(html)
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'authoritative_action_rows_checked': 0, 'semantic_mismatches': 0,
+           'amount_type_mismatches': 0, 'mismatches': []}
+    for it in items:
+        hid = str(it.get('hand_id') or '')
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        kind = it.get('decision_kind') or it.get('bucket')
+        ridx = _reviewed_action_index(h, kind)
+        if ridx is None:
+            continue
+        body = bodies.get(hid) or bodies.get(hid[-8:]) or ''
+        snap = ds.build_decision_snapshot(h, ridx)
+        node = snap.get('actual_node_type')
+        pos = snap.get('hero_position') or '?'
+        out['authoritative_action_rows_checked'] += 1
+        # all Hero grid rows (the grid prefixes the seat position, e.g. "SB Complete 0.5BB ...").
+        # A row may contain a NESTED span (a "need X%" pot-pct) — flatten its inner tags so the
+        # full visible text (incl. the pot-odds) is captured.
+        rows = []
+        for _gm in re.finditer(r"<span class='grid-action act-([a-z]+)'>", body):
+            _cls = _gm.group(1)
+            _rest = body[_gm.end():]
+            _end = re.search(r"<span class='grid-action|</td>", _rest)
+            _seg = _rest[:_end.start()] if _end else _rest[:160]
+            _txt = re.sub(r'<[^>]+>', '', _seg).strip()
+            rows.append((_cls, _txt))
+        hero_rows = [(cls, txt) for cls, txt in rows
+                     if re.match(r'\s*%s\b' % re.escape(pos), txt) or re.match(r'\s*%s\b' % re.escape(pos), re.sub(r'^[^A-Za-z]*', '', txt))]
+        joined = ' || '.join(t.lower() for _c, t in hero_rows)
+        want = _NODE_GRID_VERB.get(node)
+        # 1) the expected verb token must appear in some Hero row
+        if want and hero_rows and not any(w in joined for w in want):
+            out['semantic_mismatches'] += 1
+            out['mismatches'].append({'hand': hid, 'field': 'action_row_verb_missing',
+                                      'node': node, 'expected': want, 'hero_rows': [t for _c, t in hero_rows][:4]})
+        # 2) a non-priced selected action must never show an ordinary "Call X ... need Y%" row
+        if node in _NO_PLAIN_CALL_ROW and re.search(r'call\s+[\d.]+bb.{0,40}need', joined):
+            out['semantic_mismatches'] += 1
+            out['mismatches'].append({'hand': hid, 'field': 'action_row_plain_call_potodds', 'node': node})
+        # 3) a re-jam / all-in raise must label BOTH amounts (adds X, all-in to Y) when added != total-to
+        if node in ('re_jam', 'first_in_open_shove', 'iso_shove'):
+            sc = ds.build_action_sizing_contract(h, ridx)
+            _added = sc.get('amount_added_bb') or 0.0
+            _tt = sc.get('total_to_bb') or 0.0
+            if abs(_tt - _added) > 0.05 and 'all-in to' not in joined and 'jam' in joined:
+                out['amount_type_mismatches'] += 1
+                out['mismatches'].append({'hand': hid, 'field': 'jam_amount_type_unlabelled',
+                                          'added': _added, 'total_to': _tt})
+    return out
+
+
+def gate_visible_semantic(hands_idx, html, worklist=None):
+    """REV12 Part I: full-render SEMANTIC gates over the decoded bodies + coaching payload. The
+    legacy verdict/range/CVJ surfaces must agree with the canonical node; coaching ownership must
+    be VISIBLY labelled and point at the actual context action."""
+    bodies = decode_lazy_hands(html)
+    out = {'checked': 0, 'violations': []}
+    cc = {}
+    m = re.search(r'window\.coachingCards=(\{.*?\});', html)
+    if m:
+        try:
+            cc = json.loads(m.group(1))
+        except Exception:
+            cc = {}
+
+    def viol(hid, field, **kw):
+        d = {'hand': hid, 'field': field}
+        d.update(kw)
+        out['violations'].append(d)
+
+    # the ownership LABEL is rendered CLIENT-SIDE by _renderCoachingCard from the card's ownership
+    # field — verify (once) the renderer emits a label for each non-selected class, and (per card)
+    # that the card actually carries the ownership field + a real context link.
+    _renderer_ok = {
+        'earlier_context': ('ownership-earlier' in html and 'Earlier ' in html),
+        'population_research': ('ownership-population' in html and 'Population research' in html),
+        'whole_hand': ('ownership-wholehand' in html and 'Whole-hand lesson' in html),
+    }
+    for _cls, _ok in _renderer_ok.items():
+        if not _ok:
+            viol('_renderer', 'ownership_label_renderer_missing', ownership=_cls)
+
+    for hid, body in bodies.items():
+        h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
+        if h is None:
+            continue
+        out['checked'] += 1
+        snap = ds.build_decision_snapshot(h, ds.infer_reviewed_action_index(h))
+        node = snap.get('actual_node_type')
+        # short all-in: no call verdict / push-chart grade / Wrong-push flag
+        if node == 'first_in_short_all_in':
+            if re.search(r'call \+EV', body):
+                viol(hid, 'short_all_in_with_call_verdict')
+            if 'Wrong push' in body or 'Correct push' in body:
+                viol(hid, 'short_all_in_with_push_flag')
+            if re.search(r'open-shove,? \d+BB', body) and 'short of the big blind' not in body.split('open-shove')[0][-200:]:
+                viol(hid, 'short_all_in_with_open_shove_chart')
+        # re-jam: no "Wide CVJ (Call Villain Jam)" headline, no unowned acceptable-call teaching
+        if node == 're_jam':
+            if 'Wide CVJ (Call Villain Jam)' in body:
+                viol(hid, 'rejam_with_wide_cvj_headline')
+        # coaching ownership must carry the field (renderer labels it) + be context-linked
+        for c in (cc.get(str(hid)) or cc.get(str(hid)[-8:]) or []):
+            own = (c.get('decision_content_ownership') or {}).get('ownership') or c.get('ownership')
+            dco = c.get('decision_content_ownership') or {}
+            if own in ('earlier_context', 'population_research', 'whole_hand') and not own:
+                viol(hid, 'non_selected_card_without_ownership_field', card=c.get('card_type'))
+            if own == 'earlier_context':
+                # the context action index must be the ACTUAL earlier action, never the reviewed one
+                if (dco.get('context_action_index') is not None
+                        and dco.get('context_action_index') == dco.get('reviewed_action_index')):
+                    viol(hid, 'earlier_context_card_points_to_reviewed_action', card=c.get('card_type'))
+    return out
+
+
 def gate_semantic(hands_idx, worklist):
     """REV2/REV3: semantic invariants on EVERY worklist decision item (not just
     cross-surface agreement). Catches a wrong MODEL the agreement gates can't.
@@ -934,6 +1081,8 @@ def main():
     g_vd = gate_report_visible_decision(hands_idx, html, worklist)
     g_fr = gate_report_full_render(hands_idx, html, worklist)
     g_or = gate_ledger_oracle(hands_idx, worklist, html)
+    g_ar = gate_action_row_parity(hands_idx, worklist, html)
+    g_vs = gate_visible_semantic(hands_idx, html, worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -970,9 +1119,18 @@ def main():
           f"{g_or['all_hands_checked']} all-hand checks, {len(g_or['mismatches'])} mismatch(es)")
     for mm in g_or['mismatches'][:40]:
         print('   ✗', mm)
+    print(f"I. ACTION-ROW PARITY : {g_ar['authoritative_action_rows_checked']} authoritative rows, "
+          f"{len(g_ar['mismatches'])} mismatch(es)")
+    for mm in g_ar['mismatches'][:40]:
+        print('   ✗', mm)
+    print(f"J. VISIBLE SEMANTIC (legacy/coaching) : {g_vs['checked']} bodies, "
+          f"{len(g_vs['violations'])} violation(s)")
+    for mm in g_vs['violations'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
-          and not g_fr['mismatches'] and not g_or['mismatches'])
+          and not g_fr['mismatches'] and not g_or['mismatches'] and not g_ar['mismatches']
+          and not g_vs['violations'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -981,7 +1139,8 @@ def main():
             json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
                        'report_bounty': g_rb, 'report_decision_bounty': g_pd,
                        'report_visible_decision': g_vd, 'report_full_render': g_fr,
-                       'ledger_oracle': g_or, 'pass': ok}, fh, indent=2)
+                       'ledger_oracle': g_or, 'action_row_parity': g_ar,
+                       'visible_semantic': g_vs, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

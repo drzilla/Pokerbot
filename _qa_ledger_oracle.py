@@ -156,10 +156,12 @@ def oracle_identity(h, idx):
 
 # Map the oracle's literal action_semantics -> the set of canonical hero_action_kind values that
 # are CONSISTENT with it (the canonical is the value under test; this is the independent check).
+# REV12 B5: the mapping is STRICT — a first-in 'complete' is ONLY the plain 'call' verb, never an
+# overloaded call_vs_jam / call_off kind. The low-level ledger verb cannot serve as the semantic.
 _SEM_TO_CANON = {
     'fold': {'fold'},
     'check': {'check'},
-    'complete': {'call', 'call_vs_jam', 'call_off'},     # a first-in complete is a 'call' verb
+    'complete': {'call'},                                # a first-in complete is a plain 'call' verb
     'short_all_in': {'short_all_in'},
     'call': {'call', 'call_vs_jam', 'call_off'},
     'bet': {'bet'},
@@ -173,6 +175,27 @@ _SEM_TO_CANON = {
     'unknown': set(),
 }
 
+# REV12 B5/F1: the oracle's TYPED literal semantic -> the canonical NODE families that are
+# consistent with it. This is checked IN ADDITION to the kind, so a 'complete' that resolves to a
+# call_vs_jam / call_off NODE is rejected (the overloaded family REV11 was meant to eliminate).
+_SEM_TO_NODE = {
+    'fold': {'fold_first_in', 'fold_over_limp', 'fold_vs_open', 'fold_vs_jam',
+             'fold_vs_three_bet', 'postflop_fold'},
+    'check': {'check_option', 'postflop_check'},
+    'complete': {'first_in_limp', 'sb_complete_after_limp', 'overlimp'},
+    'short_all_in': {'first_in_short_all_in'},
+    'call': {'call_vs_jam', 'call_vs_open', 'call_vs_three_bet', 'postflop_call', 'first_in_limp'},
+    'bet': {'postflop_bet'},
+    'open': {'first_in_open'},
+    'open_shove': {'first_in_open_shove', 'postflop_jam', 'iso_shove'},
+    'three_bet': {'three_bet', 'postflop_raise'},
+    'four_bet': {'four_bet', 'postflop_raise'},
+    're_jam': {'re_jam', 'postflop_jam'},
+    'raise': {'three_bet', 'four_bet', 'postflop_raise', 'iso_raise'},
+    'no_hero_decision': {'no_hero_decision'},
+    'unknown': set(),
+}
+
 
 def semantic_consistent(oracle_sem, canonical_kind):
     """True when the canonical hero_action_kind is consistent with the oracle's literal semantic."""
@@ -182,3 +205,15 @@ def semantic_consistent(oracle_sem, canonical_kind):
     if not allowed:
         return canonical_kind in (None, '', 'unknown')
     return canonical_kind in allowed
+
+
+def node_consistent(oracle_sem, canonical_node):
+    """REV12 B5: True when the canonical actual_node_type is consistent with the oracle's TYPED
+    literal semantic — a stricter, node-level check than the kind alone (a 'complete' must resolve
+    to a first_in_limp / sb_complete node, never call_vs_jam / call_off)."""
+    allowed = _SEM_TO_NODE.get(oracle_sem)
+    if allowed is None:
+        return False
+    if not allowed:
+        return canonical_node in (None, '', 'unknown')
+    return canonical_node in allowed

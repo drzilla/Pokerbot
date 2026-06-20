@@ -159,6 +159,12 @@ def build_decision_snapshot(h, hero_action_index=None):
     universe = set(starting.keys())
     faced_aggressor = None
     faced_aggressor_all_in = False
+    # typed facts about the bet/raise Hero is facing (the confrontation), captured at
+    # the moment it happened so we can separate the aggressor's stack BEFORE the action
+    # (the chips at risk) from the ~0 they have left AFTER an all-in (B1/REV2).
+    faced_action_index = None
+    faced_action_added = 0.0
+    faced_aggressor_committed_before_faced = 0.0  # aggressor's commit just before this action
     for i, a in enumerate(ledger):
         p = a.get('player', '')
         if p:
@@ -184,6 +190,11 @@ def build_decision_snapshot(h, hero_action_index=None):
         if st == street and p != hero and act in ('raises', 'bets'):
             faced_aggressor = p
             faced_aggressor_all_in = bool(a.get('is_all_in'))
+            faced_action_index = i
+            faced_action_added = add
+            # commit the aggressor had on THIS street strictly before this action
+            faced_aggressor_committed_before_faced = round(
+                committed_total.get(p, 0.0) - add, 2)
 
     def remaining_before(p):
         return round(starting.get(p, 0.0) - committed_total.get(p, 0.0), 2)
@@ -192,12 +203,20 @@ def build_decision_snapshot(h, hero_action_index=None):
         return round(starting.get(p, 0.0) - committed_prior.get(p, 0.0), 2)
 
     # effective-stack baseline: preflop all-in risks the full start-of-street stacks
-    # (84990829 -> 17.5); postflop uses the stacks remaining behind a faced bet
-    # (F4: villain 60, 3 preflop + 10 flop committed -> 47).
+    # (84990829 -> 17.5); postflop uses the stacks remaining behind a NON-all-in faced
+    # bet (F4: villain 60, 3 preflop + 10 flop committed -> 47). REV2 B1 FIX: an
+    # ALL-IN player's confrontation depth is the stack they JAMMED (their start-of-street
+    # stack), NOT the ~0 they have left after the jam — otherwise a call-vs-jam collapses
+    # to ~0.15BB (83526894/84295102/83974506). All-in is detected for the faced
+    # aggressor (current street) and any prior all-in.
     use_remaining = (street != 'preflop')
 
     def eff_basis(p):
-        return remaining_before(p) if use_remaining else start_of_street(p)
+        if not use_remaining:
+            return start_of_street(p)
+        if p in all_in_before:
+            return start_of_street(p)
+        return remaining_before(p)
 
     hero_remaining = remaining_before(hero)
     hero_eff_basis = eff_basis(hero)
@@ -238,6 +257,34 @@ def build_decision_snapshot(h, hero_action_index=None):
                                                     if p in starting)), 2)
                       if any(p in starting for p in opp_keys) else None)
 
+    # ── REV2 typed quantities: keep the four conflated numbers DISTINCT ──
+    # The decision-effective stack is the confrontation depth (eff_basis already uses
+    # the all-in jammed stack, not the ~0 left behind). callable = what Hero can
+    # actually put in (capped by his own stack). to_call = the bet to match.
+    fa_evt = ledger[faced_action_index] if faced_action_index is not None else None
+    faced_stack_before = (round(starting.get(faced_aggressor, 0.0)
+                                - faced_aggressor_committed_before_faced, 2)
+                          if faced_aggressor in starting else None)
+    faced_remaining_after = (remaining_before(faced_aggressor)
+                             if faced_aggressor in starting else None)
+    faced_action_kind_ = None
+    if fa_evt is not None:
+        _fk = fa_evt.get('action', '')
+        faced_action_kind_ = ('all_in_' + _fk) if fa_evt.get('is_all_in') else _fk
+    eff_at_decision = eff_vs_faced if eff_vs_faced is not None else max_eff_active
+    eff_at_start_of_street = None
+    if faced_aggressor in starting:
+        eff_at_start_of_street = round(min(start_of_street(hero),
+                                           start_of_street(faced_aggressor)), 2)
+    elif any(p in starting for p in opp_keys):
+        eff_at_start_of_street = round(min(start_of_street(hero),
+                                           max(start_of_street(p) for p in opp_keys
+                                               if p in starting)), 2)
+    callable_amount = round(min(to_call, hero_remaining), 2) if to_call else 0.0
+    # the total that can actually change hands vs the faced aggressor this confrontation
+    eligible_allin_amount = (round(min(eff_at_decision, hero_remaining), 2)
+                             if eff_at_decision is not None else None)
+
     is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
     cover_by_opp = {}
     if is_bounty:
@@ -268,6 +315,19 @@ def build_decision_snapshot(h, hero_action_index=None):
 
         'faced_aggressor': faced_aggressor,
         'faced_aggressor_all_in': faced_aggressor_all_in,
+        'faced_action_index': faced_action_index,
+        'faced_action_kind': faced_action_kind_,
+        'faced_action_added_bb': round(faced_action_added, 2) if faced_aggressor else None,
+        'faced_aggressor_stack_before_action_bb': faced_stack_before,
+        'faced_aggressor_committed_before_action_bb': (round(faced_aggressor_committed_before_faced, 2)
+                                                       if faced_aggressor else None),
+        'faced_aggressor_remaining_after_action_bb': faced_remaining_after,
+        'hero_stack_before_decision_bb': hero_remaining,
+        'hero_committed_before_decision_bb': hero_committed_total,
+        'callable_amount_bb': callable_amount,
+        'eligible_allin_amount_bb': eligible_allin_amount,
+        'effective_stack_at_start_of_street_bb': eff_at_start_of_street,
+        'effective_stack_at_decision_bb': eff_at_decision,
         'effective_stack_by_opponent': eff_by_opp,
         'effective_stack_vs_faced_aggressor': eff_vs_faced,
         'max_effective_stack_among_active_opponents': max_eff_active,
@@ -395,40 +455,46 @@ def build_realized_contest(h, hero_action_index=None):
     idx = ref['hero_action_index']
     street = ref['street']
 
-    committed_street, folded_street = set(), set()
+    # REV2 B3: replay PERSISTENT player state across the WHOLE hand — a player who went
+    # all-in on an EARLIER street takes no later action but is still a realized
+    # participant in the main pot. Reconstruct committed-total + folded + all-in from
+    # the full ledger, not just the reviewed street.
+    committed_total, folded_anytime, all_in_anytime = {}, set(), set()
     callers_after, folds_after = [], []
     for i, a in enumerate(ledger):
-        if a.get('street') != street:
-            continue
         p = a.get('player', '')
-        if p == hero:
-            continue
+        committed_total[p] = committed_total.get(p, 0.0) + _added(a)
         act = a.get('action', '')
-        if act in ('calls', 'raises', 'bets') or a.get('is_all_in'):
-            committed_street.add(p)
         if act == 'folds':
-            folded_street.add(p)
-        if idx is not None and i > idx:
-            if act in ('calls', 'raises') or a.get('is_all_in'):
+            folded_anytime.add(p)
+        if a.get('is_all_in'):
+            all_in_anytime.add(p)
+        if a.get('street') == street and p != hero and idx is not None and i > idx:
+            if act in ('calls', 'raises', 'bets') or a.get('is_all_in'):
                 callers_after.append(p)
             elif act == 'folds':
                 folds_after.append(p)
-    contesting = sorted(committed_street - folded_street)
+    # realized contesters = everyone who put chips in and never folded (any street),
+    # so a prior-street all-in persists.
+    contesting = sorted(p for p, v in committed_total.items()
+                        if p != hero and v > _EPS and p not in folded_anytime)
 
-    committed_total = {}
-    for a in ledger:
-        p = a.get('player', '')
-        committed_total[p] = committed_total.get(p, 0.0) + _added(a)
     participants = [hero] + contesting
     layers = _pot_layers({p: committed_total.get(p, 0.0) for p in participants
                           if committed_total.get(p, 0.0) > _EPS})
     main_pot = layers[0]['participants'] if layers else participants
+    side_participants = sorted(set().union(*[set(l['participants']) for l in layers[1:]])) if len(layers) > 1 else []
 
+    # REV2 B4: bounty eligibility is per opponent and only for opponents Hero can
+    # ELIMINATE in the relevant pot layer — i.e. opponents who are ALL-IN (fully
+    # committed). A pot participant with chips behind (not all-in) cannot be busted in
+    # this confrontation and is NOT bounty-eligible.
     is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
     eligible = {}
     if is_bounty and hero_in_allin_confrontation(h, idx):
         for p in contesting:
-            eligible[p] = _coverage(starting.get(hero), starting.get(p))
+            if p in all_in_anytime:
+                eligible[p] = _coverage(starting.get(hero), starting.get(p))
 
     return {
         'hand_id': h.get('id', ''),
@@ -439,22 +505,28 @@ def build_realized_contest(h, hero_action_index=None):
         'realized_contesting_opponents': contesting,
         'realized_participant_count': 1 + len(contesting),
         'main_pot_participants': main_pot,
+        'side_pot_participants': side_participants,
         'side_pot_layers': layers,
         'eligible_bounties': eligible,
     }
 
 
 def hero_in_allin_confrontation(h, hero_action_index=None):
-    """Hero is in an all-in bounty confrontation if Hero is all-in OR Hero's reviewed
-    decision FACES an all-in (a jam Hero is calling/raising into). A side all-in Hero
-    is NOT matching does not count. Shared by the eligibility gate AND the analyzer's
-    bounty stamping so model and stamp can never diverge."""
+    """Hero is in an all-in bounty confrontation if, AT the reviewed decision, Hero is
+    all-in (at or before the reviewed index) OR Hero's reviewed decision FACES an all-in
+    (a jam Hero is calling/raising into). REV2 B5 FIX: this is ACTION-INDEXED and
+    FUTURE-BLIND — a LATER Hero all-in (e.g. a flop jam after an earlier preflop open)
+    must NOT make an earlier decision read as an all-in confrontation. Shared by the
+    eligibility gate AND the analyzer's bounty stamping so model and stamp never diverge."""
     hero = _hero(h)
     ledger = h.get('action_ledger') or []
-    if h.get('pf_allin') or any(a.get('player') == hero and a.get('is_all_in') for a in ledger):
-        return True
     ref = resolve_decision_ref(h, hero_action_index)
     idx, street = ref['hero_action_index'], ref['street']
+    # Hero all-in AT or BEFORE the reviewed action (never a future Hero all-in).
+    for i, a in enumerate(ledger):
+        if a.get('player') == hero and a.get('is_all_in') and (idx is None or i <= idx):
+            return True
+    # OR Hero faces an all-in bet/raise strictly before the reviewed action this street.
     fa = False
     for i, a in enumerate(ledger):
         if a.get('street') != street or (idx is not None and i >= idx):
@@ -504,8 +576,15 @@ def bounty_aggregate(h, hero_action_index=None):
     is_bounty = bool(h.get('format') == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
     if not is_bounty:
         return 'not_applicable'
-    cover = build_realized_contest(h, hero_action_index).get('eligible_bounties') or {}
+    rc = build_realized_contest(h, hero_action_index)
+    cover = rc.get('eligible_bounties') or {}
     if not cover:
+        # REV2 B4: an all-in confrontation that was CONTESTED but where Hero can
+        # eliminate no one (every caller covers Hero / is not all-in) collects no
+        # bounty -> 'none'. Only a genuinely uncontested / non-all-in spot is N/A.
+        if (rc.get('realized_contesting_opponents')
+                and hero_in_allin_confrontation(h, hero_action_index)):
+            return 'none'
         return 'not_applicable'
     vals = list(cover.values())
     known = [v for v in vals if v in ('collectible', 'not_collectible', 'equal_stack_boundary')]
@@ -527,8 +606,14 @@ def bounty_reason(h, hero_action_index=None):
         return 'not_applicable_no_allin_confrontation'
     if not hero_in_allin_confrontation(h, hero_action_index):
         return 'not_applicable_no_allin_confrontation'
-    cover = build_realized_contest(h, hero_action_index).get('eligible_bounties') or {}
+    rc = build_realized_contest(h, hero_action_index)
+    cover = rc.get('eligible_bounties') or {}
     if not cover:
+        # REV2 B4: Hero IS in an all-in confrontation; if it was contested but no
+        # opponent is eliminable (all callers cover Hero / are not all-in) Hero
+        # collects no bounty -> known_none. Only an uncontested jam is N/A.
+        if rc.get('realized_contesting_opponents'):
+            return 'known_none'
         return 'not_applicable_no_allin_confrontation'
     vals = list(cover.values())
     if any(v == 'unknown' for v in vals):

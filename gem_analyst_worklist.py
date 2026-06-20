@@ -625,6 +625,18 @@ def _decision_node(c, kind=None, dev=None, hand=None):
     else:
         hero_act = (stblock.get('hero_action')
                     or c.get('action_summary', '')[:40])
+    # REV2 B2/B6: route the EXACT (postflop) all-in call price from the canonical
+    # snapshot. The snapshot's callable_amount (ledger-derived, capped at Hero's stack)
+    # is authoritative for a call / call-off / call-vs-jam — a contaminated effective
+    # stack must never turn a real ledger call (83526894 13.5, 84295102 2.3,
+    # 83974506 16.8) into "unavailable".
+    if _cakind in ('call_vs_jam', 'call_off') and _csnap:
+        _snap_callable = _csnap.get('callable_amount_bb') or _csnap.get('to_call_bb')
+        if _snap_callable:
+            call_bb = round(_f(_snap_callable), 1)
+            price_unavailable = False
+            price_not_applicable = False
+            price_source = 'canonical_action_ledger'
     return {
         'street': street,
         'decision_kind': kind,

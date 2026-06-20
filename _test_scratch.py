@@ -10558,8 +10558,27 @@ _h_pf = {'id': 'PF', 'hero': 'Hero', 'stack_bb': 100.0, 'pf_allin': False,
                            _led('preflop', 'V', 'calls', 3.0),
                            _led('flop', 'Hero', 'bets', 97.0, True),
                            _led('flop', 'V', 'calls', 57.0, True)]}
-check('T-DS-06: postflop eff = min REMAINING (57, not starting 60)',
+# Grading HERO's OWN flop all-in bet: villain has acted only preflop (3), so villain's
+# stack BEHIND = 60 - 3 = 57 (no current-street villain commit yet). eff = 57, NOT the
+# 60 starting stack. This is DISTINCT from the F4 "47" example (T-DS-06b) where the
+# villain has already bet 10 on the flop before Hero acts (60 - 3 - 10 = 47).
+check('T-DS-06: postflop eff grading Hero flop bet = villain behind 57 (60-3 preflop), not starting 60',
       _ds.relevant_effective_stack_bb(_h_pf) == 57.0, _ds.relevant_effective_stack_bb(_h_pf))
+# F4 spec example: villain 60, commits 3 preflop, BETS 10 on the flop, Hero now acts.
+# remaining behind = 47 (60-3-10) and the effective stack Hero faces is min(hero, 47).
+_h_f4 = {'id': 'F4', 'hero': 'Hero', 'stack_bb': 100.0, 'pf_allin': False,
+         'seat_stack_by_player': {'Hero': 100.0, 'V': 60.0},
+         'board': ['2c', '7d', 'Js', '4h', '9c'],
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 3.0, to=3.0),
+                           _led('preflop', 'V', 'calls', 3.0),
+                           _led('flop', 'V', 'bets', 10.0, to=10.0),
+                           _led('flop', 'Hero', 'calls', 10.0)]}
+_f4_snap = _ds.build_decision_snapshot(_h_f4)   # reviewed = Hero's flop call
+check('T-DS-06b: F4 current-street bet -> villain remaining behind 47 (60-3-10), not 57',
+      next(o['remaining_before_action_bb'] for o in _f4_snap['players_active_before_action']
+           if o['player'] == 'V') == 47.0
+      and _f4_snap['effective_stack_vs_faced_aggressor'] == 47.0,
+      (_f4_snap['effective_stack_vs_faced_aggressor'],))
 
 # ---- mandatory #7: multiway main pot + side pot layers represented ----
 _rc_ds2 = _ds.build_realized_contest(_h_ds2)
@@ -10759,6 +10778,113 @@ check('T-DS-17: parser stamps the canonical decision_snapshot (single source)',
 _rc_eff = _ds.build_realized_contest(_h_ds_eff)
 check('T-DS-18: dead short remains a realized participant (Hero + RealVill + DeadShort = 3)',
       _rc_eff['realized_participant_count'] == 3, _rc_eff['realized_participant_count'])
+
+# ============================================================
+# REV2 — postflop all-in depth/price + persistent contest + per-opp bounty + future-blind
+# ============================================================
+def _Lr(street, player, action, added, allin=False, pos='?'):
+    return {'street': street, 'player': player, 'action': action, 'added_bb': added,
+            'amount_bb': added, 'is_all_in': allin, 'position': pos}
+
+# 1) river call vs all-in: depth is the jam (~13.5), NOT the bettor's ~0 remaining.
+_r1 = {'id': 'R1', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 21.0, 'V': 13.5},
+       'board': ['2c', '7d', 'Js', '4h', '9c'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 0), _Lr('preflop', 'V', 'calls', 0),
+           _Lr('river', 'V', 'bets', 13.5, True), _Lr('river', 'Hero', 'calls', 13.5)]}
+_s1 = _ds.build_decision_snapshot(_r1)
+check('T-REV2-01: river call vs all-in -> eff!=~0, callable=jam, kind call_vs_jam',
+      _s1['hero_action_kind'] == 'call_vs_jam' and _s1['effective_stack_at_decision_bb'] > 1.0
+      and abs(_s1['callable_amount_bb'] - 13.5) < 0.1
+      and _s1['faced_aggressor_remaining_after_action_bb'] < 0.5, (_s1['effective_stack_at_decision_bb'], _s1['callable_amount_bb']))
+
+# 2) flop call-off where Hero is SHORTER: callable = Hero stack, eff = Hero stack.
+_r2 = {'id': 'R2', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 17.0, 'V': 120.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 0), _Lr('preflop', 'V', 'calls', 0),
+           _Lr('flop', 'V', 'bets', 111.0, True), _Lr('flop', 'Hero', 'calls', 17.0, True)]}
+_s2 = _ds.build_decision_snapshot(_r2)
+check('T-REV2-02: flop call-off Hero shorter -> callable=Hero stack 17, eff~17, to_call=full jam',
+      abs(_s2['callable_amount_bb'] - 17.0) < 0.1 and abs(_s2['effective_stack_at_decision_bb'] - 17.0) < 0.6
+      and _s2['to_call_bb'] > 100, (_s2['callable_amount_bb'], _s2['effective_stack_at_decision_bb'], _s2['to_call_bb']))
+
+# 3) tiny final side-pot call after Hero already called a larger all-in: depth!=~0.
+# SB jams 56; Hero calls 56; HJ over-jams to 58.3 (a 2.3 raise all-in); Hero calls 2.3 more.
+_r3 = {'id': 'R3', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 60.0, 'SB': 56.0, 'HJ': 58.3},
+       'board': ['2c', '7d', 'Js', '4h'], 'action_ledger': [
+           _Lr('turn', 'SB', 'bets', 56.0, True), _Lr('turn', 'Hero', 'calls', 56.0),
+           _Lr('turn', 'HJ', 'raises', 58.3, True), _Lr('turn', 'Hero', 'calls', 2.3)]}
+_s3 = _ds.build_decision_snapshot(_r3)   # reviewed = Hero's LAST turn action = the 2.3 call
+check('T-REV2-03: tiny final side-pot call -> small to_call ~2.3, eff!=~0',
+      abs(_s3['to_call_bb'] - 2.3) < 0.2 and _s3['effective_stack_at_decision_bb'] > 1.0,
+      (_s3['to_call_bb'], _s3['effective_stack_at_decision_bb']))
+
+# 4) prior-street all-in persists through the flop contest (B3).
+_r4 = {'id': 'R4', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Hero', 'calls', 5),
+                         _Lr('preflop', 'Deep', 'calls', 5), _Lr('flop', 'Deep', 'bets', 8),
+                         _Lr('flop', 'Hero', 'raises', 30, True), _Lr('flop', 'Deep', 'calls', 30)]}
+_rc4 = _ds.build_realized_contest(_r4, 4)
+check('T-REV2-04: prior-street all-in persists -> main {Hero,Short,Deep}, side {Hero,Deep}',
+      set(_rc4['main_pot_participants']) == {'Hero', 'Short', 'Deep'}
+      and set(_rc4['side_pot_participants']) == {'Hero', 'Deep'}, (_rc4['main_pot_participants'], _rc4['side_pot_participants']))
+
+# 5) folded dead money stays in pot amount but the folder is NOT a participant/eligible.
+_r5 = {'id': 'R5', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Folder': 30.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Folder', 'raises', 3), _Lr('preflop', 'Short', 'raises', 5, True),
+                         _Lr('preflop', 'Hero', 'calls', 5), _Lr('preflop', 'Folder', 'folds', 0)]}
+_rc5 = _ds.build_realized_contest(_r5, 2)
+check('T-REV2-05: folded dead money -> Folder not a participant, not eligible; Short eligible',
+      'Folder' not in _rc5['realized_contesting_opponents'] and 'Folder' not in _rc5['eligible_bounties']
+      and _rc5['eligible_bounties'].get('Short') == 'collectible', (_rc5['realized_contesting_opponents'], _rc5['eligible_bounties']))
+
+# 6) short jam + deep NON-all-in caller -> only the short is eligible (B4).
+_r6 = {'id': 'R6', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Deep', 'calls', 5),
+                         _Lr('preflop', 'Hero', 'calls', 5)]}
+check('T-REV2-06: short jam + deep non-all-in caller -> eligible {Short}; aggregate all',
+      _ds.build_realized_contest(_r6, 2)['eligible_bounties'] == {'Short': 'collectible'}
+      and _ds.bounty_aggregate(_r6, 2) == 'all', _ds.build_realized_contest(_r6, 2)['eligible_bounties'])
+
+# 7) mixed bounty where BOTH opponents are all-in (one covered, one not) -> aggregate mixed.
+_r7 = {'id': 'R7', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 30.0, 'Short': 5.0, 'Big': 80.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Big', 'raises', 80, True),
+                         _Lr('preflop', 'Hero', 'calls', 30, True)]}
+_rc7 = _ds.build_realized_contest(_r7, 2)
+check('T-REV2-07: two all-in opponents (cover Short, not Big) -> mixed',
+      _rc7['eligible_bounties'].get('Short') == 'collectible'
+      and _rc7['eligible_bounties'].get('Big') == 'not_collectible'
+      and _ds.bounty_aggregate(_r7, 2) == 'mixed', _rc7['eligible_bounties'])
+
+# 8) earlier decision then later Hero all-in: future-blind confrontation/bounty (B5).
+_r8 = {'id': 'R8', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 2.2), _Lr('preflop', 'V', 'calls', 2.2),
+           _Lr('flop', 'Hero', 'bets', 30, True), _Lr('flop', 'V', 'calls', 30, True)]}
+check('T-REV2-08: earlier preflop open is future-blind to the later flop Hero jam',
+      _ds.hero_in_allin_confrontation(_r8, 0) is False
+      and _ds.bounty_reason(_r8, 0) == 'not_applicable_no_allin_confrontation'
+      and _ds.hero_in_allin_confrontation(_r8, 2) is True, '')
+
+# 9) worklist routes the EXACT postflop call price from the snapshot (B2/B6).
+_r9_hand = dict(_r1); _r9_hand['id'] = 'TM_R9'
+_r9_cand = _mk_cand(id='TM_R9', cards='AhKh', position='BB', pf_allin=False,
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_r9_dn = _awl._decision_node(_r9_cand, kind='postflop', dev=None, hand=_r9_hand)
+check('T-REV2-09: worklist postflop call price routed from snapshot (callable, canonical source)',
+      _r9_dn.get('hero_action_kind') == 'call_vs_jam'
+      and _r9_dn.get('call_amount_bb') and abs(_r9_dn['call_amount_bb'] - 13.5) < 0.2
+      and _r9_dn.get('price_source') == 'canonical_action_ledger'
+      and not _r9_dn.get('price_unavailable')
+      and (_r9_dn.get('effective_bb_vs_relevant_villain') or 0) > 1.0, str(_r9_dn))
+
+# 10) report-parity semantic invariant: a call_vs_jam facing a >1BB bet never grades at ~0 depth.
+check('T-REV2-10: call_vs_jam facing >1BB bet -> decision depth not ~0 (parity invariant)',
+      all(_ds.build_decision_snapshot(hh)['effective_stack_at_decision_bb'] > 1.0
+          for hh in (_r1, _r2, _r3)), '')
 
 
 # ============================================================

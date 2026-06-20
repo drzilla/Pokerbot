@@ -137,14 +137,28 @@ def gate_report(hands_idx, html):
         eff_by_hand.setdefault(m.group(2), _f(m.group(1)))
     for hid, body in bodies.items():
         h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
-        if h is None or not h.get('pf_allin'):
+        if h is None:
             continue
-        ridx = _reviewed_action_index(h, 'preflop_allin')
-        if ridx is None:
-            continue
-        snap = ds.build_decision_snapshot(h, ridx)
+        # REV2 B6: cover ALL all-in decisions, not just preflop ones — the postflop
+        # call-vs-jam hands (83526894/84295102/83974506) were skipped before.
+        snap = ds.build_decision_snapshot(h)   # reviewed = Hero's last action
         sn_kind = snap.get('hero_action_kind')
+        if sn_kind not in ('call_vs_jam', 'call_off', 'open_shove',
+                           'rejam_over_live_raise', 'overjam_with_side_pot'):
+            continue
         out['checked'] += 1
+        # REV2 semantic: a call_vs_jam/call_off facing a >1BB bet must NOT render a
+        # ~0 decision depth in its body (catches the 0.14-0.15 collapse).
+        if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('to_call_bb') or 0) > 1.0:
+            depth = snap.get('effective_stack_at_decision_bb')
+            if depth is not None and depth <= 1.0:
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'postflop_depth_collapsed',
+                     'snapshot_depth': depth, 'to_call': snap.get('to_call_bb')})
+            for m in re.finditer(r'(0\.1[0-9])\s?BB', body):
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'body_shows_0.1x_depth', 'token': m.group(0)})
+                break
         # --- decision label parity (STRICT 3-way): the rendered Decision label
         # must equal the canonical kind's label family. Catches open-shove<->re-jam
         # AND call<->re-jam divergence (83578445/84107187 self-contradiction). ---
@@ -176,6 +190,63 @@ def gate_report(hands_idx, html):
     return out
 
 
+_ALLIN_KINDS = ('call_vs_jam', 'call_off', 'open_shove',
+                'rejam_over_live_raise', 'overjam_with_side_pot')
+
+
+def gate_semantic(hands_idx, worklist):
+    """REV2 B6/B7: semantic invariants on EVERY worklist decision item (not just
+    cross-surface agreement). Catches a wrong MODEL the agreement gates can't."""
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'checked': 0, 'violations': []}
+    for it in items:
+        hid = str(it.get('hand_id') or '')
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        kind = it.get('decision_kind') or it.get('bucket')
+        ridx = _reviewed_action_index(h, kind)
+        if ridx is None:
+            continue
+        snap = ds.build_decision_snapshot(h, ridx)
+        sn_kind = snap.get('hero_action_kind')
+        dn = it.get('decision_node') or {}
+        if sn_kind not in _ALLIN_KINDS:
+            continue
+        out['checked'] += 1
+        # INV1: a call/call-off facing a >1BB bet may not grade at ~0 depth.
+        if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('to_call_bb') or 0) > 1.0:
+            eff = _f(dn.get('effective_bb_vs_relevant_villain'))
+            if eff is not None and eff <= 1.0:
+                out['violations'].append({'hand': hid, 'inv': 'depth_collapsed', 'eff': eff})
+        # INV2: an exact ledger call must not be 'unavailable' when the snapshot has one.
+        if sn_kind in ('call_vs_jam', 'call_off') and (snap.get('callable_amount_bb') or 0) > 0:
+            if dn.get('price_unavailable') or dn.get('price_source') == 'unavailable':
+                out['violations'].append({'hand': hid, 'inv': 'unjustified_unavailable',
+                                          'snapshot_callable': snap.get('callable_amount_bb')})
+        # INV3: the all-in bettor's remaining-after must never BE the decision depth.
+        fa_rem = snap.get('faced_aggressor_remaining_after_action_bb')
+        eff = _f(dn.get('effective_bb_vs_relevant_villain'))
+        if (fa_rem is not None and fa_rem < 0.5 and eff is not None and eff < 0.5
+                and snap.get('faced_aggressor_all_in')):
+            out['violations'].append({'hand': hid, 'inv': 'depth_used_remaining_after_allin'})
+        # INV4: per-opponent bounty eligibility — only all-in opponents are eligible.
+        rc = ds.build_realized_contest(h, ridx)
+        elig = set((rc.get('eligible_bounties') or {}).keys())
+        allin_opps = {o['player'] for o in snap.get('players_all_in_before_action', [])}
+        # an opponent all-in only on a later street is captured by realized contest;
+        # union with realized all-in detection via committed+is_all_in:
+        non_allin_elig = elig - allin_opps - {p for p in elig
+                                              if any(a.get('player') == p and a.get('is_all_in')
+                                                     for a in (h.get('action_ledger') or []))}
+        if non_allin_elig:
+            out['violations'].append({'hand': hid, 'inv': 'non_allin_bounty_eligible',
+                                      'who': sorted(non_allin_elig)})
+    return out
+
+
 def main():
     if len(sys.argv) < 4:
         print(__doc__)
@@ -190,9 +261,10 @@ def main():
     hands_idx = _hand_index(hands)
     g_wl = gate_worklist(hands_idx, worklist)
     g_rp = gate_report(hands_idx, html)
+    g_sem = gate_semantic(hands_idx, worklist)
 
     print('=' * 64)
-    print('END-TO-END PARITY — worklist & report vs canonical snapshot')
+    print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
     print('=' * 64)
     print(f"A. WORKLIST == SNAPSHOT : {g_wl['checked']} items checked, "
           f"{len(g_wl['mismatches'])} mismatch(es)")
@@ -202,13 +274,17 @@ def main():
           f"{len(g_rp['mismatches'])} mismatch(es)")
     for mm in g_rp['mismatches'][:40]:
         print('   ✗', mm)
-    ok = not g_wl['mismatches'] and not g_rp['mismatches']
+    print(f"C. SEMANTIC INVARIANTS  : {g_sem['checked']} all-in items checked, "
+          f"{len(g_sem['violations'])} violation(s)")
+    for mm in g_sem['violations'][:40]:
+        print('   ✗', mm)
+    ok = not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
     print('-' * 64)
-    print('RESULT:', 'PASS — all surfaces agree with the snapshot' if ok
+    print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
     if out_json:
         with io.open(out_json, 'w', encoding='utf-8') as fh:
-            json.dump({'worklist': g_wl, 'report': g_rp, 'pass': ok}, fh, indent=2)
+            json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

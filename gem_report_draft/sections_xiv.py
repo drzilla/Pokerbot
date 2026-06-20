@@ -204,6 +204,99 @@ def _per_decision_bounty_meta(h):
     return ''.join(out)
 
 
+def _rdr_f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _reviewed_ref(rd, h, hid, hid_short):
+    """REV6 B2: the ONE canonical reviewed-decision reference for this hand. Prefers the
+    worklist-authored ref in report_data (carries the candidate decision_kind), then the
+    analyzer's ledger-inferred default stamped on the hand. {} when neither exists."""
+    return ((rd.get('reviewed_decision_ref_by_hand') or {}).get(hid)
+            or (rd.get('reviewed_decision_ref_by_hand') or {}).get(hid_short)
+            or h.get('reviewed_decision_ref') or {})
+
+
+def _reconcile_po_to_reviewed(_po, _rdref):
+    """REV6 B2: force the VISIBLE pot-odds block to describe the canonical reviewed action.
+    gem_pot_odds reconstructs the FIRST all-in call, which on multi-street hands is a
+    DIFFERENT action than the worklist graded (83526894: visible 'turn 7.9BB' vs canonical
+    'river 13.5BB'; 84295102: visible 'preflop 6.9BB' vs canonical 'turn 2.3BB'). If _po is
+    absent OR grades a different street/call than the reviewed decision, rebuild the visible
+    street / call / required-equity / pot from the canonical ref (chip pot-odds). If _po
+    already matches, keep its richer equity/range fields but PIN the action index + depth.
+    Every routed block carries decision_action_index for the data attribute + parity gate."""
+    if not _rdref:
+        return _po
+    out = dict(_po) if _po else {}
+    canon_street = _rdref.get('street')
+    canon_call = _rdref.get('to_call_bb')
+    out['decision_action_index'] = _rdref.get('hero_action_index')
+    out['reviewed_selection_source'] = _rdref.get('selection_source')
+    out['reviewed_street'] = canon_street
+    out['reviewed_call_bb'] = canon_call
+    out['effective_stack_bb'] = _rdref.get('effective_stack_at_decision_bb')
+    matches = (_po and _po.get('street') == canon_street
+               and abs(_rdr_f(_po.get('call_bb')) - _rdr_f(canon_call)) <= 0.15)
+    if matches:
+        out['reviewed_routed'] = False
+        return out
+    # mismatch (or no _po): OVERRIDE the visible fields with the canonical reviewed action,
+    # and drop equity/range/per-street facts that belonged to the OTHER (un-graded) action.
+    out['reviewed_routed'] = True
+    out['street'] = canon_street
+    out['call_bb'] = canon_call
+    out['pot_before_call_bb'] = _rdref.get('pot_before_action_bb')
+    out['required_eq_pct'] = _rdref.get('required_eq_pct')
+    _pb, _tc = _rdr_f(_rdref.get('pot_before_action_bb')), _rdr_f(canon_call)
+    out['pot_odds'] = (f"{_pb / _tc:.1f}:1" if _tc > 0
+                       else (_po.get('pot_odds') if _po else '—'))
+    for _k in ('hero_equity_pct', 'realized_equity_vs_shown', 'villain_range_spec',
+               'equity_mode', 'per_street_summary', 'required_eq_note', 'mode',
+               'is_overbet', 'bet_pct_of_pot'):
+        out.pop(_k, None)
+    return out
+
+
+def _reviewed_decision_line_md(_po):
+    """REV6 B2: the explicit VISIBLE line the parity gate parses — street, call amount and
+    effective depth of the canonical reviewed action, so the user-facing lesson states the
+    SAME decision the worklist graded (never only a hidden span / data-attribute)."""
+    st = _po.get('reviewed_street')
+    call = _po.get('reviewed_call_bb')
+    depth = _po.get('effective_stack_bb')
+    if not st:
+        return ''
+    parts = [f"**Reviewed decision:** {st}"]
+    if call is not None:
+        parts.append(f"call {_rdr_f(call):g}BB")
+    if depth is not None:
+        parts.append(f"effective depth ≈{_rdr_f(depth):.2f}BB")
+    return ', '.join(parts)
+
+
+def _bounty_applicability_note_md(h):
+    """REV6 B3/B4: the VISIBLE disclosure of a COMBINED bounty opportunity (an already-
+    committed all-in bounty AND an unresolved potential caller — 84990829) or a committed
+    bounty whose collectibility is unresolved (missing stack). The REV5 report collapsed
+    exact+potential to a scalar and the explanation discussed only the committed opponent;
+    this states BOTH so the user (and EV gate) see the unresolved potential caller."""
+    dbc = h.get('decision_bounty_context') or {}
+    app = dbc.get('bounty_applicability')
+    cert = dbc.get('bounty_certainty')
+    if app == 'exact_and_potential':
+        return ("**Bounty (combined):** one committed bounty opportunity already exists, and "
+                "another live caller's bounty may become relevant if that player calls — the "
+                "potential caller's bounty EV is not modelled, so review manually.")
+    if app == 'exact_committed' and cert == 'unknown_stack':
+        return ("**Bounty:** a committed all-in bounty is at stake but the opponent's stack is "
+                "missing from the export, so collectibility is unresolved — review manually.")
+    return ''
+
+
 def _bounty_trust_strip_md(rd, h, _po):
     """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
     rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
@@ -2958,6 +3051,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                           multiway_render_plan as _mwp_lead)
             _po_lead = ((rd.get('pot_odds_by_hand') or {}).get(hid)
                         or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+            # REV6 B2: route the capsule lead through the SAME canonical reviewed action as
+            # the pot-odds block below, so the capsule street/required-equity grade the
+            # graded decision (never the first all-in call on an earlier street).
+            _rdref_lead = _reviewed_ref(rd, h, hid, hid_short)
+            _po_lead = _reconcile_po_to_reviewed(_po_lead, _rdref_lead) or {}
             _rev_lead = locals().get('_rev_xiva') or {}
             _capdec_lead = ''
             if h.get('pf_allin'):
@@ -3005,7 +3103,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # v8.17.1 P5(1): the capsule carries the SAME canonical verdict
                 # the topbar / action row / queue read (zero cross-surface drift).
                 _cvd_lead = f" data-canonical-verdict='{_html_escape(verdict or '')}'"
-                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}{_cvd_lead}>")
+                # REV6 B2: the capsule is a visible decision block -> carry the canonical
+                # reviewed action index so the rendered-parity gate proves it.
+                _dai_lead = (_rdref_lead or {}).get('hero_action_index')
+                _dai_lead_attr = (f" data-decision-action-index='{int(_dai_lead)}'"
+                                  if _dai_lead is not None else '')
+                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}{_cvd_lead}{_dai_lead_attr}>")
                 doc.w(_rcm_lead(_cap_lead))
                 doc.w("</div>")
                 doc.w("")
@@ -3115,8 +3218,18 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # equity in the hand detail when computed.
         _po = (rd.get('pot_odds_by_hand') or {}).get(hid) or \
               (rd.get('pot_odds_by_hand') or {}).get(hid_short)
+        # REV6 B2: route the VISIBLE pot-odds block through the ONE canonical reviewed
+        # action (the worklist's graded decision) so the lesson never grades a different
+        # action than the worklist (the 83526894 turn-vs-river bug). When _po grades a
+        # different action it is rebuilt from the canonical decision snapshot; a hand with a
+        # reviewed ref but no pot-odds object still renders the canonical street/call/depth.
+        _rdref_po = _reviewed_ref(rd, h, hid, hid_short)
+        _po = _reconcile_po_to_reviewed(_po, _rdref_po)
         if _po:
             _po_lines = []
+            _rev_line = _reviewed_decision_line_md(_po)
+            if _rev_line:
+                _po_lines.append(_rev_line)
             _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
                              f"(call {_po.get('call_bb', '\u2014')}BB into "
                              f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
@@ -3290,6 +3403,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)
             if _bts:
                 _po_lines.append(_bts)
+            # REV6 B3/B4: disclose a COMBINED exact+potential bounty opportunity (or an
+            # unresolved committed-stack) in the visible lesson, never just the committed one.
+            _bapp_note = _bounty_applicability_note_md(h)
+            if _bapp_note:
+                _po_lines.append(_bapp_note)
             _ev = _po.get('ev_call_bb')
             _vh = _po.get('verdict_hint', '')
             if _ev is not None:
@@ -3307,7 +3425,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _po_lines:
                 _po_st = _street_attr(_po.get('street'))
                 _po_ds = f" data-street='{_po_st}'" if _po_st else ''
-                doc.w(f"<div class='analyst-notes'{_po_ds}>")
+                # REV6 B2: the visible decision-bearing block carries the canonical reviewed
+                # action index so the rendered-parity gate can prove it grades that action.
+                _po_dai = _po.get('decision_action_index')
+                _po_dai_attr = (f" data-decision-action-index='{int(_po_dai)}'"
+                                if _po_dai is not None else '')
+                doc.w(f"<div class='analyst-notes'{_po_ds}{_po_dai_attr}>")
                 doc.w("\U0001F4CA **Pot-Odds & Equity:**")
                 doc.w("")
                 for _pl in _po_lines:
@@ -3475,6 +3598,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                       "logic only.")
             doc.w("</div>")
             doc.w("")
+
+        # REV6 B3/B4: a COMBINED exact+potential bounty (or an unresolved committed stack) on
+        # a hand WITHOUT a pot-odds block still gets its visible disclosure (the pot-odds
+        # block above already shows it when _po exists).
+        if (not _po and h.get('format') == 'BOUNTY'
+                and _dbc_app in ('exact_and_potential', 'exact_committed')):
+            _bapp_note_solo = _bounty_applicability_note_md(h)
+            if _bapp_note_solo:
+                doc.w(f"<div class='analyst-notes' data-street='preflop' "
+                      f"data-decision-action-index='{_dbc_aidx if _dbc_aidx is not None else ''}'>")
+                doc.w("\U0001f3af " + _bapp_note_solo)
+                doc.w("</div>")
+                doc.w("")
 
         # v8.16.3 Range Lens v1: source-safe per-street range/commentary lines,
         # appended AFTER all existing commentary (preserves it; V25 routes by
@@ -3872,6 +4008,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         from gem_report_draft._helpers import hand_range_evidence as _hre_bl
                         _po_bl = ((rd.get('pot_odds_by_hand') or {}).get(hid)
                                   or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+                        # REV6 B2: route the COMPACT (XIV.B) capsule through the SAME canonical
+                        # reviewed action as XIV.A so the capsule street/required-equity grade
+                        # the graded decision (the 83526894/84295102 hands render HERE).
+                        _rdref_bl = _reviewed_ref(rd, h, hid, hid_short)
+                        _po_bl = _reconcile_po_to_reviewed(_po_bl, _rdref_bl) or {}
                         _rev_bl = _hre_bl(h) or {}
                         _capdec_bl = ''
                         if h.get('pf_allin'):
@@ -3915,7 +4056,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             _cv_bl = ((rd.get('canonical_verdicts') or {}).get(hid)
                                       or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
                             _cvd_bl = f" data-canonical-verdict='{_html_escape(_cv_bl.get('verdict', '') or '')}'"
-                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}{_cvd_bl}>")
+                            # REV6 B2: the compact capsule is a visible decision block too.
+                            _dai_bl = (_rdref_bl or {}).get('hero_action_index')
+                            _dai_bl_attr = (f" data-decision-action-index='{int(_dai_bl)}'"
+                                            if _dai_bl is not None else '')
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}{_cvd_bl}{_dai_bl_attr}>")
                             doc.w(_rcm_b(_cap_bl))
                             doc.w("</div>")
                             doc.w("")
@@ -3943,8 +4088,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # Pot odds rendering for XIV.B (same as XIV.A BUG-12 fix)
                 _po_b = (rd.get('pot_odds_by_hand') or {}).get(hid) or \
                          (rd.get('pot_odds_by_hand') or {}).get(hid_short)
+                # REV6 B2: route the compact pot-odds through the canonical reviewed action.
+                # The named hands (83526894 turn->river, 84295102 preflop->turn) render HERE;
+                # a hand with a reviewed ref but no pot-odds object still gets the canonical
+                # street/call/depth line.
+                _rdref_b = _reviewed_ref(rd, h, hid, hid_short)
+                _po_b = _reconcile_po_to_reviewed(_po_b, _rdref_b)
                 if _po_b:
                     _po_lines_b = []
+                    _rev_line_b = _reviewed_decision_line_md(_po_b)
+                    if _rev_line_b:
+                        _po_lines_b.append(_rev_line_b)
                     _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
                                        f"(call {_po_b.get('call_bb', '—')}BB)")
                     # v8.16.4 DTI Blocker 2: the COMPACT path (the one most hands
@@ -3988,7 +4142,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     if _po_lines_b:
                         _po_st_b = _street_attr(_po_b.get('street'))
                         _po_ds_b = f" data-street='{_po_st_b}'" if _po_st_b else ''
-                        doc.w(f"<div class='analyst-notes'{_po_ds_b}>")
+                        # REV6 B2: compact visible decision block carries the reviewed index.
+                        _po_dai_b = _po_b.get('decision_action_index')
+                        _po_dai_b_attr = (f" data-decision-action-index='{int(_po_dai_b)}'"
+                                          if _po_dai_b is not None else '')
+                        doc.w(f"<div class='analyst-notes'{_po_ds_b}{_po_dai_b_attr}>")
                         doc.w("📊 " + " · ".join(_po_lines_b))
                         # v8.14.1 rev-3 (Blocker 5): attach the required-equity
                         # teaching line to EVERY visible Required-equity line, not
@@ -4013,6 +4171,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
+                        # REV6 B3/B4: disclose a COMBINED exact+potential bounty (or an
+                        # unresolved committed stack) on the compact path too (84990829).
+                        _bapp_note_b = _bounty_applicability_note_md(h)
+                        if _bapp_note_b:
+                            doc.w("")
+                            doc.w(_bapp_note_b)
                         # v8.16.4 DTI Blocker 2/Obj 9: bounty provenance on the
                         # compact path (exact $ vs flat starting-BB estimate),
                         # reusing the same bounty fields (one source, no recompute).

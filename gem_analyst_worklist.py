@@ -779,23 +779,33 @@ def _auto_clear_gate(c, dn, rng, bnt, dm_block, src_truth, action_line,
         return False, 'multiway'
     if c.get('side_pot') or c.get('has_side_pot'):
         return False, 'side_pot'
-    # req: bounty certainty branches on the typed APPLICABILITY (REV5 B1):
-    #   exact_committed   -> collectibility known, use the canonical context (no block)
-    #   potential_if_called -> bounty EV is a real but UNMODELLED factor (open-shove /
-    #                          re-jam); NOT equivalent to not_applicable, so it BLOCKS the
-    #                          deterministic auto-clear (the shove is not a clean clear)
-    #   unknown           -> block (missing-stack uncertainty)
-    #   not_applicable    -> no bounty at stake, no uncertainty block
+    # req: bounty certainty branches on the typed APPLICABILITY (REV5 B1) AND the SEPARATE
+    # certainty dimension (REV6 B4):
+    #   exact_committed + known       -> collectibility known, use canonical context (no block)
+    #   potential_if_called           -> bounty EV is a real but UNMODELLED factor (open-shove /
+    #                                    re-jam); BLOCKS the deterministic auto-clear
+    #   exact_and_potential           -> a committed bounty AND an unresolved potential caller
+    #                                    (REV6 B3); the potential caller is unmodelled -> BLOCK
+    #   certainty unknown_stack /
+    #     unknown_caller_model /
+    #     mixed_known                 -> material bounty uncertainty (REV6 B4); BLOCK even when
+    #                                    an exact committed opponent also exists (the REV5 gap
+    #                                    where exact_committed bypassed the unknown branch)
+    #   not_applicable + known        -> no bounty at stake, no uncertainty block
     # With no canonical context (hand absent) fall back to the pko-research flag.
     if bnt.get('is_pko'):
         _bapp = bnt.get('bounty_applicability')
-        if _bapp is None:
-            if not bnt.get('collectibility_known'):
-                return False, 'bounty_uncertain'
-        elif _bapp == 'potential_if_called':
-            return False, 'bounty_potential_if_called_unmodelled'
-        elif _bapp == 'unknown':
+        _bcert = bnt.get('bounty_certainty')
+        if _bapp is None and not bnt.get('collectibility_known'):
             return False, 'bounty_uncertain'
+        if _bapp in ('potential_if_called', 'exact_and_potential'):
+            return False, ('bounty_exact_and_potential_unresolved'
+                           if _bapp == 'exact_and_potential'
+                           else 'bounty_potential_if_called_unmodelled')
+        if _bapp == 'unknown':
+            return False, 'bounty_uncertain'
+        if _bcert in ('unknown_stack', 'unknown_caller_model', 'mixed_known'):
+            return False, 'bounty_certainty_' + _bcert
     # req: known action node (price available + facing known) OR a rich,
     # ledger-built action line the analyst can read end-to-end.
     rich_line = bool(action_line and '|' in action_line)
@@ -1022,6 +1032,22 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         # reviewed decision. A preflop deviation reads the PREFLOP street block,
         # never the hand's key_decision_street (which may be a later street).
         kind = _decision_kind(c, dev)
+        # REV6 B2: the worklist authoritatively knows the candidate's decision_kind, so it
+        # owns the ONE canonical reviewed-decision reference. Stamp it onto the hand AND into
+        # report_data so the VISIBLE report (capsule / pot-odds / trust strip) routes every
+        # block through the SAME graded action the worklist reviewed — overwriting the
+        # analyzer's ledger-inferred default. Carried as plain data through report_data so the
+        # serialized-JSON render path is covered too.
+        if hand is not None:
+            try:
+                from gem_decision_snapshot import build_reviewed_decision_ref as _ds_rdr
+                _ridx = _reviewed_action_index(hand, kind)
+                _rdref = _ds_rdr(hand, _ridx, kind, 'worklist_reviewed_action')
+                hand['reviewed_decision_ref'] = _rdref
+                report_data.setdefault('reviewed_decision_ref_by_hand', {})[hid] = _rdref
+                report_data['reviewed_decision_ref_by_hand'][_short(hid)] = _rdref
+            except Exception:
+                pass
         _kds = 'preflop' if _is_preflop_kind(kind) else (
             (c.get('decision_math') or {}).get('key_decision_street', ''))
         dm_block = ((c.get('decision_math') or {}).get('streets') or {}).get(_kds, {})
@@ -1063,6 +1089,13 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
             # not_applicable / unknown). An open-shove/re-jam is potential_if_called, NOT
             # not_applicable; the auto-clear gate branches on this.
             bnt['bounty_applicability'] = _dbc['bounty_applicability']
+            # REV6 B3/B4: carry the independent opportunity booleans + the SEPARATE certainty
+            # dimension so the auto-clear gate blocks on an unresolved potential caller or a
+            # material-unknown bounty state even alongside an exact committed opponent.
+            bnt['has_exact_committed_bounty_opportunity'] = _dbc['has_exact_committed_bounty_opportunity']
+            bnt['has_potential_calling_bounty_opportunity'] = _dbc['has_potential_calling_bounty_opportunity']
+            bnt['bounty_certainty'] = _dbc['bounty_certainty']
+            bnt['bounty_material_unknown'] = _dbc['bounty_material_unknown']
             bnt['committed_allin_bounties_by_opponent'] = _dbc['committed_allin_bounties_by_opponent']
             bnt['potential_calling_bounties_by_opponent'] = _dbc['potential_calling_bounties_by_opponent']
             # back-compat: collectibility_known == bounty eligibility known (NOT cover)

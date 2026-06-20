@@ -10545,9 +10545,9 @@ def _cmp(s):
     return {k: s[k] for k in s if k != 'hand_id'}
 check('T-DS-04a: DecisionSnapshot identical regardless of future fold/call',
       _cmp(_ds.build_decision_snapshot(_hA)) == _cmp(_ds.build_decision_snapshot(_hB)), '')
-check('T-DS-04b: RealizedContest differs (fold=1 vs call=2 participants)',
+check('T-DS-04b: RealizedContest differs (REV6: V folds -> Hero open-jam fully uncalled/returned, 0 contestable; V calls -> 2)',
       (_ds.build_realized_contest(_hA)['realized_participant_count'],
-       _ds.build_realized_contest(_hB)['realized_participant_count']) == (1, 2),
+       _ds.build_realized_contest(_hB)['realized_participant_count']) == (0, 2),
       (_ds.build_realized_contest(_hA)['realized_participant_count'],
        _ds.build_realized_contest(_hB)['realized_participant_count']))
 
@@ -11400,11 +11400,11 @@ _u2 = _rc([_Lb('preflop', 'V', 'raises', 100, True), _Lb('preflop', 'Hero', 'cal
 check('T-I1H-12: Villain overjam vs shorter Hero call -> uncalled to V, contestable 80, no side',
       _u2['uncalled_return_by_player'] == {'V': 60.0} and _u2['contestable_pot_bb'] == 80.0
       and _u2['side_pot_participants'] == [] and _qp.pot_semantic_violations(_u2) == [], str(_u2))
-# 3) multiway main + genuine side + final uncalled
+# 3) multiway main + genuine side + final uncalled (Deep over-jams 100 over Hero's 50 all-in)
 _u3 = _rc([_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Mid', 'raises', 20, True),
-           _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'calls', 100, True)],
+           _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'raises', 100, True)],
           {'Hero': 50.0, 'Short': 5.0, 'Mid': 20.0, 'Deep': 100.0}, 2)
-check('T-I1H-13: multiway main + genuine side pots + final uncalled (Deep 50 returned), all layers >=2 eligible',
+check('T-I1H-13: multiway main + genuine side pots + final uncalled (Deep 50 returned, ledger-derived), all layers >=2 eligible',
       _u3['uncalled_return_by_player'] == {'Deep': 50.0}
       and all(len(l['eligible_participants']) >= 2 for l in _u3['pot_layers'])
       and _qp.pot_semantic_violations(_u3) == [], str([(l['from_bb'], l['to_bb'], l['eligible_participants']) for l in _u3['pot_layers']]))
@@ -11434,6 +11434,169 @@ _u_bad['pot_layers'] = _u_bad['pot_layers'] + [{'kind': 'side', 'from_bb': 40.0,
     'dead_money_by_player': {}, 'total_layer_bb': 80.0}]
 check('T-I1H-17: pot gate CATCHES an injected one-player side pot (uncalled excess as side pot)',
       'one_player_side_pot' in _qp.pot_semantic_violations(_u_bad), '')
+
+# ---- REV6 B1: LEDGER-derived uncalled returns (10 mandatory acceptance tests) ----
+# The uncalled return must come from the action LEDGER (last unmatched bet/raise), NEVER
+# from contribution-total ranking. Forced posts / antes / rounding must never manufacture a
+# return. Each fixture asserts the typed source fields too.
+# 1) 83526894-STRUCTURE: river jam FULLY CALLED with a big-blind-ante asymmetry preflop.
+#    Hero's TOTAL exceeds V's by the ante (0.15), but the river jam is matched -> uncalled 0.
+_lu1 = _rc([_Lb('preflop', 'V', 'posts', 1.0), _Lb('preflop', 'Hero', 'posts', 1.15),  # BB-ante on Hero
+            _Lb('preflop', 'V', 'raises', 2.5), _Lb('preflop', 'Hero', 'calls', 2.5),
+            _Lb('flop', 'V', 'bets', 5.0), _Lb('flop', 'Hero', 'calls', 5.0),
+            _Lb('turn', 'V', 'bets', 8.0), _Lb('turn', 'Hero', 'calls', 8.0),
+            _Lb('river', 'V', 'raises', 13.5, True), _Lb('river', 'Hero', 'calls', 13.5, True)],
+           {'Hero': 30.0, 'V': 30.0}, 9)
+check('T-LU-01 (83526894-structure): river jam fully called + BB-ante asymmetry -> uncalled 0, no false ante return',
+      _lu1['uncalled_return_by_player'] == {} and _lu1['uncalled_return_bb'] == 0.0
+      and _lu1['matched_amount_bb'] == 13.5 and _lu1['uncalled_source_street'] == 'river'
+      and _qp.pot_semantic_violations(_lu1) == [],
+      (_lu1['uncalled_return_by_player'], _lu1['matched_amount_bb']))
+# 2) 84611544-STRUCTURE: BTN opens / BB calls, bet-call every street, river bet 5.3 fully called.
+_lu2 = _rc([_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'BB', 'posts', 1.0),
+            _Lb('preflop', 'BTN', 'raises', 2.2), _Lb('preflop', 'SB', 'folds', 0),
+            _Lb('preflop', 'BB', 'calls', 2.2),
+            _Lb('flop', 'BB', 'checks', 0), _Lb('flop', 'BTN', 'bets', 2.5), _Lb('flop', 'BB', 'calls', 2.5),
+            _Lb('turn', 'BB', 'checks', 0), _Lb('turn', 'BTN', 'bets', 4.0), _Lb('turn', 'BB', 'calls', 4.0),
+            _Lb('river', 'BB', 'checks', 0), _Lb('river', 'BTN', 'bets', 5.3), _Lb('river', 'BB', 'calls', 5.3)],
+           {'BTN': 40.0, 'BB': 40.0, 'SB': 40.0}, 12)
+check('T-LU-02 (84611544-structure): fully-called river bet + folded SB blind -> uncalled 0',
+      _lu2['uncalled_return_by_player'] == {} and _lu2['uncalled_return_bb'] == 0.0
+      and _lu2['uncalled_source_street'] == 'river' and _lu2['matched_amount_bb'] == 5.3
+      and _qp.pot_semantic_violations(_lu2) == [], str(_lu2['uncalled_return_by_player']))
+# 3) Big-blind walk: SB posts, BB posts, everyone folds -> NO raise/bet -> no uncalled bet.
+_lu3 = _rc([_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),  # Hero is BB
+            _Lb('preflop', 'BTN', 'folds', 0), _Lb('preflop', 'SB', 'folds', 0)],
+           {'Hero': 50.0, 'SB': 50.0, 'BTN': 50.0}, 1)
+check('T-LU-03: BB walk -> no blind/ante is labelled an uncalled bet (source index None, return 0)',
+      _lu3['uncalled_return_bb'] == 0.0 and _lu3['uncalled_source_action_index'] is None
+      and _qp.pot_semantic_violations(_lu3) == [], str(_lu3['uncalled_return_by_player']))
+# 4) Big-blind ante on ONE seat, hand otherwise fully called -> the ante is not a return.
+_lu4 = _rc([_Lb('preflop', 'V', 'posts', 1.0), _Lb('preflop', 'Hero', 'posts', 2.0),  # 1bb BB + 1bb BB-ante
+            _Lb('preflop', 'V', 'raises', 6.0), _Lb('preflop', 'Hero', 'calls', 6.0)],
+           {'Hero': 30.0, 'V': 30.0}, 3)
+check('T-LU-04: big-blind ante on one seat + fully-called open -> no false return (ante stays dead)',
+      _lu4['uncalled_return_by_player'] == {} and _lu4['uncalled_return_bb'] == 0.0
+      and _qp.pot_semantic_violations(_lu4) == [], str(_lu4['uncalled_return_by_player']))
+# 5) Hero jams 100, Villain calls all-in 20 -> genuine 80 return to Hero (also at T-I1H-11).
+_lu5 = _rc([_Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'V', 'calls', 20, True)],
+           {'Hero': 100.0, 'V': 20.0}, 0)
+check('T-LU-05: Hero jams 100 / V calls all-in 20 -> genuine 80 return, source = Hero raise, matched 20',
+      _lu5['uncalled_return_by_player'] == {'Hero': 80.0} and _lu5['matched_amount_bb'] == 20.0
+      and _lu5['uncalled_source_player'] == 'Hero' and _lu5['uncalled_action_added_bb'] == 100.0
+      and _lu5['contestable_pot_bb'] == 40.0, str(_lu5))
+# 6) River bet 20, all opponents fold -> the unmatched bet is returned.
+_lu6 = _rc([_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+            _Lb('flop', 'Hero', 'bets', 3.0), _Lb('flop', 'V', 'calls', 3.0),
+            _Lb('turn', 'Hero', 'checks', 0), _Lb('turn', 'V', 'checks', 0),
+            _Lb('river', 'Hero', 'bets', 20.0), _Lb('river', 'V', 'folds', 0)],
+           {'Hero': 60.0, 'V': 60.0}, 6)
+check('T-LU-06: river bet 20 then villain folds -> genuine 20 return to Hero (river is uncalled)',
+      _lu6['uncalled_return_by_player'] == {'Hero': 20.0} and _lu6['uncalled_source_street'] == 'river'
+      and _lu6['matched_amount_bb'] == 0.0 and _qp.pot_semantic_violations(_lu6) == [], str(_lu6))
+# 7) Multiway main + side + final unmatched (Deep over-jams 100 over Hero's 50; same as T-I1H-13).
+_lu7 = _rc([_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Mid', 'raises', 20, True),
+            _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'raises', 100, True),
+            _Lb('preflop', 'Short', 'calls', 0), _Lb('preflop', 'Mid', 'calls', 0)],
+           {'Hero': 50.0, 'Short': 5.0, 'Mid': 20.0, 'Deep': 100.0}, 2)
+check('T-LU-07: multiway main + genuine side pots + final uncalled (Deep 50 returned) -> all layers >=2 eligible',
+      _lu7['uncalled_return_by_player'] == {'Deep': 50.0}
+      and all(len(l['eligible_participants']) >= 2 for l in _lu7['pot_layers'])
+      and _qp.pot_semantic_violations(_lu7) == [], str(_lu7['uncalled_return_by_player']))
+# 8) Sub-chip rounding asymmetry (< 0.01 BB) must NOT manufacture a return.
+_lu8 = _rc([_Lb('preflop', 'V', 'raises', 6.004), _Lb('preflop', 'Hero', 'calls', 6.001, True)],
+           {'Hero': 6.001, 'V': 30.0}, 1)
+check('T-LU-08: sub-chip rounding (6.004 vs 6.001) does not manufacture an uncalled return',
+      _lu8['uncalled_return_bb'] == 0.0 and _lu8['uncalled_return_by_player'] == {}
+      and _qp.pot_semantic_violations(_lu8) == [], str(_lu8['uncalled_return_by_player']))
+# 9) Pot odds / eligible all-in amounts exclude ONLY proven uncalled: the contestable pot
+#    (what an opponent's call actually contests) is gross MINUS the proven uncalled excess.
+check('T-LU-09: contestable/eligible pot excludes ONLY the proven uncalled action (not antes)',
+      _lu5['contestable_pot_bb'] == round(_lu5['gross_action_commitments_bb'] - _lu5['uncalled_return_bb'], 2)
+      and _lu1['contestable_pot_bb'] == _lu1['gross_action_commitments_bb']  # ante NOT excluded
+      and _lu6['contestable_pot_bb'] == round(_lu6['gross_action_commitments_bb'] - 20.0, 2), '')
+# 10) Gross == contestable + uncalled AND contestable == Σ(layer totals) reconcile from the ledger.
+check('T-LU-10: gross == contestable + uncalled and Σ(layers) == contestable for every ledger fixture',
+      all(abs(r['gross_action_commitments_bb'] - (r['contestable_pot_bb'] + r['uncalled_return_bb'])) < 0.02
+          and abs(r['contestable_pot_bb'] - sum(l['total_layer_bb'] for l in r['pot_layers'])) < 0.02
+          for r in (_lu1, _lu2, _lu3, _lu4, _lu5, _lu6, _lu7, _lu8)), '')
+
+# ---- REV6 B2: VISIBLE decision routing through the ONE canonical reviewed action ----
+from gem_report_draft.sections_xiv import (_reconcile_po_to_reviewed as _rpr,
+                                           _reviewed_decision_line_md as _rdl,
+                                           _reviewed_ref as _rref)
+# multi-street hand: preflop/flop/turn calls then a RIVER jam-call. gem_pot_odds would pick
+# the FIRST all-in call (an earlier street); the reviewed action is Hero's RIVER call.
+_b2h = {'id': '84000001', 'tournament_hand_id': '84000001', 'hero': 'Hero', 'format': 'BOUNTY',
+        'seat_stack_by_player': {'Hero': 30.0, 'V': 30.0}, 'board': ['2c', '7d', 'Js', '3h', 'Qd'],
+        'action_ledger': [_Lb('preflop', 'V', 'raises', 2.5), _Lb('preflop', 'Hero', 'calls', 2.5),
+                          _Lb('flop', 'V', 'bets', 4.0), _Lb('flop', 'Hero', 'calls', 4.0),
+                          _Lb('turn', 'V', 'bets', 6.0), _Lb('turn', 'Hero', 'calls', 6.0),
+                          _Lb('river', 'V', 'raises', 17.5, True), _Lb('river', 'Hero', 'calls', 17.5, True)]}
+_b2_idx = _ds.infer_reviewed_action_index(_b2h)
+_b2_ref = _ds.build_reviewed_decision_ref(_b2h, _b2_idx)
+check('T-B2-01: canonical reviewed ref selects the RIVER jam-call (not the first all-in call)',
+      _b2_ref['street'] == 'river' and _b2_ref['hero_action_index'] == 7
+      and abs(_b2_ref['to_call_bb'] - 17.5) < 0.01, str(_b2_ref))
+# a gem_pot_odds-style block that grades the WRONG (turn) action gets OVERRIDDEN to the river
+_wrong_po = {'street': 'turn', 'call_bb': 6.0, 'pot_before_call_bb': 13.0, 'required_eq_pct': 31.6,
+             'pot_odds': '2.2:1', 'hero_equity_pct': 44.0, 'mode': 'street_calls'}
+_fixed_po = _rpr(_wrong_po, _b2_ref)
+check('T-B2-02: mismatching pot-odds is rebuilt to the reviewed (river) action; stale equity dropped',
+      _fixed_po['street'] == 'river' and abs(_fixed_po['call_bb'] - 17.5) < 0.01
+      and _fixed_po['reviewed_routed'] is True and _fixed_po['decision_action_index'] == 7
+      and 'hero_equity_pct' not in _fixed_po, str(_fixed_po))
+# a pot-odds block that ALREADY grades the reviewed action keeps its richer fields, pins idx
+_match_po = {'street': 'river', 'call_bb': 17.5, 'pot_before_call_bb': 25.0, 'required_eq_pct': 41.0,
+             'hero_equity_pct': 52.0}
+_kept_po = _rpr(_match_po, _b2_ref)
+check('T-B2-03: matching pot-odds keeps equity + pins the action index (reviewed_routed False)',
+      _kept_po['reviewed_routed'] is False and _kept_po['decision_action_index'] == 7
+      and _kept_po.get('hero_equity_pct') == 52.0, str(_kept_po))
+check('T-B2-04: the VISIBLE reviewed-decision line states street + call + effective depth',
+      _rdl(_fixed_po).startswith('**Reviewed decision:** river, call 17.5BB, effective depth')
+      and 'BB' in _rdl(_fixed_po), _rdl(_fixed_po))
+# failure injection for the VISIBLE parity gate (decode a real lazy payload)
+import base64 as _b2b64, zlib as _b2zlib, json as _b2json
+def _mk_lazy_html(cards):
+    _co = _b2zlib.compressobj(9, _b2zlib.DEFLATED, -15)
+    _raw = _co.compress(_b2json.dumps(cards).encode('utf-8')) + _co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _b2b64.b64encode(_raw).decode('ascii'))
+_b2_hidx = _qp._hand_index([_b2h])
+_b2_st, _b2_call, _b2_depth = _b2_ref['street'], _b2_ref['to_call_bb'], _b2_ref['effective_stack_at_decision_bb']
+_good_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+              f"**Reviewed decision:** {_b2_st}, call {_b2_call:g}BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_good = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _good_body}))
+check('T-B2-05: visible-decision gate PASSES a block that grades the reviewed (river) action',
+      _gv_good['checked'] == 1 and _gv_good['mismatches'] == [], str(_gv_good))
+# hidden-correct / visible-WRONG: idx says river but the visible street says turn
+_bad_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+             f"**Reviewed decision:** turn, call 6BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_bad = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _bad_body}))
+check('T-B2-06: visible-decision gate CATCHES hidden-correct/visible-wrong (idx river, visible turn)',
+      any(m['field'] == 'visible_street_ne_snapshot' for m in _gv_bad['mismatches']), str(_gv_bad))
+_noidx_body = (f"<div class='analyst-notes'>"
+               f"**Reviewed decision:** {_b2_st}, call {_b2_call:g}BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_noidx = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _noidx_body}))
+check('T-B2-07: visible-decision gate CATCHES a visible block missing data-decision-action-index',
+      any(m['field'] == 'missing_decision_action_index' for m in _gv_noidx['mismatches']), str(_gv_noidx))
+# visible CALL differs from the snapshot (street right, call wrong)
+_badcall_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+                 f"**Reviewed decision:** {_b2_st}, call 99BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_badcall = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _badcall_body}))
+check('T-B2-08: visible-decision gate CATCHES a visible call amount that differs from the snapshot',
+      any(m['field'] == 'visible_call_ne_snapshot' for m in _gv_badcall['mismatches']), str(_gv_badcall))
+# article-default replaces reviewed context: the visible block uses the EARLIER turn action
+# (idx 5) while the reviewed action is the RIVER call (idx 7) — consistent numbers for idx 5
+# but the WRONG (earlier) decision is graded.
+_snap5 = _ds.build_decision_snapshot(_b2h, 5)
+_turn_body = (f"<div class='analyst-notes' data-decision-action-index='5'>"
+              f"**Reviewed decision:** {_snap5['street']}, call {_snap5['to_call_bb']:g}BB, "
+              f"effective depth ≈{_snap5['effective_stack_at_decision_bb']:.2f}BB</div>")
+_gv_turn = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _turn_body}))
+check('T-B2-09: visible-decision gate CATCHES a block grading an EARLIER street than the reviewed action',
+      any(m['field'] == 'rendered_idx_not_reviewed_action' for m in _gv_turn['mismatches']), str(_gv_turn))
 
 # ---- B4: realized eligibility does NOT survive Hero's later fold ----
 _b4_fold = {'id': 'B4F', 'hero': 'Hero', 'format': 'BOUNTY',
@@ -11478,6 +11641,65 @@ _eqmw = _ds.build_decision_bounty_context({'id': 'EQMW', 'hero': 'Hero', 'format
                       _Lb('preflop', 'Hero', 'calls', 20, True)]}, 2)
 check('T-I1H-25: multiway equal-stack boundary -> all collectible (not none)',
       _eqmw['coverage_aggregate'] == 'all', _eqmw['coverage_aggregate'])
+
+# ---- REV6 B3/B4: combined exact+potential applicability + separate certainty dimension ----
+# Hero RE-JAMS over a SHORT all-in (committed, eliminable now) WHILE a deeper live opponent
+# can still call (potential). Both opportunities must survive (no collapse to a scalar).
+_b34 = {'id': 'B34', 'hero': 'Hero', 'format': 'BOUNTY',
+        'seat_stack_by_player': {'Hero': 40.0, 'Short': 8.0, 'Live': 50.0}, 'board': [],
+        'action_ledger': [_Lb('preflop', 'Short', 'raises', 8.0, True),
+                          _Lb('preflop', 'Live', 'raises', 18.0),
+                          _Lb('preflop', 'Hero', 'raises', 40.0, True)]}
+_b34c = _ds.build_decision_bounty_context(_b34, 2)
+check('T-B34-01: re-jam over a short all-in WITH a live caller -> exact_and_potential (both kept)',
+      _b34c['bounty_applicability'] == 'exact_and_potential'
+      and _b34c['has_exact_committed_bounty_opportunity'] is True
+      and _b34c['has_potential_calling_bounty_opportunity'] is True
+      and 'Short' in _b34c['committed_allin_bounties_by_opponent']
+      and 'Live' in _b34c['potential_calling_bounties_by_opponent'], str(_b34c['bounty_applicability']))
+check('T-B34-02: exact_and_potential certainty is mixed_known (committed known, caller unmodelled)',
+      _b34c['bounty_certainty'] == 'mixed_known' and _b34c['bounty_material_unknown'] is True, _b34c['bounty_certainty'])
+# committed all-in with a MISSING opponent stack: structurally exact_committed, certainty unknown_stack
+_b34u = {'id': 'B34U', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 30.0}, 'board': [],   # Mystery stack absent
+         'action_ledger': [_Lb('preflop', 'Mystery', 'raises', 12.0, True),
+                           _Lb('preflop', 'Hero', 'calls', 12.0, True)]}
+_b34uc = _ds.build_decision_bounty_context(_b34u, 1)
+check('T-B34-03: committed all-in + missing opponent stack -> exact_committed BUT certainty unknown_stack',
+      _b34uc['bounty_applicability'] == 'exact_committed'
+      and _b34uc['bounty_certainty'] == 'unknown_stack'
+      and _b34uc['bounty_material_unknown'] is True, str((_b34uc['bounty_applicability'], _b34uc['bounty_certainty'])))
+# potential_if_called (open-shove, no committed opponent) -> certainty unknown_caller_model
+_b34p = {'id': 'B34P', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 25.0}, 'board': [],
+         'action_ledger': [_Lb('preflop', 'Hero', 'raises', 20.0, True)]}
+_b34pc = _ds.build_decision_bounty_context(_b34p, 0)
+check('T-B34-04: open-shove with a live caller -> potential_if_called, certainty unknown_caller_model',
+      _b34pc['bounty_applicability'] == 'potential_if_called'
+      and _b34pc['bounty_certainty'] == 'unknown_caller_model', str((_b34pc['bounty_applicability'], _b34pc['bounty_certainty'])))
+# auto-clear gate: blocks on exact_and_potential / unknown_stack / potential; clears clean known
+def _ac(app, cert='known'):
+    _cac = {'tournament_phase': 'mid', 'format': 'BOUNTY', 'cards': 'AhKh', 'position': 'BTN'}
+    _dnc = {'price_unavailable': False, 'hero_action_facing': 'jam', 'price_source': 'pot_odds_v8_12'}
+    _bntc = {'is_pko': True, 'bounty_applicability': app, 'bounty_certainty': cert, 'collectibility_known': True}
+    _rngc = {'is_marginal': False, 'hero_hand_status': 'inside_core'}
+    _dmc = {'required_equity': 30, 'hero_equity_vs_range': 50}
+    _srcc = {'price_engine': 'pot_odds_v8_12'}
+    return _awl._auto_clear_gate(_cac, _dnc, _rngc, _bntc, _dmc, _srcc, 'a | b | c', True, True, 15)
+check('T-B34-05: auto-clear BLOCKS exact_and_potential (unresolved potential caller)',
+      _ac('exact_and_potential', 'mixed_known') == (False, 'bounty_exact_and_potential_unresolved'), str(_ac('exact_and_potential', 'mixed_known')))
+check('T-B34-06: auto-clear BLOCKS a committed all-in with unknown stack (failure injection)',
+      _ac('exact_committed', 'unknown_stack') == (False, 'bounty_certainty_unknown_stack'), str(_ac('exact_committed', 'unknown_stack')))
+check('T-B34-07: auto-clear BLOCKS potential_if_called',
+      _ac('potential_if_called', 'unknown_caller_model') == (False, 'bounty_potential_if_called_unmodelled'), str(_ac('potential_if_called', 'unknown_caller_model')))
+check('T-B34-08: auto-clear does NOT block a clean exact_committed+known on a bounty reason',
+      _ac('exact_committed', 'known')[0] is True, str(_ac('exact_committed', 'known')))
+# the VISIBLE explanation discloses BOTH opportunities for exact_and_potential
+from gem_report_draft.sections_xiv import _bounty_applicability_note_md as _bapn
+_b34['decision_bounty_context'] = _b34c
+check('T-B34-09: visible note for exact_and_potential discloses committed AND potential caller',
+      'committed bounty opportunity already exists' in _bapn(_b34)
+      and "live caller" in _bapn(_b34), _bapn(_b34))
 
 
 # ============================================================

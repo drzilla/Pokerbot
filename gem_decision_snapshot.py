@@ -340,6 +340,70 @@ def build_decision_snapshot(h, hero_action_index=None):
     }
 
 
+def infer_reviewed_action_index(h):
+    """REV6 B2: the ONE canonical reviewed (graded) Hero action index, inferred from the
+    LEDGER ALONE so EVERY render path (full / --quick / analyst-rerender) — none of which
+    re-runs the worklist — can still route the visible capsule / pot-odds / trust strip
+    through the SAME action the worklist graded. Selection mirrors the worklist's
+    `_reviewed_action_index`:
+      - Hero acted on a POSTFLOP street            -> Hero's LAST action (the postflop call/jam)
+      - else Hero went ALL-IN preflop              -> Hero's LAST preflop action (the jam/call-off)
+      - else (preflop non-all-in)                  -> Hero's FIRST preflop action (the open/deviation)
+    The worklist, when it has the candidate's decision_kind, may pass an explicit index to
+    build_reviewed_decision_ref (authoritative); this is the future-blind default."""
+    hero = _hero(h)
+    led = h.get('action_ledger') or []
+    if not led:
+        return None
+    pf = [i for i, a in enumerate(led)
+          if a.get('street') == 'preflop' and a.get('player') == hero and a.get('action') != 'posts']
+    allh = [i for i, a in enumerate(led)
+            if a.get('player') == hero and a.get('action') != 'posts']
+    if not allh:
+        return None
+    post = [i for i in allh if led[i].get('street') in ('flop', 'turn', 'river')]
+    if post:
+        return allh[-1]
+    if any(led[i].get('is_all_in') for i in pf):
+        return pf[-1] if pf else allh[-1]
+    return pf[0] if pf else allh[0]
+
+
+def build_reviewed_decision_ref(h, hero_action_index=None, decision_kind=None,
+                                selection_source='analyzer_inferred'):
+    """REV6 B2: the ONE canonical reviewed-decision reference every VISIBLE decision-bearing
+    block (capsule, pot-odds, bounty trust strip, call amount, required equity, effective
+    depth, range evidence, coaching) must route through — so the visible lesson can never
+    grade a different action than the worklist (the 83526894 'turn 7.9BB' vs canonical
+    'river 13.5BB' bug). All numeric facts are derived from build_decision_snapshot at the
+    canonical index, NOT from gem_pot_odds' independent first-all-in-call reconstruction.
+
+    required_eq_pct is the chip pot-odds at the reviewed action (to_call / (pot+to_call)),
+    so the visible street / call / required-equity always describe the SAME decision."""
+    idx = hero_action_index if hero_action_index is not None else infer_reviewed_action_index(h)
+    snap = build_decision_snapshot(h, idx)
+    to_call = snap.get('to_call_bb') or 0.0
+    pot_before = snap.get('pot_before_action_bb') or 0.0
+    denom = pot_before + to_call
+    req = round(100.0 * to_call / denom, 1) if (to_call > _EPS and denom > _EPS) else None
+    return {
+        'hand_id': h.get('id', ''),
+        'hero_action_index': snap.get('hero_action_index'),
+        'street': snap.get('street'),
+        'decision_kind': decision_kind,
+        'selection_source': selection_source,
+        'hero_action_kind': snap.get('hero_action_kind'),
+        'to_call_bb': round(to_call, 2),
+        'callable_amount_bb': snap.get('callable_amount_bb'),
+        'eligible_allin_amount_bb': snap.get('eligible_allin_amount_bb'),
+        'required_eq_pct': req,
+        'pot_before_action_bb': round(pot_before, 2),
+        'effective_stack_at_decision_bb': snap.get('effective_stack_at_decision_bb'),
+        'faced_aggressor': snap.get('faced_aggressor'),
+        'faced_action_kind': snap.get('faced_action_kind'),
+    }
+
+
 def _pos_of(ledger, player):
     for a in ledger:
         if a.get('player') == player and a.get('position') not in (None, '?'):
@@ -419,24 +483,46 @@ def _pot_layers(committed_by_player):
     return layers
 
 
-def _normalize_uncalled(committed_by_player):
-    """REV5 B3: normalize UNCALLED excess out of the contestable pot. The single deepest
-    contributor's chips beyond what the next-deepest contributor matched are uncalled and
-    RETURNED to that player — an all-in bet nobody matched is not a one-player side pot.
-    Only the single deepest overshoot is uncalled (in an all-in pot everyone else is
-    all-in or has called). Returns (capped_contributions, uncalled_return_by_player)."""
-    contrib = {p: round(v, 2) for p, v in committed_by_player.items() if v > _EPS}
-    uncalled = {}
-    if len(contrib) >= 2:
-        totals = sorted(contrib.values(), reverse=True)
-        top, second = totals[0], totals[1]
-        if top > second + _EPS:
-            tops = [p for p, v in contrib.items() if abs(v - top) <= _EPS]
-            if len(tops) == 1:
-                p = tops[0]
-                uncalled[p] = round(top - second, 2)
-                contrib[p] = round(second, 2)
-    return contrib, uncalled
+def _ledger_uncalled(ledger):
+    """REV6 B1: reconstruct the UNCALLED return from the ACTION LEDGER — NOT from final
+    contribution totals (which conflate antes / big-blind asymmetry / rounding with a real
+    uncalled bet). The LAST voluntary bet/raise whose top portion was not matched by any
+    NON-FOLDED opponent is the uncalled bet; only that unmatched amount is returned to that
+    aggressor. Forced posts (blinds/antes) and fully-called bets never create a return.
+    Returns (uncalled_return_by_player, source_meta).
+
+    Per the aggressor's street: matched = the highest STREET commitment among the other
+    non-folded players; uncalled = aggressor's street commitment - matched (if > 0)."""
+    last_agg_i = None
+    for i, a in enumerate(ledger):
+        if a.get('action') in ('raises', 'bets'):
+            last_agg_i = i
+    if last_agg_i is None:
+        return {}, {'uncalled_source_action_index': None, 'uncalled_return_bb': 0.0}
+    agg = ledger[last_agg_i]
+    agg_player = agg.get('player', '')
+    agg_street = agg.get('street', 'preflop')
+    street_commit = {}
+    for a in ledger:
+        if a.get('street') != agg_street:
+            continue
+        p = a.get('player', '')
+        street_commit[p] = street_commit.get(p, 0.0) + _added(a)
+    agg_commit = street_commit.get(agg_player, 0.0)
+    # matched = the highest STREET commitment among ALL other players (folded OR not):
+    # a folded player's chips are dead money that still MATCHES the aggressor's bet up to
+    # the level they put in before folding. Only the portion above the deepest other
+    # contribution is genuinely uncalled.
+    others = [v for p, v in street_commit.items() if p != agg_player]
+    matched = max(others) if others else 0.0
+    uncalled = round(agg_commit - matched, 2)
+    meta = {'uncalled_source_action_index': last_agg_i, 'uncalled_source_street': agg_street,
+            'uncalled_source_player': agg_player, 'uncalled_action_added_bb': round(_added(agg), 2),
+            'aggressor_street_commit_bb': round(agg_commit, 2),
+            'matched_amount_bb': round(matched, 2), 'uncalled_return_bb': max(0.0, uncalled)}
+    if uncalled > _EPS:
+        return {agg_player: uncalled}, meta
+    return {}, meta
 
 
 def _contest_pot_layers(committed_by_player, folded):
@@ -499,6 +585,30 @@ def _contest_pot_layers(committed_by_player, folded):
             m['total_layer_bb'] = round(m['total_layer_bb'] + L['total_layer_bb'], 2)
         else:
             merged.append(L)
+    # REV6 B1: fold a residual TOP band DOWN into the layer below when it is either
+    #   (a) exactly ONE eligible player and no dead money — forced-post / big-blind-ante
+    #       asymmetry (voluntary uncalled is removed BEFORE this fn, ledger-derived), or
+    #   (b) ZERO eligible players (orphaned dead money above every live player's level —
+    #       a folded player's blind/ante that no live player matched).
+    # Both are DEAD-ANTE money contestable by the MAIN pot (won by the live winner), NOT a
+    # one-player/zero-player side pot. Loop in case several forced posts stack.
+    while len(merged) >= 2:
+        top = merged[-1]
+        ne = len(top['eligible_participants'])
+        dead = top.get('dead_money_bb', 0.0) or 0.0
+        if ne == 0 or (ne == 1 and dead <= _EPS):
+            prev = merged[-2]
+            prev['to_bb'] = top['to_bb']
+            prev['cap_bb'] = top['cap_bb']
+            prev['eligible_contribution_bb'] = round(prev['eligible_contribution_bb']
+                                                     + top['eligible_contribution_bb'], 2)
+            prev['dead_money_bb'] = round(prev['dead_money_bb'] + top['dead_money_bb'], 2)
+            for _p, _a in top['dead_money_by_player'].items():
+                prev['dead_money_by_player'][_p] = round(prev['dead_money_by_player'].get(_p, 0.0) + _a, 2)
+            prev['total_layer_bb'] = round(prev['total_layer_bb'] + top['total_layer_bb'], 2)
+            merged.pop()
+        else:
+            break
     for i, L in enumerate(merged):
         L['kind'] = 'main' if i == 0 else 'side'
     return merged
@@ -627,15 +737,21 @@ def build_realized_contest(h, hero_action_index=None):
     folded_contributors = {p for p in folded_anytime
                            if committed_total.get(p, 0.0) > _EPS}
 
-    # REV5 B3: normalize UNCALLED excess out of the contestable pot BEFORE building pot
-    # layers. The single deepest contributor's chips beyond what the next-deepest player
-    # put in are uncalled and RETURNED — an all-in nobody matched is not a one-player
-    # side pot. Pot layers are built on the capped (contestable) contributions, so no
-    # layer can have a single eligible participant with no dead money.
+    # REV6 B1: the UNCALLED return is reconstructed from the ACTION LEDGER (the last
+    # voluntary bet/raise's unmatched portion) — NOT from contribution-total ranking, which
+    # wrongly returned antes / big-blind asymmetry / rounding (83526894, 84611544). Subtract
+    # the proven uncalled bet from the aggressor's committed total, then build the pot layers
+    # on the contestable (capped) contributions. Forced-post asymmetry that remains is folded
+    # into the main pot by _contest_pot_layers (dead-ante money, not a one-player side pot).
     all_contrib = {p: v for p, v in committed_total.items() if v > _EPS}
     gross_action_commitments_bb = round(sum(all_contrib.values()), 2)
-    capped_contrib, uncalled_return_by_player = _normalize_uncalled(all_contrib)
+    uncalled_return_by_player, uncalled_meta = _ledger_uncalled(ledger)
     uncalled_return_bb = round(sum(uncalled_return_by_player.values()), 2)
+    capped_contrib = dict(all_contrib)
+    for _p, _amt in uncalled_return_by_player.items():
+        capped_contrib[_p] = round(capped_contrib.get(_p, 0.0) - _amt, 2)
+        if capped_contrib[_p] <= _EPS:
+            capped_contrib.pop(_p, None)
 
     pot_layers = _contest_pot_layers(capped_contrib, folded_contributors)
     eligible_all = sorted(set().union(*[set(l['eligible_participants']) for l in pot_layers])
@@ -703,6 +819,12 @@ def build_realized_contest(h, hero_action_index=None):
         'contestable_pot_bb': contestable_pot_bb,
         'uncalled_return_bb': uncalled_return_bb,
         'uncalled_return_by_player': uncalled_return_by_player,
+        'uncalled_source_action_index': uncalled_meta.get('uncalled_source_action_index'),
+        'uncalled_source_street': uncalled_meta.get('uncalled_source_street'),
+        'uncalled_source_player': uncalled_meta.get('uncalled_source_player'),
+        'uncalled_action_added_bb': uncalled_meta.get('uncalled_action_added_bb'),
+        'uncalled_aggressor_street_commit_bb': uncalled_meta.get('aggressor_street_commit_bb'),
+        'matched_amount_bb': uncalled_meta.get('matched_amount_bb'),
         'total_committed_pot_bb': total_committed_pot_bb,
         'dead_money_bb': dead_money_bb,
         'dead_money_by_player': dead_money_by_player,
@@ -830,14 +952,44 @@ def build_decision_bounty_context(h, hero_action_index=None):
             if p in allin_before or o.get('is_all_in'):
                 continue   # committed -> exact eligibility, not potential
             potential[p] = cover_rel.get(p) or _coverage(starting.get(hero), starting.get(p))
+    # REV6 B3: exact-committed and potential-if-called are INDEPENDENT dimensions and can
+    # BOTH be true at once — a re-jam over a SHORT all-in (committed, eliminable now) WHILE a
+    # live opponent can still call and create a contested bounty (potential). Collapsing them
+    # to a mutually-exclusive scalar dropped the potential caller (84990829). The typed
+    # applicability now carries exact_and_potential; the two booleans below are the
+    # primitive independent facts every consumer can read without re-deriving.
+    has_exact = bool(eligible)
+    has_potential = bool(potential)
     if not is_bounty:
         applicability = 'not_applicable'
-    elif eligible:
+    elif has_exact and has_potential:
+        applicability = 'exact_and_potential'
+    elif has_exact:
         applicability = 'exact_committed'
-    elif (hero_is_shoving or in_confront) and potential:
+    elif (hero_is_shoving or in_confront) and has_potential:
         applicability = 'potential_if_called'
     else:
         applicability = 'not_applicable'
+
+    # REV6 B4: CERTAINTY is a SEPARATE typed dimension from applicability. A committed all-in
+    # with a MISSING opponent stack is structurally exact_committed but its collectibility is
+    # NOT known (unknown_stack); a potential caller's bounty EV depends on an unmodelled caller
+    # distribution (unknown_caller_model); exact_and_potential mixes a known committed bounty
+    # with an unmodelled potential one (mixed_known). The auto-clear gate blocks on any
+    # material-unknown certainty, so an exact committed all-in with unknown stack/coverage can
+    # NEVER auto-clear (the REV5 gap where applicability=exact_committed bypassed the block).
+    _all_cov = list(eligible.values()) + list(potential.values())
+    if not is_bounty or applicability == 'not_applicable':
+        certainty = 'known'
+    elif any(v == 'unknown' for v in _all_cov):
+        certainty = 'unknown_stack'
+    elif applicability == 'exact_committed':
+        certainty = 'known'
+    elif applicability == 'exact_and_potential':
+        certainty = 'mixed_known'
+    else:  # potential_if_called
+        certainty = 'unknown_caller_model'
+    bounty_material_unknown = certainty in ('unknown_stack', 'unknown_caller_model', 'mixed_known')
 
     # Relevant villain for the SEPARATE stack-cover relationship (NOT eligibility): the
     # faced all-in aggressor if any, else the deepest active opponent (the one who could
@@ -867,10 +1019,20 @@ def build_decision_bounty_context(h, hero_action_index=None):
         'is_bounty': is_bounty,
         'hero_in_allin_confrontation': in_confront,
         'hero_action_kind': hero_kind,
-        # REV5 B1: typed applicability — exact_committed / potential_if_called /
-        # not_applicable / unknown. The report and auto-clear gate branch on THIS, not
-        # on coverage_aggregate, so an open-shove is never called "bounty irrelevant".
+        # REV5 B1 / REV6 B3: typed STRUCTURAL applicability — exact_committed /
+        # potential_if_called / exact_and_potential / not_applicable. (The old 'unknown'
+        # applicability was unreachable; uncertainty now lives in the SEPARATE
+        # bounty_certainty dimension below.) The report and auto-clear gate branch on THIS
+        # plus certainty, not on coverage_aggregate, so an open-shove is never "bounty
+        # irrelevant" and an unknown-stack committed all-in never auto-clears.
         'bounty_applicability': applicability,
+        # REV6 B3: the two INDEPENDENT primitive facts (never collapse them again)
+        'has_exact_committed_bounty_opportunity': has_exact,
+        'has_potential_calling_bounty_opportunity': has_potential,
+        # REV6 B4: certainty is SEPARATE from applicability; auto-clear blocks on a material
+        # unknown even when an exact committed opponent also exists.
+        'bounty_certainty': certainty,
+        'bounty_material_unknown': bounty_material_unknown,
         # eligibility (collectibility) — committed all-in opponents Hero can eliminate now
         'eligible_bounties_by_opponent': eligible,
         'committed_allin_bounties_by_opponent': dict(eligible),

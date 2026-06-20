@@ -166,7 +166,9 @@ def gate_report(hands_idx, html):
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'postflop_depth_collapsed',
                      'snapshot_depth': depth, 'to_call': snap.get('to_call_bb')})
-            for m in re.finditer(r'(0\.1[0-9])\s?BB', body):
+            # a STANDALONE 0.1xBB token (collapsed depth) — NOT the '0.12' inside a larger
+            # number like '20.12BB' (REV6: the visible 'call 20.12BB' reviewed line).
+            for m in re.finditer(r'(?<![\d.])(0\.1[0-9])\s?BB', body):
                 out['mismatches'].append(
                     {'hand': hid, 'field': 'body_shows_0.1x_depth', 'token': m.group(0)})
                 break
@@ -435,6 +437,89 @@ def gate_report_decision_bounty(hands_idx, html):
     return out
 
 
+def gate_report_visible_decision(hands_idx, html, worklist=None):
+    """REV6 B2/B5: the USER-VISIBLE decision lesson grades the SAME action the worklist
+    reviewed. Parses the RENDERED markdown — the visible 'Reviewed decision: <street>, call
+    <X>BB, effective depth ≈<Y>BB' line plus the data-decision-action-index of the div that
+    CONTAINS it — NOT a hidden span (the REV5 gate proved only hidden-metadata parity).
+    Three checks:
+      1. the visible block carries a data-decision-action-index;
+      2. the visible street / call / depth equal build_decision_snapshot(hand, rendered_idx)
+         (proves the lesson is built from the canonical snapshot, never gem_pot_odds' own
+         first-all-in-call reconstruction — the 83526894 'turn 7.9BB' vs 'river 13.5BB' bug);
+      3. the rendered index IS the canonical reviewed action. The authoritative reviewed
+         action is the WORKLIST's (decision_kind -> _reviewed_action_index); a preflop-graded
+         deviation/all-in is legitimately preflop even when Hero also acts later, so trusting
+         the worklist avoids a false 'should be postflop'. Falls back to the ledger-inferred
+         action only when no worklist item exists for the hand.
+    Fails if the visible lesson uses a different action than the canonical reviewed one."""
+    import gem_decision_snapshot as _ds
+    # authoritative reviewed-action index per hand from the worklist (decision_kind-aware)
+    wl_ridx = {}
+    if worklist:
+        from gem_analyst_worklist import _reviewed_action_index as _wl_rai
+        _items = worklist.get('items') or {}
+        _items = list(_items.values()) if isinstance(_items, dict) else _items
+        for _it in _items:
+            _hid = str(_it.get('hand_id') or '')
+            _h = hands_idx.get(_hid) or hands_idx.get(_hid[-8:])
+            if _h is None:
+                continue
+            _ri = _wl_rai(_h, _it.get('decision_kind'))
+            if _ri is not None:
+                wl_ridx[_hid] = _ri
+                wl_ridx[_hid[-8:]] = _ri
+    bodies = decode_lazy_hands(html)
+    out = {'checked': 0, 'mismatches': []}
+    line_pat = re.compile(
+        r"Reviewed decision:(?:\s*</strong>|\s*\*\*)?\s*([A-Za-z]+),\s*call\s*"
+        r"([0-9.]+)\s*BB,\s*effective depth\s*[≈~]?\s*([0-9.]+)\s*BB")
+    idx_pat = re.compile(r"data-decision-action-index='(\d+)'")
+    for hid, body in bodies.items():
+        h = hands_idx.get(str(hid)) or hands_idx.get(str(hid)[-8:])
+        if h is None:
+            continue
+        lm = line_pat.search(body)
+        if not lm:
+            continue
+        out['checked'] += 1
+        v_street, v_call, v_depth = lm.group(1).lower(), _f(lm.group(2)), _f(lm.group(3))
+        # the data-decision-action-index belongs to the DIV CONTAINING the visible reviewed
+        # line — i.e. the NEAREST PRECEDING attribute, NOT the first in the body (which is a
+        # hidden per-decision-bounty-meta span at an earlier Hero action index).
+        pre = list(idx_pat.finditer(body[:lm.start()]))
+        if not pre:
+            out['mismatches'].append({'hand': hid, 'field': 'missing_decision_action_index'})
+            continue
+        ridx = int(pre[-1].group(1))
+        snap = _ds.build_decision_snapshot(h, ridx)
+        if (snap.get('street') or '').lower() != v_street:
+            out['mismatches'].append(
+                {'hand': hid, 'field': 'visible_street_ne_snapshot',
+                 'visible': v_street, 'snapshot': snap.get('street'), 'idx': ridx})
+        if abs(_f(snap.get('to_call_bb')) - v_call) > 0.15:
+            out['mismatches'].append(
+                {'hand': hid, 'field': 'visible_call_ne_snapshot',
+                 'visible': v_call, 'snapshot': snap.get('to_call_bb'), 'idx': ridx})
+        sd = snap.get('effective_stack_at_decision_bb')
+        if sd is not None and abs(_f(sd) - v_depth) > 0.15:
+            out['mismatches'].append(
+                {'hand': hid, 'field': 'visible_depth_ne_snapshot',
+                 'visible': v_depth, 'snapshot': sd, 'idx': ridx})
+        # authoritative reviewed action: the worklist's (decision_kind-aware) if present,
+        # else the ledger-inferred default.
+        canon_idx = (wl_ridx.get(str(hid)) or wl_ridx.get(str(hid)[-8:])
+                     or _ds.infer_reviewed_action_index(h))
+        if canon_idx is not None and ridx != canon_idx:
+            cs = _ds.build_decision_snapshot(h, canon_idx)
+            if snap.get('street') != cs.get('street'):
+                out['mismatches'].append(
+                    {'hand': hid, 'field': 'rendered_idx_not_reviewed_action',
+                     'rendered_idx': ridx, 'reviewed_idx': canon_idx,
+                     'rendered_street': snap.get('street'), 'reviewed_street': cs.get('street')})
+    return out
+
+
 def gate_semantic(hands_idx, worklist):
     """REV2/REV3: semantic invariants on EVERY worklist decision item (not just
     cross-surface agreement). Catches a wrong MODEL the agreement gates can't.
@@ -553,6 +638,7 @@ def main():
     g_sem = gate_semantic(hands_idx, worklist)
     g_rb = gate_report_bounty(hands_idx, html)
     g_pd = gate_report_decision_bounty(hands_idx, html)
+    g_vd = gate_report_visible_decision(hands_idx, html, worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -577,15 +663,20 @@ def main():
           f"{len(g_pd['mismatches'])} mismatch(es)")
     for mm in g_pd['mismatches'][:40]:
         print('   ✗', mm)
+    print(f"F. VISIBLE DECISION == REVIEWED ACTION : {g_vd['checked']} visible decision blocks checked, "
+          f"{len(g_vd['mismatches'])} mismatch(es)")
+    for mm in g_vd['mismatches'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
-          and not g_rb['mismatches'] and not g_pd['mismatches'])
+          and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
     if out_json:
         with io.open(out_json, 'w', encoding='utf-8') as fh:
             json.dump({'worklist': g_wl, 'report': g_rp, 'semantic': g_sem,
-                       'report_bounty': g_rb, 'report_decision_bounty': g_pd, 'pass': ok}, fh, indent=2)
+                       'report_bounty': g_rb, 'report_decision_bounty': g_pd,
+                       'report_visible_decision': g_vd, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

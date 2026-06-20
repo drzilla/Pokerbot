@@ -61,6 +61,11 @@ def main():
         'uncalled_returns': [],
         'realized_bounty_eligibility': [],
         'equal_stack_confrontations': [],
+        # REV6 inventories
+        'ledger_uncalled_inventory': [],
+        'fully_called_hands': [],
+        'combined_bounty_opportunities': [],
+        'bounty_certainty_combinations': {},
     }
     viol = {
         'future_contaminated_bounty_contexts': [],
@@ -84,6 +89,13 @@ def main():
         'gross_contestable_return_reconciliation_failures': [],
         'hero_folded_realized_bounty_eligibility': [],
         'equal_stack_classified_non_collectible': [],
+        # REV6 required zero-counts
+        'ledger_uncalled_sub_0_2bb_false_returns': [],
+        'fully_called_hands_with_uncalled_return': [],
+        'named_fixture_false_uncalled': [],
+        'exact_and_potential_collapsed': [],
+        'committed_unknown_stack_not_flagged': [],
+        'visible_decision_not_reviewed_action': [],
     }
 
     # iterate every hand once (decision = Hero's last action) for model inventories
@@ -124,6 +136,25 @@ def main():
             app = dbc.get('bounty_applicability')
             inv['bounty_applicability_combinations'][app] = \
                 inv['bounty_applicability_combinations'].get(app, 0) + 1
+            # REV6 B3: a hand with BOTH a committed and a potential bounty opportunity must
+            # be exact_and_potential (never collapsed to a scalar that drops the caller).
+            _he = dbc.get('has_exact_committed_bounty_opportunity')
+            _hp = dbc.get('has_potential_calling_bounty_opportunity')
+            if _he and _hp:
+                inv['combined_bounty_opportunities'].append(
+                    {'hand': hid, 'applicability': app,
+                     'committed': dbc.get('committed_allin_bounties_by_opponent'),
+                     'potential': dbc.get('potential_calling_bounties_by_opponent')})
+                if app != 'exact_and_potential':
+                    viol['exact_and_potential_collapsed'].append({'hand': hid, 'applicability': app})
+            # REV6 B4: certainty distribution + an unknown-stack committed all-in must be
+            # flagged material-unknown (so the auto-clear gate blocks it).
+            _cert = dbc.get('bounty_certainty')
+            inv['bounty_certainty_combinations'][_cert] = \
+                inv['bounty_certainty_combinations'].get(_cert, 0) + 1
+            if (app in ('exact_committed', 'exact_and_potential') and _cert == 'unknown_stack'
+                    and not dbc.get('bounty_material_unknown')):
+                viol['committed_unknown_stack_not_flagged'].append({'hand': hid})
             _hk = dbc.get('hero_action_kind')
             if _hk in ('open_shove', 'rejam_over_live_raise', 'overjam_with_side_pot'):
                 inv['hero_shoves_potential_if_called'].append(
@@ -180,6 +211,36 @@ def main():
                 # uncalled excess must NOT be inside any contestable layer
                 if _cont + _unc - _gross > 0.02:
                     viol['uncalled_excess_in_contestable_pot'].append({'hand': hid})
+        # REV6 B1: LEDGER-derived uncalled — typed source fields + false-return detection.
+        _src_idx = rc.get('uncalled_source_action_index')
+        _src_added = rc.get('uncalled_action_added_bb')
+        _matched = rc.get('matched_amount_bb')
+        if _unc > 0.001:
+            inv['ledger_uncalled_inventory'].append(
+                {'hand': hid, 'uncalled_bb': _unc,
+                 'source_action_index': _src_idx, 'source_street': rc.get('uncalled_source_street'),
+                 'source_player': rc.get('uncalled_source_player'),
+                 'action_added_bb': _src_added, 'matched_amount_bb': _matched})
+            # a forced post / ante / rounding diff can NEVER be a genuine uncalled bet: a
+            # sub-0.20BB return is the REV5 false-return signature (must be 0 post-fix).
+            if _unc <= 0.20:
+                viol['ledger_uncalled_sub_0_2bb_false_returns'].append(
+                    {'hand': hid, 'uncalled': _unc, 'source_index': _src_idx})
+        # fully-called: the final aggressor's FULL STREET commitment was matched by another
+        # player (matched >= aggressor street commit) -> uncalled MUST be 0. Uses the
+        # aggressor's street commit (NOT just the last action's added amount, which mislabels
+        # a bet-then-raise sequence whose total exceeds what an opponent matched).
+        _agg_commit = rc.get('uncalled_aggressor_street_commit_bb')
+        if (_agg_commit is not None and _matched is not None and _matched + 0.001 >= _agg_commit
+                and _agg_commit > 0.001):
+            inv['fully_called_hands'].append(
+                {'hand': hid, 'matched_amount_bb': _matched, 'aggressor_street_commit_bb': _agg_commit})
+            if _unc > 0.02:
+                viol['fully_called_hands_with_uncalled_return'].append(
+                    {'hand': hid, 'uncalled': _unc, 'matched': _matched, 'agg_commit': _agg_commit})
+        # named fixtures must carry ZERO uncalled (BB-ante / rounding asymmetry, fully called)
+        if hid in ('TM6083526894', 'TM6084611544', '83526894', '84611544') and _unc > 0.001:
+            viol['named_fixture_false_uncalled'].append({'hand': hid, 'uncalled': _unc})
         # REV5 B4: realized eligibility inventory (Hero folded => realized {})
         if rc.get('eligible_bounties'):
             inv['realized_bounty_eligibility'].append(
@@ -253,6 +314,11 @@ def main():
     for mm in _gpd.get('mismatches', []):
         viol['rendered_wrong_action_index'].append(mm)
     inv['rendered_decision_blocks_checked'] = _gpd.get('checked', 0)
+    # REV6 B2/B5: the VISIBLE decision lesson grades the reviewed action (parses rendered md)
+    _gvd = qp.gate_report_visible_decision(by_id, html, worklist)
+    for mm in _gvd.get('mismatches', []):
+        viol['visible_decision_not_reviewed_action'].append(mm)
+    inv['visible_decision_blocks_checked'] = _gvd.get('checked', 0)
     # REV5 B1: the OLD "bounty irrelevant / not a decision-time factor" copy must be GONE
     for _bad in ('not a decision-time factor', 'no committed all-in opponent at the decision'):
         _n = html.count(_bad)

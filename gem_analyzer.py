@@ -8229,6 +8229,16 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                 if _a.get('player') == _hero_nm and _a.get('action') != 'posts':
                     _by_idx[_ai] = _ds_dbc(h, _ai)
             h['decision_bounty_context_by_action_index'] = _by_idx
+        # REV6 B2: stamp the ONE canonical reviewed-decision reference (ledger-inferred,
+        # future-blind) onto EVERY hand so the visible capsule / pot-odds / bounty trust
+        # strip route through the SAME graded action — independent of which render path
+        # (full / --quick / analyst-rerender) runs. The worklist later OVERWRITES this with
+        # the candidate-kind-authoritative ref where it has one (full path renders after).
+        try:
+            from gem_decision_snapshot import build_reviewed_decision_ref as _ds_rdr
+            h['reviewed_decision_ref'] = _ds_rdr(h)
+        except Exception:
+            pass
         # decision-time bounty flag (teaching: "bounty may justify wider call") comes from
         # the canonical context — Hero covers an ELIGIBLE villain (all/mixed), not the
         # realized scalar.

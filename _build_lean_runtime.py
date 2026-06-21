@@ -18,7 +18,7 @@ import base64, io, os, zipfile, hashlib, datetime
 import _build_bundle as BB
 
 REPO = BB.REPO
-LEAN_VERSION = 'v8.18.0-lean'
+LEAN_VERSION = 'v8.18.1-lean'
 
 # Excluded from the lean runtime (present in the full release bundle):
 #   - every QA harness (_qa_*.py) -- verification, not report generation
@@ -104,16 +104,19 @@ def build():
                 z.writestr(arc, f.read())
             chosen.append(arc)
         # concise current-state release notes REPLACE the full changelog inside the lean package.
-        notes = ("GEM v8.18.0 -- lean Chat runtime (report generation only).\n"
-                 "Canonical owners: gem_final_status (Final Decision Status), gem_report_draft/_cards\n"
-                 "(PokerHandDisplay), gem_commentary_capsule (registers + capsule), gem_tournament_model\n"
-                 "(typed tournament events). Verification apparatus (acceptance/, _qa_*, _test_scratch)\n"
-                 "is NOT in this package -- run the full release bundle to verify a release.\n"
+        notes = ("GEM v8.18.1 -- lean Chat runtime (report generation only).\n"
+                 "Hotfix: Villain Teaching future-exploits are generated CUE-FIRST (cue family -> current\n"
+                 "exploit -> archetype fallback) and stored as COMPLETE sentences (no word-clamp truncation),\n"
+                 "with typed provenance. Canonical owners: gem_final_status (Final Decision Status),\n"
+                 "gem_report_draft/_cards (PokerHandDisplay), gem_commentary_capsule (registers + capsule),\n"
+                 "gem_tournament_model (typed tournament events), gem_villain_teaching (cue-first teaching).\n"
+                 "Verification apparatus (acceptance/, _qa_*, _test_scratch) is NOT in this package -- run\n"
+                 "the full release bundle to verify a release.\n"
                  "STEP0: python /mnt/project/gem_lean_runtime.py /home/claude/gem && cd /home/claude/gem\n"
                  "  && cp /mnt/project/session_*.csv . && python -c \"import gem_report_draft, gem_analyzer;"
                  " print('runtime OK')\"\n")
-        z.writestr('RELEASE_NOTES_v8.18.0.txt', notes.encode())
-        chosen.append('RELEASE_NOTES_v8.18.0.txt')
+        z.writestr('RELEASE_NOTES_v8.18.1.txt', notes.encode())
+        chosen.append('RELEASE_NOTES_v8.18.1.txt')
     raw = buf.getvalue()
     b64 = base64.b64encode(raw).decode()
     lines = '\n'.join(b64[i:i + 76] for i in range(0, len(b64), 76))

@@ -7869,11 +7869,15 @@ _REQ = {'villain_id', 'villain_alias', 'street', 'villain_did', 'cue', 'archetyp
 _o = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky)
 check('T-VT-01: teaching object has full contract incl source_truth{atoms,decision_id,no_hindsight}',
       _REQ <= set(_o) and {'evidence_atoms', 'decision_id', 'no_hindsight'} <= set(_o['source_truth']), '')
-check('T-VT-02: villain-fact fields copied verbatim from stamped exploit (no invention)',
+check('T-VT-02: villain FACTS copied verbatim (no invention); future exploit is a COMPLETE cue-aligned projection',
       _o['villain_did'] == 'Called river with second pair after Hero double-barreled.'
       and _o['cue'].startswith('Villain is sticky/station')
       and _o['exploit_now'] == 'Do not bluff this player multi-street. Value-bet thinner instead.'
-      and _o['future_exploit'] == 'Check back rivers; value-bet thinner.', '')
+      # v8.18.1: future_exploit is a teaching projection (not a copied fact) -- the terse recommendation
+      # is regenerated cue-first into a COMPLETE, cue-aligned sentence (here: CALLING_STATION).
+      and _vt.future_exploit_complete(_o['future_exploit'])[0]
+      and _o.get('cue_family') == 'CALLING_STATION'
+      and _vt.cue_alignment(_o.get('cue_family'), _o['future_exploit'])[0], str(_o.get('future_exploit')))
 _thin = _vt.teaching_from_exploit(_vt_exp(evidence_text='', suggests=''),
                                   {_vt_vk: {'n_evidence': 1, 'evidence_hand_ids': ['H_now']}}, {_vt_vk: []})
 check('T-VT-03: thin read -> fixed fallback line, no exploit_now',
@@ -8312,9 +8316,10 @@ _vs3_graded = _vt.teaching_from_exploit(
               'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['P1', 'P2', 'P3']}},
     {_vt_vk: [{'dimension': 'tight'} for _ in range(9)]})
 _l7 = _vs3_graded['lesson_7part']
-check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason',
+check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason (+ v8.18.1 provenance)',
       {'q1_villain_did', 'q2_cue', 'q3_read', 'q4_confidence', 'q5_exploit_now',
-       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} == set(_l7), str(_l7))
+       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} <= set(_l7)
+      and {'cue_family', 'future_exploit_source', 'alignment_reason'} <= set(_l7), str(_l7))
 check('T-VS3-04b: graded trusted exploit -> gradable True, q5/q6/q7 present, reason empty',
       _l7['gradable'] is True and _l7['q5_exploit_now'] and _l7['q6_exploit_future']
       and _l7['q7_do_not_overadjust'] and _l7['non_gradable_reason'] == '', str(_l7))
@@ -13253,6 +13258,75 @@ check('T-VT18-06: speed classifier types every event + records the source (expli
       and _csp('Hyper Special') == ('HYPER', 'name_pattern:hyper')
       and _csp('GGMasters Classic 25') == ('STANDARD', 'default_scheduled_mtt')
       and _csp('Some Event', 'HYPER') == ('HYPER', 'explicit_metadata'), str(_csp('GGMasters Classic 25')))
+
+# ── v8.18.1 Villain Teaching future-exploit quality hotfix ──
+import gem_villain_teaching as _VTQ
+
+# T-VT181-01: cue-FIRST classification -- the structured atom signal picks the cue family (never archetype
+# first); cue text is the fallback. The two production cue-mismatch examples are now correctly aligned.
+check('T-VT181-01: classify_cue_family is cue-first (signal -> family; text fallback)',
+      _VTQ.classify_cue_family(signal='multiway_donk') == 'LARGE_DONK'
+      and _VTQ.classify_cue_family(signal='limp_call') == 'WIDE_PREFLOP_CALL'
+      and _VTQ.classify_cue_family(signal='passive_aggro_pivot') == 'PASSIVE_THEN_RAISE'
+      and _VTQ.classify_cue_family(cue='Player calls too wide preflop with a loose range') == 'WIDE_PREFLOP_CALL'
+      and _VTQ.classify_cue_family(cue='River aggression is underbluffed and value-heavy') == 'UNDERBLUFFED_RIVER',
+      str(_VTQ.classify_cue_family(signal='multiway_donk')))
+
+# T-VT181-02: word-boundary keyword match -- a short token ('nit') must NOT match inside 'opportunity'
+# (the real production bug), but plurals/gerunds still match ('overfold' in 'overfolds').
+check('T-VT181-02: cue keyword match is word-bounded (no nit-in-opportunity), inflections still match',
+      _VTQ.classify_cue_family(cue='Thin value bet opportunity missed; villain calls down too light') == 'CALLING_STATION'
+      and _VTQ._kw_match('overfold', 'villain overfolds the blinds too often') is True
+      and _VTQ._kw_match('nit', 'a thin value opportunity') is False
+      and _VTQ._kw_match('nit', 'a nitty rock in the blinds') is True, '')
+
+# T-VT181-03: the canonical future exploit is a COMPLETE sentence (no word-slice truncation); the
+# 40-word clamp is gone, so a long cue-aligned sentence keeps its terminal punctuation.
+_vt181_donk = {'signal': 'multiway_donk', 'cue': 'Loose-passive donk-bets into the field with weak hands and draws',
+               'archetype': 'Loose Passive', 'confidence': 'medium', 'exploit_now': 'Raise donk-bets for value',
+               'villain_did': 'Donk-led the flop into three players', 'do_not_overadjust': 'small sample',
+               'source_truth': {'no_hindsight': True}, 'fallback': False}
+_vt181_b = _VTQ._finalize(dict(_vt181_donk))
+check('T-VT181-03: future_exploit stored COMPLETE (cue-first LARGE_DONK), 40-word clamp removed',
+      _vt181_b['cue_family'] == 'LARGE_DONK' and _vt181_b['future_exploit_source'] == 'CUE_TEMPLATE'
+      and _VTQ.future_exploit_complete(_vt181_b['future_exploit'])[0]
+      and _VTQ.cue_alignment('LARGE_DONK', _vt181_b['future_exploit'])[0]
+      and 'future_exploit' not in _VTQ._WORD_CAP             # the semantic word clamp is gone
+      and len(_vt181_b['future_exploit'].split()) >= 25
+      and _vt181_b['future_exploit'].rstrip()[-1] in '.!?', _vt181_b.get('future_exploit'))
+
+# T-VT181-04: provenance present on every generated lesson (cue_family + domain + source + reason).
+check('T-VT181-04: future-exploit provenance present (cue_family/current_exploit_domain/source/reason)',
+      _vt181_b.get('cue_family') and _vt181_b.get('current_exploit_domain')
+      and _vt181_b.get('future_exploit_source') in ('CUE_TEMPLATE', 'CURRENT_EXPLOIT_TRANSFORM',
+                                                    'ARCHETYPE_FALLBACK', 'MANUAL_EXISTING')
+      and _vt181_b.get('alignment_reason'), str(_vt181_b.get('future_exploit_source')))
+
+# T-VT181-05: cue-mismatch is impossible -- a donk-bet lesson never gets a sudden-aggression future, and
+# a wide-calling lesson never gets a fold-bluff-catcher future (the two reported defects).
+check('T-VT181-05: cue alignment rejects a swapped future, accepts the matching one',
+      _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['LARGE_DONK'])[0] is True
+      and _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['PASSIVE_THEN_RAISE'])[0] is False
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['WIDE_PREFLOP_CALL'])[0] is True
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['UNDERBLUFFED_RIVER'])[0] is False, '')
+
+# T-VT181-06: the seven required mutation classes each flip a quality check to FAIL.
+_g181 = _VTQ._FUTURE_TEMPLATE['LARGE_DONK']
+check('T-VT181-06: all seven mutation classes are detected (completeness + alignment + hindsight)',
+      _VTQ.future_exploit_complete(' '.join(_g181.split()[:-5]))[0] is False        # 1 remove last words
+      and _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['UNDERBLUFFED_RIVER'])[0] is False  # 2 swap donk<-river
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['PASSIVE_THEN_RAISE'])[0] is False  # 3 swap
+      and _VTQ.future_exploit_complete('Play accordingly.')[0] is False             # 4 generic placeholder
+      and _VTQ.future_exploit_complete(_g181.rstrip('.'))[0] is False               # 5 remove punctuation
+      and _VTQ.future_exploit_complete(None)[0] is False                            # 6 null future
+      and _VTQ.cue_alignment('LARGE_DONK', _g181[:-1] + ' because hero won at showdown.')[0] is False, '')  # 7 hindsight
+
+# T-VT181-07: a missing future_exploit is still an INCOMPLETE-eligible state (eligibility unchanged); the
+# generator never invents a future for a thin/fallback object.
+_vt181_thin = _VTQ._finalize({'villain_did': '', 'cue': '', 'archetype': '', 'fallback': True,
+                              'source_truth': {'no_hindsight': True}})
+check('T-VT181-07: thin/fallback object gets NO future exploit + NO provenance (eligibility untouched)',
+      not _vt181_thin.get('future_exploit') and not _vt181_thin.get('cue_family'), '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

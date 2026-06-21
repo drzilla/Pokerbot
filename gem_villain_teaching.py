@@ -350,8 +350,9 @@ _READ_FAMILY_DIMS = {
     'Aggressive': {'aggressive', 'pivot'},
 }
 
-# future_exploit carries a complete concrete future adjustment (v8.18.0), so it gets a larger cap.
-_WORD_CAP = {'villain_did': 22, 'exploit_now': 18, 'future_exploit': 40, 'cue': 24}
+# v8.18.1: future_exploit is NO LONGER word-capped -- the canonical sentence must stay complete (the
+# renderer shortens for display only). Caps remain for the short observation/cue/exploit-now lines.
+_WORD_CAP = {'villain_did': 22, 'exploit_now': 18, 'cue': 24}
 
 
 def _clamp_words(text, limit):
@@ -510,15 +511,26 @@ def _finalize(obj):
     thin = (not obj.get('villain_did') and not obj.get('cue'))
     if thin:
         obj['fallback'] = True
-    # v8.18.0 final product-truth correction: an ELIGIBLE read (a real cue + archetype + a current
-    # exploit) must carry a concrete FUTURE adjustment tied to the same cue. Derive one when the producer
-    # left it empty -- NEVER for a thin/fallback object (those are ineligible, not lessons). Missing
-    # future_exploit is an INCOMPLETE-eligible state, never an ineligibility reason.
-    if (not obj.get('fallback') and not obj.get('future_exploit')
-            and obj.get('cue') and obj.get('archetype') and obj.get('exploit_now')):
-        obj['future_exploit'] = derive_future_exploit(
-            obj.get('archetype'), obj.get('cue'), obj.get('exploit_now'))
-    obj['future_exploit'] = _clamp_words(obj.get('future_exploit'), _WORD_CAP['future_exploit'])
+    # v8.18.1 (Villain Teaching quality hotfix): an ELIGIBLE read carries a CUE-FIRST, COMPLETE future
+    # exploit + provenance. Generate one cue-first when the producer left it empty; keep a genuinely
+    # pre-authored recommendation (MANUAL_EXISTING) ONLY when it passes the completeness + cue-alignment
+    # bar, else regenerate cue-first. The canonical future_exploit is NEVER word-sliced -- any shortening
+    # happens in the renderer (display clamp / expandable), so the full sentence stays in the payload and
+    # the accessibility layer. Missing future_exploit remains an INCOMPLETE-eligible state, not ineligible.
+    if (not obj.get('fallback') and obj.get('cue') and obj.get('archetype') and obj.get('exploit_now')):
+        prov = derive_future_exploit(obj)
+        pre = _clean(obj.get('future_exploit'))
+        if pre and future_exploit_complete(pre)[0] and cue_alignment(prov['cue_family'], pre)[0]:
+            obj['future_exploit'] = pre
+            obj['future_exploit_source'] = 'MANUAL_EXISTING'
+            obj['alignment_reason'] = ('pre-authored exploit recommendation; passes completeness + %s '
+                                       'alignment' % prov['cue_family'])
+        else:
+            obj['future_exploit'] = prov['future_exploit']
+            obj['future_exploit_source'] = prov['future_exploit_source']
+            obj['alignment_reason'] = prov['alignment_reason']
+        obj['cue_family'] = prov['cue_family']
+        obj['current_exploit_domain'] = prov['current_exploit_domain']
     # Natural8 candidate tag (Slice D). A fallback / weak read is explicitly
     # 'Unsure / Tag-me-later' — never a forced colour; otherwise project the
     # derived read + confidence + no-hindsight state into a candidate tag.
@@ -596,6 +608,11 @@ def lesson_7part(obj):
         'q7_do_not_overadjust': obj.get('do_not_overadjust'),
         'gradable': graded,
         'non_gradable_reason': '' if graded else (obj.get('non_gradable_reason') or ''),
+        # v8.18.1 future-exploit provenance (carried into the rendered payload for the quality verifier)
+        'cue_family': obj.get('cue_family'),
+        'current_exploit_domain': obj.get('current_exploit_domain'),
+        'future_exploit_source': obj.get('future_exploit_source'),
+        'alignment_reason': obj.get('alignment_reason'),
     }
 
 
@@ -729,49 +746,307 @@ def villain_teaching_coverage(objects):
     }
 
 
-def derive_future_exploit(archetype, cue, exploit_now=None):
-    """v8.18.0 final product-truth correction: a CONCRETE future adjustment tied to the SAME observed
-    cue, for an eligible lesson that lacks one. References the future situation, states an action /
-    frequency change, respects the guardrail, and uses no hindsight or later-street justification. Never
-    a placeholder ('adjust in future', 'play accordingly'). Cue-class templates keep cue-specific meaning."""
-    a = (archetype or '').lower()
-    c = (cue or '').lower()
-    if 'nit' in a or 'rock' in a:
-        return ('When this player shows aggression in a future hand, give their bets and raises extra '
-                'respect -- fold medium-strength hands and continue mainly with strong value; only widen '
-                'your continues once you have actually seen them deviate from the tight baseline.')
-    if 'aggress' in a or 'suddenly aggressive' in c or 'normally passive' in c:
-        return ('When this player departs from their passive baseline with a sudden bet or raise again, '
-                'tighten your continuing range and release marginal bluff-catchers that hold no blocker; '
-                'treat the line as more polarised toward value until you have seen it turn up light.')
-    if 'passive' in a or 'loose' in a or 'fish' in a:
-        if 'donk' in c:
-            return ('Against future donk-bets from this player, raise your strong made hands and '
-                    'high-equity draws for value more often and fold out your air instead of auto-floating; '
-                    'do not turn medium showdown value into a bluff-raise.')
-        if 'min' in c or 'small bet' in c or 'minimum bet' in c:
-            return ('When this player uses the same small / minimum bet again, raise thinly for value with '
-                    'made hands and call wider in position, but do not read the small sizing as weakness you '
-                    'can always bluff-raise.')
-        if 'flat' in c or '3-bet' in c or 'flatting' in c:
-            return ('Against future out-of-position flat-calls of 3-bets from this player, value-bet thinner '
-                    'across streets and cut your pure bluffs; keep sizing up with value and avoid barrelling '
-                    'into their wide, sticky calling range.')
-        if 'call' in c or 'wide' in c:
-            return ('Against this player going forward, value-bet thinner and size up with made hands while '
-                    'reducing your bluff frequency; isolate their limps wider for value, but do not bloat the '
-                    'pot out of position without a real hand.')
-        return ('Against this loose-passive player in future hands, lean toward thin value and larger value '
-                'sizing while cutting bluffs; iso-raise their limps wider, but stay disciplined out of '
-                'position without a made hand.')
-    # eligible read with a cue but no archetype template: build a concrete line from the current exploit.
-    base = (exploit_now or '').strip().rstrip('.')
-    if base:
-        return ('When this same read repeats in a future hand, apply the adjustment proactively -- %s -- '
-                'and stay within the guardrail until another data point confirms the tendency.'
-                % (base[0].lower() + base[1:]))
-    return ('When this read repeats in a future hand, apply the same value-oriented adjustment proactively '
-            'and stay within the guardrail until the tendency is confirmed by another data point.')
+# ─────────────────────────────────────────────────────────────────────────────
+# v8.18.1 CUE-FIRST future-exploit generation (Villain Teaching quality hotfix)
+#
+# The future exploit must teach how to exploit the SAME observed cue/line again. Generation order is
+# (1) the specific cue family (the structured atom signal is the canonical key; the cue/observation text
+# is the fallback), (2) the current exploit / action domain, and (3) the villain archetype ONLY as a
+# fallback modifier -- never archetype-first. The canonical sentence is stored COMPLETE (no word slice);
+# any shortening is display-only.
+# ─────────────────────────────────────────────────────────────────────────────
+CUE_FAMILIES = (
+    'WIDE_PREFLOP_CALL', 'REPEATED_LIMP', 'EXCESSIVE_FOLD', 'CALLING_STATION', 'WIDE_FLAT_3BET',
+    'SMALL_DONK', 'LARGE_DONK', 'PASSIVE_THEN_RAISE', 'OVERSIZED_BET', 'UNDERBLUFFED_RIVER',
+    'OVERBLUFFED_AGGR', 'WEAK_STAB', 'EXCESSIVE_3BET', 'FIT_OR_FOLD', 'SHOWDOWN_ONLY', 'GENERIC',
+)
+
+# structured atom signal -> cue family (the most reliable, cue-specific mapping)
+_SIGNAL_CUE_FAMILY = {
+    'open_limp': 'REPEATED_LIMP', 'limp_call': 'WIDE_PREFLOP_CALL', 'multiway_donk': 'LARGE_DONK',
+    'weird_minbet': 'SMALL_DONK', 'repeated_blind_overfold': 'EXCESSIVE_FOLD',
+    'cold_call_3bet_oop': 'WIDE_FLAT_3BET', 'passive_aggro_pivot': 'PASSIVE_THEN_RAISE',
+    'calldown_weak_pair': 'CALLING_STATION', 'weak_showdown_call': 'CALLING_STATION',
+    'river_bluff_shown': 'OVERBLUFFED_AGGR',
+}
+
+# cue/observation text patterns -> cue family (fallback when no structured signal maps). Ordered:
+# the FIRST family whose any-pattern matches wins, so put the more specific lines first.
+_CUE_TEXT_FAMILY = (
+    ('PASSIVE_THEN_RAISE', ('suddenly aggressive', 'normally passive', 'sudden aggression', 'passive_aggro', 'passive then raise', 'passive line then', 'passive, then raises')),
+    ('SMALL_DONK', ('min-bet', 'minimum bet', 'min bet', 'small donk', 'small bet', 'tiny bet')),
+    ('LARGE_DONK', ('donk-bet', 'donk bet', 'donks into', 'donk into', 'leads into the field', 'lead into the field', 'oversized donk')),
+    ('OVERSIZED_BET', ('oversized', 'overbet', 'over-bet', 'large river bet', 'huge bet', 'big river')),
+    ('UNDERBLUFFED_RIVER', ('underbluff', 'under-bluff', 'value-heavy river', 'rarely bluffs', 'never bluffs the river')),
+    ('OVERBLUFFED_AGGR', ('over-bluff', 'overbluff', 'bluffs too much', 'over-aggressive', 'maniac', 'spews', 'too many bluffs')),
+    ('WIDE_FLAT_3BET', ('flat-call', 'flatting 3-bet', 'flats 3-bet', '3-bet oop', 'cold-call 3', 'calls 3-bets')),
+    ('EXCESSIVE_3BET', ('3-bets too', 're-raises too', 'reraises too', 'over-3bet', 'excessive 3-bet', 'light 3-bet')),
+    ('EXCESSIVE_FOLD', ('overfold', 'over-fold', 'folds too often', 'folds to steal', 'folds the blind', 'too tight', 'nit', 'nitty', 'rock')),
+    ('CALLING_STATION', ('station', 'sticky', 'calls down', 'calldown', 'call multiple streets', 'wide calling range', 'calls too wide postflop', 'never folds')),
+    ('WIDE_PREFLOP_CALL', ('wide calling', 'calls too wide', 'wide range pre', 'loose calling', 'wide preflop', 'wide entry', 'weaker/passive preflop')),
+    ('REPEATED_LIMP', ('limp', 'open-limp', 'open limp', 'repeated limp')),
+    ('WEAK_STAB', ('weak stab', 'stabs', 'probe weak', 'stab after')),
+    ('FIT_OR_FOLD', ('fit-or-fold', 'fit or fold', 'gives up postflop', 'one-and-done')),
+    ('SHOWDOWN_ONLY', ('at showdown', 'showed down', 'showdown only', 'shown at showdown')),
+)
+
+# complete, cue-aligned future-exploit sentences, one per cue family. Each references the SAME line,
+# states an action/frequency adjustment, and carries a guardrail; none switches to an unrelated tendency.
+_FUTURE_TEMPLATE = {
+    'WIDE_PREFLOP_CALL':
+        'When this player enters the pot by calling again, isolate wider for value and use a larger '
+        'value-oriented size, then keep value-betting thinner across the streets; do not add unsupported '
+        'bluffs merely because their preflop range is wide.',
+    'REPEATED_LIMP':
+        'When this player open-limps again, raise to isolate over the limp with a wider value range and a '
+        'larger size, and keep barrelling for value postflop; do not start bluff-raising the limp just '
+        'because they entered the pot passively.',
+    'EXCESSIVE_FOLD':
+        'When this player is in the blinds or is facing your steal again, keep widening your steal and '
+        'continuation range to attack their over-folding; do not over-widen into the rare strong hands '
+        'they will actually continue with.',
+    'CALLING_STATION':
+        'Against the same calling-station line, value-bet thinner and bet more streets for value while '
+        'cutting your bluffs to almost zero; do not try to blow this player off the marginal made hands '
+        'they call with.',
+    'WIDE_FLAT_3BET':
+        'When this player flat-calls a 3-bet out of position again, keep applying postflop pressure with '
+        'a value-weighted barrelling range and size up; do not over-bluff into their wide, sticky, '
+        'capped calling range.',
+    'SMALL_DONK':
+        'Against the same small or minimum donk-bet line, raise for thin value with your made hands and '
+        'float wider in position; do not read the small sizing as a licence to always bluff-raise it.',
+    'LARGE_DONK':
+        'Against the same donk-bet lead into the field, raise your strong made hands and high-equity '
+        'draws more often for value and fold out your air rather than floating; do not turn marginal '
+        'showdown value into a bluff-raise.',
+    'PASSIVE_THEN_RAISE':
+        'When this passive profile suddenly bets or raises a later street again, overfold your one-pair '
+        'bluff-catchers and continue only with strong value, unless the board texture or accumulated '
+        'evidence supports enough bluffs in their range.',
+    'OVERSIZED_BET':
+        'Against the same oversized turn or river bet, fold your marginal bluff-catchers more often '
+        'unless you hold a relevant blocker or have fresh evidence that materially raises this player\'s '
+        'bluff frequency.',
+    'UNDERBLUFFED_RIVER':
+        'Against the same large or polarising river line, fold bluff-catchers without a blocker more '
+        'often because this player\'s river aggression is value-heavy; only call down when blockers or '
+        'new evidence raise the expected bluff rate.',
+    'OVERBLUFFED_AGGR':
+        'When this player fires the same aggressive line again, widen your call-downs and bluff-catch '
+        'lighter to capture their excess bluffs; do not start raising for value and folding out the very '
+        'bluffs you are trying to catch.',
+    'WEAK_STAB':
+        'When this player stabs the same small bet after the action checks to them, raise or float to '
+        'attack the stab more often; do not give that small bet automatic credit for a made hand.',
+    'EXCESSIVE_3BET':
+        'When this player 3-bets or re-raises at the same spot again, widen your continuing range and '
+        '4-bet or call down lighter to punish the inflated frequency; do not fold hands that are clearly '
+        'ahead of their wide re-raising range.',
+    'FIT_OR_FOLD':
+        'When this player takes the same fit-or-fold line postflop again, c-bet a wider range for fold '
+        'equity and barrel more turns; do not keep firing once they have shown they are continuing with '
+        'genuine strength.',
+    'SHOWDOWN_ONLY':
+        'Record this showdown-derived tendency for later, but wait until the same read is available '
+        'before the decision before you act on it; do not apply a showdown-only read to a hand that is '
+        'still in progress.',
+}
+
+# archetype-level fallback lines (used ONLY when no specific cue family is supported). Each is a
+# complete sentence and is intentionally generic about the line.
+_ARCHETYPE_FALLBACK = {
+    'nit': 'When this tight player shows real aggression in a future hand, give their bets and raises '
+           'extra respect and fold your medium-strength hands, continuing mainly with strong value until '
+           'you have actually seen them deviate from the tight baseline.',
+    'aggress': 'When this aggressive player applies the same pressure again, widen your continuing and '
+               'call-down range to capture their extra bluffs, and do not fold out their bluffs by '
+               'turning your bluff-catchers into raises.',
+    'passive': 'When this loose-passive player takes the same passive line again, lean on thin value and '
+               'larger value sizing while cutting your bluffs, and stay disciplined out of position '
+               'without a real made hand.',
+}
+
+# action keywords each cue family's future exploit MUST contain at least one of (it addresses the cue),
+# and conflicting-family exclusive markers it must NOT contain (it must not switch tendencies).
+_FAMILY_REQUIRED = {
+    'WIDE_PREFLOP_CALL': ('isolate', 'value'), 'REPEATED_LIMP': ('isolate', 'raise', 'value'),
+    'EXCESSIVE_FOLD': ('steal', 'widen', 'wider', 'attack'), 'CALLING_STATION': ('value', 'thinner', 'more streets'),
+    'WIDE_FLAT_3BET': ('pressure', 'barrel', 'value', 'size up'), 'SMALL_DONK': ('raise', 'thin value', 'float'),
+    'LARGE_DONK': ('raise', 'value', 'draws'), 'PASSIVE_THEN_RAISE': ('overfold', 'fold', 'respect', 'strong value'),
+    'OVERSIZED_BET': ('fold', 'bluff-catcher', 'blocker'), 'UNDERBLUFFED_RIVER': ('fold', 'bluff-catcher', 'blocker'),
+    'OVERBLUFFED_AGGR': ('call', 'widen', 'bluff-catch', 'call-down'), 'WEAK_STAB': ('raise', 'float', 'attack'),
+    'EXCESSIVE_3BET': ('widen', '4-bet', 'call', 'punish'), 'FIT_OR_FOLD': ('c-bet', 'barrel', 'fold equity'),
+    'SHOWDOWN_ONLY': ('record', 'wait', 'available', 'note'), 'GENERIC': (),
+}
+# exclusive markers that, if present, indicate the future text belongs to a DIFFERENT (incompatible)
+# tendency. Used by the alignment check to catch a future exploit swapped onto the wrong cue.
+_FAMILY_EXCLUSIVE = {
+    'PASSIVE_THEN_RAISE': ('overfold your one-pair', 'suddenly bets or raises', 'passive profile suddenly'),
+    'LARGE_DONK': ('donk-bet lead into the field',), 'SMALL_DONK': ('small or minimum donk-bet',),
+    'WIDE_PREFLOP_CALL': ('enters the pot by calling',), 'EXCESSIVE_FOLD': ('attack their over-folding',),
+    'OVERBLUFFED_AGGR': ('capture their excess bluffs',), 'UNDERBLUFFED_RIVER': ('river aggression is value-heavy',),
+}
+# families whose action domains are mutually compatible (so a shared marker is not a contradiction).
+_FAMILY_COMPATIBLE = {
+    'WIDE_PREFLOP_CALL': ('REPEATED_LIMP', 'CALLING_STATION', 'WIDE_FLAT_3BET'),
+    'REPEATED_LIMP': ('WIDE_PREFLOP_CALL',), 'CALLING_STATION': ('WIDE_PREFLOP_CALL', 'WIDE_FLAT_3BET'),
+    'WIDE_FLAT_3BET': ('WIDE_PREFLOP_CALL', 'CALLING_STATION'),
+    'OVERSIZED_BET': ('UNDERBLUFFED_RIVER', 'PASSIVE_THEN_RAISE'),
+    'UNDERBLUFFED_RIVER': ('OVERSIZED_BET', 'PASSIVE_THEN_RAISE'),
+    'PASSIVE_THEN_RAISE': ('OVERSIZED_BET', 'UNDERBLUFFED_RIVER'),
+}
+
+_FORBIDDEN_FUTURE = ('adjust in future.', 'exploit this tendency.', 'play accordingly.',
+                     'be careful next time.', 'proceed cautiously.')
+# trailing tokens that CANNOT validly end a complete English sentence -- if the canonical sentence ends
+# on one of these (before its terminal punctuation) it was cut mid-clause. Deliberately MINIMAL: only
+# articles, coordinating conjunctions, possessive determiners, the infinitival/genitive markers, and
+# subordinators that demand a following clause. Stranded prepositions ("continue with."), object
+# pronouns ("bluff-raise it.") and comparatives CAN legitimately end a sentence and are NOT listed. The
+# primary truncation signal remains the MISSING terminal punctuation (the old word-clamp dropped it).
+_DANGLING_TAIL = frozenset(
+    'a an the and or but nor their your its his her our my to of '
+    'because unless until while although whereas than'.split())
+
+
+def _exploit_domain(exploit_now):
+    """A coarse typed action domain for the CURRENT exploit -- used for provenance + compatibility."""
+    t = (exploit_now or '').lower()
+    if not t:
+        return 'NONE'
+    if 'isolate' in t or 'iso-raise' in t or 'iso raise' in t:
+        return 'ISOLATE'
+    if 'steal' in t or 'open wider' in t or 'steal wider' in t:
+        return 'STEAL'
+    if ('fold' in t or 'respect' in t) and 'value' not in t:
+        return 'FOLD_RESPECT'
+    if 'value-bet' in t or 'value bet' in t or 'thin value' in t or 'value-betting' in t:
+        return 'VALUE_BET'
+    if 'pressure' in t or 'barrel' in t:
+        return 'PRESSURE'
+    if 'call' in t and ('wider' in t or 'down' in t or 'lighter' in t):
+        return 'CALL_WIDER'
+    if 'trap' in t:
+        return 'TRAP'
+    if 'raise' in t and 'value' in t:
+        return 'VALUE_RAISE'
+    if 'raise' in t:
+        return 'RAISE'
+    return 'OTHER'
+
+
+def _kw_match(pat, text):
+    """Word-boundary keyword match with common inflection suffixes -- so 'nit' does NOT match inside
+    'opportunity'/'rocket' (a leading word boundary blocks mid-word hits), but 'overfold' still matches
+    'overfolds'/'overfolding' and 'nit' matches 'nitty'."""
+    return re.search(r'(?<!\w)' + re.escape(pat) + r'(?:s|es|ed|ing|ty|y)?(?!\w)', text) is not None
+
+
+def classify_cue_family(signal=None, cue=None, villain_did=None, action_ref=None, exploit_now=None):
+    """Return the typed cue family for a lesson, CUE-FIRST: the structured atom signal wins; else the
+    cue/observation/action text (word-boundary matched); else GENERIC. Never archetype-first."""
+    sig = (signal or '').strip()
+    if sig in _SIGNAL_CUE_FAMILY:
+        return _SIGNAL_CUE_FAMILY[sig]
+    text = ' '.join(str(x or '') for x in (cue, villain_did, action_ref, exploit_now)).lower()
+    for fam, pats in _CUE_TEXT_FAMILY:
+        if any(_kw_match(p, text) for p in pats):
+            return fam
+    return 'GENERIC'
+
+
+def future_exploit_complete(text):
+    """A complete teaching sentence: non-empty, opens with a capital, ends with terminal punctuation,
+    carries no truncation marker or dangling tail, and is not a forbidden generic placeholder."""
+    if not text:
+        return False, 'empty'
+    s = str(text).strip()
+    if s.lower() in _FORBIDDEN_FUTURE:
+        return False, 'forbidden_placeholder'
+    if '…' in s or s.endswith('...') or s.rstrip().endswith('--'):
+        return False, 'truncation_marker'
+    if not s[0].isupper():
+        return False, 'no_capital_start'
+    if s[-1] not in '.!?':
+        return False, 'no_terminal_punctuation'
+    body = s[:-1].rstrip()
+    last = body.split()[-1].strip('"\')') if body.split() else ''
+    if last.lower() in _DANGLING_TAIL:
+        return False, 'dangling_tail:%s' % last
+    if len(s.split()) < 8:
+        return False, 'too_short'
+    return True, 'complete'
+
+
+# phrases that justify a read with a later-street RESULT (hindsight) -- never allowed in a future exploit.
+_HINDSIGHT_PHRASES = ('at showdown', 'showed down', 'because hero won', 'because hero lost',
+                      'as it turned out', 'in hindsight', 'turned out to be', 'after we saw the showdown')
+
+
+def cue_alignment(cue_family, future_text):
+    """Does the future exploit address THIS cue family and not switch to an incompatible tendency?
+    Deterministic: a required action token must be present; no exclusive marker of an incompatible
+    family may appear; and no later-street/result (hindsight) justification."""
+    fam = cue_family if cue_family in _FAMILY_REQUIRED else 'GENERIC'
+    f = (future_text or '').lower()
+    if any(h in f for h in _HINDSIGHT_PHRASES):
+        return False, 'hindsight/result justification'
+    req = _FAMILY_REQUIRED.get(fam, ())
+    if req and not any(r in f for r in req):
+        return False, 'missing required action for %s' % fam
+    compat = set(_FAMILY_COMPATIBLE.get(fam, ())) | {fam}
+    for other, markers in _FAMILY_EXCLUSIVE.items():
+        if other in compat:
+            continue
+        if any(m in f for m in markers):
+            return False, 'carries %s marker in a %s lesson' % (other, fam)
+    return True, 'addresses %s; compatible action domain' % fam
+
+
+def _future_from_current_exploit(exploit_now):
+    """CURRENT_EXPLOIT_TRANSFORM: a complete future sentence built from the current exploit (used when
+    the cue family is GENERIC but a concrete current exploit exists). Stays in the current domain."""
+    base = (exploit_now or '').strip().rstrip('. ')
+    if not base:
+        return None
+    return ('When this same read repeats in a future hand, apply the same adjustment proactively -- %s '
+            '-- and stay within the guardrail until another data point confirms the tendency.'
+            % (base[0].lower() + base[1:]))
+
+
+def derive_future_exploit(obj):
+    """CUE-FIRST future-exploit generation with provenance. Returns a dict:
+        {future_exploit, future_exploit_source, cue_family, current_exploit_domain, alignment_reason}.
+    Order: specific cue family template -> current-exploit transform -> archetype fallback. The returned
+    sentence is COMPLETE (never word-sliced)."""
+    cue_family = classify_cue_family(obj.get('signal'), obj.get('cue'), obj.get('villain_did'),
+                                     obj.get('action_ref'), obj.get('exploit_now'))
+    domain = _exploit_domain(obj.get('exploit_now'))
+    # 1) specific cue family template
+    tmpl = _FUTURE_TEMPLATE.get(cue_family)
+    if tmpl:
+        return {'future_exploit': tmpl, 'future_exploit_source': 'CUE_TEMPLATE',
+                'cue_family': cue_family, 'current_exploit_domain': domain,
+                'alignment_reason': 'cue-template for %s addresses the same line; %s domain' % (cue_family, domain)}
+    # 2) current-exploit transform (GENERIC family but a concrete current exploit)
+    transformed = _future_from_current_exploit(obj.get('exploit_now'))
+    if transformed:
+        return {'future_exploit': transformed, 'future_exploit_source': 'CURRENT_EXPLOIT_TRANSFORM',
+                'cue_family': cue_family, 'current_exploit_domain': domain,
+                'alignment_reason': 'no specific cue template; transformed the concrete current exploit (%s)' % domain}
+    # 3) archetype fallback (last resort; only when it does not contradict the cue)
+    a = (obj.get('archetype') or '').lower()
+    for key in ('nit', 'aggress', 'passive'):
+        if key in a or (key == 'aggress' and 'aggro' in a) or (key == 'passive' and ('loose' in a or 'fish' in a)):
+            line = _ARCHETYPE_FALLBACK[key]
+            return {'future_exploit': line, 'future_exploit_source': 'ARCHETYPE_FALLBACK',
+                    'cue_family': cue_family, 'current_exploit_domain': domain,
+                    'alignment_reason': 'no supported cue template or current exploit; archetype-level (%s) fallback' % key}
+    line = _ARCHETYPE_FALLBACK['passive']
+    return {'future_exploit': line, 'future_exploit_source': 'ARCHETYPE_FALLBACK',
+            'cue_family': cue_family, 'current_exploit_domain': domain,
+            'alignment_reason': 'no cue template, current exploit, or archetype match; generic value fallback'}
 
 
 def _read_state_for(read_states, villain_key):
@@ -845,6 +1120,7 @@ def teaching_from_exploit(exp, read_states, atoms_by_villain, *,
         'villain_alias': rs.get('villain_alias') or exp.get('villain_alias', ''),
         'street': street,
         'action_ref': exp.get('hero_action', '') or exp.get('exploit_detector', ''),
+        'signal': '',                              # exploit objects classify cue family from the cue text
         'villain_did': _clean(exp.get('evidence_text')),
         'cue': cue,
         'archetype': archetype,
@@ -927,6 +1203,7 @@ def teaching_from_atom(atom, read_states, atoms_by_villain, *,
         'villain_alias': rs.get('villain_alias') or atom.get('villain_alias', ''),
         'street': (atom.get('street') or '').strip() or 'preflop',
         'action_ref': atom.get('villain_action', '') or signal,
+        'signal': signal,                          # v8.18.1: structured cue key for cue-first generation
         'villain_did': _clean(atom.get('evidence_text')),
         'cue': _cue,
         'archetype': _archetype,

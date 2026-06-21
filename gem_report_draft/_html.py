@@ -1073,7 +1073,7 @@ _MODAL_HTML = r"""
         _tp.push('<div class="v25-teach-head">'+_head+'</div>');
         if(_L.q2_cue){_tp.push('<div class="v25-teach-cue">Cue: '+_esc(_L.q2_cue)+'</div>');}
         if(_L.q5_exploit_now){_tp.push('<div class="v25-teach-now">Exploit now: '+_esc(_L.q5_exploit_now)+'</div>');}
-        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
+        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future" title="'+_esc(_L.q6_exploit_future)+'">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
         if(_L.q7_do_not_overadjust){_tp.push('<div class="v25-teach-guard">Don’t over-adjust: '+_esc(_L.q7_do_not_overadjust)+'</div>');}
         if(_t.icm_guardrail){_tp.push('<div class="v25-teach-icm">ICM caution: '+_esc(_t.icm_guardrail)+'</div>');}
         if(_t.pko&&_t.pko.cover_label){_tp.push('<div class="v25-teach-pko">Bounty: '+_esc(_t.pko.cover_label)+'</div>');}
@@ -6788,7 +6788,9 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-evid {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
   .v25-teach-cue {{ color: #334155; margin: 1px 0; }}
   .v25-teach-now {{ color: #0f766e; font-weight: 600; margin-top: 2px; }}
-  .v25-teach-future {{ color: #475569; margin-top: 1px; }}
+  /* v8.18.1: the full canonical future-exploit sentence is shown (never truncated); it wraps on
+     narrow/mobile and the complete text is also in the title tooltip + accessibility layer. */
+  .v25-teach-future {{ color: #475569; margin-top: 1px; white-space: normal; overflow-wrap: anywhere; }}
   .v25-teach-icm {{ color: #92400e; margin-top: 1px; font-size: 11px; }}
   .v25-teach-confchip {{ display: inline-block; font-size: 10px; font-weight: 600;
     color: #475569; background: #e2e8f0; border-radius: 999px; padding: 0 6px;

@@ -13328,6 +13328,65 @@ _vt181_thin = _VTQ._finalize({'villain_did': '', 'cue': '', 'archetype': '', 'fa
 check('T-VT181-07: thin/fallback object gets NO future exploit + NO provenance (eligibility untouched)',
       not _vt181_thin.get('future_exploit') and not _vt181_thin.get('cue_family'), '')
 
+# ── v8.18.1 production-correctness closure (COR-001/004/005) ──
+import gem_csv_types as _CT
+
+# T-COR-001: ONE typed CSV load boundary -- numeric strings (incl. comma/$/%) coerce to typed numbers;
+# empty/missing/non-numeric -> None (or 0.0 for a domain-zero field); text columns stay text.
+check('T-COR-001: typed CSV coercion handles 49.5/"1,234.50"/49/""/missing/non-numeric Top_Leak',
+      _CT.coerce_numeric('49.5') == 49.5 and _CT.coerce_numeric('1,234.50') == 1234.5
+      and _CT.coerce_numeric('49') == 49 and isinstance(_CT.coerce_numeric('49'), int)
+      and _CT.coerce_numeric(49.5) == 49.5 and _CT.coerce_numeric('') is None
+      and _CT.coerce_numeric(None) is None and _CT.coerce_numeric('Aggression') is None
+      and _CT.coerce_numeric('-100.0') == -100.0 and _CT.coerce_numeric('$25') == 25, '')
+_ct_rows, _ct_nf = _CT.coerce_csv_rows(
+    [{'Top_Leak': 'Aggression', 'BB_per_100': '1,234.50', 'Net_USD': '-5.00', 'Mistakes_per_100': ''},
+     {'Top_Leak': 'Passive', 'BB_per_100': '5.0', 'Net_USD': '0', 'Mistakes_per_100': '2'}],
+    zero_default={'Mistakes_per_100'})
+check('T-COR-001b: numeric columns coerced, text Top_Leak preserved, empty domain-zero -> 0.0',
+      _ct_rows[0]['BB_per_100'] == 1234.5 and _ct_rows[0]['Net_USD'] == -5.0
+      and _ct_rows[0]['Top_Leak'] == 'Aggression' and 'Top_Leak' not in _ct_nf
+      and _ct_rows[0]['Mistakes_per_100'] == 0.0, str(_ct_rows[0]))
+
+# T-COR-004: a grouped aggregate with NO canonical cEV must return None (-> em dash), never +0.0;
+# a group with real cEV is hand-weighted correctly.
+from gem_tournament_model import aggregate_group as _agg
+def _ev(hands, cev=None, bb=None):
+    return {'bullets': 1, 'cost': 10, 'return': {'value': 0, 'exact': True}, 'net': -10,
+            'finish': {'itm': False, 'top_percent': 60}, 'roi_pct': -100,
+            'performance': {'hands': hands, 'cev100': cev, 'bb100': bb}}
+_agg_nocev = _agg([_ev(50, cev=None, bb=-3.0), _ev(30, cev=None, bb=2.0)])
+_agg_cev = _agg([_ev(50, cev=10.0, bb=None), _ev(50, cev=-2.0, bb=None)])
+check('T-COR-004: unavailable grouped cEV is None (em dash), not 0.0; available cEV hand-weighted',
+      _agg_nocev['cev100'] is None and _agg_nocev['cev100_availability'] == 'unavailable'
+      and _agg_nocev['bb100'] is not None
+      and _agg_cev['cev100'] == 4.0 and _agg_cev['cev100_availability'] == 'exact'
+      and _agg_cev['bb100'] is None, str((_agg_nocev['cev100'], _agg_cev['cev100'])))
+
+# T-COR-002: in an UNSUPPORTED multiway / covering re-jam, the decision capsule must NOT assert
+# "call +EV vs range" or the single-villain required-equity Math (it would contradict the canonical
+# MISTAKE status). The heads-up path is unchanged (no over-suppression).
+from gem_commentary_capsule import decision_capsule_from_signals as _dcs, render_capsule_md as _rcm2
+_cor2_mw = _dcs('preflop', decision_label='Call vs jam', verdict_hint='call +EV vs range',
+                required_eq_pct=49.6, multiway_suppressed=True,
+                range_line='KTo outside the call-a-CO-jam 20BB range')
+_cor2_hu = _dcs('preflop', decision_label='Call vs jam', verdict_hint='call +EV vs range',
+                required_eq_pct=49.6, multiway_suppressed=False, range_line='inside')
+_cor2_md = _rcm2(_cor2_mw).lower() if _cor2_mw else ''
+_cor2_hu_md = _rcm2(_cor2_hu).lower() if _cor2_hu else ''
+check('T-COR-002: multiway-unsupported capsule drops +EV verdict + 49.6% Math; HU path keeps them',
+      _cor2_mw is not None and '+ev' not in _cor2_md and 'need 49.6' not in _cor2_md
+      and _cor2_mw.get('register') != 'coaching'
+      and _cor2_hu is not None and '+ev' in _cor2_hu_md, _cor2_md[:140])
+
+# T-COR-005: canonical SessionCoverage span derives from the actual hand TIMESTAMP dates (hand_ts_date),
+# so a session whose files all share one start date but whose hands span days shows the multi-day span.
+from gem_analyzer import _dates_contiguous as _dc
+check('T-COR-005: contiguity helper + multi-day span detection',
+      _dc(['2026-06-18', '2026-06-19', '2026-06-20']) is True
+      and _dc(['2026-06-18', '2026-06-20']) is False
+      and _dc(['2026-06-18']) is True, '')
+
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:
     print('FIX BEFORE PROCEEDING')

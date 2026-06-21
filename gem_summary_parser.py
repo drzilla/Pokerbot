@@ -109,10 +109,11 @@ def is_satellite(tournament_name):
 
 
 def _money(s):
-    """Convert a money string (possibly with commas) to float. Handles None."""
-    if s is None:
-        return 0.0
-    return float(s.replace(',', ''))
+    """Convert a money string (possibly comma/$/%-formatted) to float. COR-001: routes through the
+    canonical typed coercion so an empty or non-numeric value degrades to 0.0 instead of crashing."""
+    from gem_csv_types import coerce_numeric
+    c = coerce_numeric(s)
+    return float(c) if c is not None else 0.0
 
 
 def _format_tags(name):

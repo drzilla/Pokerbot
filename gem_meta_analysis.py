@@ -111,8 +111,11 @@ def fnum(x):
 # ---------------------------------------------------------------
 def build_paired_observations(session_history_path, per_tournament_path,
                               forward_bullets=200):
-    sessions = list(csv.DictReader(open(session_history_path)))
-    per_t = list(csv.DictReader(open(per_tournament_path)))
+    # COR-001: type-coerce numeric columns at the load boundary (comma-formatted / numeric strings ->
+    # numbers; empty/non-numeric -> None) so downstream numeric formatting never crashes on a csv string.
+    from gem_csv_types import read_typed_csv
+    sessions = read_typed_csv(session_history_path)
+    per_t = read_typed_csv(per_tournament_path)
 
     # Per-tournament rows with finish percentile, sorted by date
     by_date = []

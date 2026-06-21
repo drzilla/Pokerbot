@@ -433,7 +433,12 @@ def aggregate_group(events):
     def _share(pred):
         return (round(sum(1 for e in settled if pred(e)) / n_settled * 100, 1)
                 if n_settled else None)
+    # COR-004 (v8.18.1): a hand-weighted metric must be weighted over ONLY the events that actually
+    # carry it, and must be None (rendered as an em dash, never +0.0) when NO event in the group has a
+    # canonical value. Using the shared hand denominator turned "no cEV anywhere" into a real-looking
+    # +0.0. Each metric carries typed availability for the renderer.
     hw_bb = hw_cev = hw_den = 0.0
+    hw_bb_den = hw_cev_den = 0.0
     for e in evs:
         perf = e.get('performance') or {}
         hnd = float(perf.get('hands') or 0)
@@ -442,8 +447,10 @@ def aggregate_group(events):
         hw_den += hnd
         if perf.get('bb100') is not None:
             hw_bb += float(perf['bb100']) * hnd
+            hw_bb_den += hnd
         if perf.get('cev100') is not None:
             hw_cev += float(perf['cev100']) * hnd
+            hw_cev_den += hnd
     return {
         'events': len(evs),
         'bullets': sum(int(e.get('bullets') or 1) for e in evs),
@@ -459,8 +466,10 @@ def aggregate_group(events):
         'top5_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 5),
         'top1_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 1),
         'n_settled': n_settled,
-        'bb100': round(hw_bb / hw_den, 1) if hw_den else None,
-        'cev100': round(hw_cev / hw_den, 1) if hw_den else None,
+        'bb100': round(hw_bb / hw_bb_den, 1) if hw_bb_den else None,
+        'bb100_availability': 'exact' if hw_bb_den else 'unavailable',
+        'cev100': round(hw_cev / hw_cev_den, 1) if hw_cev_den else None,
+        'cev100_availability': 'exact' if hw_cev_den else 'unavailable',
         'hands': int(hw_den),
     }
 

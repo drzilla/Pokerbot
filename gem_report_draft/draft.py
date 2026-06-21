@@ -529,7 +529,9 @@ def _build(stats, report_data, hands, sections=None):
                 if (_ov_parsed and _unresolved_hh) else '')
     doc._topbar_kpis = {
         'player': rd.get('player_name', 'Knockman'),
-        'date': vol.get('date', ''),
+        # COR-005 (v8.18.1): the visible report identity describes the full consumed-coverage span
+        # (multi-day "first to last"), not one filename date.
+        'date': vol.get('date_span_display') or vol.get('date', ''),
         'n_hands': vol.get('hands', 0),
         # v8.14.3 Issue 1: canonical (overlay when parsed) tournament count +
         # in-progress annotation; ABI/Invested/Net/ROI all from the same source.

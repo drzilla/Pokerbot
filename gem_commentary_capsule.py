@@ -182,12 +182,21 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
         verdict_class = 'correct'
     else:
         verdict_class = ''
+    # COR-002 (v8.18.1) fail-safe: in an UNSUPPORTED multiway / covering re-jam spot the price-based
+    # "+EV vs range" verdict was derived from a single villain's range (e.g. the short CO jam) and
+    # ignores the covering re-jam, so it must NEVER assert a coaching-correct verdict. Drop the
+    # price-derived classification; the capsule becomes a neutral FACTUAL/insufficient note instead of
+    # contradicting the canonical decision status.
+    if multiway_suppressed:
+        verdict_class = ''
     register = classify_register(verdict_class=verdict_class, gradeable=gradeable,
                                  result_only=result_only)
     roles = {}
     if decision_label:
         roles['Decision'] = decision_label
-    if vh and not vh_is_result:
+    # COR-002: suppress the price-based "+EV vs range" verdict when the multiway composition is
+    # unsupported -- it is not a reliable verdict and would contradict the canonical decision status.
+    if vh and not vh_is_result and not multiway_suppressed:
         roles['Verdict'] = vh
     # Why: prefer the PKO how-changes driver, else the analyst why (never a result hint).
     drv = (pko_how_changes or '').replace('How the bounty changes it: ', '').strip()
@@ -202,7 +211,8 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
     if exploit_line:
         roles['Exploit'] = exploit_line
     if caveat_line or multiway_suppressed:
-        roles['Caveat'] = caveat_line or 'multiway — compare equity to the field, not one villain'
+        roles['Caveat'] = caveat_line or ('multiway / covering re-jam — the single-villain price is not '
+                                          'authoritative here; compare equity to the field, not one jam')
     if consequence_line:
         roles['Consequence'] = consequence_line
     # Anchor-aware fallback: an ungraded but evidenced decision (decision + price/range

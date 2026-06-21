@@ -961,15 +961,13 @@ def _parse_game_summaries_usd(hh_dir, hands):
 # HELPER: Load trend data from session history
 # ============================================================
 def _load_trend_data(csv_path, n=5):
-    """Load last n sessions from session_history CSV for trend tracking."""
+    """Load last n sessions from session_history CSV for trend tracking.
+    COR-001: rows are TYPE-COERCED at this load boundary (numeric columns -> float/int/None), so trend
+    renderers never numeric-format a raw csv string (the production crash)."""
     if not csv_path or not os.path.exists(csv_path):
         return []
-    import csv
-    rows = []
-    with open(csv_path, encoding='utf-8', errors='replace') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            rows.append(row)
+    from gem_csv_types import read_typed_csv
+    rows = read_typed_csv(csv_path)
     # Return last n rows (most recent sessions)
     return rows[-n:] if len(rows) >= n else rows
 

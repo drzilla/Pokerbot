@@ -2037,7 +2037,18 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     # --- VOLUME ---
     fmt_counts = defaultdict(int)
     for h in hands: fmt_counts[h['format']] += 1
-    all_dates = sorted(set(h.get('date', '') for h in hands if h.get('date')))
+    # COR-005 (v8.18.1): report identity / title must describe the actual CONSUMED-input date coverage,
+    # not one filename date. GG names a file by the tournament-START date, so a multi-day session whose
+    # files all share one start date was titled as a single day. Coverage = the UNION of the file/start
+    # date AND the per-hand TIMESTAMP date (hand_ts_date), so a multi-day session shows its full span
+    # while a late-night session keeps its start date in the span (it is not silently shifted forward).
+    _cov_dates = set()
+    for _h in hands:
+        if _h.get('date'):
+            _cov_dates.add(_h['date'])
+        if _h.get('hand_ts_date'):
+            _cov_dates.add(_h['hand_ts_date'])
+    all_dates = sorted(_cov_dates)
     if len(all_dates) > 1:
         # Build compact range: 2026-04-08 to 2026-04-09 → 20260408-09
         first, last = all_dates[0], all_dates[-1]
@@ -2052,6 +2063,19 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             date_range = f"{first_compact}-{last_compact}"
     else:
         date_range = (all_dates[0] if all_dates else '').replace('-', '')
+    # COR-005 (v8.18.1): a readable consumed-coverage span for the visible report identity (topbar).
+    # A multi-day session shows "first to last", a single day shows the one date.
+    if len(all_dates) > 1:
+        date_span_display = '%s to %s' % (all_dates[0], all_dates[-1])
+    else:
+        date_span_display = all_dates[0] if all_dates else ''
+    _cov_contig = (len(all_dates) <= 1) or _dates_contiguous(all_dates)
+    s['session_coverage'] = {
+        'dates': all_dates, 'first_date': all_dates[0] if all_dates else '',
+        'last_date': all_dates[-1] if all_dates else '', 'contiguous': _cov_contig,
+        'hand_count': len(hands), 'event_count': sum(1 for _ in tournaments),
+        'date_range': date_range, 'date_span_display': date_span_display,
+    }
     # CP18-FIN-3 (2026-06-01): bullets = HH file count per tournament.
     # Each bullet produces one HH file in GG's export. Re-entries create
     # separate files under the same tournament_id. Using len(tournaments)
@@ -2067,7 +2091,8 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                    'bullets': _n_bullets or n_files,
                    'formats': dict(fmt_counts), 'parse_errors': parse_errors,
                    'date': hands[0].get('date', '') if hands else '',
-                   'date_range': date_range}
+                   'date_range': date_range,
+                   'date_span_display': date_span_display}   # COR-005: visible multi-day coverage span
     s['tournament_list'] = [{'name': t['name'], 'format': t['format'], 'hands': len(t['hands']),
                              'buyin': t.get('buyin', 0),
                              # v8.7.4: file-based bullet count for re-entry awareness
@@ -8529,6 +8554,17 @@ def sanity_check(s, hands, prev_csv=None):
 # ============================================================
 # 5. MAIN — parse, analyze, check, output
 # ============================================================
+
+def _dates_contiguous(dates):
+    """True if the sorted ISO date strings form a gap-free run (COR-005 SessionCoverage.contiguous)."""
+    import datetime as _dt
+    try:
+        ds = [_dt.date.fromisoformat(d) for d in dates if d]
+    except Exception:
+        return False
+    ds.sort()
+    return all((ds[i + 1] - ds[i]).days == 1 for i in range(len(ds) - 1))
+
 
 def build_date_coverage(hands, session_dir):
     """v8.16.1 Bug-1: session date-scope transparency. Reports the date span of

@@ -184,7 +184,10 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
         _t5 = ('%.0f%%' % ag['top5_pct']) if ag['top5_pct'] is not None else EMDASH
         _t1 = ('%.0f%%' % ag['top1_pct']) if ag['top1_pct'] is not None else EMDASH
         _bb = ('%+.1f' % ag['bb100']) if ag['bb100'] is not None else EMDASH
-        _cev = ('%+.1f' % ag['cev100']) if ag['cev100'] is not None else EMDASH
+        # COR-004: an unavailable grouped/total cEV is an em dash with a typed reason -- never +0.0.
+        _cev = (('%+.1f' % ag['cev100']) if ag['cev100'] is not None
+                else ("<span title='cEV unavailable: no canonical per-tournament cEV/100 source for this "
+                      "group'>%s</span>" % EMDASH))
         _ckey = ('__none__' if cat is None else ('__unknown__' if cat == 'unknown' else cat))
         doc.w("<tr data-cat='%s' data-cat-key='%s'><td>%s<b>%s</b></td><td>%d</td>"
               "<td>%d</td><td>%d/%d</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td>"

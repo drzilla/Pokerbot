@@ -4040,10 +4040,14 @@ def _emit_sub_opponent_archetype(doc, s, rd, hands):
                 _n_unknown_excluded += 1
                 continue
             _by_read[_epr]['exploit_opps'] += 1
-            if _exp.get('auto_verdict') == 'missed_exploit':
-                _by_read[_epr]['missed'] += 1
-            elif _exp.get('auto_verdict') == 'good_exploit':
-                _by_read[_epr]['good'] += 1
+            # COR-003 (v8.18.1): Missed/Good (trusted grading) count ONLY graded objects -- an exploit
+            # with gradable=false (e.g. non_gradable_reason='no_trusted_baseline') is a Signal/cue but is
+            # NEVER a Missed/Good grade. The Teaching-Signals count (exploit_opps) still counts every cue.
+            if _exp.get('gradable') is True:
+                if _exp.get('auto_verdict') == 'missed_exploit':
+                    _by_read[_epr]['missed'] += 1
+                elif _exp.get('auto_verdict') == 'good_exploit':
+                    _by_read[_epr]['good'] += 1
 
         # Table — emit as raw HTML so hand-list-trigger links work
         doc.w("<div class='table-shell' data-mobile-mode='scroll' style='--mobile-table-min-width:900px'><div class='table-scroll'><table class='data-table'>")

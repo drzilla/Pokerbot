@@ -4098,7 +4098,13 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 net_bb = h.get('net_bb') or 0
                 pos = h.get('position', '?')
                 hero_cards_list = h.get('cards') or []
-                cards_pills = _cards_html(hero_cards_list, sort_desc=True) if hero_cards_list else '—'
+                # v8.18.0 PokerHandDisplay: the prominent hand-detail header hero hand is the canonical
+                # poker-hand component (PROMINENT size, accessible label, the same markup on mobile).
+                if hero_cards_list:
+                    from gem_report_draft._cards import render_poker_hand as _phd, HandDisplaySize as _phs
+                    cards_pills = _phd(hero_cards_list, size=_phs.PROMINENT, sort_desc=True)
+                else:
+                    cards_pills = '—'
                 # BB pill (B74-style)
                 if net_bb > 0:
                     bb_html = f"<span class='hand-net-pos'>+{net_bb:.1f} BB</span>"

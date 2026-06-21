@@ -23,7 +23,8 @@ PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
        '_blocks.py', '_anchor_map.py', '_adapters.py', 'draft.py', 'tldr.py',
        'sections_financial.py', 'sections_mistakes.py', 'sections_iv_xii.py',
        'sections_xiii.py', 'sections_xiv.py', 'sections_issue_explorer.py',
-       'sections_tournaments.py']   # v8.15: additive Tournament Tables section
+       'sections_tournaments.py',   # v8.15: additive Tournament Tables section
+       '_cards.py']                 # v8.18.0: canonical PokerHandDisplay component
 
 # v8.17.0-rc3 (audit B6): the QA acceptance/decoder harnesses must extract WITH
 # the runtime so the README self-verify commands (e.g. `python
@@ -76,6 +77,7 @@ KILL = {
     # v8.12.11-preview (GPT-2): now that the file list unions repo modules
     # (below), two repo-present gem_*.py files must be explicitly excluded:
     'gem_src_bundle.py',          # the bundle's OWN output -- never self-include
+    'gem_lean_runtime.py',        # v8.18.0 the LEAN runtime's output -- never inside the full bundle
     'gem_auto_verdict_SPEC.py',   # a design spec, not wired into the runtime
 }
 

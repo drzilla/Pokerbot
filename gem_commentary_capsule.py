@@ -20,6 +20,28 @@ Invents no poker facts; consumes already-produced per-street signals. No real id
 
 REGISTERS = ('factual', 'coaching', 'no_clear_lesson')
 
+# v8.18.0 Commentary Capsule: the CANONICAL contract register vocabulary. The internal classifier
+# (classify_register) keeps its compact lower-case names; the canonical names are the user-/contract-
+# facing vocabulary -- FACTUAL (what happened / what the evidence directly shows), COACHING (the
+# practical lesson), INSUFFICIENT_EVIDENCE (explicitly what cannot safely be concluded, instead of a
+# generic "Unclear"). One mapping, applied at build time, so no item is left unclassified.
+CANONICAL_REGISTER = {
+    'factual': 'FACTUAL',
+    'coaching': 'COACHING',
+    'no_clear_lesson': 'INSUFFICIENT_EVIDENCE',
+}
+CANONICAL_REGISTERS = ('FACTUAL', 'COACHING', 'INSUFFICIENT_EVIDENCE')
+
+
+def canonical_register(*, verdict_class=None, gradeable=True, result_only=False, register=None):
+    """Return the canonical contract register (FACTUAL | COACHING | INSUFFICIENT_EVIDENCE) for a
+    commentary item -- the build-time classification every item carries. Pass an already-computed
+    internal `register`, or the signals to classify. INSUFFICIENT_EVIDENCE is explicit, never a
+    silent 'Unclear'."""
+    internal = register or classify_register(
+        verdict_class=verdict_class, gradeable=gradeable, result_only=result_only)
+    return CANONICAL_REGISTER.get(internal, 'INSUFFICIENT_EVIDENCE')
+
 # §10 evidence tiers, weakest-claim last.
 EVIDENCE_TIERS = ('chart_sourced', 'nearest_depth', 'constructed',
                   'villain_read', 'result_only')

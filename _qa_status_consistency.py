@@ -27,7 +27,9 @@ import collections
 
 import _qa_decode_lazy as _dlz
 
-_CANON = ('MISTAKE', 'CONDITIONAL', 'CLEARED', 'UNGRADED')
+_CANON = ('MISTAKE', 'CONDITIONAL', 'CLEARED', 'UNASSESSED', 'UNGRADED')
+# CLEARED, UNASSESSED and UNGRADED must NOT carry a mistake verdict pill (only MISTAKE/CONDITIONAL may).
+_NON_MISTAKE_STATES = ('CLEARED', 'UNASSESSED', 'UNGRADED')
 _MISTAKE_VERDICT_LABELS = ('Mistake', 'Punt')
 _CLEARED_VERDICT_LABELS = ('Correct', 'Justified', 'Standard', 'Cleared')
 
@@ -98,8 +100,8 @@ def run_status_consistency(html):
                     sec_dist[r] += 1
         # verdict-nuance pills present in the body
         vlabels = set(_RE_VERDICT_PILL.findall(body))
-        # C3: CLEARED / UNGRADED never carry a Mistake/Punt verdict pill
-        if card_status in ('CLEARED', 'UNGRADED'):
+        # C3: CLEARED / UNASSESSED / UNGRADED never carry a Mistake/Punt verdict pill
+        if card_status in _NON_MISTAKE_STATES:
             bad = [v for v in vlabels if v in _MISTAKE_VERDICT_LABELS]
             if bad:
                 violations.append({'hand': hid, 'rule': 'C3',
@@ -110,10 +112,25 @@ def run_status_consistency(html):
             if bad:
                 violations.append({'hand': hid, 'rule': 'C4',
                                    'detail': 'MISTAKE hand shows cleared verdict pill %s' % bad})
+    # C7 (v8.18.0 W1-A §1.2): the hand-list popup must CONSUME the canonical status (read
+    # data-final-status from the card root), never independently infer it. Source-level check over the
+    # popup JS embedded in the report, so a regressed popup that re-infers status is caught.
+    surfaces = {'hand_card': True, 'final_status_pill': True,
+                'lazy_static_same_article': True, 'popup_consumes_canonical': None}
+    if 'openHandListPopup' in html:
+        m = re.search(r'function openHandListPopup\(.*?\n  \}', html, re.S)
+        popup = m.group(0) if m else html[html.find('openHandListPopup'):html.find('openHandListPopup') + 9000]
+        consumes = "getAttribute('data-final-status')" in popup and '_fsMap' in popup
+        infers_primary = "not individually reviewed" in popup and "getAttribute('data-final-status')" not in popup
+        surfaces['popup_consumes_canonical'] = bool(consumes and not infers_primary)
+        if not surfaces['popup_consumes_canonical']:
+            violations.append({'hand': '(popup)', 'rule': 'C7',
+                               'detail': 'hand-list popup does not consume the canonical data-final-status'})
     return {
         'hands_checked': n,
         'distribution': dict(dist),
         'secondary_reasons': dict(sec_dist),
+        'surfaces': surfaces,
         'violations': violations,
         'contradictions': len(violations),
         'pass': len(violations) == 0 and n > 0,

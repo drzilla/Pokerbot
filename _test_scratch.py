@@ -12950,7 +12950,23 @@ check('T-W1A-02: verdict-code classifier (III.1/III.2->MISTAKE, III.4/III.8->CON
 check('T-W1A-03: marker mistake -> MISTAKE; auto_downgraded -> CONDITIONAL',
       _F.status_from_canonical_verdict({'verdict': 'mistake', 'marker': 'mistake'}) is _F.FinalDecisionStatus.MISTAKE
       and _F.status_from_canonical_verdict({'verdict': '', 'marker': 'neutral', 'auto_downgraded': True}) is _F.FinalDecisionStatus.CONDITIONAL
-      and _F.status_from_canonical_verdict({'verdict': '', 'marker': 'neutral'}) is _F.FinalDecisionStatus.CLEARED, '')
+      and _F.status_from_canonical_verdict({'verdict': '', 'marker': 'neutral'}) is _F.FinalDecisionStatus.UNASSESSED, '')
+
+# T-W1A-03b (v8.18.0 §1.1): "nothing confirmed wrong" is NOT "explicitly judged correct" -- a gradeable
+# neutral/Review hand is UNASSESSED ("Not reviewed"), an EXPLICIT positive verdict is CLEARED, and a
+# secondary reason must never manufacture a positive grade where no adjudication exists.
+check('T-W1A-03b: UNASSESSED vs CLEARED (neutral->UNASSESSED, III.3/III.5->CLEARED; EAI flip w/o verdict stays UNASSESSED)',
+      _F.status_from_canonical_verdict({'verdict': 'III.3 Cleared', 'marker': 'cleared'}) is _F.FinalDecisionStatus.CLEARED
+      and _F.status_from_canonical_verdict({'verdict': 'III.5 Justified', 'marker': 'cleared'}) is _F.FinalDecisionStatus.CLEARED
+      and _F.status_from_canonical_verdict({'verdict': 'Review', 'marker': 'neutral'}) is _F.FinalDecisionStatus.UNASSESSED
+      and _F.derive_final_status({'pf_allin': True, 'eai_hero_equity': 0.5}, {'verdict': '', 'marker': 'neutral'}, gradeability='GRADABLE').status is _F.FinalDecisionStatus.UNASSESSED, '')
+
+# T-W1A-03c: precedence with all 5 states + UNASSESSED label/css.
+check('T-W1A-03c: precedence MISTAKE>CONDITIONAL>CLEARED>UNASSESSED>UNGRADED + label "Not reviewed"',
+      _F.combine_statuses(['UNASSESSED', 'UNGRADED']) is _F.FinalDecisionStatus.UNASSESSED
+      and _F.combine_statuses(['CLEARED', 'UNASSESSED']) is _F.FinalDecisionStatus.CLEARED
+      and _F.FinalStatus(_F.FinalDecisionStatus.UNASSESSED).label() == 'Not reviewed'
+      and _F.FinalStatus(_F.FinalDecisionStatus.UNASSESSED).css() == 'unassessed', '')
 
 # T-W1A-04: secondary reasons are SEPARATE and never change the status (a cooler loss is CLEARED+COOLER;
 # a read-dependent decision is CONDITIONAL+READ_DEPENDENT).
@@ -13013,7 +13029,75 @@ _w1a_hands = [{'id': 'TM6000000001', 'action_ledger': [
 from gem_report_draft._helpers import build_canonical_verdicts as _w1a_bcv
 _w1a_cv = _w1a_bcv(_w1a_rd, _w1a_hands).get('TM6000000001') or {}
 check('T-W1A-11: build_canonical_verdicts stamps cv[final_status] (ONE owner) for the hand',
-      isinstance(_w1a_cv.get('final_status'), dict) and _w1a_cv['final_status'].get('status') in ('MISTAKE', 'CONDITIONAL', 'CLEARED', 'UNGRADED'), str(_w1a_cv.get('final_status')))
+      isinstance(_w1a_cv.get('final_status'), dict) and _w1a_cv['final_status'].get('status') in ('MISTAKE', 'CONDITIONAL', 'CLEARED', 'UNASSESSED', 'UNGRADED'), str(_w1a_cv.get('final_status')))
+
+# ===================================================================== #
+# v8.18.0 Wave-2: PokerHandDisplay canonical card component (6 bypass)   #
+# ===================================================================== #
+import gem_report_draft._cards as _PHD
+
+# T-PHD-01: CardVM owns rank/suit/glyph/colour; render emits the canonical .card pill.
+_phd01 = _PHD.CardVM.parse('Ah')
+check('T-PHD-01: CardVM rank/suit/glyph/colour + .card pill render',
+      _phd01.rank == 'A' and _phd01.suit == 'h' and _phd01.glyph == '♥' and _phd01.colour_class == 'card-h'
+      and _phd01.render() == '<span class="card card-h" aria-hidden="true">A♥</span>', _phd01.render())
+
+# T-PHD-02: unknown / partial cards never crash and render a typed unknown pill.
+check('T-PHD-02: unknown/partial card -> typed unknown pill (no crash)',
+      _PHD.CardVM.parse('').unknown and _PHD.CardVM.parse('Zx').unknown
+      and 'card-x' in _PHD.CardVM.parse('?').render() and _PHD.CardVM.parse('Ah').unknown is False, '')
+
+# T-PHD-03: HandVM carries the poker-hand marker + an accessible label; size variant class is applied.
+_phd03 = _PHD.render_poker_hand(['Ah', 'Ks'], size=_PHD.HandDisplaySize.PROMINENT)
+check('T-PHD-03: render_poker_hand has the poker-hand marker, role=img, aria-label, size class',
+      'class="poker-hand phd-prominent"' in _phd03 and 'role="img"' in _phd03
+      and 'aria-label="Ace of hearts, King of spades"' in _phd03 and _phd03.count('span class="card"') == 0
+      and _phd03.count('<span class="card ') == 2, _phd03)
+
+# T-PHD-04: the three size variants are distinct + valid; marker=False yields bare pills (markdown use).
+check('T-PHD-04: size variants distinct; marker=False -> bare pills',
+      'phd-compact' in _PHD.render_poker_hand(['Ah'], size='compact')
+      and 'phd-standard' in _PHD.render_poker_hand(['Ah'], size='standard')
+      and 'poker-hand' not in _PHD.render_poker_hand(['Ah'], marker=False)
+      and '<span class="card card-h"' in _PHD.render_poker_hand(['Ah'], marker=False), '')
+
+# T-PHD-05: sort_desc orders rank DESC (hole-card convention); typed to_dict round-trips the cards.
+_phd05 = _PHD.build_hand(['3h', 'Ah', 'Ks'], sort_desc=True)
+check('T-PHD-05: sort_desc rank order + HandVM.to_dict typed serialization',
+      [c.rank for c in _phd05.cards] == ['A', 'K', '3']
+      and _phd05.to_dict()['cards'][0]['rank'] == 'A' and _phd05.to_dict()['size'] == 'standard', str([c.rank for c in _phd05.cards]))
+
+# T-PHD-06: BYPASS guard -- the legacy _html card helpers DELEGATE to the ONE owner (no second
+# card-markup path); migrated header routes through render_poker_hand.
+_phd_html = open('gem_report_draft/_html.py', encoding='utf-8').read()
+_phd_xiv = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-PHD-06: bypass guard -- _card_html/_cards_html delegate to _cards; header uses render_poker_hand',
+      'from gem_report_draft._cards import card_html' in _phd_html
+      and 'from gem_report_draft._cards import cards_html' in _phd_html
+      and 'render_poker_hand' in _phd_xiv
+      and _PHD.card_html('7d') == _PHD.CardVM.parse('7d').render(), '')
+
+# ===================================================================== #
+# v8.18.0 Wave-2: Commentary register vocabulary + Tournament Results    #
+# ===================================================================== #
+import gem_commentary_capsule as _CC
+import gem_tournament_model as _TM
+
+# T-CAP18-01: every commentary item carries a canonical contract register
+# (FACTUAL/COACHING/INSUFFICIENT_EVIDENCE); result-only / non-gradeable is INSUFFICIENT_EVIDENCE
+# (explicit), never a silent "Unclear".
+check('T-CAP18-01: canonical register vocabulary FACTUAL/COACHING/INSUFFICIENT_EVIDENCE (build-time)',
+      _CC.canonical_register(verdict_class='mistake') == 'COACHING'
+      and _CC.canonical_register(verdict_class='correct') == 'FACTUAL'
+      and _CC.canonical_register(result_only=True) == 'INSUFFICIENT_EVIDENCE'
+      and _CC.canonical_register(register='no_clear_lesson') == 'INSUFFICIENT_EVIDENCE'
+      and set(_CC.CANONICAL_REGISTERS) == {'FACTUAL', 'COACHING', 'INSUFFICIENT_EVIDENCE'}, '')
+
+# T-TRES18-01: Tournament Results Top% is ALWAYS one decimal (Top 5.0% / Top 61.0%), so the column is
+# consistent and a totals row can average it.
+check('T-TRES18-01: Top% label is always one decimal (Top 5.0% / Top 61.0%)',
+      _TM._top_pct_label(5.0) == 'Top 5.0%' and _TM._top_pct_label(61.0) == 'Top 61.0%'
+      and _TM._top_pct_label(0.42) == 'Top 0.4%' and _TM._top_pct_label(None) is None, _TM._top_pct_label(61.0))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

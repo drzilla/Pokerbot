@@ -724,6 +724,9 @@ def _md_inline(text):
         # v8.18.0 W1-A: the canonical Final Decision Status pill + its secondary-reason span are
         # emitted into the XIV hand-title heading, so they must survive _html_escape like verdict-pill.
         r'final-status-pill[^\'"]*|final-status-reason|'
+        # v8.18.0 PokerHandDisplay: the canonical poker-hand wrapper carries nested .card spans, so it
+        # survives via the SAME two-pass that handles rng-hl (inner cards stashed first, wrapper second).
+        r'poker-hand[^\'"]*|'
         r'cond-pass|cond-fail|ci-tip|new-badge|verdict-pill|context-pill[^\'"]*)[\'"]'
         r'[^>]*>[^<]*</span>',
         re.IGNORECASE)
@@ -3097,37 +3100,42 @@ _MODAL_HTML = r"""
       if(_hnet&&_hnet.indexOf('-')===0)nc.style.color='var(--bad)';
       else if(_hnet&&_hnet.indexOf('+')===0)nc.style.color='var(--good)';
       row.appendChild(nc);
-      /* Verdict — with emoji mapping and user review as additive */
+      /* Status — v8.18.0 W1-A §1.2: the PRIMARY value is the ONE canonical Final Decision Status,
+         read from the card root's data-final-status (kept on the lazy placeholder's opening tag, so the
+         value is identical lazy or static). The popup NEVER independently infers status; the analyst/
+         EAI verdict nuance is a SECONDARY field only. Review state stays separate (additive badge). */
       var vc=document.createElement('td');
-      vc.setAttribute('data-label','Verdict');
+      vc.setAttribute('data-label','Status');
       vc.style.fontSize='0.85em';vc.style.color='#64748b';
-      /* Map roman numeral verdicts to emoji + human label */
+      /* Map roman numeral verdicts to emoji + human label (the SECONDARY nuance) */
       var _emojiMap={
         'I.7':'🧊 Cooler','III.0':'✅ Cleared','III.1':'👎 Punt',
         'III.2':'👎 Mistake','III.3':'✅ Cleared','III.4':'🤔 Read-dep',
         'III.5':'🎲 Justified','III.8':'🎯 Pick'};
       var _displayVerdict=_hverdict||'';
       if(_displayVerdict){
-        /* Replace leading roman prefix with emoji */
         var _vm2=_displayVerdict.match(/^(I{1,3}\.\d+)\s*(.*)/);
         if(_vm2&&_emojiMap[_vm2[1]]){
           _displayVerdict=_emojiMap[_vm2[1]]+(_vm2[2]?' — '+_vm2[2]:'');
         }else{
-          /* v8.12.9 policy: Roman codes never reach the user — strip any
-             unmapped prefix and keep the plain-language label. */
+          /* v8.12.9 policy: Roman codes never reach the user. */
           _displayVerdict=_displayVerdict.replace(/^[IVX]+\.\d+\s*/,'');
         }
       }
-      if(_displayVerdict)vc.textContent=_displayVerdict;
-      else vc.textContent='⚪ not individually reviewed';
-      /* Check localStorage for user review — ADDITIVE, not override */
+      var _fsMap={MISTAKE:'Mistake',CONDITIONAL:'Conditional',CLEARED:'Cleared',UNASSESSED:'Not reviewed',UNGRADED:'No decision'};
+      var _canon=(art&&art.getAttribute('data-final-status'))||'';
+      var _canonLabel=(_canon&&_fsMap[_canon])?_fsMap[_canon]:'';
+      if(_canonLabel){
+        vc.setAttribute('data-final-status',_canon);
+        /* primary canonical status; verdict nuance trails as secondary */
+        vc.textContent=_canonLabel+(_displayVerdict?' · '+_displayVerdict:'');
+      }else if(_displayVerdict){vc.textContent=_displayVerdict;}
+      else{vc.textContent='⚪ Not reviewed';}
+      /* Check localStorage for user review — ADDITIVE, not override (review state stays separate) */
       try{var rk2='pokerbot:handreview:'+_reportDate+':'+hid;
         var rd2=JSON.parse(sessionStorage.getItem(rk2)||localStorage.getItem(rk2)||'null');
         if(rd2&&rd2.status){
-          /* Append user review after analyst verdict, don't replace */
-          var _userBadge=' ['+rd2.status+']';
-          if(_displayVerdict)vc.textContent=_displayVerdict+_userBadge;
-          else vc.textContent=rd2.status;
+          vc.textContent=(vc.textContent||'')+' ['+rd2.status+']';
         }
       }catch(e){}
       row.appendChild(vc);
@@ -5797,6 +5805,9 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .final-status-pill.fs-mistake {{ background: #450a0a; color: #fca5a5; border-color: #7f1d1d; }}
   .final-status-pill.fs-conditional {{ background: #422006; color: #fcd34d; border-color: #92400e; }}
   .final-status-pill.fs-cleared {{ background: #052e16; color: #86efac; border-color: #14532d; }}
+  /* v8.18.0 W1-A §1.1: UNASSESSED ("Not reviewed") -- a distinct neutral slate-blue, deliberately NOT
+     the green of an explicit CLEARED and NOT the grey of a non-gradeable UNGRADED. */
+  .final-status-pill.fs-unassessed {{ background: #172554; color: #93c5fd; border-color: #1e3a8a; }}
   .final-status-pill.fs-ungraded {{ background: #1e293b; color: #94a3b8; border-color: #334155; }}
   .final-status-reason {{ display: inline-block; margin-left: 5px; font-size: 0.52em;
     font-weight: 700; vertical-align: middle; letter-spacing: 0.3px; text-transform: uppercase;
@@ -6006,6 +6017,15 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   span.card-h {{ background: #c83030; }}  /* hearts — red */
   span.card-d {{ background: #2070d0; }}  /* diamonds — blue */
   span.card-c {{ background: #2a8030; }}  /* clubs — green */
+  span.card-x {{ background: #64748b; }}  /* unknown/partial card (v8.18.0 PokerHandDisplay) */
+  /* v8.18.0 PokerHandDisplay: the canonical poker-hand component wrapper. ONE component, ONE set of
+     size variants, the SAME markup on desktop + mobile (no separate mobile hand logic). */
+  .poker-hand {{ display: inline-flex; align-items: center; gap: 2px; vertical-align: middle;
+    white-space: nowrap; }}
+  .poker-hand.phd-compact span.card {{ padding: 0 4px; min-width: 18px; font-size: 0.85em; }}
+  .poker-hand.phd-prominent span.card {{ padding: 2px 8px; min-width: 26px; font-size: 1.15em; }}
+  @media (max-width: 640px) {{
+    .poker-hand.phd-prominent span.card {{ font-size: 1em; padding: 1px 6px; min-width: 22px; }} }}
   /* Hero hand display (above grid) */
   div.hero-hand {{ margin: 0.4em 0 0.6em 0; font-size: 1.15em;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif; }}
@@ -7695,35 +7715,22 @@ _SUIT_HTML = {
 def _card_html(card_str):
     """Convert a card token like 'Ah' or '7d' into a colored pill HTML span.
 
-    Markdown viewers that don't render HTML still get the rank+suit symbol
-    text (via the inner content). HTML rendering gets the full colored pill.
+    v8.18.0 PokerHandDisplay: delegates to the ONE canonical card owner (gem_report_draft._cards) so
+    rank/suit/glyph/colour/unknown are defined in a single place; output is the same .card pill.
     """
-    if not card_str or len(card_str) < 2:
-        return card_str or ''
-    rank = card_str[0].upper()
-    suit_char = card_str[1].lower()
-    sym, cls = _SUIT_HTML.get(suit_char, ('', ''))
-    if not sym:
-        return card_str  # fallback
-    return f'<span class="card {cls}">{rank}{sym}</span>'
+    from gem_report_draft._cards import card_html as _phd_card
+    return _phd_card(card_str)
 
 
 def _cards_html(cards, sort_desc=False):
     """Render a list/iterable of card tokens to a space-joined HTML string.
 
-    B70 (v7.56, Ron 2026-05-18): when sort_desc=True, sort cards by rank
-    descending (Ace high). E.g. ['3h','Ah'] → 'Ah 3h'. Used for hero/villain
-    hole-cards display. Board cards are NOT sorted (chronological order
-    of dealing is meaningful for streets).
+    v8.18.0 PokerHandDisplay: routes through the canonical owner (gem_report_draft._cards.cards_html);
+    keeps the legacy bare-pills output (no poker-hand wrapper) for markdown headings. sort_desc sorts
+    rank DESC (hole cards); board cards stay chronological.
     """
-    if not cards:
-        return ''
-    if isinstance(cards, str):
-        # Handle "AhJh" or "Ah Jh" or list-like
-        cards = cards.split() if ' ' in cards else [cards[i:i+2] for i in range(0, len(cards), 2)]
-    if sort_desc:
-        cards = _sort_cards_desc(cards)
-    return ' '.join(_card_html(c) for c in cards if c)
+    from gem_report_draft._cards import cards_html as _phd_cards
+    return _phd_cards(cards, sort_desc=sort_desc)
 
 
 # B70 (v7.56) + B80 (v7.57): card sort order. Rank DESC primary, suit secondary

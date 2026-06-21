@@ -105,11 +105,12 @@ _FINISH_SENTINEL = {
 
 
 def _top_pct_label(tp):
-    """'Top X%' with adaptive precision (Top 0.4% / Top 5% / Top 61%)."""
+    """'Top X.Y%' -- v8.18.0 Tournament Results contract: ALWAYS one decimal (Top 0.4% / Top 5.0% /
+    Top 61.0%), so the column reads consistently and a totals row can carry an average Top%."""
     if tp is None:
         return None
     tp = max(0.0, min(100.0, float(tp)))
-    return 'Top %s%%' % (('%.1f' % tp).rstrip('0').rstrip('.') if tp < 10 else '%.0f' % tp)
+    return 'Top %.1f%%' % tp
 
 
 def _finish_state(finish, ret):

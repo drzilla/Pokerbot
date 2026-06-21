@@ -35,6 +35,7 @@ class FinalDecisionStatus(Enum):
     MISTAKE = 'MISTAKE'
     CONDITIONAL = 'CONDITIONAL'
     CLEARED = 'CLEARED'
+    UNASSESSED = 'UNASSESSED'
     UNGRADED = 'UNGRADED'
 
 
@@ -47,10 +48,13 @@ class SecondaryReason(Enum):
 
 
 # precedence -- higher wins when a hand carries multiple graded decisions.
+# (v8.18.0 W1-A correction §1.1: UNASSESSED sits BELOW CLEARED -- "nothing confirmed wrong" is NOT
+# "explicitly judged correct" -- and ABOVE UNGRADED -- a gradeable-but-unjudged hand is not a non-hand.)
 _PRECEDENCE = {
-    FinalDecisionStatus.MISTAKE: 3,
-    FinalDecisionStatus.CONDITIONAL: 2,
-    FinalDecisionStatus.CLEARED: 1,
+    FinalDecisionStatus.MISTAKE: 4,
+    FinalDecisionStatus.CONDITIONAL: 3,
+    FinalDecisionStatus.CLEARED: 2,
+    FinalDecisionStatus.UNASSESSED: 1,
     FinalDecisionStatus.UNGRADED: 0,
 }
 
@@ -59,6 +63,7 @@ _STATUS_LABEL = {
     FinalDecisionStatus.MISTAKE: 'Mistake',
     FinalDecisionStatus.CONDITIONAL: 'Conditional',
     FinalDecisionStatus.CLEARED: 'Cleared',
+    FinalDecisionStatus.UNASSESSED: 'Not reviewed',
     FinalDecisionStatus.UNGRADED: 'No decision',
 }
 # CSS modifier suffix (used in the .fs-* class + as the contradiction-gate key).
@@ -66,6 +71,7 @@ _STATUS_CSS = {
     FinalDecisionStatus.MISTAKE: 'mistake',
     FinalDecisionStatus.CONDITIONAL: 'conditional',
     FinalDecisionStatus.CLEARED: 'cleared',
+    FinalDecisionStatus.UNASSESSED: 'unassessed',
     FinalDecisionStatus.UNGRADED: 'ungraded',
 }
 _SECONDARY_LABEL = {
@@ -164,12 +170,14 @@ def status_from_canonical_verdict(cv):
       * a Punt/Mistake verdict (coded III.1/III.2 or worded), or marker 'mistake' ... MISTAKE
       * an explicit read-dependent / pick / debate verdict, OR a downgraded suspected
         auto-mistake (auto_downgraded) .............................................. CONDITIONAL
-      * cleared / justified / cooler / standard, OR a plain unflagged gradeable
-        decision the system found no error in ...................................... CLEARED
+      * an EXPLICIT positive adjudication -- cleared / justified / standard / correct, or a
+        cooler/flip/suckout WITH a correct-action verdict (I.7/III.0/III.3/III.5) .... CLEARED
+      * gradeable but NO positive or negative adjudication (a neutral 'Review', neutral
+        queue inclusion, or simply not individually reviewed) ....................... UNASSESSED
 
-    Never returns UNGRADED -- that is decided upstream by gradeability, never from a verdict.
-    Never returns MISTAKE without an actual Punt/Mistake verdict signal (so no hand is a MISTAKE
-    without a genuine graded action error)."""
+    v8.18.0 W1-A correction §1.1: "nothing confirmed wrong" is NOT "explicitly judged correct" -- an
+    unjudged gradeable hand is UNASSESSED ("Not reviewed"), never CLEARED. Never returns UNGRADED
+    (decided upstream by gradeability). Never returns MISTAKE without an actual Punt/Mistake signal."""
     cv = cv or {}
     marker = _norm(cv.get('marker'))
     by_verdict = _classify_verdict(_norm(cv.get('verdict')))
@@ -177,7 +185,10 @@ def status_from_canonical_verdict(cv):
         return FinalDecisionStatus.MISTAKE
     if by_verdict is FinalDecisionStatus.CONDITIONAL or cv.get('auto_downgraded'):
         return FinalDecisionStatus.CONDITIONAL
-    return FinalDecisionStatus.CLEARED
+    if by_verdict is FinalDecisionStatus.CLEARED:
+        return FinalDecisionStatus.CLEARED
+    # gradeable, but the canonical verdict carries no positive or negative adjudication
+    return FinalDecisionStatus.UNASSESSED
 
 
 def secondary_reasons(h, cv, app_details=None):
@@ -233,7 +244,8 @@ def hand_gradeability(h):
 _GRADED_RATIONALE = {
     FinalDecisionStatus.MISTAKE: 'Graded action error (canonical decision verdict).',
     FinalDecisionStatus.CONDITIONAL: 'Read-dependent / borderline graded decision -- correct only under a read.',
-    FinalDecisionStatus.CLEARED: "Graded decision was correct / standard; the result does not change the grade.",
+    FinalDecisionStatus.CLEARED: "Graded decision was explicitly adjudicated correct / standard; the result does not change the grade.",
+    FinalDecisionStatus.UNASSESSED: 'A gradeable Hero decision with no positive or negative adjudication -- not individually reviewed.',
 }
 
 
@@ -257,8 +269,8 @@ def derive_final_status(h, cv, app_details=None, gradeability=None):
 
 def combine_statuses(statuses):
     """Fold a hand's several graded-decision statuses into ONE via the frozen precedence
-    MISTAKE > CONDITIONAL > CLEARED > UNGRADED. Secondary reasons never override the precedence.
-    Accepts FinalStatus, FinalDecisionStatus, or status-string items."""
+    MISTAKE > CONDITIONAL > CLEARED > UNASSESSED > UNGRADED. Secondary reasons never override the
+    precedence. Accepts FinalStatus, FinalDecisionStatus, or status-string items."""
     best = FinalDecisionStatus.UNGRADED
     for s in statuses or ():
         if isinstance(s, FinalStatus):

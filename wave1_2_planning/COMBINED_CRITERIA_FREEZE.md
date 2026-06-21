@@ -47,8 +47,15 @@ package) are staged for subsequent executions against this freeze.
 One canonical owner (`gem_final_status.py`) computes, per hand, exactly one:
 
 ```
-FinalDecisionStatus = MISTAKE | CLEARED | CONDITIONAL | UNGRADED
+FinalDecisionStatus = MISTAKE | CONDITIONAL | CLEARED | UNASSESSED | UNGRADED
 ```
+
+> **v8.18.0 W1-A correction §1.1:** the model gained **UNASSESSED ("Not reviewed")**. A gradeable hand
+> with no positive or negative adjudication (a neutral canonical `Review`, a neutral queue inclusion, or
+> simply not individually reviewed) is **UNASSESSED**, NOT `CLEARED` — "nothing confirmed wrong" is not
+> "explicitly judged correct," and a secondary reason never manufactures a positive grade. `CLEARED` now
+> requires an EXPLICIT positive adjudication (cleared/justified/standard/correct, or a cooler/flip/suckout
+> with a correct-action verdict). Precedence: MISTAKE > CONDITIONAL > CLEARED > UNASSESSED > UNGRADED.
 
 with secondary reasons kept SEPARATE (a status is never a reason):
 

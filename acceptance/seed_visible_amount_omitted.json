@@ -1,0 +1,32 @@
+{
+  "seed_id": "R1H",
+  "title": "visible BB amount omitted",
+  "description": "A fully-marked row with NO primary display amount.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-jam\" data-hand-id=\"TM6083975040\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">Hero </span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "visible_sizing_absent",
+    "required_mismatch_field_any": [
+      "primary_sizing_display_absent"
+    ]
+  }
+}

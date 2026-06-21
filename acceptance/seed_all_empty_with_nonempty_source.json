@@ -1,0 +1,22 @@
+{
+  "seed_id": "R1N",
+  "title": "canonical + rendered empty while source expected non-empty",
+  "description": "Empty canonical + empty rendered must not pass when the source inventory expects an action.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "source_to_canonical_coverage_violation",
+    "required_why_any": [
+      "source_expected_action_missing_from_canonical",
+      "expected_action_not_rendered"
+    ]
+  }
+}

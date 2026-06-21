@@ -939,7 +939,9 @@ def _hero_grid_rows(body, pos=None):
     _hand_grid) — the rendered HTML uses DOUBLE quotes, which the REV12 single-quote regex never
     matched (so that gate was vacuous and missed B1)."""
     rows = []
-    for _gm in re.finditer(r'<span class="grid-action ([^"]*)">', body):
+    # REV17: the grid-action span now carries machine-readable data-* attributes after the class, so
+    # match the class then allow any attributes before the closing '>'.
+    for _gm in re.finditer(r'<span class="grid-action ([^"]*)"[^>]*>', body):
         cls = _gm.group(1)
         _rest = body[_gm.end():]
         _end = re.search(r'<span class="grid-action |</td>', _rest)
@@ -1567,6 +1569,11 @@ def main():
     g_rc = gate_relational_contract(hands_idx, worklist)
     g_far = gate_full_action_replay(hands_idx)
     g_apr = gate_all_player_renderer_parity(hands_idx, html)
+    # REV17 §1: the FROZEN Stage-F gates run over the real report — row-bound parity (P), zero
+    # raw-sizing fallback (Q), dead-blind attribution (R). Source-expected == canonical == rendered.
+    import _qa_stagep as _sp
+    g_p, g_q = _sp.run_renderer_gates(hands_idx, html)
+    g_r = _sp.run_dead_blind_gate(hands_idx)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -1635,13 +1642,27 @@ def main():
           f"{g_apr['parity_violations']} violation(s), {g_apr['fallback_activations']} raw-sizing fallback(s)")
     for mm in g_apr['records'][:40]:
         print('   ✗', mm)
+    print(f"P. ROW-BOUND RENDERER PARITY (frozen Stage-F gate) : {g_p['sized_actions']} sized actions over "
+          f"{g_p['bodies_with_grid']} grid bodies, {g_p['violations']} violation(s) "
+          f"(source-expected == canonical == rendered, full identity, primary display)")
+    for mm in g_p['records'][:40]:
+        print('   ✗', mm)
+    print(f"Q. ZERO RAW-SIZING FALLBACK (frozen Stage-F gate) : {g_q['sized_actions']} sized actions, "
+          f"{g_q['violations']} violation(s), {g_q['fallback_activations']} raw-sizing fallback activation(s)")
+    for mm in g_q['records'][:40]:
+        print('   ✗', mm)
+    print(f"R. DEAD-BLIND ATTRIBUTION (frozen Stage-F gate) : expected {g_r['expected_dead_blind_actions']}, "
+          f"replay records {g_r['dead_blind_records_in_replay']}, {g_r['violations']} violation(s)")
+    for mm in g_r['records'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
           and not g_fr['mismatches'] and not g_or['mismatches']
           and not g_ar.get('total_mismatches', len(g_ar['mismatches']))
           and not g_vs['violations'] and not g_vn['mismatches'] and not g_pv['mismatches']
           and not g_rc['mismatches'] and not g_far['total_violations']
-          and not g_apr['parity_violations'])
+          and not g_apr['parity_violations']
+          and not g_p['violations'] and not g_q['violations'] and not g_r['violations'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -1654,7 +1675,8 @@ def main():
                        'visible_semantic': g_vs, 'canonical_view_node_parity': g_vn,
                        'persisted_view_node_parity': g_pv, 'relational_contract': g_rc,
                        'full_action_replay': g_far, 'all_player_renderer_parity': g_apr,
-                       'pass': ok}, fh, indent=2)
+                       'row_bound_parity_frozen': g_p, 'zero_fallback_frozen': g_q,
+                       'dead_blind_frozen': g_r, 'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

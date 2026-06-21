@@ -1,0 +1,23 @@
+{
+  "seed_id": "R1F",
+  "title": "sparse / malformed canonical truth record",
+  "description": "A canonical record that is empty must fail validation before any rendered comparison.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {}
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-jam\" data-hand-id=\"TM6083975040\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">Hero <span data-sizing-role=\"primary\">18.1BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "canonical_validation_failure",
+    "required_why_any": [
+      "invalid_canonical_truth_record"
+    ]
+  }
+}

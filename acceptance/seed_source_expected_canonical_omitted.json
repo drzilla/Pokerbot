@@ -1,0 +1,36 @@
+{
+  "seed_id": "R1M",
+  "title": "source-expected action omitted from canonical replay",
+  "description": "The source inventory expects ledger 21, but the canonical replay omits it (so canonical + rendered disappear together).",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ],
+    [
+      "TM6083975040",
+      21
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-jam\" data-hand-id=\"TM6083975040\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">Hero <span data-sizing-role=\"primary\">18.1BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "source_to_canonical_coverage_violation",
+    "required_why_any": [
+      "source_expected_action_missing_from_canonical"
+    ]
+  }
+}

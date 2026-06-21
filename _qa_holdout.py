@@ -311,6 +311,11 @@ def main():
     # replay (0 raw fallbacks).
     gate_far = qp.gate_full_action_replay(our_idx)
     gate_apr = qp.gate_all_player_renderer_parity(our_idx, html)
+    # REV17 §1: the FROZEN Stage-F gates over the holdout render (row-bound parity + zero fallback +
+    # dead-blind). Proves the per-row machine-readable binding + primary display are generic.
+    import _qa_stagep as _sp
+    gate_rbp, gate_zfb = _sp.run_renderer_gates(our_idx, html)
+    gate_db = _sp.run_dead_blind_gate(our_idx)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -391,7 +396,13 @@ def main():
                        'detail': r} for r in gate_far.get('records', [])]
     apr_mismatches = [{'hand': r.get('hand'), 'why': 'renderer_parity_raw_fallback', 'detail': r}
                       for r in gate_apr.get('records', [])]
-    vn_mismatches = vn_mismatches + far_mismatches + apr_mismatches
+    # REV17: frozen row-bound parity + zero-fallback + dead-blind violations on the holdout.
+    rbp_mismatches = [{'hand': r.get('hand'), 'why': 'frozen_row_bound_parity', 'detail': r}
+                      for r in gate_rbp.get('records', [])]
+    zfb_mismatches = [{'hand': r.get('hand'), 'why': 'frozen_zero_fallback', 'detail': r}
+                      for r in gate_zfb.get('records', [])]
+    db_mismatches = [{'why': 'frozen_dead_blind', 'detail': r} for r in gate_db.get('records', [])]
+    vn_mismatches = vn_mismatches + far_mismatches + apr_mismatches + rbp_mismatches + zfb_mismatches + db_mismatches
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
                   + direct + surface_violations + wl_a_mismatches + oracle_mismatches
                   + ar_mismatches + vs_violations + vn_mismatches)
@@ -421,6 +432,10 @@ def main():
         'full_action_replay_violations': gate_far.get('total_violations', 0),
         'renderer_parity_rows_checked': gate_apr.get('rows_checked', 0),
         'renderer_parity_raw_fallbacks': gate_apr.get('fallback_activations', 0),
+        'frozen_row_bound_sized_actions': gate_rbp.get('sized_actions', 0),
+        'frozen_row_bound_violations': gate_rbp.get('violations', 0),
+        'frozen_zero_fallback_activations': gate_zfb.get('fallback_activations', 0),
+        'frozen_dead_blind_violations': gate_db.get('violations', 0),
         'view_node_parity_mismatches': len(vn_mismatches),
         'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,

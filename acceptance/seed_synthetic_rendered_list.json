@@ -1,0 +1,32 @@
+{
+  "seed_id": "R1S",
+  "title": "gate invoked with a synthetic pre-parsed list",
+  "description": "Production acceptance must run against shipped HTML; a synthetic Python list must be rejected.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ]
+  ],
+  "rendered_is_synthetic_list": true,
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "synthetic_rendered_evidence_rejected",
+    "required_why_any": [
+      "synthetic_rendered_evidence_rejected"
+    ]
+  }
+}

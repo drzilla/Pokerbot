@@ -1,0 +1,39 @@
+{
+  "seed_id": "R3",
+  "title": "missing ownership contract",
+  "description": "The tracked ownership artifact is removed/renamed; acceptance + clean-room verification must FAIL.",
+  "target_gate": "ownership_contract_gate",
+  "missing_path": "acceptance/production_calculation_ownership.json.RENAMED_BY_SEED",
+  "also_failing_paths": {
+    "unreadable_inline": "{ this is not valid json",
+    "two_owners_inline": {
+      "acceptance": {
+        "stack_before_active_production_owners": 2,
+        "all_in_state_active_production_owners": 1
+      }
+    },
+    "remaining_producer_inline": {
+      "acceptance": {
+        "stack_before_active_production_owners": 1,
+        "all_in_state_active_production_owners": 1
+      },
+      "stack_before": {
+        "canonical_owner": "x",
+        "remaining_active_producers": [
+          "legacy_calc"
+        ]
+      }
+    }
+  },
+  "required_failure": {
+    "detector": "ownership_contract_gate",
+    "failure_class": "ownership_contract_unavailable_or_invalid",
+    "required_status_any": [
+      "missing",
+      "unreadable",
+      "owner_count_ne_one:stack_before",
+      "remaining_active_producer:stack_before"
+    ],
+    "required_ok": false
+  }
+}

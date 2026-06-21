@@ -1,0 +1,32 @@
+{
+  "seed_id": "R1E",
+  "title": "raise displays the physical increment instead of total-to",
+  "description": "A 3-bet whose primary display shows physical 13.0 where the rule requires total-to 14.0.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6084074559",
+      "ledger_index": 5,
+      "player_id": "Hero",
+      "action_kind": "raise",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 13.0,
+      "live_total_bb": 14.0,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6084074559",
+      5
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-raise\" data-hand-id=\"TM6084074559\" data-ledger-index=\"5\" data-player-id=\"Hero\" data-action-kind=\"raise\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"13.0\" data-live-total-bb=\"14.0\" data-uncalled-return-bb=\"0.0\">Hero <span data-sizing-role=\"primary\">13.0BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "visible_sizing_not_action_bound",
+    "required_mismatch_field_any": [
+      "primary_sizing_display_ne_action_required_field:live_total_bb"
+    ]
+  }
+}

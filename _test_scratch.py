@@ -2699,7 +2699,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'd7999d7d1c48d6e9ba4024f3ceb55666303b7173f44339ed2ed1ac6f031e8f25',
+      _hg_hash == '9a6f64f9d984260e15018e975fe83a54d7659eb17b028765acf9f4312f93448f',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -12869,6 +12869,58 @@ _t14_ok = {'TM6160000009': '<span class="grid-action act-allin">BTN ⚡ JAM all-
 _g14_ok = _qp16.gate_all_player_renderer_parity(_t14_idx, None, bodies=_t14_ok)
 check('T-REV16-14 (T14): the renderer-parity gate FAILS a non-canonical (raw-fallback) size, PASSES the canonical one',
       _g14['parity_violations'] >= 1 and _g14_ok['parity_violations'] == 0, str((_g14['parity_violations'], _g14_ok['parity_violations'])))
+
+# ===== REV17: production certification closure (frozen Stage-F gates wired into production) =====
+import os as _os17, sys as _sys17
+_ACC17 = _os17.path.join(_os17.path.dirname(_os17.path.abspath(__file__)), 'acceptance')
+if _ACC17 not in _sys17.path:
+    _sys17.path.insert(0, _ACC17)
+import row_bound_renderer_parity_gate as _rb17
+import ownership_contract_gate as _oc17
+import _qa_stagep as _sp17
+
+# T-REV17-01: dead_blind is DEAD (never live) in the production full-history replay (§1.4)
+_db_h = _mkh10([{'street': 'preflop', 'player': 'SB', 'action': 'posts', 'added_bb': 0.5, 'amount_bb': 0.5,
+                 'is_all_in': False, 'position': 'SB', 'post_type': 'small_blind'},
+                {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 0.5, 'amount_bb': 0.5,
+                 'is_all_in': False, 'position': 'BB', 'post_type': 'dead_blind'},
+                {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0, 'amount_bb': 1.0,
+                 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'}],
+               {'Hero': 30.0, 'SB': 30.0}, hid='TM6170000001')
+_db_full = _ds.replay_full_history(_db_h)
+_db_post = _db_full[1]   # the dead_blind post
+_db_bb = _db_full[2]     # the big blind post
+check('T-REV17-01 (§1.4): a dead_blind reduces the stack + pot but adds NO live commitment; the BB is live',
+      _db_post['is_dead_forced'] is True and abs(_db_post['live_commitment_after_bb'] - _db_post['live_commitment_before_bb']) < 0.01
+      and abs(_db_post['stack_after_bb'] - (_db_post['stack_before_bb'] - 0.5)) < 0.01
+      and _db_bb['live_commitment_after_bb'] > _db_bb['live_commitment_before_bb'], str(_db_post))
+
+# T-REV17-02: the ownership contract gate enforces the TRACKED artifact — missing FAILS (no tolerance), the real file PASSES
+_own17 = _os17.path.join(_ACC17, 'production_calculation_ownership.json')
+check('T-REV17-02 (§1.3): the ownership-contract gate PASSES the tracked acceptance/ artifact and FAILS a missing one (no ok/unreadable tolerance)',
+      _oc17.run(_own17)['ok'] is True and _oc17.run(_own17 + '.MISSING')['ok'] is False
+      and _oc17.run(_own17 + '.MISSING')['status'] == 'missing', _oc17.run(_own17)['status'])
+
+# T-REV17-03: the FROZEN row-bound gate is wired correctly — passes a correct render, fails the cross-row seed
+_seed17 = _json16.load(_io16.open(_os17.path.join(_ACC17, 'seed_cross_row_collision.json'), encoding='utf-8'))
+_g17_bad = _rb17.run(_seed17['rendered_html'], _seed17['canonical_records'], [(h, i) for h, i in _seed17['expected_sized_action_keys']])
+_good_html17 = ('<div class="hand-body"><span class="grid-action act-jam" data-hand-id="H17" data-ledger-index="20" '
+                'data-player-id="Hero" data-action-kind="jam" data-sizing-source="canonical_replay" data-physical-bb="18.1" '
+                'data-live-total-bb="18.1" data-uncalled-return-bb="0.0">Hero <span data-sizing-role="primary">18.1BB</span></span></div>')
+_good_canon17 = [{'hand_id': 'H17', 'ledger_index': 20, 'player_id': 'Hero', 'action_kind': 'jam',
+                  'sizing_source': 'canonical_replay', 'physical_bb': 18.1, 'live_total_bb': 18.1, 'uncalled_return_bb': 0.0}]
+_g17_ok = _rb17.run(_good_html17, _good_canon17, [('H17', 20)])
+check('T-REV17-03 (§1.1): the frozen row-bound gate FAILS the cross-row collision seed and PASSES a correct render',
+      _g17_bad['violations'] >= 1 and _g17_ok['violations'] == 0 and _g17_ok['rows_checked'] == 1, str((_g17_bad['violations'], _g17_ok['violations'])))
+
+# T-REV17-04: the Stage-P wiring produces source-expected == canonical action keys (independent ledger scan)
+_sp_h = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+                _rk16('preflop', 'Hero', 3.0, ante=0.0, pos='BB'), _ck16('preflop', 'SB', 2.5, pos='SB')],
+               {'Hero': 60.0, 'SB': 60.0}, hid='TM6170000002')
+_sp_exp = set(_sp17.source_expected_keys(_sp_h))
+_sp_canon = set((r['hand_id'], r['ledger_index']) for r in _sp17.canonical_records(_sp_h))
+check('T-REV17-04 (§1.1): the Stage-P source-expected key set equals the canonical record key set (raises + calls bound)',
+      _sp_exp == _sp_canon and len(_sp_exp) == 2, str((_sp_exp, _sp_canon)))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

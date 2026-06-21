@@ -121,9 +121,11 @@ def oracle_full_replay(h):
         ai = bool(a.get('is_all_in'))
         if act == 'posts':
             physical = round(amt, 2)
-            if ptypes.get(i) in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+            # REV17 §1.4: the INDEPENDENT oracle mirrors the frozen dead-blind contract — dead_blind is
+            # dead (reduces stack, never live), like the ante; only SB/BB/straddle are live.
+            if ptypes.get(i) in ('small_blind', 'big_blind', 'straddle'):
                 live[p] = round(lb + physical, 2); level = max(level, live[p])
-            # else dead ante: reduces stack only
+            # else dead ante / dead_blind: reduces stack only
         elif act in ('raises', 'bets'):
             _to = a.get('to_bb')
             target = (round(_f(_to), 2) if (act == 'raises' and _to is not None) else round(level + amt, 2))
@@ -167,7 +169,7 @@ def oracle_replay(h, idx):
             continue
         pj = a.get('player', ''); aj = a.get('action', ''); amtj = _f(a.get('amount_bb', 0) or 0.0)
         if aj == 'posts':
-            if ptypes.get(j) in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+            if ptypes.get(j) in ('small_blind', 'big_blind', 'straddle'):   # REV17 §1.4: dead_blind is dead
                 live_by[pj] = round(live_by.get(pj, 0.0) + amtj, 2)
                 cur_level = max(cur_level, live_by[pj])
             else:

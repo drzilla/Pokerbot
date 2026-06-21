@@ -1,0 +1,26 @@
+{
+  "seed_id": "R4D",
+  "title": "expected dead-blind action removed (coverage)",
+  "description": "No dead_blind record but one expected (identity 1).",
+  "target_gate": "dead_blind_attribution_gate",
+  "replay_records": [
+    {
+      "idx": 0,
+      "player": "SB",
+      "action": "posts",
+      "post_type": "small_blind",
+      "amount_bb": 0.5
+    }
+  ],
+  "expected_dead_blind_keys": [
+    1
+  ],
+  "required_failure": {
+    "detector": "dead_blind_attribution_gate",
+    "failure_class": "dead_blind_coverage_mismatch",
+    "min_violations": 1,
+    "required_why_any": [
+      "expected_dead_blind_identity_missing_from_replay"
+    ]
+  }
+}

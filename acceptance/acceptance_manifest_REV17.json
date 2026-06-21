@@ -1,0 +1,218 @@
+{
+  "description": "REV17 Stage-F acceptance apparatus manifest (rev 4: F1-F5 + G1-G3 + H1-H4).",
+  "baseline_commit": "66238a5 (parent b1ae76e)",
+  "self_check": "45/45",
+  "member_count": 42,
+  "members": {
+    "acceptance/_stage_f_selfcheck.py": {
+      "role": "SELF-CHECK: 45/45 gate-seed + control + mutation-audit assertions",
+      "sha256": "fa8b5513c522be08f39d5fddeae60f094279355bbb444157e206c362a8d1db61",
+      "size": 10732
+    },
+    "acceptance/allowed_stage_p_paths_REV17.json": {
+      "role": "SCOPE: Stage-P allowed paths + frozen-not-editable list",
+      "sha256": "e3841f2f69ac40a5e54c3e844b55474dfcfa2d64c4a2c598b4fcc7a113738e6f",
+      "size": 2568
+    },
+    "acceptance/dead_blind_attribution_gate.py": {
+      "role": "GATE: dead-blind attribution (identity coverage + finite + scan-not-filter)",
+      "sha256": "124d234da12fc96c41135e268ae1dd59e32e515f3c8e780415d55f0d7518cc3a",
+      "size": 5508
+    },
+    "acceptance/gate_seed_map_REV17.json": {
+      "role": "MAP: gate-to-seed (rev 4)",
+      "sha256": "9a9bf18fc9db35125ff33cd7b4def6c3c54e424b9c10e81475cdbcef77d0b7c6",
+      "size": 7667
+    },
+    "acceptance/mutation_audit_REV17.json": {
+      "role": "AUDIT: universal mutation audit (14 classes, all caught)",
+      "sha256": "07a6867e660912fa7c250ade3a907af40df78ebc9955b0fa65efcb29f069e58a",
+      "size": 3264
+    },
+    "acceptance/ownership_contract_gate.py": {
+      "role": "GATE: mandatory tracked ownership contract",
+      "sha256": "950d4741d7d4fa117721f9b8e5c6bdd720295f7f22256d7d75c36e28c93c56a7",
+      "size": 2986
+    },
+    "acceptance/production_calculation_ownership.json": {
+      "role": "CONTRACT: tracked ownership (frozen location)",
+      "sha256": "83b7b1381ad314c773742f8b6cb4c9d36ac3971fa61d386e88eff056a2d5d0a4",
+      "size": 8904
+    },
+    "acceptance/row_bound_renderer_parity_gate.py": {
+      "role": "GATE: row-bound parity (strict canonical + composite + primary visible display + source coverage)",
+      "sha256": "7fd73c78ad13f2b0a4d4ced7222220786b3d7836386e8e69bcd7ebcbccf4a033",
+      "size": 12330
+    },
+    "acceptance/seed_all_empty_with_nonempty_source.json": {
+      "role": "SEED R1N: canonical + rendered empty while source expected non-empty",
+      "sha256": "2fa242d3719e913aa34fee2bcef22f0eef75d5e544f40f5f8b7cca9b3bced335",
+      "size": 688
+    },
+    "acceptance/seed_canonical_empty_identity.json": {
+      "role": "SEED R1K: empty hand_id / player_id",
+      "sha256": "503cbea5183047ba1ef2ad23a88b090a7af6e8b539cf29e0c3cd5e1eae074c1c",
+      "size": 1100
+    },
+    "acceptance/seed_canonical_fractional_ledger_index.json": {
+      "role": "SEED R1J: fractional / non-integer ledger_index",
+      "sha256": "423a1cc0464b9b9c17afa3ab6f3003499f3fda66b8ff1d3a165884b64bffabd1",
+      "size": 1147
+    },
+    "acceptance/seed_canonical_missing_ledger_index.json": {
+      "role": "SEED R1I: complete canonical record except explicit ledger_index",
+      "sha256": "2874e042536f1129a851b99da02e0fb0c3e7d65e7acdd98442910e4fbb17fc0a",
+      "size": 1179
+    },
+    "acceptance/seed_canonical_nonfinite_numeric.json": {
+      "role": "SEED R1L: NaN / Infinity canonical sizing field",
+      "sha256": "3f20f6825afae8bdfd360596f48977193575ce0f5758799c06a91f4de097e0c5",
+      "size": 1340
+    },
+    "acceptance/seed_correct_only_in_tooltip.json": {
+      "role": "SEED R1P: correct amount only in an unrelated child / tooltip",
+      "sha256": "c970a7c96d0213f80a4171907dea96cbe7195c67ea4300b01c145859a1aa644c",
+      "size": 1190
+    },
+    "acceptance/seed_cross_row_collision.json": {
+      "role": "SEED R1: cross-row collision — wrong Hero value masked by a correct caller",
+      "sha256": "d3ccfdb1abb882debfd31d591471e09c16d06ba8d55315fb8b2983981b44da2a",
+      "size": 1992
+    },
+    "acceptance/seed_dead_blind_bad_idx.json": {
+      "role": "SEED R4I: non-integer / invalid idx",
+      "sha256": "ee7ea9392bee6268709230da3b4e119c35feee509f7acba7172a6dac1276d3c2",
+      "size": 872
+    },
+    "acceptance/seed_dead_blind_expected_omitted.json": {
+      "role": "SEED R4F: expected dead-blind identity set omitted",
+      "sha256": "adc0edc1a6649eed1a0c2ac08fe947c246d7d62d5b6bb63927ba0dcf392a17e8",
+      "size": 538
+    },
+    "acceptance/seed_dead_blind_fields_omitted.json": {
+      "role": "SEED R4C: attribution fields omitted",
+      "sha256": "97b9765330de126b1dfd8b9403089dac3d316e2cd200c2d60c381941a3ee4ddf",
+      "size": 732
+    },
+    "acceptance/seed_dead_blind_ignored.json": {
+      "role": "SEED R4B: dead blind ignored entirely",
+      "sha256": "6b5fb47d6df7ce1026b792c01ede04362f9b67b4a44e67574ddb053bf5f9abd6",
+      "size": 980
+    },
+    "acceptance/seed_dead_blind_live.json": {
+      "role": "SEED R4: dead blind treated as live",
+      "sha256": "bf2a5640df5820c60e755121be350124bdcd502427b5f9b47b776864574b4128",
+      "size": 857
+    },
+    "acceptance/seed_dead_blind_live_decrease.json": {
+      "role": "SEED R4E: dead blind decreases live commitment",
+      "sha256": "f99696524644de10f972c46d6e7aaaddd1f89ae722e650d74f960bdc7e20b3dc",
+      "size": 895
+    },
+    "acceptance/seed_dead_blind_nonfinite.json": {
+      "role": "SEED R4G: NaN / Infinity dead-blind numeric field",
+      "sha256": "c21ad399471c1daa1e90fd89438067d5368b17b8b3655d033ed313eb4ea192a2",
+      "size": 993
+    },
+    "acceptance/seed_dead_blind_removed.json": {
+      "role": "SEED R4D: expected dead-blind action removed (coverage)",
+      "sha256": "4641735c0feb3f46e7c3e92cd8f85fd0ecb871365015a40f0735093398b3e37a",
+      "size": 648
+    },
+    "acceptance/seed_dead_blind_wrong_action.json": {
+      "role": "SEED R4J: post_type=dead_blind with missing / wrong action",
+      "sha256": "cd7fd6c08b69601a3cfb03c693ad1856b443ff798a5ace7138a9d8582b41df15",
+      "size": 979
+    },
+    "acceptance/seed_dead_blind_wrong_identity.json": {
+      "role": "SEED R4H: wrong dead-blind identity substituted (same count)",
+      "sha256": "9800aa71be0e21587b27d1b6f49312b412f5e14913867f0c524d38066f737106",
+      "size": 1041
+    },
+    "acceptance/seed_duplicate_primary_display.json": {
+      "role": "SEED R1Q: duplicate primary action-sizing elements",
+      "sha256": "03127394cd74cc1766d177047a9495e670b64d6fd33262d9fdf9ca7d5d40a2da",
+      "size": 1200
+    },
+    "acceptance/seed_equal_value_fallback.json": {
+      "role": "SEED R2: equal-valued raw fallback — visual parity green, source raw",
+      "sha256": "90ee8d6620c2f014006d8eda4dda239637a369e14855a174e591ec1fea95cb44",
+      "size": 1437
+    },
+    "acceptance/seed_missing_ownership.json": {
+      "role": "SEED R3: missing ownership contract",
+      "sha256": "60821b79cd6034f45716d621bcbff90192f674566aebce78dce9aa44ea9716d2",
+      "size": 1200
+    },
+    "acceptance/seed_missing_required_attributes.json": {
+      "role": "SEED R1D: required attributes omitted",
+      "sha256": "96b54fef19d4766b7e60b9aeb6df623ecb0dc4dd6770b8bddfeb95e52c727926",
+      "size": 1153
+    },
+    "acceptance/seed_multiple_amounts_wrong_primary.json": {
+      "role": "SEED R1R: multiple amounts with the wrong primary",
+      "sha256": "d27b24b81c2c1618be581243095eef42c3ac1839c0cbed43ace6e895a4a1dd14",
+      "size": 1299
+    },
+    "acceptance/seed_omitted_canonical_action.json": {
+      "role": "SEED R1B: omitted canonical action",
+      "sha256": "a85d6cd422ff6272b5bd9406e46837a46a87e73a520f82dbfae54de931235c36",
+      "size": 1444
+    },
+    "acceptance/seed_raise_displays_physical.json": {
+      "role": "SEED R1E: raise displays the physical increment instead of total-to",
+      "sha256": "56da3f527cf8e444ca039ddd3e478ce6ee9769412dbd77895ceae842e56f8dd5",
+      "size": 1255
+    },
+    "acceptance/seed_shared_ledger_index_two_hands.json": {
+      "role": "SEED R1G: two hands share ledger index 20 (composite identity)",
+      "sha256": "cce2b2dcdd5bc16926c1544548bcc36b612786b1161d7b27fe6b844c7e3b6855",
+      "size": 1848
+    },
+    "acceptance/seed_source_expected_canonical_omitted.json": {
+      "role": "SEED R1M: source-expected action omitted from canonical replay",
+      "sha256": "7211d0e6af53b4053e1313461557178fc0ae7ee37fa157093893a93269e3e5b9",
+      "size": 1302
+    },
+    "acceptance/seed_sparse_canonical_record.json": {
+      "role": "SEED R1F: sparse / malformed canonical truth record",
+      "sha256": "53f886981175d18345195027c86201f4ffc37b8da22d15a154ad212d8c3a99a4",
+      "size": 938
+    },
+    "acceptance/seed_synthetic_rendered_list.json": {
+      "role": "SEED R1S: gate invoked with a synthetic pre-parsed list",
+      "sha256": "895544609b74da514893ff1ced1fdd78e8092ef73e8354fc9efde98ffd61d914",
+      "size": 873
+    },
+    "acceptance/seed_visible_amount_omitted.json": {
+      "role": "SEED R1H: visible BB amount omitted",
+      "sha256": "9c4ef89e52af3329c33c4753d7353889e242e9d62018f33af69522d953ef30ff",
+      "size": 1092
+    },
+    "acceptance/seed_visible_wrong_plus_hidden_correct.json": {
+      "role": "SEED R1O: wrong visible amount + hidden correct amount",
+      "sha256": "b0e55e08b36d1f95fda242612cac38da09b528576e7dcbe2e8a47fc2e94c5f48",
+      "size": 1333
+    },
+    "acceptance/seed_wrong_player_action_identity.json": {
+      "role": "SEED R1C: correct numbers, wrong player/action identity",
+      "sha256": "94ff3d78b2fa1ca729bdcf74f6dfbd5a76cbb700887a9102091ce259c0518e4e",
+      "size": 1215
+    },
+    "acceptance/structural_fixtures_REV17.json": {
+      "role": "FIXTURES: strict canonical + primary display + dead-blind identity contracts",
+      "sha256": "f4bf9f0c43cba5771295dd83bdecd7139035234e51a709b8e2bebfc9f8fa8bc4",
+      "size": 5763
+    },
+    "acceptance/zero_fallback_gate.py": {
+      "role": "GATE: zero raw-sizing fallback (source + coverage over strict canonical)",
+      "sha256": "2168aaaadffeed3c2d47e2701034693a4ebcd4eb468c4cf0a655adbe1d6c077a",
+      "size": 3961
+    },
+    "STAGE_P_REV17_PROMPT.md": {
+      "role": "PROMPT: the narrow REV17 Stage-P implementation spec",
+      "sha256": "c65a5e8abb832e08415a0794bb643e9287b4d648301af50c5457edb8bfe40aa2",
+      "size": 8582
+    }
+  }
+}

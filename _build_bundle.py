@@ -46,7 +46,11 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               # v8.17.1 Iter-1 (REV11): the INDEPENDENT ledger oracle — imported by _qa_parity
               # (the suite's gate-catches tests + the holdout use it), so it must extract with
               # the runtime or the clean-room suite breaks.
-              '_qa_ledger_oracle.py']
+              '_qa_ledger_oracle.py',
+              # v8.17.1 Iter-1 (REV17): the Stage-P wiring that feeds the FROZEN acceptance gates
+              # over the real report — imported by _qa_parity (gates P/Q/R) + the holdout, so it
+              # must extract with the runtime or the clean-room parity/holdout breaks.
+              '_qa_stagep.py']
 
 # Stage-A kill list — never bundled
 KILL = {
@@ -148,6 +152,21 @@ def build(project_dir):
             with open(src, 'rb') as f:
                 z.writestr(arc, f.read())
             chosen.append((arc, origin))
+        # v8.17.1 Iter-1 (REV17): bundle the FROZEN Stage-F acceptance apparatus (gates, seeds,
+        # fixtures, the tracked ownership contract, self-check) under acceptance/ so the clean-room
+        # has the read-only gates + the ownership artifact (verify_release FAILS if it is absent).
+        _acc_dir = os.path.join(REPO, 'acceptance')
+        if os.path.isdir(_acc_dir):
+            for _root, _dirs, _files in os.walk(_acc_dir):
+                _dirs[:] = [d for d in _dirs if d != '__pycache__']
+                for _fn in sorted(_files):
+                    if _fn.endswith('.pyc'):
+                        continue
+                    _src = os.path.join(_root, _fn)
+                    _arc = 'acceptance/' + os.path.relpath(_src, _acc_dir).replace('\\', '/')
+                    with open(_src, 'rb') as f:
+                        z.writestr(_arc, f.read())
+                    chosen.append((_arc, 'repo'))
     raw = buf.getvalue()
     b64 = base64.b64encode(raw).decode()
     lines = '\n'.join(b64[i:i+76] for i in range(0, len(b64), 76))

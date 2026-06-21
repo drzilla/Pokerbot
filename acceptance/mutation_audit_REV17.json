@@ -1,0 +1,22 @@
+{
+  "description": "REV17 Stage-F universal mutation audit (rev 4). For each mutation class, the question is: can production OR acceptance wiring be wrong while the gate stays green? Every class is answered NO and backed by a failing seed and/or a self-check probe. (Required by the independent review's universal closure requirement.)",
+  "baseline_commit": "66238a5",
+  "gates": ["row_bound_renderer_parity_gate", "zero_fallback_gate", "ownership_contract_gate", "dead_blind_attribution_gate"],
+  "audit": [
+    {"mutation": "missing", "can_stay_green": false, "caught_by": ["R1B expected_action_not_rendered", "R1D missing_attr", "R4C missing_field", "R4F/R4 expected set / required field"]},
+    {"mutation": "empty", "can_stay_green": false, "caught_by": ["R1N canonical+rendered empty with nonempty source", "MUT canonical=[]/rendered-empty with nonempty expected", "R4D empty replay with nonempty expected"]},
+    {"mutation": "extra", "can_stay_green": false, "caught_by": ["rendered_action_not_in_expected_set", "canonical_action_not_in_source_expected_set", "R4H replay_dead_blind_identity_not_expected"]},
+    {"mutation": "duplicate", "can_stay_green": false, "caught_by": ["duplicate_rendered_element_for_composite", "R1Q duplicate_primary_sizing_display", "duplicate_canonical_composite", "R4 duplicate_idx_identity"]},
+    {"mutation": "malformed", "can_stay_green": false, "caught_by": ["R1F sparse canonical", "R1I missing ledger_index", "R4J post_type=dead_blind wrong action (scan-not-filter)"]},
+    {"mutation": "wrong_type", "can_stay_green": false, "caught_by": ["R1J fractional ledger_index", "R1K empty identity strings", "R4I non-integer idx", "canonical_not_a_list"]},
+    {"mutation": "non_finite_numeric", "can_stay_green": false, "caught_by": ["R1L NaN canonical sizing", "R4G NaN dead-blind numeric (math.isfinite)"]},
+    {"mutation": "wrong_identity", "can_stay_green": false, "caught_by": ["R1C wrong player/action", "R1G composite identity distinguishes two hands", "R4H wrong identity same count"]},
+    {"mutation": "right_value_wrong_identity", "can_stay_green": false, "caught_by": ["R1C correct numbers / wrong player+action", "R1G hand B wrong only"]},
+    {"mutation": "right_value_in_hidden_or_unrelated_output", "can_stay_green": false, "caught_by": ["R1O wrong visible + hidden correct", "R1P correct only in tooltip child", "R1R multiple amounts wrong primary"]},
+    {"mutation": "omitted_expectation_parameter", "can_stay_green": false, "caught_by": ["R1S/MUT row-bound expected=None", "MUT zero-fallback expected=None", "R4F dead-blind expected=None"]},
+    {"mutation": "canonical_population_omitted", "can_stay_green": false, "caught_by": ["R1M source-expected omitted from canonical", "MUT canonical=[] with nonempty expected"]},
+    {"mutation": "observed_population_omitted", "can_stay_green": false, "caught_by": ["MUT rendered empty with nonempty expected", "R1B"]},
+    {"mutation": "synthetic_evidence_substituted_for_shipped_evidence", "can_stay_green": false, "caught_by": ["R1S synthetic_rendered_evidence_rejected", "MUT rendered=list"]}
+  ],
+  "consistency_note": "every 'can_stay_green' is false; each is backed by at least one failing seed and/or self-check probe (_stage_f_selfcheck.py, 45/45)."
+}

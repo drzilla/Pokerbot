@@ -1,0 +1,42 @@
+{
+  "seed_id": "R2",
+  "title": "equal-valued raw fallback — visual parity green, source raw",
+  "description": "A row produced by the raw fallback where the raw value equals canonical; the source-bound gate fails on data-sizing-source + the log.",
+  "target_gate": "zero_fallback_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6099000001",
+      "ledger_index": 18,
+      "player_id": "BTN",
+      "action_kind": "call",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 5.0,
+      "live_total_bb": 5.0,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6099000001",
+      18
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-call\" data-hand-id=\"TM6099000001\" data-ledger-index=\"18\" data-player-id=\"BTN\" data-action-kind=\"call\" data-sizing-source=\"raw_fallback\" data-physical-bb=\"5.0\" data-live-total-bb=\"5.0\" data-uncalled-return-bb=\"0.0\">BTN <span data-sizing-role=\"primary\">5.0BB</span></span></div>",
+  "fallback_log": [
+    {
+      "hand": "TM6099000001",
+      "ledger_index": 18,
+      "action": "calls",
+      "reason": "no ledger_index resolved -> raw amount_bb"
+    }
+  ],
+  "required_failure": {
+    "detector": "zero_fallback_gate",
+    "failure_class": "raw_sizing_fallback_used",
+    "min_violations": 1,
+    "negatives": [
+      "value parity green not credited",
+      "source-bound"
+    ]
+  }
+}

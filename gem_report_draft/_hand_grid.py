@@ -595,6 +595,9 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     # (Hero AND villain) for its displayed physical size + live level — never raw added_bb. A row
     # whose ledger index cannot be resolved counts as a raw-sizing fallback (gated to 0 on real data).
     _grid_fallback = [0]
+    # REV17 §1.1: the ONE canonical hand id stamped on every sized row (data-hand-id) — the same id
+    # the Stage-P gate runner derives the source-expected + canonical action keys from.
+    _canon_hand_id = str(h.get('tournament_hand_id') or h.get('id') or '')
 
     def _canon_replay(_lidx):
         if _lidx is None:
@@ -605,13 +608,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
         except Exception:
             return None
 
+    def _prim(_x):
+        """REV17 §1.1/§1.2: the ONE primary action-sizing display element per sized row. The frozen
+        row-bound parity gate binds this visible amount to the action-kind-required canonical value
+        (call/bet/jam -> physical, raise -> total-to); a second value uses _sec()."""
+        return f'<span data-sizing-role="primary">{_x:.1f}BB</span>'
+
+    def _sec(_x):
+        return f'<span data-sizing-role="secondary">{_x:.1f}BB</span>'
+
     def _jam_headline(_phys, _lvl):
-        """REV16 §8.5: the ONE all-in headline for EVERY player — the chips committed this action
-        (`adds`) and the live level reached (`all-in to`), both canonical. A first-in jam (no prior
-        live chips this street) collapses to a single 'all-in {level}'."""
+        """REV16 §8.5 / REV17 §1.1: the ONE all-in headline for EVERY player — the chips committed this
+        action (`adds`, the PRIMARY) and the live level reached (`all-in to`, secondary), both
+        canonical. A first-in jam (no prior live chips this street) collapses to a single 'all-in X'."""
         if _lvl is not None and abs(_lvl - _phys) > 0.05:
-            return f'⚡ JAM adds {_phys:.1f}BB, all-in to {_lvl:.1f}BB'
-        return f'⚡ JAM all-in {_phys:.1f}BB'
+            return f'⚡ JAM adds {_prim(_phys)}, all-in to {_sec(_lvl)}'
+        return f'⚡ JAM all-in {_prim(_phys)}'
 
     # ── Seat-stack fallback lookup (v8.4.2) ──
     _seat_stacks = {}
@@ -934,13 +946,14 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                 _call_amt = amt
                 if is_h and _cg is not None and _cg.get('callable_amount_bb') is not None and _cg_priced:
                     _call_amt = _cg['callable_amount_bb']
-                text = f'{_ps(p, stk, _pname)} Call {_call_amt:.1f}BB'
+                text = f'{_ps(p, stk, _pname)} Call {_prim(_call_amt)}'
                 if _cg and _cg_kind == 'short_all_in':
                     cls = 'act-allin'
-                    text = f'{_ps(p, stk, _pname)} ⚡ All-in {amt:.2f}BB (short of BB, first-in)'
+                    text = (f'{_ps(p, stk, _pname)} ⚡ All-in '
+                            f'<span data-sizing-role="primary">{amt:.2f}BB</span> (short of BB, first-in)')
                 elif _cg and (_cg or {}).get('facing') == 'first_in':
                     _cverb = 'Complete' if p == 'SB' else 'Limp'
-                    text = f'{_ps(p, stk, _pname)} {_cverb} {_call_amt:.1f}BB first-in'
+                    text = f'{_ps(p, stk, _pname)} {_cverb} {_prim(_call_amt)} first-in'
                 # REV14 D3/E1: required equity comes from the CANONICAL contestable-pot contract (the
                 # same value the reviewed capsule shows), NOT a raw amt/(running_pot+amt) recompute
                 # over the full pot — which over-counts the uncallable overjam / side-pot chips Hero
@@ -980,7 +993,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     cls = 'act-bet'
                     pp = _pot_pct_for_bet(street, amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
-                    text = f'{_ps(p, stk, _pname)} Bet {amt:.1f}BB{pp_html}'
+                    text = f'{_ps(p, stk, _pname)} Bet {_prim(amt)}{pp_html}'
                 _current_bet = amt
                 # v8.12.8 QA3 (66796475): a capped all-in's uncalled slice
                 # is RETURNED — counting the full jam inflated the pot and
@@ -1026,7 +1039,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         _rlbl = 'Raise to'
                     pp = _pot_pct_for_bet(street, _raise_to, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
-                    text = f'{_ps(p, stk, _pname)} {_rlbl} {_raise_to:.1f}BB{pp_html}'
+                    text = f'{_ps(p, stk, _pname)} {_rlbl} {_prim(_raise_to)}{pp_html}'
                 _current_bet = _raise_to
                 # v8.12.8 QA-GPT P0.1: charge the raiser their full
                 # catch-up delta (to-total minus prior street commitment),
@@ -1182,7 +1195,26 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                     f'↪<sup>{_tm_note}</sup></span>')
 
             hero_cls = ' is-hero' if is_h else ''
-            lines.append(f'<span class="grid-action {cls}{hero_cls}">{text}{ann_html}{trigger_html}{vb_html}</span>')
+            # REV17 §1.1: bind every SIZED rendered action (call / bet / raise / jam, Hero AND villain)
+            # to its exact canonical (hand, ledger action, player, action kind) via machine-readable
+            # attributes the frozen row-bound parity gate reads. data-physical-bb / live-total-bb /
+            # uncalled-return-bb are the canonical full-history replay values; data-sizing-source is
+            # canonical_replay (a miss is the raw fallback, counted). Checks / folds / posts are not
+            # sized actions and carry no marker.
+            _akind = {'act-call': 'call', 'act-bet': 'bet', 'act-allin': 'jam', 'act-raise': 'raise'}.get(cls)
+            _data_attrs = ''
+            if _akind is not None and a.get('ledger_index') is not None:
+                _src = 'canonical_replay' if _vr is not None else 'raw_fallback'
+                _phys = (_vr['physical_amount_added_bb'] if _vr is not None else amt)
+                _ltot = (_vr['live_commitment_after_bb'] if _vr is not None else amt)
+                _unc = (_vr['uncalled_return_bb'] if _vr is not None else 0.0)
+                _hid_attr = _html_mod.escape(str(_canon_hand_id), quote=True)
+                _pid_attr = _html_mod.escape(str(_pname), quote=True)
+                _data_attrs = (f' data-hand-id="{_hid_attr}" data-ledger-index="{a.get("ledger_index")}"'
+                               f' data-player-id="{_pid_attr}" data-action-kind="{_akind}"'
+                               f' data-sizing-source="{_src}" data-physical-bb="{_phys:.1f}"'
+                               f' data-live-total-bb="{_ltot:.1f}" data-uncalled-return-bb="{_unc:.1f}"')
+            lines.append(f'<span class="grid-action {cls}{hero_cls}"{_data_attrs}>{text}{ann_html}{trigger_html}{vb_html}</span>')
             i += 1
 
         col_cells.append(''.join(lines))

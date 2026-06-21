@@ -1,0 +1,216 @@
+{
+  "description": "REV16 §10: one canonical owner per sizing/commitment/stack fact after the full-history physical-chip replay consolidation. Every fact lists canonical_owner, approved_adapters, read_only_consumers, qa_checks, and remaining_active_producers — which MUST be []. stack_before and all_in_state each have EXACTLY one active production owner; build_decision_snapshot no longer co-produces them.",
+  "baseline_commit": "66238a5 (parent b1ae76e)",
+  "acceptance": {
+    "stack_before_active_production_owners": 1,
+    "all_in_state_active_production_owners": 1,
+    "remaining_unapproved_production_calculators": 0,
+    "renderers_performing_poker_arithmetic_on_owned_facts": 0,
+    "exports_rebuilding_canonical_fields": 0,
+    "note": "Every Hero AND villain action row in the hand grid reads the canonical full-history per-action replay (replay_full_history / canonical_action_replay). No villain-row exemption remains. The only intentional duplicate is the INDEPENDENT QA oracle (oracle_full_replay), which imports none of the production replay."
+  },
+  "physical_amount_added": {
+    "semantic_fact": "physical_amount_added",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (physical_amount_added_bb — chips derived from the live level reached, never raw added_bb)",
+    "approved_adapters": [
+      "replay_commitments_to_action (Hero reviewed-action view)",
+      "canonical_action_replay (per-action accessor + memo)"
+    ],
+    "read_only_consumers": [
+      "build_action_sizing_contract",
+      "build_decision_snapshot",
+      "gem_report_draft/_hand_grid.py (every Hero + villain row)",
+      "reviewed_action_display",
+      "gem_analyst_worklist"
+    ],
+    "qa_checks": [
+      "_qa_parity.gate_full_action_replay (oracle agreement)",
+      "_qa_parity.gate_all_player_renderer_parity",
+      "_qa_ledger_oracle.oracle_full_replay"
+    ],
+    "remaining_active_producers": []
+  },
+  "live_commitment": {
+    "semantic_fact": "live_commitment",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (live_commitment_before_bb / live_commitment_after_bb — live posts + live actions, the dead ante excluded)",
+    "approved_adapters": [
+      "replay_commitments_to_action (live_street_committed_before / live_street_total_after)"
+    ],
+    "read_only_consumers": [
+      "build_action_sizing_contract",
+      "build_decision_snapshot",
+      "_hand_grid.py raise-to level"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay covering-call parity",
+      "oracle_full_replay"
+    ],
+    "remaining_active_producers": []
+  },
+  "total_contribution": {
+    "semantic_fact": "total_contribution",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (total_contribution_before_bb / total_contribution_after_bb — cumulative dead+live)",
+    "approved_adapters": [],
+    "read_only_consumers": [
+      "build_action_sizing_contract (pot_contribution_total)"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay (pot = dead + live_total)"
+    ],
+    "remaining_active_producers": []
+  },
+  "stack_before": {
+    "semantic_fact": "stack_before",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (stack_before_bb — starting - cumulative prior physical + uncalled returns)",
+    "approved_adapters": [
+      "replay_commitments_to_action (stack_before_action_bb)"
+    ],
+    "read_only_consumers": [
+      "build_decision_snapshot.hero_remaining (REV16: now CONSUMES the replay stack_before — no longer a co-producer)",
+      "build_action_sizing_contract",
+      "_hand_grid.py",
+      "reviewed_action_display"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay cumulative-stack identity",
+      "oracle_full_replay stack_before (independent)"
+    ],
+    "remaining_active_producers": []
+  },
+  "stack_after": {
+    "semantic_fact": "stack_after",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (stack_after_bb — with uncalled refund for chip conservation; the Hero decision view exposes the at-action exhaustion (0 for all-in) + uncalled_return separately)",
+    "approved_adapters": [
+      "replay_commitments_to_action (decision-time stack_after + uncalled_return_bb)"
+    ],
+    "read_only_consumers": [
+      "build_action_sizing_contract",
+      "reviewed_action_display"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay stack conservation + all-in residual"
+    ],
+    "remaining_active_producers": []
+  },
+  "uncalled_return": {
+    "semantic_fact": "uncalled_return",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (uncalled_return_bb — the lone top live committer's excess over the 2nd-highest at street close)",
+    "approved_adapters": [
+      "_hand_grid.py effective (matched) all-in size = physical - uncalled_return"
+    ],
+    "read_only_consumers": [
+      "_hand_grid.py JAM eff display",
+      "replay_commitments_to_action"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay stack conservation"
+    ],
+    "remaining_active_producers": []
+  },
+  "raise_increment": {
+    "semantic_fact": "raise_increment",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (raise_increment_bb = physical - callable_component)",
+    "approved_adapters": [
+      "build_action_sizing_contract raise_increment_bb"
+    ],
+    "read_only_consumers": [
+      "_hand_grid.py",
+      "build_action_sizing_contract"
+    ],
+    "qa_checks": [
+      "gate_action_row_parity"
+    ],
+    "remaining_active_producers": []
+  },
+  "all_in_state": {
+    "semantic_fact": "all_in_state",
+    "canonical_owner": "gem_decision_snapshot.replay_full_history (became_all_in — the ledger is_all_in flag OR a level/call that exhausts the stack, decided in ONE place)",
+    "approved_adapters": [
+      "replay_commitments_to_action (became_all_in)",
+      "build_decision_snapshot.became_all_in_on_this_action (reads the replay record)"
+    ],
+    "read_only_consumers": [
+      "build_action_sizing_contract",
+      "_hand_grid.py",
+      "reviewed_action_display"
+    ],
+    "qa_checks": [
+      "gate_full_action_replay all-in residual",
+      "oracle_full_replay"
+    ],
+    "remaining_active_producers": []
+  },
+  "forced_post_type": {
+    "semantic_fact": "forced_post_type",
+    "canonical_owner": "gem_parser.normalize_hand (stamps post_type from raw text) -> gem_decision_snapshot.normalize_forced_posts (ONE typed normalizer)",
+    "approved_adapters": [
+      "normalize_forced_posts order+position fallback for old cached ledgers"
+    ],
+    "read_only_consumers": [
+      "replay_full_history",
+      "build_forced_post_context"
+    ],
+    "qa_checks": [
+      "_qa_ledger_oracle._post_types / _forced_posts (independent)"
+    ],
+    "remaining_active_producers": []
+  },
+  "callable_amount": {
+    "semantic_fact": "callable_amount",
+    "canonical_owner": "gem_decision_snapshot.build_decision_snapshot (to_call from the replay faced_live - live_before; callable = min(callable_component, replay stack_before))",
+    "approved_adapters": [],
+    "read_only_consumers": [
+      "build_action_sizing_contract continue_component",
+      "_hand_grid.py Hero call",
+      "serialize_reviewed_decision_node"
+    ],
+    "qa_checks": [
+      "gate_action_row_parity",
+      "oracle_replay callable"
+    ],
+    "remaining_active_producers": []
+  },
+  "contestable_pot": {
+    "semantic_fact": "contestable_pot",
+    "canonical_owner": "gem_decision_snapshot.build_decision_snapshot.contestable_pot_before_action",
+    "approved_adapters": [],
+    "read_only_consumers": [
+      "required_equity",
+      "_hand_grid.py Hero need%"
+    ],
+    "qa_checks": [
+      "oracle_sizing contestable_pot"
+    ],
+    "remaining_active_producers": []
+  },
+  "required_equity": {
+    "semantic_fact": "required_equity",
+    "canonical_owner": "gem_decision_snapshot.build_decision_snapshot.required_equity_pct (callable / (contestable + callable))",
+    "approved_adapters": [
+      "PKO bounty-adjusted threshold derives FROM the canonical required equity"
+    ],
+    "read_only_consumers": [
+      "_hand_grid.py Hero need%",
+      "reviewed capsule",
+      "coaching"
+    ],
+    "qa_checks": [
+      "gate_action_row_parity",
+      "oracle_sizing required_equity"
+    ],
+    "remaining_active_producers": []
+  },
+  "effective_decision_depth": {
+    "semantic_fact": "effective_decision_depth",
+    "canonical_owner": "gem_decision_snapshot.build_decision_snapshot.canonical_effective_decision_depth_bb (eff basis now reads the replay stack_before)",
+    "approved_adapters": [],
+    "read_only_consumers": [
+      "serialize_reviewed_decision_node",
+      "reviewed capsule"
+    ],
+    "qa_checks": [],
+    "remaining_active_producers": []
+  },
+  "frozen_location": "acceptance/production_calculation_ownership.json",
+  "frozen_for": "REV17 Stage P (the mandatory tracked ownership contract; must be in the clean source bundle + verify_release)"
+}

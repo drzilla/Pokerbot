@@ -20,7 +20,7 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("d54305e0d9350f9254c9f6784221ca4a5c162abf7c77721f0321d3eb66be7fb6", 770390, "v8.17.1 Iter-1 REV16: + T-REV16-01..14 (full-history physical replay: non-blind open / 3-bet / postflop jam after open|3bet|raise+call / re-jam / call-all-in / partial blind / covering-call parity / prior-commit caller / short caller cap / uncalled return / ownership-missing-fails / renderer raw-fallback-fails)"),
+    "_test_scratch.py": ("53691957afbe283644be91fcd4c87ee998f17f8b6cc9d862fe96d82d84707cd8", 774668, "v8.17.1 Iter-1 REV16: + T-REV16-01..14 (full-history physical replay: non-blind open / 3-bet / postflop jam after open|3bet|raise+call / re-jam / call-all-in / partial blind / covering-call parity / prior-commit caller / short caller cap / uncalled return / ownership-missing-fails / renderer raw-fallback-fails)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("a2dd265c3283d48a35d596fd42cf0619f6f8da6214843ca9a85b0c02aa56743e", 66908, "v8.17.1 Iter-1 REV10 A1/B8: exported decision_node is serialize_reviewed_decision_node (canonical ReviewedDecisionView) + reviewed_decision_view; legacy builder retired to a stack-less fallback"),
@@ -34,14 +34,14 @@ MANIFEST = {
     "gem_gtow.py": ("680aa0c462e2cf2799c4946d7bdc898a6cb24dc11459ab10e4048cfe066d77a7", 32085, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
     "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
-    "gem_decision_snapshot.py": ("ae4cf18324257ee86628942070c0ad1edaad2ee4ee8ec2674bce7be1fa3ad116", 115972, "v8.17.1 Iter-1 REV16: replay_full_history (ONE full-history all-player physical-chip replay; physical from the live level not raw added_bb; dead ante reduces stack not live; uncalled returns) + canonical_action_replay; snapshot hero_remaining/stack_before/callable CONSUME the replay (no co-producer)"),
+    "gem_decision_snapshot.py": ("50fc6c47c64cce346d02255dcd1268179415e37cd9ebd4aaad4fb646339b7cb6", 116456, "v8.17.1 Iter-1 REV16: replay_full_history (ONE full-history all-player physical-chip replay; physical from the live level not raw added_bb; dead ante reduces stack not live; uncalled returns) + canonical_action_replay; snapshot hero_remaining/stack_before/callable CONSUME the replay (no co-producer)"),
     "gem_parser.py": ("4fb17638c705548134b29914de088c79f8aca89966f0a627c30e5bd0da86e111", 105776, "v8.17.1 Iter-1 REV15 B: the ledger preserves a TYPED post_type (ante / small_blind / big_blind) from the raw hand-history text at the parser boundary — the canonical source downstream code reads (never re-inferred by amount/seat)"),
     "gem_pko_research.py": ("8bd0168633f0df7b6680fcf31a404611bead67789ed71b20c5ec9b78a46009cd", 55374, "v8.17 B6/B7: how_pko_changes_decision() + pko_trust_render exposes how_changes_md + reconciled facts"),
     "gem_pot_odds.py": ("3bde4518f4306256bc2067d30d9758c003ea16fc4466b0b5868319de2e678bc1", 49955, "v8.17.1 P5: decision-time pot odds (eval at the decision node)"),
     "gem_tournament_model.py": ("a52c75bf3b3ccc43b3e1852020918bc3114dcc2ec4c2af51f1cdc5d1626fd629", 21818, "v8.17.1 P4: event performance(hands/bb100) + reviewed + exit_hand fields for Tournament Tables v3"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
     "gem_report_data.py": ("34d039eba960edca21ed753d80ac94ea5b7eb6bb5e75d830de19c72cdb83d9ae", 224507, "v8.17.1 Iter-1 REV16 §6: each appendix grid action carries its ledger_index so EVERY row (Hero + villain) reads the ONE full-history canonical replay"),
-    "gem_report_draft/_hand_grid.py": ("d7999d7d1c48d6e9ba4024f3ceb55666303b7173f44339ed2ed1ac6f031e8f25", 93548, "v8.17.1 Iter-1 REV16 §6/§8.5: EVERY grid row (Hero + villain) sources its size from canonical_action_replay (physical chips / live level); ONE _jam_headline (adds physical / all-in to level) for all players; raw-sizing fallback counted (0)"),
+    "gem_report_draft/_hand_grid.py": ("9a6f64f9d984260e15018e975fe83a54d7659eb17b028765acf9f4312f93448f", 96054, "v8.17.1 Iter-1 REV16 §6/§8.5: EVERY grid row (Hero + villain) sources its size from canonical_action_replay (physical chips / live level); ONE _jam_headline (adds physical / all-in to level) for all players; raw-sizing fallback counted (0)"),
     "gem_report_draft/_helpers.py": ("108c329886f9531db53fdf3aebb5f96499d2cdf37790c447fb87ee827abdae8a", 70777, "v8.17.1 P5: build_canonical_verdicts (active_queue>analyst>auto[usable]>neutral Review)"),
     "gem_report_draft/_html.py": ("e867d5ef46431171f37843b6437a92999f7c1dad0dc555ffdea9df20deea1784", 421826, "v8.17.1 Iter-1 REV12 B3/B4: _renderCoachingCard renders the visible ownership label (Earlier context / Population research / Whole-hand lesson)"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
@@ -65,6 +65,15 @@ MANIFEST = {
     "gem_made_hands.py": ("a85b43ddf5e33fcf549071b52890d55a2c4b0a3b5c8b3089027c934bcd4715cb", 24701, "v8.17 made/draw/bluff hand classification feeding the commentary range lens"),
     "gem_opponent_profiler.py": ("723ce314d3d0362e450dd4f1d18237ef6f5ecf3522cfdb37ecb62d7690bf955f", 26445, "v8.17 opponent archetype profiler (villain-teaching inputs)"),
     "_qa_v817_rc3_acceptance.py": ("58ddb30323666ded3bdc3878da2063d09dc3a181d6c008642550695c7a5aa0ba", 12406, "v8.17 four-epic integrated acceptance harness (reproducible self-verify)"),
+    # v8.17.1 Iter-1 REV17 certification closure: the TRACKED single-owner production-calculation
+    # ownership contract + the FROZEN Stage-F acceptance gates + the Stage-P wiring. The clean-room
+    # verify FAILS if the ownership artifact is absent (closure §1.3).
+    "acceptance/production_calculation_ownership.json": ("0c88c80e835e67925e6cab81dd38678e351cf1ea6099e186e5beea122c60d492", 9120, "v8.17.1 Iter-1 REV17 §1.3: the mandatory tracked single-owner production-calculation ownership contract (1 stack_before owner, 1 all_in owner, 0 remaining)"),
+    "_qa_stagep.py": ("c2225aba4161e5327304be0c17244b101e90646263c480a2a538ff91dd6947b7", 6307, "v8.17.1 Iter-1 REV17 §1: the Stage-P wiring — source-expected + canonical action keys feed the FROZEN row-bound / zero-fallback / dead-blind gates over the real report"),
+    "acceptance/ownership_contract_gate.py": ("bd2f29080930d036ab68cf6e4454777cef002cc8dedc6c74026bc425e6381672", 3042, "v8.17.1 Iter-1 REV17: FROZEN Stage-F ownership-contract gate (read-only)"),
+    "acceptance/row_bound_renderer_parity_gate.py": ("b5cddde523082734ecad554e9968d429e1b4d62f32e4af7cb2484edb810dbb2d", 12583, "v8.17.1 Iter-1 REV17: FROZEN Stage-F row-bound renderer parity gate (read-only)"),
+    "acceptance/zero_fallback_gate.py": ("2a314a38f6e0bea34b63d10115bbeea1a937b590937c9a42f9f2aebcdcfca550", 4039, "v8.17.1 Iter-1 REV17: FROZEN Stage-F zero raw-sizing fallback gate (read-only)"),
+    "acceptance/dead_blind_attribution_gate.py": ("07b1ec8d2cafad880d9f45aee50910ca4527f11d8cea6d6b3b504b09a2383032", 5614, "v8.17.1 Iter-1 REV17: FROZEN Stage-F dead-blind attribution gate (read-only)"),
 }
 
 # Canary checks: specific strings that MUST be present in key files.
@@ -1512,8 +1521,8 @@ CANARIES = [
      "v8.17.1 Iter-1 REV13 A4: the ActionSizingContract travels ON the canonical view + serialized node"),
     ('gem_decision_snapshot.py', 'def decision_grade_eligibility(',
      "v8.17.1 Iter-1 REV13 C3: the contract that a forced short all-in / walk is UNGRADED (FinalDecisionStatus NOT implemented)"),
-    ('gem_report_draft/_hand_grid.py', "f'⚡ JAM adds {_phys:.1f}BB, all-in to {_lvl:.1f}BB'",
-     "v8.17.1 Iter-1 REV13/REV16 §8.5: the grid 'adds' value is the canonical physical, 'all-in to' the canonical level (one _jam_headline, every player)"),
+    ('gem_report_draft/_hand_grid.py', "f'⚡ JAM adds {_prim(_phys)}, all-in to {_sec(_lvl)}'",
+     "v8.17.1 Iter-1 REV13/REV16/REV17 §1.1: the grid 'adds' value is the canonical physical (primary marker), 'all-in to' the canonical level (secondary)"),
     ('gem_report_draft/_hand_grid.py', 'not _is_short_allin_ann',
      "v8.17.1 Iter-1 REV13 C1: no 👍/marker on a forced underblind short all-in"),
     ('gem_report_draft/sections_xiv.py', "!= 'first_in_short_all_in'",
@@ -1589,6 +1598,21 @@ CANARIES = [
      "v8.17.1 Iter-1 REV16 §11: the INDEPENDENT full-history replay — closes to the raw chip flow"),
     ('_test_scratch.py', 'T-REV16-01',
      "v8.17.1 Iter-1 REV16: full-history replay / covering-call / uncalled-return / ownership / renderer-fallback failure injection"),
+    # ── REV17: production certification closure (frozen Stage-F gates wired into production) ──
+    ('gem_report_draft/_hand_grid.py', 'data-sizing-role="primary"',
+     "v8.17.1 Iter-1 REV17 §1.1/§1.2: every sized row emits the ONE primary visible-display marker"),
+    ('gem_report_draft/_hand_grid.py', "'act-call': 'call', 'act-bet': 'bet', 'act-allin': 'jam', 'act-raise': 'raise'",
+     "v8.17.1 Iter-1 REV17 §1.1: sized rows carry the machine-readable hand/ledger/player/action-kind binding"),
+    ('gem_decision_snapshot.py', "if pt in ('small_blind', 'big_blind', 'straddle'):",
+     "v8.17.1 Iter-1 REV17 §1.4: dead_blind is NOT in the live-post tuple (dead / explicit_unknown)"),
+    ('_qa_stagep.py', 'def run_renderer_gates(',
+     "v8.17.1 Iter-1 REV17 §1: the Stage-P wiring runs the FROZEN row-bound / zero-fallback gates over the real report"),
+    ('_qa_stagep.py', 'def source_expected_keys(',
+     "v8.17.1 Iter-1 REV17 §1.1: the INDEPENDENT source-derived sized-action key set"),
+    ('_qa_parity.py', 'import _qa_stagep as _sp',
+     "v8.17.1 Iter-1 REV17: gates P (row-bound) / Q (zero-fallback) / R (dead-blind) run in the parity sweep"),
+    ('_test_scratch.py', 'T-REV17-01',
+     "v8.17.1 Iter-1 REV17: dead-blind-not-live / tracked-ownership / frozen-row-bound / source-canonical-coverage"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).

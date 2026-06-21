@@ -229,10 +229,15 @@ def replay_full_history(h):
         if act == 'posts':
             pt = posts.get(i, {}).get('post_type', 'ante')
             physical = round(amt, 2)
-            if pt in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+            # REV17 §1.4 (dead-blind closure): the LIVE forced posts are the SB/BB (and a live
+            # voluntary straddle). A `dead_blind` is the UNSUPPORTED/explicit_unknown class — it
+            # reduces the stack + pot contribution but NEVER enters live commitment (it is treated as
+            # dead, like the ante). The pilot corpus contains 0 dead blinds (the parser never emits
+            # the type); this is the frozen defensive contract, not a real-data change.
+            if pt in ('small_blind', 'big_blind', 'straddle'):
                 live[p] = round(lb + physical, 2)
             else:
-                is_dead = True                           # ante: stack + pot, never live
+                is_dead = True                           # ante / dead_blind: stack + pot, never live
         elif act in ('raises', 'bets'):
             _to = a.get('to_bb')
             target = (round(_f(_to), 2) if (act == 'raises' and _to is not None)

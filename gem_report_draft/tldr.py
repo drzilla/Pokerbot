@@ -291,17 +291,23 @@ def build_review_queue(s, rd, analyst, hands_by_id):
     hands_by_id = hands_by_id or {}
     seen, items = set(), []
 
+    _cvmap = rd.get('canonical_verdicts') or {}
+
     def _add(hid, bucket, title):
         if not hid or hid in seen:
             return
         seen.add(hid)
         h = hands_by_id.get(hid, {}) or {}
+        # v8.17.1 P5(1): carry the ONE canonical verdict so the queue context
+        # row agrees with the topbar / action row / capsule (zero drift).
+        _cvq = (_cvmap.get(hid) or _cvmap.get(str(hid)[-8:]) or {})
         items.append({
             'id': hid, 'bucket': bucket,
             'reason_label': _REVIEW_QUEUE_BUCKET_LABEL[bucket],
             'title': (title or '').strip(),
             'net': h.get('net_bb', 0) or 0,
             'cards': ''.join(h.get('cards', []) or []),
+            'canonical_verdict': _cvq.get('verdict', '') or '',
         })
 
     # 1. punts (analyst III.1) ; 2. analyst mistakes (analyst III.2)
@@ -1237,7 +1243,8 @@ def _emit_opening_dashboard(doc, s, rd):
                 _bb = (f'<span class="bb-pill {_bbcls}">{_bbtxt}</span>'
                        if _h is not None else '')
                 doc.w(f'<div class="rq-row" role="button" tabindex="0" '
-                      f'data-hand-id="{he(short_id)}" data-bucket="{he(h["bucket"])}">'
+                      f'data-hand-id="{he(short_id)}" data-bucket="{he(h["bucket"])}" '
+                      f'data-canonical-verdict="{he(h.get("canonical_verdict", "") or "")}">'
                       f'<span class="rq-rank">{h["rank"]}</span>'
                       f'<span class="rq-hid">{he(short_id)}</span>'
                       f'<span class="handcards">{_pills}</span>'

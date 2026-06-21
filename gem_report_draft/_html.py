@@ -717,9 +717,17 @@ def _md_inline(text):
         r'villain-card|made-hand|board-match|pot-pct|note-num|note-tag|'
         r'ann(?:\s+ann-(?:positive|emoji))?(?:\s+ann-emoji)?|'
         r'cards|label|hero-pos|hero-nick|pot|sd-block|net-pos|net-neg|grid-action[^\'"]*|'
+        # v8.17.1 P2: range-lens spans must survive _html_escape — they were
+        # leaking as literal &lt;span class='rng-hl…&gt; on ~14 hands — plus the
+        # new Hero-combo bold (rng-combo-hero).
+        r'rng-hl[^\'"]*|rng-combo-hero[^\'"]*|'
         r'cond-pass|cond-fail|ci-tip|new-badge|verdict-pill|context-pill[^\'"]*)[\'"]'
         r'[^>]*>[^<]*</span>',
         re.IGNORECASE)
+    text = inner_span_pat.sub(_stash, text)
+    # v8.17.1 P2: second pass stashes an OUTER rng-hl wrapper once its nested
+    # rng-combo-hero (Hero-combo bold) has been replaced by a placeholder (so the
+    # outer content has no '<' until </span>) — a combo-highlighted lens survives.
     text = inner_span_pat.sub(_stash, text)
     # B-datatip (Phase 4.8): stash <span data-tip="...">text</span> tooltips.
     # These appear in pipe-table header cells (S1.6) and body cells (S1.5,
@@ -1221,7 +1229,22 @@ _MODAL_HTML = r"""
         +'<span class="source-chip">'+_esc(card.display_confidence||'')+'</span>'
         +'</div>';
     }
-    el.innerHTML=hd+body+metrics+ranges+learn+src;
+    /* REV12 B3/B4: VISIBLE coaching ownership label (desktop + mobile share this fn). An
+       earlier-context / population-research / whole-hand card must say so, so a user never reads
+       it as selected-action coaching/eligibility. */
+    var own=(card.decision_content_ownership&&card.decision_content_ownership.ownership)||card.ownership||'';
+    var ownHtml='';
+    if(own==='earlier_context'){
+      var cs=(card.decision_content_ownership&&card.decision_content_ownership.card_context_street)||'';
+      var csl=cs?(cs.charAt(0).toUpperCase()+cs.slice(1)):'Earlier';
+      ownHtml='<div class="ownership-label ownership-earlier">⏮ Earlier '+_esc(cs||'')+' context — not the selected-action decision</div>';
+      if(!cs)ownHtml='<div class="ownership-label ownership-earlier">⏮ Earlier preflop context — not the selected-action decision</div>';
+    }else if(own==='population_research'){
+      ownHtml='<div class="ownership-label ownership-population">📊 Population research — not selected-action bounty eligibility</div>';
+    }else if(own==='whole_hand'){
+      ownHtml='<div class="ownership-label ownership-wholehand">🗂 Whole-hand lesson — not a single-action grade</div>';
+    }
+    el.innerHTML=hd+ownHtml+body+metrics+ranges+learn+src;
     return el;
   }
   /* v8.10.0: render all coaching cards for a hand into a container */
@@ -1657,15 +1680,15 @@ _MODAL_HTML = r"""
       var potEl=th.querySelector('.pot');
       var texEl=th.querySelector('.board-tex');
       var drawEl=th.querySelector('.draw-profile');
-      var potTxt=potEl?clean(potEl.textContent):'';
+      var potTxt=potEl?safeMeta(clean(potEl.textContent)):'';
       if(potTxt){
         var potChip=document.createElement('span');potChip.className='v25-pot-chip';
         potChip.textContent=/pot/i.test(potTxt)?potTxt:(potTxt+' pot');
         sCtx.appendChild(potChip);
       }
       var stateParts=[];
-      if(texEl){var _tx=clean(texEl.textContent);if(_tx)stateParts.push(_tx);}
-      if(drawEl){var _dr=clean(drawEl.textContent);if(_dr)stateParts.push(_dr);}
+      if(texEl){var _tx=safeMeta(clean(texEl.textContent));if(_tx)stateParts.push(_tx);}
+      if(drawEl){var _dr=safeMeta(clean(drawEl.textContent));if(_dr)stateParts.push(_dr);}
       var stateTxt=stateParts.join(' · ');
       if(stateTxt){
         var stChip=document.createElement('span');stChip.className='v25-strength-chip';
@@ -1829,6 +1852,26 @@ _MODAL_HTML = r"""
   /* ---- Hand Queue State (v8.4.0) ---- */
   window.activeHandQueue=null;
   /* V25.3 item 10: compact queue header — class-based, no inline styles */
+  /* v8.17.1 P0A: ONE canonical reviewed-state reader. A hand is "reviewed" when it
+     has a saved verdict OR saved notes in the persisted review store — the same
+     store PBReview.isReviewed / PBReviewQueue._status read (status||notes). Every
+     "green" surface (queue chip-rail, inline audit/review pills, modal topbar,
+     Tournament-Tables reviewed trigger) reads green = viewed_in_current_queue ||
+     isHandReviewed(hid). Merely opening a hand does NOT write the store, so opening
+     never turns a chip green. Hoisted declaration so callers above its definition
+     resolve it; window.PBReview is assigned before any modal opens. */
+  function isHandReviewed(hid){
+    try{return !!(window.PBReview&&window.PBReview.isReviewed&&window.PBReview.isReviewed(hid));}
+    catch(e){return false;}
+  }
+  window.isHandReviewed=isHandReviewed;
+  /* v8.17.1 P0B: coalesce a stringified None/null/undefined to '' so it can never
+     reach a visible street chip (pot / board texture / draw profile). Defense-in-
+     depth alongside the server-side board-texture guard. Hoisted declaration. */
+  function safeMeta(v){
+    var s=(v==null)?'':String(v);
+    return /^(none|null|undefined)$/i.test(s.trim())?'':s;
+  }
   function _renderQueueContext(hid){
     var cb=document.getElementById('hand-queue-context');
     if(!cb)return;
@@ -1859,7 +1902,10 @@ _MODAL_HTML = r"""
     q.handIds.forEach(function(h,i){
       var cls='v25-queue-chip';
       if(i===idx)cls+=' current';
-      else if(q.viewed&&q.viewed[h])cls+=' viewed';
+      /* v8.17.1 P0A: green if opened this session OR persisted-reviewed (saved
+         verdict/notes). Previously only in-session q.viewed coloured the chip, so
+         a hand reviewed in a prior load showed not-green until re-opened. */
+      else if((q.viewed&&q.viewed[h])||isHandReviewed(h))cls+=' viewed';
       _html+='<button class="'+cls+'" onclick="_queueJump('+i+')">'+(i+1)+' '+(h.length>8?h.slice(-8):h)+'</button>';
     });
     _html+='</div>';
@@ -3492,7 +3538,7 @@ _MODAL_HTML = r"""
         +'<td><span class="ve-signal '+a.badge+'">'+(a.label||'')
         +(a.signal_label?' · '+a.signal_label:'')+'</span></td>'
         +'<td>'+a.evidence_text+'</td>'
-        +'<td>'+a.read_impact+'</td>'
+        +'<td>'+String(a.read_impact||'').replace(/\s*\+(\d+)/g,function(_m,n){return ' ('+(+n<=2?'slight':+n===3?'moderate':'strong')+' read)';})+'</td>'  /* v8.17.1 P3a: no raw +N weight */
         +'<td style="font-size:11px;color:'+(isRev?'#1e40af':'#94a3b8')+'">'
         +(isRev?'Open hand':'Evidence only')+'</td>';
       tr.replaceChild(td0,tr.firstChild);
@@ -3636,7 +3682,7 @@ _MODAL_HTML = r"""
       ?'Missed Exploits — '+readLabel+' ('+filtered.length+')'
       :filterType==='good'
       ?'Good Exploits — '+readLabel+' ('+filtered.length+')'
-      :'Exploit Opportunities — '+readLabel+' ('+filtered.length+')';
+      :'Signals — '+readLabel+' ('+filtered.length+')';  /* v8.17.1 P3c: Exploit Opportunities -> Signals */
     /* Header */
     var hdr=document.createElement('div');
     hdr.className='ve-header';
@@ -3786,6 +3832,142 @@ _MODAL_HTML = r"""
   }
   window.initTournamentResultsTable=initTournamentResultsTable;
   function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  // v8.17.1 P4: distribution chart — re-renders from the precomputed window.ttChart
+  // dataset (every tab x metric) so tab/metric changes use canonical numbers.
+  function _ttChartBar(cat,sh,metric){
+    var share=(sh&&sh.share)||0,sign=(sh&&sh.sign)||0,val=(sh?sh.value:null);
+    var vtxt=(val==null)?'—':((metric==='net'&&val>=0?'+':'')+'$'+(Math.round(val*100)/100));
+    var sq='<span class="legend-square" style="background:'+cat.color+'"></span>';
+    var bar;
+    if(metric==='net'){var w=Math.min(50,share/2);var ml=(sign>=0?50:Math.max(0,50-w));
+      bar='<span class="tt-bar-track tt-diverge"><span class="tt-bar" style="margin-left:'+ml.toFixed(1)+'%;width:'+w.toFixed(1)+'%;background:'+cat.color+'"></span></span>';}
+    else{bar='<span class="tt-bar-track"><span class="tt-bar" style="width:'+Math.min(100,share).toFixed(1)+'%;background:'+cat.color+'"></span></span>';}
+    return '<div class="tt-bar-row" tabindex="0" data-tip="'+_ttEsc(cat.label+': '+vtxt)+'"><span class="tt-bar-label">'+sq+_ttEsc(cat.label)+'</span>'+bar+'<span class="tt-bar-val">'+_ttEsc(vtxt)+'</span></div>';
+  }
+  window.ttRenderChart=function(_g,tab){
+    var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
+    var data=window.ttChart[tab];var metric=ch.getAttribute('data-metric')||'net';
+    var body=ch.querySelector('.tt-chart-body');var title=ch.querySelector('[data-tt-chart-title]');
+    ch.setAttribute('data-tab',tab);
+    var tabLabel=String(tab).charAt(0).toUpperCase()+String(tab).slice(1).replace(/_/g,' ');
+    var mLabel=metric.charAt(0).toUpperCase()+metric.slice(1);
+    if(title)title.textContent='Distribution — '+tabLabel+' · '+mLabel;
+    if(!data||!data.cats||!data.cats.length){if(body)body.innerHTML='<p class="tt-coverage-note">No grouped data to chart.</p>';return;}
+    var h='';for(var i=0;i<data.cats.length;i++){var c=data.cats[i];var sh=(data.metrics[metric]||{})[c.key];h+=_ttChartBar(c,sh,metric);}
+    if(body)body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';
+  };
+  function initTtChart(){
+    var ch=document.querySelector('.tt-chart');if(!ch||ch._ttChartWired)return;ch._ttChartWired=true;
+    Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(b){
+      b.addEventListener('click',function(){
+        ch.setAttribute('data-metric',b.getAttribute('data-metric'));
+        Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(x){x.classList.toggle('active',x===b);});
+        window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
+    var tip=ch.querySelector('.tt-tooltip');
+    function show(ev){var row=ev.target.closest?ev.target.closest('.tt-bar-row'):null;if(!row||!tip)return;
+      tip.textContent=row.getAttribute('data-tip')||'';tip.hidden=false;
+      var cr=ch.getBoundingClientRect();var r=row.getBoundingClientRect();
+      var x=((ev.clientX||r.left)-cr.left);
+      x=Math.min(Math.max(8,x),Math.max(8,cr.width-tip.offsetWidth-8));
+      tip.style.left=x+'px';tip.style.top=(r.bottom-cr.top+4)+'px';}
+    function hide(){if(tip)tip.hidden=true;}
+    ch.addEventListener('mousemove',show);ch.addEventListener('mouseleave',hide);
+    ch.addEventListener('focusin',show);ch.addEventListener('focusout',hide);
+  }
+  window.initTtChart=initTtChart;
+  // v8.17.1 P4 surfaces 1+2: filters + sticky summary — ONE filtered event set
+  // (from window.ttModel) re-aggregates the sticky bar, grouped active pane, chart,
+  // detail-table rows and the drivers rollup. Mirrors the Python aggregation.
+  function _ttMoney(v,plus){if(v==null)return '—';var n=Math.round(v*100)/100;return (n<0?'-':(plus?'+':''))+'$'+Math.abs(n);}
+  function _ttPct(v){return (v==null)?'—':((v>=0?'+':'')+v.toFixed(1)+'%');}
+  function _ttAggregate(evs){
+    var bul=0,cc=0,cr=0,covc=0,covn=0,nset=0,est=false,itm=0,t5=0,t1=0,hnd=0,bbw=0,hasbb=false;
+    for(var i=0;i<evs.length;i++){var e=evs[i];bul+=(e.bullets||0);cc+=(e.cost||0);
+      if(e.ret!=null){cr+=e.ret;covc+=(e.cost||0);covn++;if(e.ret_exact===false)est=true;}
+      var st=e.fin&&e.fin.state;if(st==='exact'||st==='no_cash'){nset++;
+        if(e.fin.itm)itm++;if(e.fin.top!=null&&e.fin.top<=5)t5++;if(e.fin.top!=null&&e.fin.top<=1)t1++;}
+      if(e.hands!=null){hnd+=e.hands;if(e.bb100!=null){bbw+=e.bb100*e.hands;hasbb=true;}}}
+    var net=covn?(cr-covc):null;var roi=(covc>0)?(net/covc*100):null;
+    return {events:evs.length,bullets:bul,committed_cost:cc,covered_return:cr,net:net,roi_pct:roi,
+      results_covered:covn,n_settled:nset,estimated:est,
+      itm_pct:nset?(itm/nset*100):null,top5_pct:nset?(t5/nset*100):null,top1_pct:nset?(t1/nset*100):null,
+      hands:hnd,bb100:(hasbb&&hnd)?(bbw/hnd):null};
+  }
+  var _TT_TABDIM={buyin:'buyin_band',prize_type:'prize_type',speed:'speed',
+    entry_pattern:'entry_pattern',entry_timing:'entry_timing',phase_reached:'fin_label',by_day:'event_day'};
+  function _ttEvKey(e,tab){var v=e[_TT_TABDIM[tab]||'buyin_band'];
+    return (v==null)?'__none__':(v==='unknown'?'__unknown__':v);}
+  function _ttDist(aggByCat,metric,cats){var out={},k,tot=0,pos=0,neg=0;
+    if(metric==='cost'||metric==='return'){k=(metric==='cost')?'committed_cost':'covered_return';
+      cats.forEach(function(c){tot+=Math.max(0,aggByCat[c.key][k]||0);});tot=tot||1;
+      cats.forEach(function(c){var v=aggByCat[c.key][k]||0;out[c.key]={value:Math.round(v*100)/100,share:v/tot*100,sign:1};});}
+    else{cats.forEach(function(c){var n=aggByCat[c.key].net;if(n>0)pos+=n;else if(n<0)neg+=-n;});pos=pos||1;neg=neg||1;
+      cats.forEach(function(c){var n=aggByCat[c.key].net;
+        if(n==null)out[c.key]={value:null,share:0,sign:0};
+        else if(n>=0)out[c.key]={value:Math.round(n*100)/100,share:n/pos*100,sign:1};
+        else out[c.key]={value:Math.round(n*100)/100,share:-n/neg*100,sign:-1};});}
+    return out;}
+  window.initTtFilters=function(){
+    if(!window.ttModel)return;var model=window.ttModel;
+    var sticky=document.querySelector('[data-tt-sticky]');
+    var filters=document.querySelector('[data-tt-filters]');
+    var state={};
+    function filtered(){return model.filter(function(e){
+      for(var dim in state){if(state[dim]&&state[dim].length&&state[dim].indexOf(String(e[dim]))<0)return false;}return true;});}
+    function setC(b,t){if(b)b.textContent=t;}
+    function renderSticky(evs){if(!sticky)return;var a=_ttAggregate(evs);
+      setC(sticky.querySelector('[data-ss=events]'),a.events);
+      setC(sticky.querySelector('[data-ss=bullets]'),a.bullets);
+      setC(sticky.querySelector('[data-ss=cost]'),_ttMoney(a.committed_cost));
+      setC(sticky.querySelector('[data-ss=return]'),_ttMoney(a.covered_return));
+      setC(sticky.querySelector('[data-ss=net]'),(a.net==null?'—':_ttMoney(a.net,true)));
+      setC(sticky.querySelector('[data-ss=roi]'),(a.roi_pct==null?'—':_ttPct(a.roi_pct)));
+      setC(sticky.querySelector('[data-ss=coverage]'),'Results available for '+a.n_settled+' of '+a.events+' events');}
+    function renderRows(ids){['#tt-unified-table','#tt-performance-table'].forEach(function(sel){
+      var t=document.querySelector(sel);if(!t)return;
+      Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+        r.style.display=(ids[r.getAttribute('data-event-id')]?'':'none');});});
+      var roll=document.querySelector('[data-tt-rollup]');
+      if(roll)Array.prototype.forEach.call(roll.querySelectorAll('li[data-event-id]'),function(li){
+        li.style.display=(ids[li.getAttribute('data-event-id')]?'':'none');});}
+    function renderGrouped(evs){var g=document.querySelector('.tt-grouped');if(!g)return;
+      var tab=g.getAttribute('data-tab')||'buyin';
+      var pane=g.querySelector(".tt-tabpane[data-tabpane='"+tab+"']");if(!pane)return;
+      Array.prototype.forEach.call(pane.querySelectorAll('tbody tr[data-cat-key]'),function(r){
+        var key=r.getAttribute('data-cat-key');var c=r.children;if(c.length<13)return;
+        var a=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===key;}));var ap=a.estimated?'≈':'';
+        c[1].textContent=a.events;c[2].textContent=a.bullets;c[3].textContent=a.results_covered+'/'+a.events;
+        c[4].textContent=_ttMoney(a.committed_cost);c[5].textContent=ap+_ttMoney(a.covered_return);
+        c[6].textContent=(a.net==null?'—':ap+_ttMoney(a.net,true));
+        c[7].textContent=(a.roi_pct==null?'—':ap+_ttPct(a.roi_pct));
+        c[8].textContent=(a.itm_pct==null?'—':Math.round(a.itm_pct)+'%');
+        c[9].textContent=(a.top5_pct==null?'—':Math.round(a.top5_pct)+'%');
+        c[10].textContent=(a.top1_pct==null?'—':Math.round(a.top1_pct)+'%');
+        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});}
+    function renderChart(evs){var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
+      var tab=ch.getAttribute('data-tab')||'buyin';var metric=ch.getAttribute('data-metric')||'net';
+      var cats=(window.ttChart[tab]||{}).cats||[];var body=ch.querySelector('.tt-chart-body');if(!body)return;
+      var aggByCat={};cats.forEach(function(c){aggByCat[c.key]=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===c.key;}));});
+      var shares=_ttDist(aggByCat,metric,cats);var h='';
+      cats.forEach(function(c){h+=_ttChartBar(c,shares[c.key],metric);});
+      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';}
+    function render(){var evs=filtered();var ids={};evs.forEach(function(e){ids[e.id]=1;});
+      renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);
+      var clr=filters&&filters.querySelector('[data-tt-clear]');
+      var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
+      if(clr)clr.hidden=!any;}
+    window.ttApplyFilters=render;
+    if(filters){
+      Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+        b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
+          state[dim]=state[dim]||[];var i=state[dim].indexOf(val);
+          if(i<0){state[dim].push(val);b.classList.add('active');}else{state[dim].splice(i,1);b.classList.remove('active');}
+          render();});});
+      var clr=filters.querySelector('[data-tt-clear]');
+      if(clr)clr.addEventListener('click',function(){state={};
+        Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
+        render();});}
+  };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
     var e=null;for(var i=0;i<evs.length;i++){if(evs[i].event_id===eventId){e=evs[i];break;}}
@@ -4014,7 +4196,7 @@ _MODAL_HTML = r"""
         +'<td><span class="ve-signal '+a.badge+'">'+(a.label||'')
         +(a.signal_label?' · '+a.signal_label:'')+'</span></td>'
         +'<td>'+a.evidence_text+(a.context_text?'<br><small style="color:#64748b">'+a.context_text+'</small>':'')+'</td>'
-        +'<td>'+a.read_impact+'</td>'
+        +'<td>'+String(a.read_impact||'').replace(/\s*\+(\d+)/g,function(_m,n){return ' ('+(+n<=2?'slight':+n===3?'moderate':'strong')+' read)';})+'</td>'  /* v8.17.1 P3a: no raw +N weight */
         +'<td style="font-size:11px;color:'+(isRev?'#1e40af':'#94a3b8')+'">'+detailText+'</td>';
       tr.replaceChild(td0,tr.firstChild);
       tbl.appendChild(tr);
@@ -5631,6 +5813,81 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   table.tt-unified th[data-tt-sort] {{ cursor: pointer; white-space: nowrap; }}
   table.tt-unified th[data-tt-sort]:hover {{ background: #eef2ff; }}
   table.tt-unified td.tt-details-cell a {{ font-weight: 600; white-space: nowrap; }}
+  /* v8.17.1 P4: grouped aggregate surface (aggregate-first) + legend squares */
+  .tt-grouped {{ margin: 6px 0 14px 0; }}
+  .tt-grouped-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 6px 0; }}
+  .tt-grouped-tabs .tt-tab {{ font: inherit; font-size: 0.85em; padding: 3px 10px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff;
+    color: #475467; cursor: pointer; }}
+  .tt-grouped-tabs .tt-tab.active {{ background: #2563eb; color: #fff;
+    border-color: #2563eb; }}
+  table.tt-aggregate th, table.tt-aggregate td {{ text-align: right;
+    white-space: nowrap; }}
+  table.tt-aggregate th:first-child, table.tt-aggregate td:first-child {{ text-align: left; }}
+  .legend-square {{ display: inline-block; width: 10px; height: 10px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle; }}
+  .tt-coverage-note {{ font-size: 0.82em; color: #667085; margin: 4px 0 0 0; }}
+  html.dark .tt-grouped-tabs .tt-tab {{ background: #16181d; color: #94a3b8;
+    border-color: #2a2f3a; }}
+  html.dark .tt-coverage-note {{ color: #94a3b8; }}
+  /* v8.17.1 P4: distribution chart + drivers rollup + performance detail */
+  .tt-chart {{ position: relative; margin: 4px 0 14px 0; }}
+  .tt-chart-head {{ display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; flex-wrap: wrap; margin: 0 0 6px 0; }}
+  .tt-chart-title {{ font-size: 0.9em; font-weight: 700; color: #1e3a8a; }}
+  .tt-chart-metrics {{ display: flex; gap: 6px; }}
+  .tt-chart-metrics .tt-metric {{ font: inherit; font-size: 0.8em; padding: 2px 9px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff; color: #475467;
+    cursor: pointer; }}
+  .tt-chart-metrics .tt-metric.active {{ background: #0f172a; color: #fff;
+    border-color: #0f172a; }}
+  .tt-bar-row {{ display: flex; align-items: center; gap: 8px; padding: 2px 0; }}
+  .tt-bar-label {{ flex: 0 0 34%; max-width: 34%; font-size: 0.82em; color: #344054;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+  .tt-bar-track {{ flex: 1 1 auto; min-width: 0; height: 14px; background: #f1f5f9;
+    border-radius: 3px; overflow: hidden; }}
+  .tt-bar-track.tt-diverge {{ background: linear-gradient(90deg,#fef2f2 0 50%,#f0fdf4 50% 100%); }}
+  .tt-bar {{ display: block; height: 100%; border-radius: 3px; }}
+  .tt-bar-val {{ flex: 0 0 84px; text-align: right; font-size: 0.8em; color: #475467;
+    white-space: nowrap; }}
+  .tt-tooltip {{ position: absolute; z-index: 30; background: #0f172a; color: #fff;
+    font-size: 0.78em; padding: 4px 8px; border-radius: 6px; pointer-events: none;
+    max-width: 240px; }}
+  .tt-drivers-rollup {{ margin: 8px 0 14px 0; }}
+  .tt-rollup-head {{ margin: 0 0 4px 0; font-size: 0.88em; }}
+  .tt-rollup-list {{ margin: 0 0 0 1.1em; padding: 0; font-size: 0.84em; color: #344054; }}
+  .tt-rollup-evt {{ font-weight: 600; color: #1e3a8a; }}
+  .tt-perf-detail > summary {{ cursor: pointer; font-size: 0.92em; }}
+  html.dark .tt-chart-title {{ color: #93c5fd; }}
+  html.dark .tt-bar-track {{ background: #1f2430; }}
+  html.dark .tt-bar-track.tt-diverge {{ background: linear-gradient(90deg,#3b1d1d 0 50%,#16301f 50% 100%); }}
+  html.dark .tt-rollup-evt {{ color: #93c5fd; }}
+  html.dark .tt-chart-metrics .tt-metric {{ background: #16181d; color: #94a3b8;
+    border-color: #2a2f3a; }}
+  /* v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered summary */
+  .tt-sticky-summary {{ position: sticky; top: 0; z-index: 20; display: flex;
+    flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 7px 12px;
+    margin: 0 0 8px 0; background: #eff4ff; border: 1px solid #c7d2fe;
+    border-radius: 10px; font-size: 0.85em; }}
+  .tt-ss-cell {{ color: #475467; }}
+  .tt-ss-cell b {{ color: #0f172a; font-weight: 800; margin-left: 3px; }}
+  .tt-ss-cov {{ margin-left: auto; color: #1e3a8a; font-weight: 600; }}
+  .tt-filters {{ display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+    margin: 0 0 10px 0; }}
+  .tt-filter-group {{ display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }}
+  .tt-filter-label {{ font-size: 0.78em; font-weight: 700; color: #667085;
+    margin-right: 2px; }}
+  .tt-filter-chip {{ font: inherit; font-size: 0.8em; padding: 2px 9px;
+    border: 1px solid #d0d5dd; border-radius: 999px; background: #fff;
+    color: #475467; cursor: pointer; }}
+  .tt-filter-chip.active {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
+  .tt-filter-clear {{ font: inherit; font-size: 0.8em; padding: 2px 10px;
+    border: 1px solid #fca5a5; border-radius: 999px; background: #fef2f2;
+    color: #b91c1c; cursor: pointer; }}
+  html.dark .tt-sticky-summary {{ background: #16181d; border-color: #2a2f3a; }}
+  html.dark .tt-ss-cell b {{ color: #e5e7eb; }}
+  html.dark .tt-ss-cov {{ color: #93c5fd; }}
+  html.dark .tt-filter-chip {{ background: #16181d; color: #94a3b8; border-color: #2a2f3a; }}
   #tournament-detail-modal .ttd-grid {{ display: grid;
     grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px 0; }}
   #tournament-detail-modal .ttd-k {{ font-weight: 700; color: #475467; }}
@@ -6168,6 +6425,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .rng-hl-amber {{ background: #fff3d7; color: #a15c00; }}
   .rng-hl-red {{ background: #feeceb; color: #b42318; }}
   .rng-hl-neutral {{ background: #eef1f5; color: #53606f; }}
+  /* v8.17.1 P2b: Hero's exact combo pinpointed INSIDE the coloured range
+     notation — underlined + boxed so the reader sees where the hand sits. */
+  .rng-combo-hero {{ font-weight: 900; text-decoration: underline;
+    text-underline-offset: 2px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.25);
+    padding: 0 1px; border-radius: 3px; }}
   @media(max-width:620px){{
     .rq-rev-row {{ grid-template-columns: 22px auto auto minmax(0,1fr) auto;
       padding: 8px 10px; gap: 6px; }}
@@ -6411,6 +6673,12 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .coach-stack {{ display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }}
   .learn-card {{ border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
     background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }}
+  /* REV12 B3/B4: visible coaching-card ownership labels (desktop + mobile) */
+  .ownership-label {{ font-size: 11px; font-weight: 600; padding: 4px 10px; line-height: 1.3;
+    border-bottom: 1px solid #e2e8f0; }}
+  .ownership-earlier {{ background: #fef3c7; color: #92400e; }}
+  .ownership-population {{ background: #e0e7ff; color: #3730a3; }}
+  .ownership-wholehand {{ background: #f1f5f9; color: #475569; }}
   .learn-card.good {{ border-color: #86efac; }}
   .learn-card.warn {{ border-color: #fbbf24; }}
   .learn-card.bad {{ border-color: #f87171; }}

@@ -15,7 +15,7 @@ before reading other files or running any pipeline step:
        cp /mnt/project/session_*.csv . 2>/dev/null || true
        pip install --quiet phevaluator 2>/dev/null || \
            pip install --quiet phevaluator --break-system-packages || true
-   Expect: "GEM bundle <version>: extracted ~93 files" and a complete tree
+   Expect: "GEM bundle <version>: extracted ~99 files" and a complete tree
    INCLUDING the gem_report_draft/ package directory. The old 16-file
    manual package rebuild is OBSOLETE — the bundle preserves structure.
    The pip install is REQUIRED for exact EAI equity / True EV: without
@@ -30,7 +30,7 @@ before reading other files or running any pipeline step:
 2. Verify before proceeding:
        python -c "import gem_report_draft, gem_analyzer; print('imports OK')"
        python verify_release.py --project-dir .
-   Both must pass: expect a clean v8.17.0 copy — 43/43 files, 450 canaries,
+   Both must pass: expect a clean v8.17.1 copy — 49/49 files, 450 canaries,
    11 anti-canaries (the count grows as modules/canaries are added each release).
    On any failure STOP and tell Ron — do not improvise a report.
 

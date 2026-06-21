@@ -545,6 +545,86 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     """
     all_actions = app_details.get('actions') or {}
 
+    # ── REV11 E1: canonical action-semantic per Hero ledger action ──
+    # The action grid renders Hero rows from the SAME classifier as the reviewed-decision
+    # capsule (gem_decision_snapshot), so a first-in SB complete reads "Complete 0.5BB" (NOT
+    # "Call 0.5BB / need 18%"), an underblind shove reads "All-in … short of the BB", and a
+    # re-jam never reads "Call". Keyed by (street, Hero-occurrence-on-street).
+    _canon_by_street_occ = {}
+    try:
+        from gem_decision_snapshot import (reviewed_action_display as _ds_rad,
+                                           build_decision_snapshot as _ds_bds,
+                                           build_action_sizing_contract as _ds_asc)
+        _led_cg = h.get('action_ledger') or []
+        _hero_cg = h.get('hero', 'Hero')
+        _occ_cg = {}
+        for _li, _la in enumerate(_led_cg):
+            if _la.get('player') == _hero_cg and _la.get('action') != 'posts':
+                _st = _la.get('street', 'preflop')
+                _o = _occ_cg.get(_st, 0)
+                _occ_cg[_st] = _o + 1
+                try:
+                    _snap_cg = _ds_bds(h, _li)
+                    _disp_cg = _ds_rad(h, _li, _snap_cg)
+                    # REV14 B/C/D3: the grid consumes the SAME canonical ActionSizingContract +
+                    # DecisionPriceContract the reviewed capsule uses — so a Hero call shows the
+                    # canonical callable price + required equity (NOT a raw amount_bb / running-pot
+                    # recompute), and an all-in's "adds/all-in to" uses the live (ante-excluded) sizes.
+                    _sc_cg = _ds_asc(h, _li)
+                    _canon_by_street_occ[(_st, _o)] = {
+                        'display_text': _disp_cg.get('display_text'),
+                        'display_verb': _disp_cg.get('display_verb'),
+                        'hero_action_kind': _snap_cg.get('hero_action_kind'),
+                        'actual_node_type': _snap_cg.get('actual_node_type'),
+                        'price_applicable': bool(_snap_cg.get('price_applicable')),
+                        'facing': _snap_cg.get('decision_facing_state'),
+                        # REV14: live (ante-excluded) sizing + the canonical price/equity.
+                        'amount_added_bb': _sc_cg.get('amount_added_bb'),
+                        'total_to_bb': _sc_cg.get('live_betting_total_to_bb'),
+                        'continue_component_bb': _sc_cg.get('continue_component_bb'),
+                        'callable_amount_bb': _snap_cg.get('callable_amount_bb'),
+                        'required_equity_pct': _snap_cg.get('required_equity_pct'),
+                        'became_all_in': bool(_snap_cg.get('became_all_in_on_this_action')),
+                    }
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # REV16 §6/§8.5: the ONE full-history per-action canonical replay, read by EVERY action row
+    # (Hero AND villain) for its displayed physical size + live level — never raw added_bb. A row
+    # whose ledger index cannot be resolved counts as a raw-sizing fallback (gated to 0 on real data).
+    _grid_fallback = [0]
+    # REV17 §1.1: the ONE canonical hand id stamped on every sized row (data-hand-id) — the same id
+    # the Stage-P gate runner derives the source-expected + canonical action keys from.
+    _canon_hand_id = str(h.get('tournament_hand_id') or h.get('id') or '')
+
+    def _canon_replay(_lidx):
+        if _lidx is None:
+            return None
+        try:
+            from gem_decision_snapshot import canonical_action_replay as _car
+            return _car(h, _lidx)
+        except Exception:
+            return None
+
+    def _prim(_x):
+        """REV17 §1.1/§1.2: the ONE primary action-sizing display element per sized row. The frozen
+        row-bound parity gate binds this visible amount to the action-kind-required canonical value
+        (call/bet/jam -> physical, raise -> total-to); a second value uses _sec()."""
+        return f'<span data-sizing-role="primary">{_x:.1f}BB</span>'
+
+    def _sec(_x):
+        return f'<span data-sizing-role="secondary">{_x:.1f}BB</span>'
+
+    def _jam_headline(_phys, _lvl):
+        """REV16 §8.5 / REV17 §1.1: the ONE all-in headline for EVERY player — the chips committed this
+        action (`adds`, the PRIMARY) and the live level reached (`all-in to`, secondary), both
+        canonical. A first-in jam (no prior live chips this street) collapses to a single 'all-in X'."""
+        if _lvl is not None and abs(_lvl - _phys) > 0.05:
+            return f'⚡ JAM adds {_prim(_phys)}, all-in to {_sec(_lvl)}'
+        return f'⚡ JAM all-in {_prim(_phys)}'
+
     # ── Seat-stack fallback lookup (v8.4.2) ──
     _seat_stacks = {}
     for _pos, _stk_val in (h.get('seat_stacks_bb_all', {}) or {}).items():
@@ -630,10 +710,14 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             cell_html += f"<br><span class='cards'>{cards_html}</span>"
         if pot_str:
             cell_html += f"<span class='pot'>{pot_str}</span>"
-        # Board texture label on flop header
-        if street == 'flop' and h.get('board_texture'):
+        # Board texture label on flop header. v8.17.1 P0B: a stringified
+        # None/null/undefined must NEVER render as a visible texture label — the
+        # truthy string "None" was leaking into ~231 continued-street headers.
+        _bt_raw = h.get('board_texture')
+        if (street == 'flop' and _bt_raw
+                and str(_bt_raw).strip().lower() not in ('none', 'null', 'undefined')):
             _bt = _html_mod.escape(
-                h['board_texture'].replace('_', ' ')
+                str(_bt_raw).replace('_', ' ')
                 .replace('ahigh', 'A-high').replace('khigh', 'K-high')
                 .title())
             cell_html += f"<br><span class='board-tex pb-lbl'>{_bt}</span>"
@@ -681,6 +765,18 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             if _a.get('is_hero'):
                 _hero_last_idx_by_street[_st] = _ai
     _street_sentinel_placed = {}
+    # v8.17.1 P3b: each VILLAIN's last non-fold action index per (street, POS) so
+    # a villain-side evid sentinel can pin to THAT villain's last action row by
+    # position (the atom's ledger action_index drifts from grid per-street index).
+    _villain_last_idx_by_street_pos = {}
+    for _st in used_streets:
+        for _ai, _a in enumerate(all_actions.get(_st) or []):
+            if _a.get('is_hero') or _a.get('action') in ('posts', 'folds', 'fold'):
+                continue
+            _vp = (_a.get('position') or '').upper()
+            if _vp:
+                _villain_last_idx_by_street_pos[(_st, _vp)] = _ai
+    _villain_sentinel_placed = {}
 
     # B143: precompute trigger markers for fold-type mistakes.
     # When Hero folds with a critical note, mark the last aggressive villain
@@ -811,10 +907,23 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             p = a.get('position', '?')
             _pname = a.get('player', a.get('name', ''))
             stk = _grid_stack(a)
-            amt = a.get('amount_bb', 0) or 0
             act = a.get('action', '')
             allin = a.get('all_in', False)
             is_h = a.get('is_hero', False)
+            # REV16 §6/§8.5: source EVERY displayed size from the one full-history canonical replay —
+            # `amt` is the physical chips the player adds; `_raise_to` is the live level reached. The
+            # raw ledger amount_bb is NOT used for any displayed sizing (the parser folds the ante into
+            # it). On real data the replay always resolves; a miss falls back to raw and is counted.
+            _vr = _canon_replay(a.get('ledger_index'))
+            _raw_amt = a.get('amount_bb', 0) or 0
+            if _vr is not None:
+                amt = _vr['physical_amount_added_bb']
+                _vr_level_after = _vr['live_commitment_after_bb']
+            else:
+                if act in ('calls', 'bets', 'raises'):
+                    _grid_fallback[0] += 1
+                amt = _raw_amt
+                _vr_level_after = None
 
             pot_pct_html = ''
             if act == 'folds':
@@ -822,45 +931,69 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             elif act == 'checks':
                 cls = 'act-check'; text = f'{_ps(p, stk, _pname)} Check'
             elif act == 'calls':
-                cls = 'act-call'; text = f'{_ps(p, stk, _pname)} Call {amt:.1f}BB'
-                # Show required equity on hero calls
-                if is_h and running_pot > 0 and amt > 0:
-                    _req_eq = amt / (running_pot + amt) * 100
-                    _bet_frac = amt / running_pot
-                    if _bet_frac < 0.4:
-                        _sizing = 'small'
-                    elif _bet_frac < 0.8:
-                        _sizing = '~half-pot'
-                    elif _bet_frac < 1.2:
-                        _sizing = '~pot'
-                    else:
-                        _sizing = f'{_bet_frac:.1f}× pot'
-                    text += (f' <span class="pot-pct" title="Call {amt:.1f}BB into '
-                             f'{running_pot:.1f}BB pot ({_sizing})">'
+                cls = 'act-call'
+                # REV11 E1/B2/C2: a Hero 'calls' that is canonically NOT an ordinary priced call
+                # (a first-in complete/limp, an underblind short all-in, or a covering re-jam)
+                # renders the canonical verb and shows NO pot-odds (there is no voluntary wager to
+                # price). Only a genuine call FACING a wager keeps "Call X / need Y%".
+                _cg = _canon_by_street_occ.get((street, hero_action_idx_on_street)) if is_h else None
+                _cg_kind = (_cg or {}).get('hero_action_kind')
+                _cg_priced = bool((_cg or {}).get('price_applicable'))
+                # REV14 D3: a Hero priced call shows the CANONICAL callable price (the live amount
+                # Hero can actually commit), never the raw ledger amount_bb (ante-contaminated). The
+                # grid and the reviewed capsule therefore show the SAME call price (83616904: 1.0 vs
+                # 0.88 was the ante; 83914496: 14.7 not 14.85).
+                _call_amt = amt
+                if is_h and _cg is not None and _cg.get('callable_amount_bb') is not None and _cg_priced:
+                    _call_amt = _cg['callable_amount_bb']
+                text = f'{_ps(p, stk, _pname)} Call {_prim(_call_amt)}'
+                if _cg and _cg_kind == 'short_all_in':
+                    cls = 'act-allin'
+                    text = (f'{_ps(p, stk, _pname)} ⚡ All-in '
+                            f'<span data-sizing-role="primary">{amt:.2f}BB</span> (short of BB, first-in)')
+                elif _cg and (_cg or {}).get('facing') == 'first_in':
+                    _cverb = 'Complete' if p == 'SB' else 'Limp'
+                    text = f'{_ps(p, stk, _pname)} {_cverb} {_prim(_call_amt)} first-in'
+                # REV14 D3/E1: required equity comes from the CANONICAL contestable-pot contract (the
+                # same value the reviewed capsule shows), NOT a raw amt/(running_pot+amt) recompute
+                # over the full pot — which over-counts the uncallable overjam / side-pot chips Hero
+                # cannot win (83915165: grid 56% vs capsule 37.5%). Only a genuine priced Hero call.
+                if is_h and _cg is not None and _cg_priced and _cg.get('required_equity_pct') is not None:
+                    _req_eq = _cg['required_equity_pct']
+                    text += (f' <span class="pot-pct" title="Call {_call_amt:.1f}BB — canonical '
+                             f'required equity vs the contestable pot Hero can win">'
                              f'need {_req_eq:.0f}%</span>')
+                elif is_h and _cg is None and running_pot > 0 and amt > 0:
+                    # degenerate fallback (no canonical contract): the descriptive raw pot-odds.
+                    _req_eq = amt / (running_pot + amt) * 100
+                    text += (f' <span class="pot-pct" title="Call {amt:.1f}BB into '
+                             f'{running_pot:.1f}BB pot">need {_req_eq:.0f}%</span>')
                 running_pot += amt
                 _cl_name = a.get('name', a.get('player', '?'))
                 _street_commit[_cl_name] = _street_commit.get(_cl_name, 0) + amt
             elif act == 'bets':
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(
-                        amt, actions[i + 1:],
-                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
-                                      if (is_h and street == 'preflop') else None))
+                    # REV16 §8.5: the effective (matched) size is the canonical physical minus the
+                    # canonical uncalled return — no raw look-ahead arithmetic.
+                    _uret = (_vr['uncalled_return_bb'] if _vr else 0.0)
+                    _eff_amt = round(amt - _uret, 2)
+                    _was_capped = _uret > 0.05
+                    _lvl = _vr_level_after if _vr_level_after is not None else amt
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
+                    _jam = _jam_headline(amt, _lvl)
                     if _was_capped:
-                        text = (f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB '
+                        text = (f'{_ps(p, stk, _pname)} {_jam} '
                                 f'<span class="pot-pct">(eff {_eff_amt:.1f}BB'
                                 f'{", " + pp if pp else ""})</span>')
                     else:
-                        text = f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB{pp_html}'
+                        text = f'{_ps(p, stk, _pname)} {_jam}{pp_html}'
                 else:
                     cls = 'act-bet'
                     pp = _pot_pct_for_bet(street, amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
-                    text = f'{_ps(p, stk, _pname)} Bet {amt:.1f}BB{pp_html}'
+                    text = f'{_ps(p, stk, _pname)} Bet {_prim(amt)}{pp_html}'
                 _current_bet = amt
                 # v8.12.8 QA3 (66796475): a capped all-in's uncalled slice
                 # is RETURNED — counting the full jam inflated the pot and
@@ -872,21 +1005,23 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                             + _bt_add)
             elif act == 'raises':
                 _raise_count += 1
-                _raise_to = _current_bet + amt
+                # REV16 §8.3/§8.5: the raise-TO level comes from the canonical replay (the live level
+                # the action reaches), not raw current_bet + increment.
+                _raise_to = _vr_level_after if _vr_level_after is not None else (_current_bet + amt)
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(
-                        amt, actions[i + 1:],
-                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
-                                      if (is_h and street == 'preflop') else None))
+                    _uret = (_vr['uncalled_return_bb'] if _vr else 0.0)
+                    _eff_amt = round(amt - _uret, 2)
+                    _was_capped = _uret > 0.05
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
+                    _jam = _jam_headline(amt, _raise_to)
                     if _was_capped:
-                        text = (f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB '
+                        text = (f'{_ps(p, stk, _pname)} {_jam} '
                                 f'<span class="pot-pct">(eff {_eff_amt:.1f}BB'
                                 f'{", " + pp if pp else ""})</span>')
                     else:
-                        text = f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB{pp_html}'
+                        text = f'{_ps(p, stk, _pname)} {_jam}{pp_html}'
                 else:
                     cls = 'act-raise'
                     if street == 'preflop':
@@ -904,7 +1039,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         _rlbl = 'Raise to'
                     pp = _pot_pct_for_bet(street, _raise_to, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
-                    text = f'{_ps(p, stk, _pname)} {_rlbl} {_raise_to:.1f}BB{pp_html}'
+                    text = f'{_ps(p, stk, _pname)} {_rlbl} {_prim(_raise_to)}{pp_html}'
                 _current_bet = _raise_to
                 # v8.12.8 QA-GPT P0.1: charge the raiser their full
                 # catch-up delta (to-total minus prior street commitment),
@@ -919,6 +1054,11 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             else:
                 cls = ''; text = f'{_ps(p, stk, _pname)} {act} {amt:.1f}BB'
 
+            # REV16 §8.5: Hero AND villain all-in rows now share the ONE canonical _jam_headline
+            # (REV13's Hero-only ActionSizingContract override is subsumed — `amt` is the canonical
+            # physical and `_raise_to`/`_lvl` the canonical level, so every player's "adds X / all-in
+            # to Y" is sourced from the same full-history replay).
+
             # Hero annotation
             # B54/B57 (v7.55):
             # - No analyst note attached → 👍 (yellow thumbs-up): standard play, fine
@@ -926,7 +1066,13 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             # - Positive/confirming note → 👎 red thumbs-down: "good move + here's why"
             # B66 (v7.56, Ron 2026-05-18): emojis bumped via ann-emoji class
             ann_html = ''
-            if is_h:
+            # REV13 C1: a forced underblind short all-in (Hero all-in below the big blind, first-in)
+            # is NOT a strategic choice — it gets NO 👍/mistake marker. A green thumbs-up is a
+            # strategic grade, and the contract says this node is UNGRADED (84078253). The neutral
+            # explanation ("All-in XBB short of BB, first-in") lives in the action text itself.
+            _ann_cg = _canon_by_street_occ.get((street, hero_action_idx_on_street)) if is_h else None
+            _is_short_allin_ann = bool(_ann_cg and _ann_cg.get('hero_action_kind') == 'short_all_in')
+            if is_h and not _is_short_allin_ann:
                 note_key = (street, hero_action_idx_on_street)
                 note_num = action_to_note_num.get(note_key)
                 tone = (action_to_tone or {}).get(note_key)
@@ -974,6 +1120,9 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     elif act not in ('folds', 'checks') and not _q4_suppress:
                         # ~440x per report -> .pb-tt1
                         ann_html = '<span class="ann-bare pb-tt1">👍</span>'
+            # REV13 C1: the per-street Hero occurrence index advances for EVERY Hero action
+            # (including the marker-suppressed short all-in) so subsequent rows stay aligned.
+            if is_h:
                 hero_action_idx_on_street += 1
 
             # v8.8.6 VH Phase 4: inline villain badges at (street, action_index)
@@ -989,6 +1138,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                         if i == _hero_last_idx_by_street.get(street, i):
                             _vb_list = _vb_list + list(_sentinel)
                             _street_sentinel_placed[street] = True
+                else:
+                    # v8.17.1 P3b: villain-side sentinel — pin a (street, -1)
+                    # note/pivot/evid atom to THIS villain's last action row, gated
+                    # on the atom's villain_position == this row's position (never
+                    # 'last villain action'; the position gate keeps it on the
+                    # correct seat). Sentinel-anchored badges bypass the expect
+                    # filter — position + last-action IS the deliberate anchor.
+                    _vpos_row = (p or '').upper()
+                    if (_vpos_row
+                            and i == _villain_last_idx_by_street_pos.get((street, _vpos_row))
+                            and not _villain_sentinel_placed.get((street, _vpos_row))):
+                        for _vs in villain_badges.get((street, -1), []):
+                            if (_vs.get('type') in ('note', 'pivot', 'evid')
+                                    and (_vs.get('villain_position') or '') == _vpos_row):
+                                _vb_list = _vb_list + [dict(_vs, _sentinel_anchored=True)]
+                                _villain_sentinel_placed[(street, _vpos_row)] = True
                 for _vb in _vb_list:
                     _vbt = _vb.get('type', 'note')
                     # v8.12.8 (QA F): badge-row ownership — villain evidence
@@ -1004,7 +1169,7 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     # are street-space — require the row's action kind to
                     # match the badge's declared kind, else suppress.
                     _vb_exp = _vb.get('expect')
-                    if _vb_exp and act not in _vb_exp:
+                    if _vb_exp and not _vb.get('_sentinel_anchored') and act not in _vb_exp:
                         continue
                     _vb_cls = 'vb-' + _vbt
                     _vb_lbl = _vb.get('label', '')
@@ -1030,7 +1195,26 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                     f'↪<sup>{_tm_note}</sup></span>')
 
             hero_cls = ' is-hero' if is_h else ''
-            lines.append(f'<span class="grid-action {cls}{hero_cls}">{text}{ann_html}{trigger_html}{vb_html}</span>')
+            # REV17 §1.1: bind every SIZED rendered action (call / bet / raise / jam, Hero AND villain)
+            # to its exact canonical (hand, ledger action, player, action kind) via machine-readable
+            # attributes the frozen row-bound parity gate reads. data-physical-bb / live-total-bb /
+            # uncalled-return-bb are the canonical full-history replay values; data-sizing-source is
+            # canonical_replay (a miss is the raw fallback, counted). Checks / folds / posts are not
+            # sized actions and carry no marker.
+            _akind = {'act-call': 'call', 'act-bet': 'bet', 'act-allin': 'jam', 'act-raise': 'raise'}.get(cls)
+            _data_attrs = ''
+            if _akind is not None and a.get('ledger_index') is not None:
+                _src = 'canonical_replay' if _vr is not None else 'raw_fallback'
+                _phys = (_vr['physical_amount_added_bb'] if _vr is not None else amt)
+                _ltot = (_vr['live_commitment_after_bb'] if _vr is not None else amt)
+                _unc = (_vr['uncalled_return_bb'] if _vr is not None else 0.0)
+                _hid_attr = _html_mod.escape(str(_canon_hand_id), quote=True)
+                _pid_attr = _html_mod.escape(str(_pname), quote=True)
+                _data_attrs = (f' data-hand-id="{_hid_attr}" data-ledger-index="{a.get("ledger_index")}"'
+                               f' data-player-id="{_pid_attr}" data-action-kind="{_akind}"'
+                               f' data-sizing-source="{_src}" data-physical-bb="{_phys:.1f}"'
+                               f' data-live-total-bb="{_ltot:.1f}" data-uncalled-return-bb="{_unc:.1f}"')
+            lines.append(f'<span class="grid-action {cls}{hero_cls}"{_data_attrs}>{text}{ann_html}{trigger_html}{vb_html}</span>')
             i += 1
 
         col_cells.append(''.join(lines))
@@ -1174,7 +1358,14 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
         from gem_report_draft._helpers import _hand_preflop_range_role as _role_hg
         _hero_role_hg = _role_hg(h)
         _hero_jammed_pf = (_hero_role_hg == 'open_shove')
-        if (_hero_jammed_pf
+        # REV12 C1: a forced first-in UNDERBLIND short all-in (<1BB) is NOT a strategic open-shove —
+        # never render a "Wrong/Correct push" verdict or an 8BB-proxy push chart for it (84078253).
+        _is_short_allin_pv = False
+        for _ce in _canon_by_street_occ.values():
+            if _ce.get('actual_node_type') == 'first_in_short_all_in' or _ce.get('hero_action_kind') == 'short_all_in':
+                _is_short_allin_pv = True
+                break
+        if (_hero_jammed_pf and not _is_short_allin_pv
                 and (h.get('eff_stack_bb_at_decision') or h.get('stack_bb', 99)) <= 15):
             _ppos = h.get('position', '?')
             _pcards = h.get('cards', [])
@@ -1210,11 +1401,22 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                       f"depth; no exact chart at {_eff_now:.1f}BB.")
                     # v8.13.1 P1: reconcile against the FINAL analyst verdict so
                     # the auto widget never contradicts it.
+                    # v8.17.1 P5(1): the "analyst cleared it" override consumes the
+                    # ONE canonical verdict (active-queue or analyst decision) so the
+                    # push footer can never disagree with the topbar / pill / markers.
                     _av_pv = ''
                     if rd:
-                        _cmt_pv = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
-                        if isinstance(_cmt_pv, dict):
-                            _av_pv = _cmt_pv.get('verdict', '') or ''
+                        _cvm_pv = rd.get('canonical_verdicts') or {}
+                        _cv_pv = (_cvm_pv.get(h.get('id'))
+                                  or _cvm_pv.get(str(h.get('id', ''))[-8:]))
+                        if _cv_pv is not None:
+                            if _cv_pv.get('source') in ('active_queue',
+                                                        'analyst_reviewed'):
+                                _av_pv = _cv_pv.get('verdict', '') or ''
+                        else:
+                            _cmt_pv = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                            if isinstance(_cmt_pv, dict):
+                                _av_pv = _cmt_pv.get('verdict', '') or ''
                     _mode_pv, _note_pv = reconcile_push_widget(_in, _av_pv)
                     if _mode_pv == 'overridden':
                         _in_color = '#6b7280'
@@ -1265,11 +1467,20 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                     # label a not-yet-reviewed auto check as a pre-review heuristic.
                     _cj_near = (f"Nearest chart: {_cdl_hg(_cj_key)}; actual effective "
                                 f"stack: {_cj_stack:.1f}BB.")
+                    # v8.17.1 P5(1): same canonical override source as the push footer.
                     _av_cj = ''
                     if rd:
-                        _cmt_cj = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
-                        if isinstance(_cmt_cj, dict):
-                            _av_cj = _cmt_cj.get('verdict', '') or ''
+                        _cvm_cj = rd.get('canonical_verdicts') or {}
+                        _cv_cj = (_cvm_cj.get(h.get('id'))
+                                  or _cvm_cj.get(str(h.get('id', ''))[-8:]))
+                        if _cv_cj is not None:
+                            if _cv_cj.get('source') in ('active_queue',
+                                                        'analyst_reviewed'):
+                                _av_cj = _cv_cj.get('verdict', '') or ''
+                        else:
+                            _cmt_cj = (rd.get('analyst_commentary') or {}).get(h.get('id')) or {}
+                            if isinstance(_cmt_cj, dict):
+                                _av_cj = _cmt_cj.get('verdict', '') or ''
                     _cj_mode, _ = reconcile_push_widget(_cj_in, _av_cj)
                     if _cj_mode == 'overridden':
                         _cj_color = '#6b7280'
@@ -1294,7 +1505,20 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     n_cols = len(used_streets)
 
     # Emit table
-    doc.w(f"<table class='hand-grid'{_push_verdict_attr}>")
+    # v8.17.1 P5(1): the action-row grid carries the SAME canonical verdict the
+    # topbar / push & call-jam footer / capsule / queue read (zero drift).
+    _canon_attr = ''
+    try:
+        _cvm_g = (rd or {}).get('canonical_verdicts') or {}
+        _cv_g = (_cvm_g.get(h.get('id'))
+                 or _cvm_g.get(str(h.get('id', ''))[-8:]) or {})
+        _cvv_g = _cv_g.get('verdict', '') or ''
+        if _cvv_g:
+            _canon_attr = (" data-canonical-verdict='"
+                           + _html_mod.escape(_cvv_g, quote=True) + "'")
+    except Exception:
+        _canon_attr = ''
+    doc.w(f"<table class='hand-grid'{_push_verdict_attr}{_canon_attr}>")
     doc.w("<thead><tr>")
     for h_html in headers:
         doc.w(f"<th>{h_html}</th>")

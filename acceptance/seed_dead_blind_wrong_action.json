@@ -1,0 +1,33 @@
+{
+  "seed_id": "R4J",
+  "title": "post_type=dead_blind with missing / wrong action",
+  "description": "A record carrying post_type=dead_blind but action=raises must FAIL as malformed, not be filtered away.",
+  "target_gate": "dead_blind_attribution_gate",
+  "replay_records": [
+    {
+      "idx": 1,
+      "player": "Hero",
+      "action": "raises",
+      "post_type": "dead_blind",
+      "semantic_status": "explicit_unknown",
+      "physical_bb": 0.5,
+      "stack_before_bb": 30.0,
+      "stack_after_bb": 29.5,
+      "total_contribution_before_bb": 1.0,
+      "total_contribution_after_bb": 1.5,
+      "live_commitment_before_bb": 0.0,
+      "live_commitment_after_bb": 0.0
+    }
+  ],
+  "expected_dead_blind_keys": [
+    1
+  ],
+  "required_failure": {
+    "detector": "dead_blind_attribution_gate",
+    "failure_class": "dead_blind_malformed_action",
+    "min_violations": 1,
+    "required_mismatch_field_any": [
+      "dead_blind_wrong_or_missing_action:raises"
+    ]
+  }
+}

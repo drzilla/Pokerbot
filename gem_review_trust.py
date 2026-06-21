@@ -53,6 +53,75 @@ _CATEGORY_LABEL = {
 _VALID_STREETS = ('preflop', 'flop', 'turn', 'river')
 
 
+# ============================================================
+# v8.17.1 P0C — internal-token UI-boundary translation + visible-copy lint
+# ============================================================
+# Internal bucket/detector/snake_case keys → plain user copy. The INTERNAL IDs
+# stay stable for routing/joins; only the DISPLAY string changes. Translate at
+# the UI emit boundary so a raw key can never reach a visible text node. Reused
+# by the commentary sanitizer (P1), villain copy (P3) and the all-in/verdict
+# surfaces (P5). Order-independent values; substitution tries longest keys first.
+UI_TOKEN_TRANSLATION = {
+    'Potential detector blind spot': 'Losing hands not explained by current detectors — spot-check sample',
+    'spots cleared / monitored': 'hands reviewed and cleared',
+    'spots cleared or monitored': 'hands reviewed and cleared',
+    'detector blind spot': 'losing hands with no detector flag',
+    'known_leak': 'Known leak',
+    'auto_cleared': 'reviewed and cleared',
+    'auto_clear': 'reviewed and cleared',
+    'auto-clear': 'reviewed and cleared',
+    'blindspot_audit': 'Losing hands not explained by current detectors',
+    'cleared_batch': 'Hands reviewed and cleared',
+    'source_truth': 'source',
+    'price_engine': 'price source',
+    'decision_kind': 'decision type',
+}
+
+
+def translate_ui_token(text):
+    """Replace any internal token in ``text`` with its plain-language display
+    form. Pure string substitution at the UI boundary — callers must NOT run it
+    over data-* attributes, <script> JSON payloads, or internal ids. Returns the
+    text unchanged when it carries no known internal token. Longest keys first so
+    'Potential detector blind spot' wins over the 'detector blind spot' substring.
+    """
+    if not text:
+        return text
+    out = str(text)
+    for k in sorted(UI_TOKEN_TRANSLATION, key=len, reverse=True):
+        if k in out:
+            out = out.replace(k, UI_TOKEN_TRANSLATION[k])
+    return out
+
+
+# Tokens that must NEVER appear in VISIBLE user copy. The W-UICOPY build lint
+# scans extracted visible text ONLY — never data-* attrs or <script> JSON, where
+# internal ids are legitimate. Snake_case / bracketed / raw-chart-prefix forms
+# only; legitimate spaced English like "Known leak" is allowed.
+UICOPY_BANNED_VISIBLE = (
+    '[DEV]',
+    'known_leak', 'auto_clear', 'auto_cleared',
+    'PUSH_', 'REJAM_', 'CALLJAM_',
+    'detector blind spot', 'Potential detector blind spot',
+    'spots cleared / monitored', 'spots cleared or monitored',
+    'source_truth', 'price_engine', 'decision_kind',
+)
+
+
+def ui_copy_violations(visible_text):
+    """Return the sorted list of UICOPY_BANNED_VISIBLE tokens present in
+    ``visible_text`` (the caller has already stripped tags / excluded attrs and
+    <script> JSON). Empty list == clean. Pure; the verify/report W-UICOPY gate
+    consumes this."""
+    if not visible_text:
+        return []
+    found = set()
+    for tok in UICOPY_BANNED_VISIBLE:
+        if tok in visible_text:
+            found.add(tok)
+    return sorted(found)
+
+
 def is_generic_reason(text):
     """True when ``text`` is empty or is ONLY a banned generic phrase (i.e. it
     carries no concrete content). A reason that merely CONTAINS a generic word
@@ -171,6 +240,85 @@ def verdict_validation_issue(verdict, has_bound_action_marker, has_explanation):
 
 
 # ============================================================
+# v8.17.1 P5 — ONE canonical verdict resolver + marker/commentary parity gate
+# ============================================================
+def _verdict_result(value, source):
+    nv = _norm_verdict(value)
+    return {'verdict': value, 'source': source,
+            'marker': ('mistake' if nv in MISTAKE_VERDICTS else 'cleared'),
+            'scrub_negative': nv in NON_MISTAKE_VERDICTS,
+            'data_verdict': value}
+
+
+def resolve_canonical_verdict(active_queue=None, analyst=None, auto=None, outcome=None):
+    """The ONE canonical verdict every surface reads (topbar / action annotation /
+    commentary capsule / evidence queue / review queue / hand-list) so they never
+    disagree. Priority: (1) active queue decision > (2) canonical analyst-reviewed
+    > (3) canonical auto > (4) neutral Review > (5) outcome/variance label ONLY
+    when it IS a decision classification (Cooler/Flip/…), never a bare result.
+    Result / net BB / tournament outcome must NEVER silently replace decision
+    quality — a pure result falls through to neutral Review. Returns
+    {verdict, source, marker, scrub_negative, data_verdict}. Pure (primitive in)."""
+    for src, val in (('active_queue', active_queue),
+                     ('analyst_reviewed', analyst), ('auto', auto)):
+        if val:
+            return _verdict_result(val, src)
+    decision_outcomes = set(MISTAKE_VERDICTS) | set(NON_MISTAKE_VERDICTS)
+    if outcome and _norm_verdict(outcome) in decision_outcomes:
+        return _verdict_result(outcome, 'outcome_only')
+    return {'verdict': REVIEW_FALLBACK, 'source': 'neutral_review',
+            'marker': 'neutral', 'scrub_negative': False, 'data_verdict': None}
+
+
+def marker_parity_issues(markers, notes, villain_evidence=None, atoms=None):
+    """Every visible action marker must reference a commentary item tied to the
+    same decision/evidence atom. Returns a list of orphan findings (build FAILs on
+    any). Pure; inputs are caller-derived:
+      markers = [{'kind':'thumbs'|'mistake'|'trigger'|'villain_evidence', 'ref':id|None}]
+      notes   = ids of existing commentary items; villain_evidence = villain atom ids.
+    A mistake/trigger marker needs a bound note; a villain-evidence marker needs a
+    bound note OR villain atom; a thumbs (positive confirmation) needs none.
+
+    v8.17.1 P5(2): when `atoms` is supplied — a {ref: {'player','street',
+    'action_index'}} map of the canonical decision/evidence atoms — a marker that
+    also carries those keys is additionally checked for IDENTITY parity (structured
+    identities only, never text proximity): a marker bound to a ref whose atom is a
+    DIFFERENT player is flagged (wrong-player); a different street/action is flagged
+    (wrong-action); a marker that claims an action cue ('claims_row') with no
+    resolvable row (action_index None) is flagged. atoms=None keeps legacy behaviour."""
+    note_ids = set(notes or [])
+    ve_ids = set(villain_evidence or [])
+    atoms = atoms or {}
+    issues = []
+    for m in markers or []:
+        kind = (m.get('kind') or '').lower()
+        ref = m.get('ref')
+        if kind in ('mistake', 'trigger'):
+            if not ref or ref not in note_ids:
+                issues.append('orphan %s marker (no bound commentary: %r)' % (kind, ref))
+        elif kind in ('villain_evidence', 'evid'):
+            if not ref or ref not in (note_ids | ve_ids):
+                issues.append('orphan villain-evidence marker (no bound note: %r)' % ref)
+        # Identity parity — only when the caller supplies the canonical atoms.
+        atom = atoms.get(ref) if ref is not None else None
+        if atom is not None:
+            if (m.get('player') is not None and atom.get('player') is not None
+                    and m.get('player') != atom.get('player')):
+                issues.append('marker %s bound to the wrong player (marker=%r atom=%r)'
+                              % (kind, m.get('player'), atom.get('player')))
+            _ms, _mi = m.get('street'), m.get('action_index')
+            _as, _ai = atom.get('street'), atom.get('action_index')
+            if (_ms is not None and _as is not None and _ms != _as) or \
+               (_mi is not None and _ai is not None and _mi != _ai):
+                issues.append('marker %s bound to the wrong street/action '
+                              '(marker=%r atom=%r)' % (kind, (_ms, _mi), (_as, _ai)))
+        # Commentary claiming an action cue with no resolvable row.
+        if m.get('claims_row') and m.get('action_index') is None:
+            issues.append('marker %s claims an action cue with no resolvable row' % kind)
+    return issues
+
+
+# ============================================================
 # Objective 7 — preflop all-in decision math (by type)
 # ============================================================
 ALLIN_MATH_KINDS = ('call_vs_jam', 'open_shove', 'rejam', 'not_allin')
@@ -210,6 +358,113 @@ def required_allin_fields(kind):
     """The decision-time arithmetic fields a render MUST show for this all-in
     type (drives a completeness check). Empty for 'not_allin'."""
     return _REQUIRED_ALLIN_FIELDS.get(kind, ())
+
+
+def allin_completeness_issue(kind, rendered_fields, register=None):
+    """v8.17.1 P5: every scored all-in decision must render the COMPLETE math
+    block (all required_allin_fields for its kind) OR be an explicit
+    no_clear_lesson that names the missing input — never an empty body. Returns an
+    issue string (build FAIL) or None. rendered_fields = the field keys actually
+    present in the render. A no_clear_lesson register is accepted (it states the
+    gap). Pure."""
+    if kind in (None, '', 'not_allin'):
+        return None
+    if (register or '') == 'no_clear_lesson':
+        return None
+    missing = set(required_allin_fields(kind)) - set(rendered_fields or [])
+    if missing:
+        return ('all-in (%s) decision missing required math fields %s and is not '
+                'a no_clear_lesson naming the gap' % (kind, sorted(missing)))
+    return None
+
+
+# v8.17.1 P5(3): human labels for the all-in math fields + kinds, used by the
+# render fallback note so a missing canonical input is named in plain English.
+_ALLIN_FIELD_HUMAN = {
+    'to_call': 'amount to call', 'pot_before_call': 'pot at the decision',
+    'required_equity': 'required equity', 'estimated_equity': 'equity vs range',
+    'chip_ev': 'chip EV', 'bounty_adjusted': 'bounty contribution / provenance',
+    'hero_risk': 'amount Hero risks', 'pot_available': 'pot available to win',
+    'effective_stack': 'effective stack', 'equity_when_called': 'equity when called',
+    'range_relationship': 'shove-range relationship',
+    'fold_equity_or_ev': 'fold-equity / shove EV',
+}
+_ALLIN_KIND_HUMAN = {
+    'call_vs_jam': 'call-vs-jam', 'open_shove': 'open-shove', 'rejam': 're-jam',
+}
+
+
+def _allin_has(v):
+    return v not in (None, '', '—')
+
+
+def allin_rendered_fields(po, hand, kind):
+    """v8.17.1 P5(3): from the canonical pot-odds object + hand fields, the set of
+    required-math field keys that are actually rendered for this all-in kind.
+    PURE; reads only prepared facts — never reconstructs stacks or invents math.
+    'bounty_adjusted' is satisfied for a freezeout (correctly N/A) or when the
+    bounty value/provenance is present."""
+    po = po or {}
+    hand = hand or {}
+    present = set()
+    _is_bty = (str(hand.get('format') or '') in ('BOUNTY', 'MYSTERY_BOUNTY', 'PKO')
+               or (hand.get('bounty_value_bb') or 0) > 0 or bool(po.get('bounty')))
+    _bty_ok = ((not _is_bty) or bool(po.get('bounty'))
+               or _allin_has(hand.get('bounty_value_bb'))
+               or _allin_has(hand.get('bounty_value_provenance')))
+    if kind == 'call_vs_jam':
+        if _allin_has(po.get('call_bb')):
+            present.add('to_call')
+        if _allin_has(po.get('pot_before_call_bb')):
+            present.add('pot_before_call')
+        if _allin_has(po.get('required_eq_pct')):
+            present.add('required_equity')
+        if _allin_has(po.get('hero_equity_pct')):
+            present.add('estimated_equity')
+        if _allin_has(po.get('ev_call_bb')):
+            present.add('chip_ev')
+        if _bty_ok:
+            present.add('bounty_adjusted')
+    elif kind in ('open_shove', 'rejam'):
+        if _allin_has(hand.get('eff_stack_bb_at_decision')) or _allin_has(hand.get('stack_bb')):
+            present.add('hero_risk')
+            present.add('effective_stack')
+        if (_allin_has(po.get('pot_before_call_bb')) or _allin_has(po.get('pot_bb'))
+                or _allin_has(hand.get('pot_bb'))):
+            present.add('pot_available')
+        if _allin_has(po.get('hero_equity_pct')):
+            present.add('equity_when_called')
+        # range_relationship: the push/jam-range chart membership check.
+        if hand.get('_push_range_checked') or _allin_has(hand.get('pf_range_role')) \
+                or _allin_has(hand.get('hero_preflop_range_role')):
+            present.add('range_relationship')
+        # fold_equity_or_ev: only when a shove EV / fold-equity figure was modelled
+        # (the pot-odds engine models CALLS, not shove fold-equity — usually absent).
+        if _allin_has(po.get('ev_call_bb')) or _allin_has(hand.get('shove_ev_bb')):
+            present.add('fold_equity_or_ev')
+        if _bty_ok:
+            present.add('bounty_adjusted')
+    return present
+
+
+def allin_completeness_note(kind, po, hand, capsule_register=None):
+    """v8.17.1 P5(3): the compact no_clear_lesson markdown line a render path emits
+    for a scored Hero all-in whose complete math is NOT modelled — naming the exact
+    missing canonical input. Returns '' when the math is complete or a
+    no_clear_lesson capsule already states the gap. Never invents equity/EV/bounty."""
+    if kind in (None, '', 'not_allin', 'unknown'):
+        return ''
+    if (capsule_register or '') == 'no_clear_lesson':
+        return ''
+    rf = allin_rendered_fields(po, hand, kind)
+    if not allin_completeness_issue(kind, rf, register=capsule_register):
+        return ''
+    missing = sorted(set(required_allin_fields(kind)) - set(rf))
+    human = ', '.join(_ALLIN_FIELD_HUMAN.get(m, m) for m in missing)
+    return ("\U0001F4CA **All-in math — no clear lesson:** the complete "
+            + _ALLIN_KIND_HUMAN.get(kind, kind)
+            + " math is not fully modelled here (missing: " + human + "). "
+            "Review manually — no equity, EV or bounty value is inferred.")
 
 
 def equity_label(is_heuristic):

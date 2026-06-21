@@ -1,0 +1,45 @@
+{
+  "seed_id": "R1G",
+  "title": "two hands share ledger index 20 (composite identity)",
+  "description": "Hand A correct, hand B wrong, both at ledger 20. Composite identity must flag only B.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6000000AAA",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    },
+    {
+      "hand_id": "TM6000000BBB",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 12.2,
+      "live_total_bb": 12.2,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6000000AAA",
+      20
+    ],
+    [
+      "TM6000000BBB",
+      20
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-jam\" data-hand-id=\"TM6000000AAA\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">Hero <span data-sizing-role=\"primary\">18.1BB</span></span><span class=\"grid-action act-jam\" data-hand-id=\"TM6000000BBB\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"12.3\" data-live-total-bb=\"12.3\" data-uncalled-return-bb=\"0.0\">Hero <span data-sizing-role=\"primary\">12.3BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "composite_identity_violation",
+    "required_violation_hand_id": "TM6000000BBB",
+    "required_violation_ledger_index": 20
+  }
+}

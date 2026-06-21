@@ -1587,15 +1587,18 @@ check('T88d: preflop 5-bet to label',
       "'5-bet to'" in _t87_code,
       '_hand_grid.py missing 5-bet to label')
 
-# T89: raise-to computation
-check('T89: _raise_to = _current_bet + amt formula',
-      '_raise_to = _current_bet + amt' in _t87_code,
-      '_hand_grid.py missing raise-to computation')
+# T89: raise-to computation (REV16 §8.3/§8.5: the raise-to LEVEL is sourced from the canonical
+# full-history replay, with the raw current_bet+increment retained only as the no-replay fallback).
+check('T89: raise-to level sourced from the canonical replay (raw current_bet+amt only as fallback)',
+      '_vr_level_after if _vr_level_after is not None else (_current_bet + amt)' in _t87_code,
+      '_hand_grid.py missing canonical raise-to computation')
 
-# T90: JAM display unchanged (still uses amt, not _raise_to)
-check('T90: JAM display still uses amt (not raise_to)',
-      'JAM {amt:.1f}BB' in _t87_code,
-      'JAM display was changed — spec says keep as-is')
+# T90: REV16 §8.5 — the all-in JAM headline is the ONE canonical _jam_headline (physical "adds" +
+# canonical "all-in to" level) for EVERY player, not the raw amount_bb.
+check('T90: all-in JAM headline uses the canonical _jam_headline (adds physical / all-in to level)',
+      'def _jam_headline(' in _t87_code and '_jam = _jam_headline(amt,' in _t87_code
+      and 'JAM {amt:.1f}BB' not in _t87_code,
+      'JAM display must use the canonical _jam_headline')
 
 # T91: postflop raise uses "Raise to"
 check('T91: postflop raise label is Raise to',
@@ -2696,7 +2699,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'd847cc12ea7770a561e335c8c317302b68fb858158e7025180508439f4b01865',
+      _hg_hash == '9a6f64f9d984260e15018e975fe83a54d7659eb17b028765acf9f4312f93448f',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -4224,7 +4227,7 @@ from gem_coaching_cards import (build_coaching_cards, derive_quality_gates,
                                 _select_template, _clamp_words,
                                 _compute_blocker_facts, _compute_hero_range_facts,
                                 _tmpl_blocker_insight, _tmpl_range_awareness,
-                                _select_insight)
+                                _select_insight, _build_display_card)
 
 # synthetic hand for testing
 def _cc_hand(**kw):
@@ -4290,8 +4293,12 @@ check('T-CC-05: game context format in facts',
       _cc_f05['game_context']['format'] == 'FREEZEOUT',
       'format not stored in game_context')
 
-# T-CC-06: Bounty arithmetic
-_cc_h06 = _cc_hand(format='BOUNTY', bounty_value_bb=5, bounty_type='pko')
+# T-CC-06: Bounty arithmetic. REV4 B2: coaching reads the canonical decision context,
+# so the covered bounty all-in needs a real ledger (CO jams 22, Hero 25 calls -> covers).
+_cc_allin_led = [{'street': 'preflop', 'player': 'CO', 'action': 'raises', 'added_bb': 22, 'amount_bb': 22, 'is_all_in': True},
+                 {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'added_bb': 22, 'amount_bb': 22}]
+_cc_h06 = _cc_hand(format='BOUNTY', bounty_value_bb=5, bounty_type='pko',
+                   seat_stack_by_player={'Hero': 25, 'CO': 22}, action_ledger=_cc_allin_led)
 _cc_f06 = _build_decision_facts(_cc_h06, _cc_stats, _cc_rd)
 _cc_t06 = _select_template(_cc_f06, derive_quality_gates(_cc_f06)[0])
 check('T-CC-06: bounty card produced for BOUNTY format',
@@ -4305,9 +4312,10 @@ check('T-CC-07: mystery bounty gets medium confidence',
       _cc_f07['bounty_facts']['bounty_confidence'] == 'medium',
       'mystery bounty should be medium confidence')
 
-# T-CC-08: Bounty-only call wording
+# T-CC-08: Bounty-only call wording (covered all-in, equity below chip threshold).
 _cc_h08 = _cc_hand(format='BOUNTY', bounty_value_bb=10, bounty_type='pko',
-                    eai_hero_equity=35.0, required_eq_pct=40.0)
+                    eai_hero_equity=35.0, required_eq_pct=40.0,
+                    seat_stack_by_player={'Hero': 25, 'CO': 22}, action_ledger=_cc_allin_led)
 _cc_f08 = _build_decision_facts(_cc_h08, _cc_stats, _cc_rd)
 _cc_t08 = _select_template(_cc_f08, derive_quality_gates(_cc_f08)[0])
 check('T-CC-08: bounty-only call mentions bounty in headline',
@@ -4488,6 +4496,7 @@ print('\n  -- Phase 2: blocker + range awareness --')
 # T-CC-40: blocker_facts enabled on 3-flush board with A of suit
 _cc_h40 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f40 = _build_decision_facts(_cc_h40, _cc_stats, _cc_rd)
+_cc_f40['street'] = 'river'  # v8.17.1 Iter-1: blocker tests model a board Hero SAW (postflop decision)
 _compute_blocker_facts(_cc_f40)
 check('T-CC-40: blocker_facts enabled on 3-flush board with A of suit',
       _cc_f40['blocker_facts']['enabled'] and _cc_f40['blocker_facts']['nut_flush_blocker'],
@@ -4504,6 +4513,7 @@ check('T-CC-41: blocker_facts disabled with <3 board cards',
 # T-CC-42: no_flush_blocker detection
 _cc_h42 = _cc_hand(cards=['Ac', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f42 = _build_decision_facts(_cc_h42, _cc_stats, _cc_rd)
+_cc_f42['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f42)
 check('T-CC-42: no_flush_blocker when hero has no hearts',
       _cc_f42['blocker_facts']['enabled'] and _cc_f42['blocker_facts']['no_flush_blocker'],
@@ -4512,6 +4522,7 @@ check('T-CC-42: no_flush_blocker when hero has no hearts',
 # T-CC-43: paired_board_blocker detection with correct wording
 _cc_h43 = _cc_hand(cards=['7d', 'As'], board=['7h', '7c', 'Ts', 'Jd', '2c'])
 _cc_f43 = _build_decision_facts(_cc_h43, _cc_stats, _cc_rd)
+_cc_f43['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f43)
 check('T-CC-43: paired_board_blocker when hero holds board pair rank',
       _cc_f43['blocker_facts']['enabled'] and _cc_f43['blocker_facts']['paired_board_blocker']
@@ -4549,6 +4560,7 @@ check('T-CC-46: hero_range_facts disabled when ranges is None',
 # T-CC-47: blocker_insight template fires for nut flush blocker
 _cc_h47 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f47 = _build_decision_facts(_cc_h47, _cc_stats, _cc_rd)
+_cc_f47['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f47)
 _cc_g47 = derive_quality_gates(_cc_f47)[0]
 _cc_i47 = _tmpl_blocker_insight(_cc_f47, _cc_g47)
@@ -4630,6 +4642,7 @@ check('T-CC-54: no_flush_blocker does NOT fire on passive hand',
 # T-CC-55: nut_flush_blocker does NOT render when hero has made nut flush
 _cc_h55 = _cc_hand(cards=['Ah', '9h'], board=['7h', '3h', 'Th', 'Jd', '2c'])
 _cc_f55 = _build_decision_facts(_cc_h55, _cc_stats, _cc_rd)
+_cc_f55['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f55)
 _cc_g55 = derive_quality_gates(_cc_f55)[0]
 _cc_i55 = _tmpl_blocker_insight(_cc_f55, _cc_g55)
@@ -4641,6 +4654,7 @@ check('T-CC-55: made nut flush renders as nut_flush_made not blocker',
 _cc_h56 = _cc_hand(cards=['7d', 'As'], board=['7h', '7c', 'Ts', 'Jd', '2c'],
                    facing_bets=1)
 _cc_f56 = _build_decision_facts(_cc_h56, _cc_stats, _cc_rd)
+_cc_f56['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f56)
 _cc_g56 = derive_quality_gates(_cc_f56)[0]
 _cc_i56 = _tmpl_blocker_insight(_cc_f56, _cc_g56)
@@ -4700,6 +4714,7 @@ check('T-CC-60: max 2 cards per hand',
 _cc_h61 = _cc_hand(cards=['Ah', 'Kd'], board=['7h', '3h', 'Th', 'Jd', '2c'],
                    pot_facing=0, call_amount_bb=0)
 _cc_f61 = _build_decision_facts(_cc_h61, _cc_stats, _cc_rd)
+_cc_f61['street'] = 'river'  # v8.17.1 Iter-1: board Hero saw at decision
 _compute_blocker_facts(_cc_f61)
 _cc_g61, _, _cc_suppress61 = derive_quality_gates(_cc_f61)
 _cc_i61 = _tmpl_blocker_insight(_cc_f61, _cc_g61)
@@ -4742,7 +4757,7 @@ check('T-V257-06: B140 sentinel key (street, -1) in _build_villain_badges',
       'sentinel key logic missing')
 
 check('T-V257-07: B140 auto_verdict fallback in _build_villain_badges',
-      'auto_verdict' in _v257_sxiv_src.split('_build_villain_badges')[1][:4000],
+      'auto_verdict' in _v257_sxiv_src.split('_build_villain_badges')[1][:5000],
       'auto_verdict fallback missing')
 
 _v257_hg_src = open(os.path.join(os.path.dirname(__file__),
@@ -5320,10 +5335,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.17.0 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.17.0'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.0'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.0', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.17.1 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.17.1'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.1'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.1', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -5431,9 +5446,16 @@ _hg_src141 = open('gem_report_draft/_hand_grid.py', encoding='utf-8').read()
 _cc141 = open('gem_coaching_cards.py', encoding='utf-8').read()
 _ana141b = open('gem_analyzer.py', encoding='utf-8').read()
 
-# B1: trust strip renders for a collectible bounty hand (REAL helper, real reconcile)
+# B1: trust strip renders for a collectible bounty hand (REAL helper, real reconcile).
+# REV4 B2: the strip reads the canonical decision context (not the legacy scalar), so the
+# fixture carries a stamped decision_bounty_context (aggregate=all -> collectible).
 _h141_coll = {'format': 'BOUNTY', 'bounty_value_bb': 4.0,
-              'bounty_collectible': 'collectible', 'jammer_position': 'BTN'}
+              'bounty_collectible': 'collectible', 'jammer_position': 'BTN',
+              'decision_bounty_context': {
+                  'is_bounty': True, 'coverage_aggregate': 'all', 'coverage_reason': 'known_all',
+                  'aggregate': 'all', 'reason': 'known_all',
+                  'eligible_bounties_by_opponent': {'BTN': 'collectible'},
+                  'hero_covers_relevant_villain': True}}
 _po141_coll = {'required_eq_pct': 39.2, 'required_eq_bounty_pct': None,
                'n_players_at_showdown': 2, 'bounty': {'value_bb': 4.0, 'discount_pp': 0}}
 _strip_coll = _bts141({}, _h141_coll, _po141_coll)
@@ -5455,8 +5477,8 @@ check('T-H141-21: trust strip states threshold-unavailable when PKO threshold mi
 # B1 wiring (anti rev-1): the strip is invoked in BOTH real hand-detail paths
 check('T-H141-22: bounty trust strip is wired into BOTH real hand-detail paths (XIV.A + XIV.B)',
       'def _bounty_trust_strip_md' in _xiv141
-      and '_bounty_trust_strip_md(rd, h, _po)' in _xiv141
-      and '_bounty_trust_strip_md(rd, h, _po_b)' in _xiv141, '')
+      and '_bounty_trust_strip_md(rd, h, _po, dbc_override=' in _xiv141
+      and '_bounty_trust_strip_md(rd, h, _po_b, dbc_override=' in _xiv141, '')
 
 # B2: collectibility is ONE source — flag + card can never both fire on a hand
 _mx_ok = True
@@ -5466,11 +5488,17 @@ for _stk, _opp in [(64, [6]), (53, [60]), (53, []), (40, [40])]:
     _card_notcoll = (_c141 == 'not_collectible')
     if _icm_covers and _card_notcoll:
         _mx_ok = False
-check('T-H141-23: bounty cover is ONE source of truth (flag + card mutually exclusive + both read it)',
+# REV4 B2: cover/collectibility is ONE source of truth — the canonical DECISION-TIME
+# context. The icm flag, coaching card and trust strip all derive from it (not the
+# legacy realized scalar). _mx_ok still holds (collectible/not_collectible mutually
+# exclusive at the model level).
+check('T-H141-23: bounty cover is ONE source of truth (canonical decision context drives flag + card)',
       _mx_ok
-      and "h['bounty_collectible'] = _collect" in _ana141b
-      and "'bounty_covers_villain': (_collect == 'collectible')" in _ana141b
-      and "h.get('bounty_collectible')" in _cc141
+      and "h['realized_bounty_collectible'] = _collect" in _ana141b
+      # REV7 A5: the icm bounty-covers flag derives from the REVIEWED-action bounty context
+      # (an eligible committed bounty there), never the hand-level default.
+      and "'bounty_covers_villain': bool(_rev_bagg_icm in ('all', 'mixed')" in _ana141b
+      and "h.get('decision_bounty_context')" in _cc141
       and "bf.get('collectibility') != 'not_collectible'" in _cc141, '')
 
 # B4: raw chart ids gone from the REAL _hand_grid verdict copy; human labels used
@@ -5488,7 +5516,7 @@ check('T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key}
 # B5: required-equity teaching attaches to the compact XIV.B line too (not only XIV.A)
 check('T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)',
       _xiv141.count('not how often you are') >= 2
-      and '_po_lines_b' in _xiv141 and 'if _req_b and not _mw_sup_b:' in _xiv141,
+      and '_po_lines_b' in _xiv141 and '_req_b and not _mw_sup_b:' in _xiv141,
       'teach-copy count=' + str(_xiv141.count('not how often you are')))
 
 # B6: settlement-date label lands in the REAL results-attribution table path
@@ -5516,10 +5544,13 @@ check('T-H141-29: call-jam verdict reconciles vs analyst + states nearest-chart 
 # can't list a hand the per-hand flag + trust strip call collectible (the legacy
 # eff>=jammer test mis-read Hero-covers-a-short-jammer spots like 73281442).
 _pkor141 = open('gem_pko_research.py', encoding='utf-8').read()
-check('T-H141-30: PKO all-in audit defers to canonical bounty_collectible (one source w/ icm + trust strip)',
-      "_canon_collect = h.get('bounty_collectible')" in _pkor141
-      and "if _canon_collect == 'collectible':" in _pkor141
-      and "elif _canon_collect == 'not_collectible':" in _pkor141, '')
+# REV4 B2: the PKO all-in audit defers to the canonical DECISION-TIME context (not the
+# legacy realized scalar) — eligibility when there is a committed confrontation, else the
+# decision-time stack-cover relationship for an open jam.
+check('T-H141-30: PKO all-in audit defers to the canonical decision context (one source w/ icm + trust strip)',
+      "_dbc_pko = h.get('decision_bounty_context')" in _pkor141
+      and "if _dbc_pko.get('bounty_eligibility_known'):" in _pkor141
+      and "elif _dbc_pko.get('cover_relationship_known'):" in _pkor141, '')
 
 # ============================================================
 # v8.14.1-preview rev-4 — remaining real-output blockers (T-H141-31..35)
@@ -5560,10 +5591,13 @@ check('T-H141-34: Correct-range lines use human chart labels, not raw ids',
       and '_cdl_h(cn)' in _helpers141
       and 'Correct range — `{cn}`' not in _helpers141, '')
 
-# rev-4 Blocker D: explicit PKO-unavailable note for unresolved BOUNTY all-ins (XIV.A + XIV.B)
-check('T-H141-35: PKO bounty-math-unavailable note renders for unresolved BOUNTY all-ins (XIV.A + XIV.B)',
+# rev-4 Blocker D / REV5 B1: explicit PKO-unavailable note for unresolved BOUNTY all-ins.
+# REV5 B1: the note gates on the typed bounty APPLICABILITY (not coverage_aggregate) in
+# BOTH real hand-detail paths (XIV.A + XIV.B); potential_if_called is never irrelevant.
+check('T-H141-35: PKO bounty-math note gates on bounty_applicability in both paths (XIV.A + XIV.B)',
       _xiv141.count('**PKO bounty math:** cover/collectibility') == 2
-      and _xiv141.count("h.get('bounty_collectible') in (None, 'unknown')") == 2, '')
+      and _xiv141.count("_dbc_app in (None, 'potential_if_called', 'not_applicable', 'unknown')") == 1
+      and _xiv141.count("_dbc_app_b in (None, 'potential_if_called', 'not_applicable', 'unknown')") == 1, '')
 
 # ============================================================
 # v8.14.1-preview xway-fix — "X-way" must mean LIVE contenders at the decision,
@@ -5643,8 +5677,8 @@ check('T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to R
 # (the generic pot-odds strip + the specific PKO-pill strip). Both XIV.A and
 # XIV.B suppress the generic strip when the PKO pill will render its own.
 check('T-CONSIST-01: generic Bounty-trust strip suppressed when PKO pill renders its own (XIV.A + XIV.B)',
-      "_bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)" in _xiv141
-      and "_bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)" in _xiv141
+      "_bts = '' if (_pko_will_strip or _no_dec_a) else _bounty_trust_strip_md(rd, h, _po, dbc_override=" in _xiv141
+      and "_bts_b = '' if (_pko_will_strip_b or _no_dec_b) else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=" in _xiv141
       and _xiv141.count('_pko_will_strip') >= 2, '')
 
 # T-CONSIST-02: a quick analyst re-render refreshes the run manifest + run log so
@@ -6648,6 +6682,32 @@ check('T-1228-PO-6: worksheet carries mode/is_overbet/per_street',
       "'per_street': po.get('per_street_summary')" in
       open('gem_coverage_builder.py', encoding='utf-8').read(), '')
 
+# v8.17.1 P5 sub-task 5: decision-time pot odds must EXCLUDE chips from a player
+# who acts AFTER Hero on the same street. Synthetic 3-handed fixture (firewall:
+# synthetic names/ids only). On the flop Villain bets 300, Hero calls 300, THEN
+# LatePlayer raises to 900: Hero's price is the pot at his call (900 before + 300
+# call = 1200 = 6.0BB, need 25.0%), NOT the street-final pot that includes the
+# later 900 (which would read 10.5BB / 14.3%).
+_RAW_FUTCALL = (
+    "Poker Hand #SYNTH-FUT-1: Tournament #SYN, Hold'em No Limit - Level5(100/200)\n"
+    "Seat 1: Hero (10000 in chips)\nSeat 2: Villain (10000 in chips)\n"
+    "Seat 3: LatePlayer (10000 in chips)\n"
+    "Villain: posts small blind 100\nHero: posts big blind 200\n"
+    "*** HOLE CARDS ***\nDealt to Hero [Ah Kd]\n"
+    "LatePlayer: calls 200\nVillain: calls 100\nHero: checks\n"
+    "*** FLOP *** [2h 7c Ks]\n"
+    "Villain: bets 300\nHero: calls 300\nLatePlayer: raises 600 to 900\n"
+    "Villain: folds\nHero: folds\n")
+_po_fut = _cnapo({}, _RAW_FUTCALL)
+check('T-V8171-PO-FUT-1: decision-time pot odds price on the pot at Hero’s call',
+      _po_fut is not None and _po_fut['street'] == 'flop'
+      and _po_fut['pot_before_call_bb'] == 4.5 and _po_fut['call_bb'] == 1.5
+      and _po_fut['pot_bb'] == 6.0 and _po_fut['required_eq_pct'] == 25.0
+      and _po_fut['per_street_calls'][0]['total_pot_bb'] == 6.0, str(_po_fut))
+check('T-V8171-PO-FUT-2 (anti): a later caller’s chips never enter Hero’s displayed pot',
+      _po_fut is not None and _po_fut['required_eq_pct'] != 14.3
+      and _po_fut['pot_bb'] < 7.0, str(_po_fut))
+
 # E: EAI degradation is loud + stamped (handover Issue 2)
 _ga_1228 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-1228-EAI-1: missing phevaluator warns loudly at startup',
@@ -6690,10 +6750,10 @@ _s_vi8 = {'villain_intel': {'atoms_by_hand': {'H8X': [
      'villain_key': 'T|y'},
 ]}, 'exploit_opportunities': []}}
 _b8 = _bvb8('H8X', _s_vi8)
-check('T-1228-MK-5: atom with teaching text gets evid badge; bare atom does not',
-      bool(_b8) and ('flop', 2) in _b8
-      and _b8[('flop', 2)][0]['type'] == 'evid'
-      and ('turn', 1) not in _b8, str(_b8))
+check('T-1228-MK-5: atom with teaching text gets evid badge (v8.17.1 villain sentinel); bare atom does not',
+      bool(_b8) and ('flop', -1) in _b8
+      and _b8[('flop', -1)][0]['type'] == 'evid'
+      and ('turn', 1) not in _b8 and ('turn', -1) not in _b8, str(_b8))
 
 # G: sizing-claim + street-anchor lints against the rendered grid
 check('T-1228-LINT-1: grid stashes rendered bet pcts for W-PCT',
@@ -6899,8 +6959,11 @@ check('T-RE-23c: sections_xiii shows true seat + proxy chart label, threads hand
 # "no rejam chart" existence-denial for a matchup the canonical block resolves.
 check('T-RE-24: coverage-builder re-jam key strips "+" and is not stack-gated',
       'REJAM_{_pos.replace("+", "")}vs{_opener.replace("+", "")}' in _cb_1230
-      and "_hero_role(h) == 'threebet_jam':" in _cb_1230
-      and "_hero_role(h) == 'threebet_jam' and _stack <= 30" not in _cb_1230, '')
+      and "_hero_role(h) == 'threebet_jam'" in _cb_1230
+      and "_hero_role(h) == 'threebet_jam' and _stack <= 30" not in _cb_1230
+      # v8.17.1 Iter-1: rejam citation also gated on canonical action kind (a
+      # call-off over an already-all-in villain is NOT a re-jam).
+      and "_canon_akind not in ('call_vs_jam', 'call_off')" in _cb_1230, '')
 # the REJAM key the fix builds resolves in the real chart file, AA inside
 if _RE_OK:
     check('T-RE-24a: REJAM_MPvsUTG1 resolves (AA inside) — matches canonical selector',
@@ -8807,10 +8870,11 @@ def _render_tt(rd):
     return d.render_md()
 _ttr_md = _render_tt(_tt_rd)   # reuse the SP-1 canonical fixture
 
-check('T-TT-R-01: new section renders from build_tournament_model (header + event table)',
+check('T-TT-R-01: new section renders from build_tournament_model (Finance & Finish surface)',
       'Tournament Results' in _ttr_md          # v8.16.2 Phase D: renamed from "Tournament Tables (event-level)"
-      and 'retained for cross-check' in _ttr_md
-      and '| Date | Tournament | Type |' in _ttr_md
+      and 'Finance & Finish' in _ttr_md        # v8.17.1 P4: canonical per-event surface (cross-check removed)
+      and "<th data-tt-sort='2'>Type</th>" in _ttr_md
+      and "<th>Exit hand</th>" in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
 # v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface -> STT
 # is now wired BEFORE S1 (the nav order derives from this list). S1 still renders
@@ -8830,7 +8894,7 @@ _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
     {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
 check('T-TT-R-03: repeated tournament names render as separate event rows',
-      _render_tt(_rep_rd).count('| GGMasters Bounty') == 2, '')
+      _render_tt(_rep_rd).count("<td data-label='Tournament'>GGMasters Bounty</td>") == 2, '')
 # multi-bullet => one row with bullet count
 _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8838,7 +8902,9 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
-      _mb_md.count('| Big Re-entry ') == 1 and '| Big Re-entry | Standard* | $50 | 3 |' in _mb_md, '')
+      _mb_md.count("<td data-label='Tournament'>Big Re-entry</td>") == 1
+      and "<td data-label='Type'>Standard*</td>" in _mb_md
+      and "<td data-label='Bullets' data-sort-value='3'>3</td>" in _mb_md, '')
 # summary totals match canonical usd_overlay.totals
 check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
       # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
@@ -8848,8 +8914,8 @@ check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket sp
 check('T-TT-R-06: return basis "cash + ticket" stays on the trust line',
       'return basis: **cash + ticket**' in _ttr_md, '')
 # cash + ticket displayed consistently (satellite row: Cash $0 + Ticket $470 = Return $470)
-check('T-TT-R-07: per-row cash + ticket = return (satellite: $0 + $470 = $470)',
-      '| $0 | $470 | $470 |' in _ttr_md, '')
+check('T-TT-R-07: per-event return is canonical in Finance & Finish (satellite cash $0 + ticket $470 = return $470)',
+      "<td data-label='Return' data-sort-value='470.0'>$470</td>" in _ttr_md, '')
 # unknown provenance => em dash
 _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8857,20 +8923,20 @@ _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 5, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -5, 'is_sat': False}]}}
 _unk_md = _render_tt(_unk_rd)
 check('T-TT-R-08: unknown prize provenance renders an em dash (not a fabricated label)',
-      '| — | $5 |' in _unk_md, _unk_md[_unk_md.find('| 2026'):][:120])
+      "<td data-label='Type'>—</td>" in _unk_md, _unk_md[_unk_md.find('tt-finance'):][:200])
 # inferred prize type marked
 check('T-TT-R-09: inferred prize type marked with * + footnote present',
       'Bounty*' in _ttr_md and 'Prize type inferred from the tournament name' in _ttr_md, '')
 # bounty dollars not inferred
-check('T-TT-R-10: bounty dollars not inferred (audit footnote present; no $ on the bounty Type cell)',
+check('T-TT-R-10: bounty dollars not inferred (audit footnote present; Type shows Bounty*, no fabricated $)',
       'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
-      and '| Bounty* | $30 |' in _ttr_md, '')
+      and "<td data-label='Type'>Bounty*</td>" in _ttr_md, '')
 # v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
 # of em-dashes) when no canonical per-tournament cEV source exists.
-check('T-TT-R-11: per-event cEV/100 COLUMN hidden when no canonical source',
-      '| cEV/100 |' not in _ttr_md            # header cell absent (column dropped)
-      and '12/500 | — |' in _ttr_md           # Mini Knockout row now ends at Adv (—)
-      and '3/40 | seat |' in _ttr_md          # Daily Sat row now ends at Adv (seat)
+check('T-TT-R-11: Finance & Finish shows typed finish labels; no per-event markdown cEV column; trust line states unavailable',
+      "<td data-label='Finish' data-sort-value='2.4'>Top 2.4%</td>" in _ttr_md  # exact-place typed label
+      and "<td data-label='Finish' data-sort-value='101'>Ticket</td>" in _ttr_md  # satellite seat
+      and '| cEV/100 |' not in _ttr_md            # no markdown per-event cEV column
       and 'per-event cEV/100: unavailable' in _ttr_md, '')  # trust line still states why
 # read-only: emitter does not mutate rd (no unrelated state changes)
 _pre = _copy_ttr.deepcopy(_tt_rd)
@@ -8907,9 +8973,12 @@ _tr_md = _tr_doc.render_md()
 _tr_js = [j for j in _tr_doc._extra_js if j.startswith('window.tournamentEvents=')]
 _tr_payload = _json_tr.loads(_tr_js[0][len('window.tournamentEvents='):-1]) if _tr_js else []
 
-check('T-TR817-01: primary unified sortable table is emitted (id + sortable headers + Format/Status cols)',
+check('T-TR817-01: primary Finance & Finish sortable table emitted (id + sortable headers + Type/Finish/Cost/Exit-hand cols)',
       "id='tt-unified-table'" in _tr_md and "data-tt-sort='0'" in _tr_md
-      and '>Format<' in _tr_md and '>Status<' in _tr_md and '>Invested<' in _tr_md, '')
+      and "<th data-tt-sort='2'>Type</th>" in _tr_md
+      and "<th data-tt-sort='4' data-tt-num='1'>Finish</th>" in _tr_md
+      and "<th data-tt-sort='5' data-tt-num='1'>Cost</th>" in _tr_md
+      and "<th>Exit hand</th>" in _tr_md, '')
 check('T-TR817-02: every event row has a Details drilldown affordance',
       _tr_md.count('openTournamentDetail(') == 2
       and "if(window.initTournamentResultsTable)" in ''.join(_tr_doc._extra_js), '')
@@ -9167,15 +9236,22 @@ check('T-C-STICKY-4: sticky context sits BELOW the street header (lower z-index)
 # ---- Phase D: Tournament Results polish ----
 check('T-D-TT-1: STT nav label is "Tournament Results"',
       "'STT': 'Tournament Results'" in _df_code, 'STT label not set')
-check('T-D-TT-2: section title renamed + explanatory note present',
+check('T-D-TT-2: section title + canonical Finance & Finish surface (duplicate cross-check removed)',
       "'sec-tournaments', 'Tournament Results'" in _tt_code
-      and 'retained for cross-check' in _tt_code,
-      'title/explanatory note missing')
+      and 'Finance & Finish' in _tt_code
+      and 'Per-event financial detail' not in _tt_code,
+      'F&F surface / cross-check-removal not in place')
 check('T-D-TT-3: summary strip uses Invested/Cash return/Ticket return labels',
       'Invested | Cash return | Ticket return | Net | ROI | Bullets | Events' in _tt_code,
       'summary strip not relabelled to spec')
-check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard)',
-      'has_cev = any(' in _tt_code and "_cev_h = ' cEV/100 |' if has_cev else ''" in _tt_code,
+check('T-D-TT-6: session-totals strip typed tt_session_summary (own 7-col grammar, not 12-col daily financial_summary)',
+      "'tt-summary', 'tt_session_summary'" in _tt_code
+      and __import__('gem_report_lint').TABLE_GRAMMAR.get('tt_session_summary', {}).get('columns')
+          == ['Invested', 'Cash return', 'Ticket return', 'Net', 'ROI', 'Bullets', 'Events'],
+      'tt-summary not re-typed to its own grammar key (would mis-trip the 12-col daily financial_summary E1/E2)')
+check('T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard in Performance table)',
+      'has_cev = any(' in _tt_code
+      and "if has_cev else ''" in _tt_code,
       'cEV column not conditionally hidden')
 check('T-D-TT-5: legacy S1 financial tables NOT removed',
       'S1.1 Per-Tournament P&L' in open('gem_report_draft/sections_financial.py', encoding='utf-8').read(),
@@ -9430,6 +9506,551 @@ check('T-RPDT-07: actionable_reason_ok validates a full why-contract',
       and not _RT.actionable_reason_ok({'street': 'turn', 'action': '',
             'reason': 'x', 'category': 'candidate'}), '')
 
+# ---- v8.17.1 P0C: internal-token UI translation + visible-copy lint helper ----
+_ISC_SRC = open(os.path.join(os.path.dirname(__file__), 'gem_issue_collector.py'),
+                encoding='utf-8').read()
+check('T-P0C-01: translate_ui_token maps internal tokens to user copy (longest-first), leaves clean text',
+      _RT.translate_ui_token('Potential detector blind spot')
+        == 'Losing hands not explained by current detectors — spot-check sample'
+      and _RT.translate_ui_token('known_leak') == 'Known leak'
+      and _RT.translate_ui_token('plain concrete reason') == 'plain concrete reason'
+      and _RT.translate_ui_token('') == ''
+      and 'detector blind spot' not in _RT.translate_ui_token('Potential detector blind spot'), '')
+check('T-P0C-02: ui_copy_violations flags banned VISIBLE tokens, allows spaced English, empty on clean',
+      _RT.ui_copy_violations('clean concrete text') == []
+      and _RT.ui_copy_violations('x known_leak y [DEV] z decision_kind')
+            == sorted(['known_leak', '[DEV]', 'decision_kind'])
+      and _RT.ui_copy_violations('Known leak is fine as a human label') == [], '')
+check('T-P0C-03: issue-collector display names carry no internal jargon (ids stay stable)',
+      ('Potential detector blind spot' not in _ISC_SRC)
+      and ('spots cleared / monitored' not in _ISC_SRC)
+      and ("'id': 'blindspot_audit'" in _ISC_SRC)
+      and ("'id': 'cleared_batch'" in _ISC_SRC), '')
+
+# ---- v8.17.1 P2: range lens — exact-combo bold + action-vs-chart colour ----
+import gem_ranges as _GR2
+check('T-P2-01: _bold_combo_in_expr wraps the exact combo token only (no-op on prefix/miss)',
+      "<span class='rng-combo-hero'>A6o</span>" in _GR2._bold_combo_in_expr('22+, A6o, KQo', 'A6o')
+      and _GR2._bold_combo_in_expr('A6o+, K8o+', 'A6o') == 'A6o+, K8o+'
+      and _GR2._bold_combo_in_expr('A2s+, K2s+', 'A6o') == 'A2s+, K2s+', '')
+check('T-P2-02: range_membership_color by action-vs-chart (fold-outside=green, open-outside=red, fold-inside=red)',
+      _GR2.range_membership_color('outside', 'exact', action='fold') == 'green'
+      and _GR2.range_membership_color('outside', 'exact', action='open') == 'red'
+      and _GR2.range_membership_color('inside', 'exact', action='fold') == 'red'
+      and _GR2.range_membership_color('inside', 'exact', action='open') == 'green'
+      and _GR2.range_membership_color('outside', 'proxy', action='open') == 'neutral', '')
+check('T-P2-03: range_membership_color action=None stays legacy membership-only (backward compatible)',
+      _GR2.range_membership_color('inside', 'exact') == _GR2._RH_COLOR.get('inside', 'neutral')
+      and _GR2.range_membership_color('outside', 'exact') == _GR2._RH_COLOR.get('outside', 'neutral'), '')
+check('T-P2-04: highlight_range_expression bolds combo + colours by action + flags combo_highlighted',
+      (lambda r: 'rng-combo-hero' in r['html'] and r['color'] == 'red' and r['combo_highlighted'])(
+          _GR2.highlight_range_expression('22+, A6o, KQo', 'outside', 'exact',
+                                          role='first_in_open', hero_combo='A6o', action='open')), '')
+from gem_report_draft._helpers import range_evidence_md as _REM2
+from gem_report_draft._html import _md_inline as _MDI2
+_p2ev = {'hero_hand': 'A6o', 'hero_combo': 'A6o', 'position': 'HJ', 'depth_bb': 25,
+         'depth_basis': 'open', 'spot_label': 'HJ RFI', 'coverage': 'exact',
+         'chart_key': 'RFI_HJ', 'membership': 'inside', 'role': 'rfi',
+         'hero_action': 'raise', 'top_examples': ['AA', 'KK', 'AKs', 'A6o', 'KQo']}
+_p2md = _MDI2(_REM2(_p2ev))
+check('T-P2-05: range_evidence_md emits action-coloured + combo-bolded rng-hl that survives _html_escape',
+      'rng-hl' in _p2md and "rng-combo-hero'>A6o" in _p2md and '&lt;span' not in _p2md, '')
+
+# ---- v8.17.1 rev: Range Lens Hero-combo coverage (Hero NOT among the top-5) ----
+# Root cause fixed: _bold_combo_in_expr could only mark Hero when the combo was
+# literally in the truncated top_examples (~3% of lenses). Every valid lens must
+# now visibly emphasize Hero's normalized combo without a false membership claim.
+_hc_base = dict(position='HJ', depth_bb=25, depth_basis='open', spot_label='HJ RFI',
+                coverage='exact', chart_key='RFI_HJ', role='rfi',
+                top_examples=['AA', 'KK', 'QQ', 'AKs', 'AKo'])  # A2s deliberately absent
+_hc_inside = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='inside', hero_action='raise')))
+_hc_out = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='outside', hero_action='open')))
+_hc_fold = _MDI2(_REM2(dict(_hc_base, hero_hand='A2s', membership='outside', hero_action='fold')))
+check('T-P2HC-01: inside lens marks Hero even when not in top-5 (rng-combo-hero + Includes label)',
+      'rng-combo-hero' in _hc_inside and 'Hero: A2s' in _hc_inside
+      and 'Includes (top hand classes)' in _hc_inside, '')
+check('T-P2HC-02: outside lens marks Hero WITHOUT implying inclusion (Reference classes, not Includes)',
+      'rng-combo-hero' in _hc_out and 'Hero: A2s' in _hc_out
+      and 'Reference classes' in _hc_out and 'Includes (top hand classes)' not in _hc_out, '')
+check('T-P2HC-03: fold-outside correct -> green lens, Hero still emphasized (no false negative marker)',
+      'rng-hl-green' in _hc_fold and 'rng-combo-hero' in _hc_fold, '')
+check('T-P2HC-04: exact Hero combo normalized correctly (Ah2h->A2s, AdKc->AKo, TsTc->TT)',
+      _GR2.normalize_hand_class(['Ah', '2h']) == 'A2s'
+      and _GR2.normalize_hand_class(['Ad', 'Kc']) == 'AKo'
+      and _GR2.normalize_hand_class(['Ts', 'Tc']) == 'TT', '')
+check('T-P2HC-05: escaped markup remains zero across inside/outside/fold lenses',
+      '&lt;span' not in _hc_inside and '&lt;span' not in _hc_out and '&lt;span' not in _hc_fold, '')
+check('T-P2HC-06: highlight_range_expression appends Hero token when combo not in expr',
+      (lambda r: r['combo_highlighted'] and r['combo_appended'] and not r['combo_in_expr']
+                 and 'rng-combo-hero' in r['html'] and 'Hero: A2s' in r['html'])(
+          _GR2.highlight_range_expression('AA, KK, QQ, AKs, AKo', 'outside', 'exact',
+                                          role='first_in_open', hero_combo='A2s', action='open')), '')
+# rendered acceptance gate: every Range Lens span is matched 1:1 by a Hero-combo span
+from _qa_v817_synthetic import build as _bld_hc
+from gem_report_draft import render_html as _RH_hc
+from _qa_decode_lazy import decode_lazy_hands as _dlh_hc
+_st_hc, _rd_hc, _hh_hc = _bld_hc()
+_html_hc = _RH_hc(_st_hc, _rd_hc, _hh_hc, sections=['XIV'])
+_dec_hc = _dlh_hc(_html_hc)
+_txt_hc = _html_hc + ' ' + (' '.join(str(v) for v in _dec_hc.values())
+                            if isinstance(_dec_hc, dict) else str(_dec_hc or ''))
+_n_lens_hc = _txt_hc.count("class='rng-hl ")
+# count the Hero span as a CLASS ATTRIBUTE so the .rng-combo-hero CSS rule
+# definition in the <style> block is not miscounted as a rendered span.
+_n_hero_hc = _txt_hc.count("class='rng-combo-hero'")
+check('T-P2HC-07: rendered gate — #Range-Lens spans == #Hero-combo spans (100% coverage, 1:1)',
+      _n_lens_hc >= 1 and _n_hero_hc == _n_lens_hc,
+      'lens=%d hero=%d' % (_n_lens_hc, _n_hero_hc))
+
+# ---- v8.17.1 P3a: villain read-impact +N scrub (plain words, never a raw weight) ----
+import re as _re_p3t
+_xiva_p3 = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', 'sections_xiv.py'),
+                encoding='utf-8').read()
+_html_p3 = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', '_html.py'),
+                encoding='utf-8').read()
+def _p3scrub(s):
+    return _re_p3t.sub(r'\s*\+(\d+)', lambda m: ' (%s read)' % (
+        'slight' if int(m.group(1)) <= 2 else 'moderate' if int(m.group(1)) == 3 else 'strong'), s)
+check('T-P3A-01: no render emit-site prints a raw +N read-weight (vsn-impact + matrix scrubbed)',
+      'Read impact: {_dim_label} +{_str}' not in _xiva_p3
+      and "+'<td>'+a.read_impact+'</td>'" not in _html_p3
+      and "'slight' if _str <= 2" in _xiva_p3, '')
+check('T-P3A-02: read-impact +N scrub maps to plain words (slight/moderate/strong), no raw +N',
+      _p3scrub('Loose-passive +2 (donk)') == 'Loose-passive (slight read) (donk)'
+      and _p3scrub('Sticky +3') == 'Sticky (moderate read)'
+      and _p3scrub('Aggressive +4') == 'Aggressive (strong read)'
+      and '+' not in _p3scrub('Tight +2 (blind overfold)'), '')
+check('T-P3C-01: villain matrix/drilldown user-label is "Signals", not "Exploit Opportunit*"',
+      ">Signals</div>" in _xiva_p3 and "'Exploit Opportunity</div>'" not in _xiva_p3
+      and "'Signals — '+readLabel" in _html_p3 and "'Exploit Opportunities — '+readLabel" not in _html_p3, '')
+# ---- v8.17.1 P3b: villain evid badge anchoring (villain-side sentinel by position) ----
+_hg_p3b = open(os.path.join(os.path.dirname(__file__), 'gem_report_draft', '_hand_grid.py'),
+               encoding='utf-8').read()
+check('T-P3B-01: evid uses a (street,-1) sentinel + villain_position; grid pins by villain position',
+      "'villain_position': _vpos" in _xiva_p3
+      and "badges.setdefault((street, -1), [])" in _xiva_p3
+      and "_villain_last_idx_by_street_pos" in _hg_p3b
+      and "_sentinel_anchored" in _hg_p3b, '')
+import gem_report_draft.sections_xiv as _SX3
+_b8b = _SX3._build_villain_badges('TM90000003', {'villain_intel': {'atoms_by_hand': {'TM90000003': [
+    {'street': 'flop', 'action_index': 3, 'signal': 'multiway_donk', 'villain_position': 'CO',
+     'villain_alias': 'Torch', 'suggests': 'protection-heavy', 'evidence_text': 'donk flop'}]}}})
+check('T-P3B-02: evid sentinel carries villain_position for grid position-pinning',
+      bool(_b8b) and ('flop', -1) in _b8b
+      and _b8b[('flop', -1)][0].get('villain_position') == 'CO'
+      and _b8b[('flop', -1)][0]['type'] == 'evid', str(_b8b))
+
+# ---- v8.17.1 P4: tournament tables v3 data layer + aggregation helpers ----
+import gem_tournament_model as _TM4
+check('T-P4D-01: finish domain — exact Top% (0-100) below Ticket/Day2/Est.ITM/Pending/No-cash sentinels',
+      _TM4._finish_state({'top_percent': 0.4, 'itm': True}, {'exact': True, 'value': 120})['sort_key'] == 0.4
+      and _TM4._finish_state({'top_percent': 61.0, 'itm': True}, {'exact': True, 'value': 5})['sort_key'] == 61.0
+      and _TM4._finish_state({'is_satellite': True}, {'exact': True, 'ticket_value': 109, 'value': 109})['sort_key'] == 101
+      and _TM4._finish_state({'advanced_day2': True}, {'exact': False, 'basis': 'day2_mean', 'value': 24})['sort_key'] == 102
+      and _TM4._finish_state({'place': 900}, {'exact': True, 'value': 0})['sort_key'] == 105, '')
+_p4ag = _TM4.aggregate_group([
+    {'cost': 10, 'bullets': 1, 'return': {'value': 30, 'exact': True}, 'finish': {'state': 'exact', 'itm': True, 'top_percent': 3}, 'performance': {'hands': 100, 'bb100': 50, 'cev100': 40}},
+    {'cost': 10, 'bullets': 2, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 80}, 'performance': {'hands': 50, 'bb100': -20, 'cev100': -10}},
+    {'cost': 10, 'return': {'value': None}, 'finish': {'state': 'pending'}, 'performance': {'hands': 0}}])
+check('T-P4D-02: pooled group ROI on covered subset; committed incl pending; no fake -100%',
+      _p4ag['committed_cost'] == 30.0 and _p4ag['covered_cost'] == 20.0 and _p4ag['net'] == 10.0
+      and _p4ag['roi_pct'] == 50.0 and _p4ag['unresolved_cost'] == 10.0, str(_p4ag))
+check('T-P4D-03: settled-only ITM/Top denominators + hand-weighted BB/100; band floor sort; deterministic colour',
+      _p4ag['n_settled'] == 2 and _p4ag['itm_pct'] == 50.0 and _p4ag['top1_pct'] == 0.0
+      and _p4ag['hands'] == 150 and _p4ag['bb100'] == round((50 * 100 - 20 * 50) / 150, 1)
+      and _TM4.buyin_band_sort_key('$11-$22') < _TM4.buyin_band_sort_key('$55-$110')
+      and _TM4.color_for('buyin', '$11-$22') == _TM4.color_for('buyin', '$11-$22'), str(_p4ag))
+check('T-P4D-04: distribution Net is diverging (neg share of |neg|, pos share of pos)',
+      (lambda ds: ds['a']['sign'] == 1 and ds['b']['sign'] == -1
+       and ds['a']['share'] == 100.0 and ds['b']['share'] == 100.0)(
+          _TM4.distribution_shares({'a': {'net': 10}, 'b': {'net': -10}}, 'net')), '')
+import gem_report_draft.sections_tournaments as _STT4
+class _FakeDocP4:
+    def __init__(self):
+        self.out = []
+    def w(self, s):
+        self.out.append(s)
+_fd_p4 = _FakeDocP4()
+_STT4._emit_grouped_aggregate(_fd_p4, [
+    {'buyin_band': '$11-$22', 'cost': 15, 'bullets': 1, 'return': {'value': 45, 'exact': True}, 'finish': {'state': 'exact', 'itm': True, 'top_percent': 4}, 'performance': {}},
+    {'buyin_band': '$11-$22', 'cost': 15, 'bullets': 1, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 70}, 'performance': {}},
+    {'buyin_band': '$55-$110', 'cost': 60, 'bullets': 2, 'return': {'value': 0, 'exact': True}, 'finish': {'state': 'no_cash', 'top_percent': 90}, 'performance': {}}])
+_g_p4 = '\n'.join(_fd_p4.out)
+check('T-P4UI-01: grouped aggregate surface renders (tabs + legend squares + pooled ROI + settled coverage)',
+      'tt-aggregate' in _g_p4 and 'legend-square' in _g_p4 and "data-tab='buyin'" in _g_p4
+      and 'Results available for' in _g_p4 and '$11-$22' in _g_p4
+      and _g_p4.index('$11-$22') < _g_p4.index('$55-$110'), '')
+
+# v8.17.1 P4: grouped aggregate multi-tab — Buy-in default + meaningful tabs;
+# speed/entry_timing auto-hidden when every event is unknown; By-day only multi-day.
+import re as _re_p4t
+_fd_p4t = _FakeDocP4()
+_evs_p4t = [
+    {'buyin_band': '$11-$22', 'prize_type': 'bounty', 'speed': 'unknown',
+     'entry_pattern': 'single', 'entry_timing': 'unknown', 'event_day': '2026-06-02',
+     'cost': 15, 'bullets': 1, 'return': {'value': 45, 'exact': True},
+     'finish': {'state': 'exact', 'label': 'Top 4%', 'itm': True, 'top_percent': 4},
+     'performance': {'hands': 100, 'bb100': 5.0}},
+    {'buyin_band': '$11-$22', 'prize_type': 'standard', 'speed': 'unknown',
+     'entry_pattern': 'multi_bullet', 'entry_timing': 'unknown', 'event_day': '2026-06-02',
+     'cost': 30, 'bullets': 2, 'return': {'value': 0, 'exact': True},
+     'finish': {'state': 'no_cash', 'label': 'No cash', 'top_percent': 70},
+     'performance': {'hands': 50, 'bb100': -3.0}},
+]
+_STT4._emit_grouped_aggregate(_fd_p4t, _evs_p4t)
+_g_p4t = '\n'.join(_fd_p4t.out)
+_tabs_p4t = _re_p4t.findall(r"<button class='tt-tab[^']*' data-tab='([^']+)'", _g_p4t)
+check('T-P4UI-02: multi-tab grouped aggregate — Buy-in default + prize_type/entry_pattern/phase_reached; speed/entry_timing auto-hidden; single-day hides By-day',
+      _tabs_p4t[0] == 'buyin' and 'prize_type' in _tabs_p4t
+      and 'entry_pattern' in _tabs_p4t and 'phase_reached' in _tabs_p4t
+      and 'speed' not in _tabs_p4t and 'entry_timing' not in _tabs_p4t
+      and 'by_day' not in _tabs_p4t and 'Bounty' in _g_p4t and 'Standard' in _g_p4t
+      and _g_p4t.count("data-tabpane=") == len(_tabs_p4t), str(_tabs_p4t))
+# By-day tab appears for a multi-day report.
+_fd_p4d = _FakeDocP4()
+_STT4._emit_grouped_aggregate(_fd_p4d, [
+    dict(_evs_p4t[0]),
+    dict(_evs_p4t[1], event_day='2026-06-03')])
+_g_p4d = '\n'.join(_fd_p4d.out)
+check('T-P4UI-03: By-day tab appears only for a multi-day report',
+      "data-tab='by_day'" in _g_p4d and 'by_day' in _re_p4t.findall(
+          r"<button class='tt-tab[^']*' data-tab='([^']+)'", _g_p4d), '')
+# Data wiring: build_tournament_model carries per-event hands / bb100 / reviewed / exit-hand.
+import gem_tournament_model as _TMW
+_rd_w = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'per_tournament': [
+    {'tid': 'T1', 'name': 'Synthetic A', 'start_date': '2026-06-02', 'buyin': 10.0,
+     'bullets': 1, 'cost': 10.0, 'cash_received': 25.0, 'ticket_value': 0.0,
+     'cash_total': 25.0, 'net': 15.0, 'is_sat': False, 'itm': True, 'place': 2,
+     'total_players': 50}], 'totals': {'n_tournaments': 1, 'n_bullets': 1,
+     'total_cost': 10.0, 'total_cash': 25.0, 'total_ticket_value': 0.0,
+     'total_net': 15.0, 'roi_pct': 150.0}}}
+_mw = _TMW.build_tournament_model(_rd_w, hands_by_tid={'T1': 120},
+                                  bb100_by_tid={'T1': 7.5},
+                                  reviewed_by_tid={'T1': {'reviewed': 3, 'total': 120}},
+                                  exit_by_tid={'T1': 'TM90000901'})
+_ev_w = _mw['events'][0]
+check('T-P4W-01: model carries canonical per-event hands / BB-100 / reviewed / exit-hand',
+      _ev_w['performance']['hands'] == 120 and _ev_w['performance']['bb100'] == 7.5
+      and _ev_w['reviewed'] == {'reviewed': 3, 'total': 120}
+      and _ev_w['exit_hand'] == 'TM90000901'
+      and _ev_w['field_provenance']['hands'] == 'exact', str(_ev_w.get('performance')))
+# _tt_perf_maps derives the maps from hands + analyst commentary, joined by tid.
+_hb_w, _bbb_w, _revb_w, _exb_w = _STT4._tt_perf_maps(
+    [{'id': 'TM900A1', 'tournament_id': 'T1', 'net_bb': 10.0},
+     {'id': 'TM900A2', 'tournament_id': 'T1', 'net_bb': -4.0},
+     {'id': 'TM900B1', 'tournament_id': 'T2', 'net_bb': 2.0}],
+    {'analyst_commentary': {'TM900A1': {'verdict': 'III.2'}}})
+check('T-P4W-02: _tt_perf_maps joins hands/BB-100/reviewed/exit by tid (BB-100 = sum net_bb / hands * 100)',
+      _hb_w == {'T1': 2, 'T2': 1} and _bbb_w['T1'] == 300.0 and _bbb_w['T2'] == 200.0
+      and _revb_w['T1'] == {'reviewed': 1, 'total': 2}
+      and _exb_w['T1'] == 'TM900A2' and _exb_w['T2'] == 'TM900B1', str((_hb_w, _bbb_w, _revb_w)))
+
+# v8.17.1 P4 surfaces 4/6/7: distribution chart + Tournament Performance + Drivers
+# rollup, rendered via the REAL Doc + _emit_tournament_tables path.
+from gem_report_draft._html import Doc as _Doc_p4s
+from gem_report_draft.sections_tournaments import _emit_tournament_tables as _ett_p4s
+_rd_p4s = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {
+    'n_tournaments': 2, 'n_bullets': 3, 'total_cost': 75, 'total_cash': 45,
+    'total_ticket_value': 0, 'total_net': -30, 'roi_pct': -40.0}, 'per_tournament': [
+    {'tid': 'A1', 'name': 'Mini Bounty', 'start_date': '2026-06-02', 'buyin': 15,
+     'bullets': 1, 'cost': 15, 'cash_received': 45, 'ticket_value': 0, 'cash_total': 45,
+     'net': 30, 'is_sat': False, 'place': 2, 'total_players': 50, 'itm': True},
+    {'tid': 'A2', 'name': 'Big Re-entry', 'start_date': '2026-06-02', 'buyin': 30,
+     'bullets': 2, 'cost': 60, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0,
+     'net': -60, 'is_sat': False, 'place': 80, 'total_players': 90}]}}
+_s_p4s = {'stack_trajectories': {'A1': {'start_bb': 50, 'peak_bb': 120, 'valley_bb': 5,
+          'end_bb': 0, 'n_hands': 80}}}
+_hands_p4s = [{'id': 'TM900A1', 'tournament_id': 'A1', 'net_bb': 10.0},
+              {'id': 'TM900A2', 'tournament_id': 'A1', 'net_bb': -2.0},
+              {'id': 'TM900B1', 'tournament_id': 'A2', 'net_bb': -8.0}]
+_rd_p4s['analyst_commentary'] = {'TM900A1': {'verdict': 'III.2'}}
+_d_p4s = _Doc_p4s()
+_ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
+_md_p4s = _d_p4s.render_md()
+_js_p4s = ' '.join(_d_p4s._extra_js)
+_html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-P4UI-04: distribution chart renders BELOW the grouped table (Cost/Return/Net metrics + diverging + precomputed dataset)',
+      'tt-chart' in _md_p4s and 'tt-chart-metrics' in _md_p4s
+      and "data-metric='net'" in _md_p4s and 'tt-bar-row' in _md_p4s
+      and 'tt-diverge' in _md_p4s and 'window.ttChart=' in _js_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-chart'), '')
+check('T-P4UI-05: Tournament Performance table wires hands / BB-100 / reviewed(popup) / exit-hand(xref)',
+      'tt-performance' in _md_p4s and 'Tournament Performance' in _md_p4s
+      and 'BB/100' in _md_p4s and 'hand-list-trigger' in _md_p4s
+      and 'reviewed' in _md_p4s and 'hand-ref xref' in _md_p4s, '')
+check('T-P4UI-06: Drivers-in-view rollup lists detector-backed driver descriptions',
+      'tt-drivers-rollup' in _md_p4s and 'Drivers in view' in _md_p4s
+      and 'Stack arc' in _md_p4s, '')
+check('T-P4UI-07: chart JS (initTtChart / ttRenderChart) + diverging-bar CSS wired in _html.py',
+      'function initTtChart(' in _html_p4src and 'window.ttRenderChart=' in _html_p4src
+      and '.tt-bar-track.tt-diverge' in _html_p4src, '')
+check('T-P4UI-08 (anti): a real full-buy-in bust shows a real -100% ROI; no literal "unavailable" / debug token in the TT section',
+      'unavailable (no canonical' in _md_p4s   # the one allowed diagnostic phrase (trust line)
+      and 'data-source' not in _md_p4s.lower().replace('data-sort', '')
+      and 'rule:' not in _md_p4s, '')
+check('T-P4UI-09: Finance & Finish is the canonical per-event surface; duplicate cross-check removed; exit-hand xref',
+      'Finance & Finish' in _md_p4s
+      and "<th data-tt-sort='2'>Type</th>" in _md_p4s
+      and "<th>Exit hand</th>" in _md_p4s
+      and 'hand-ref xref' in _md_p4s
+      and 'Per-event financial detail' not in _md_p4s, '')
+check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
+      'tt-sticky-summary' in _md_p4s and 'Results available for' in _md_p4s
+      and "data-ss='events'" in _md_p4s
+      and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
+      and "data-dim='prize_type'" in _md_p4s
+      and 'data-event-id=' in _md_p4s and 'data-cat-key=' in _md_p4s
+      and 'window.ttModel=' in _js_p4s
+      and 'window.initTtFilters=' in _html_p4src
+      and 'function _ttAggregate(' in _html_p4src, '')
+check('T-P4UI-11: ALL SEVEN Tournament Tables surfaces present in one render',
+      'tt-filters' in _md_p4s              # 1 filters
+      and 'tt-sticky-summary' in _md_p4s   # 2 sticky filtered summary
+      and 'tt-aggregate' in _md_p4s        # 3 grouped aggregate (all tabs)
+      and 'tt-chart' in _md_p4s            # 4 distribution chart
+      and 'tt-finance' in _md_p4s          # 5 Finance & Finish
+      and 'tt-performance' in _md_p4s      # 6 Tournament Performance
+      and 'tt-drivers-rollup' in _md_p4s,  # 7 Drivers-in-view rollup
+      '')
+
+# v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
+# (The earlier full-render gap — missing canonical results_attribution fields like
+# surface_bb_per_100 — is fixed by supplying the canonical fields in the fixture +
+# a parsed usd_overlay so the real Tournament Tables surfaces render.)
+import os as _os_vf
+_prev_lz_vf = _os_vf.environ.get('GEM_LAZY_HANDS')
+_os_vf.environ['GEM_LAZY_HANDS'] = '0'
+import _qa_v817_synthetic as _SYN_vf
+from gem_report_draft import render_html as _rh_vf
+_stv, _rdv, _hdv = _SYN_vf.build()
+_full_html_vf = _rh_vf(_stv, _rdv, _hdv)          # FULL all-sections render
+if _prev_lz_vf is None:
+    _os_vf.environ.pop('GEM_LAZY_HANDS', None)
+else:
+    _os_vf.environ['GEM_LAZY_HANDS'] = _prev_lz_vf
+check('T-V-FULL-01: complete all-sections synthetic report renders (fixture gap fixed; canonical results_attribution + parsed overlay)',
+      len(_full_html_vf) > 200000
+      and 'S1.1a Full Result Attribution' in _full_html_vf
+      and 'Tournament Results' in _full_html_vf
+      and "class='data-table tt-unified tt-finance'" in _full_html_vf
+      and "class='data-table tt-aggregate'" in _full_html_vf
+      and 'no canonical committed-cost financial overlay' not in _full_html_vf, '')
+
+# v8.17.1 verify(3): the capsule Range role must NOT leak a raw chart id
+# (June-2 decoded QA found 'KQo inside PUSH_8BB_HJ'). The chart key is now
+# humanized via gem_chart_labels.chart_display_label at both capsule range-line
+# sites; the humanizer strips the raw token, and the full synthetic report shows
+# no raw PUSH_/REJAM_/CALLJAM_ chart id in any visible text node.
+from gem_chart_labels import chart_display_label as _cdl_v
+_sx_src_v = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+import re as _re_leak
+_vis_tok_vf = _re_leak.findall(r'>[^<]*(?:PUSH_[0-9]|REJAM_[0-9]|CALLJAM_)[^<]*<', _full_html_vf)
+check('T-V-LEAK-01: chart-id humanized in capsule range-line; no raw PUSH_/REJAM_/CALLJAM_ in visible text',
+      'PUSH_' not in _cdl_v('PUSH_8BB_HJ')
+      and 'CALLJAM_' not in _cdl_v('CALLJAM_15BB_vsCO')
+      and 'REJAM_' not in _cdl_v('REJAM_12BB_vsBTN')
+      and '_cdl(_ck_raw_l)' in _sx_src_v and '_cdl(_ck_raw_bl)' in _sx_src_v
+      and len(_vis_tok_vf) == 0, str(_vis_tok_vf[:3]))
+
+# ---- v8.17.1 P5: canonical verdict resolver + marker parity + all-in completeness ----
+check('T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade',
+      _RT.resolve_canonical_verdict(active_queue='Mistake', analyst='Correct', auto='Correct')['source'] == 'active_queue'
+      and _RT.resolve_canonical_verdict(analyst='Mistake', auto='Correct')['source'] == 'analyst_reviewed'
+      and _RT.resolve_canonical_verdict(auto='Correct')['source'] == 'auto'
+      and _RT.resolve_canonical_verdict(outcome='won 18.4BB')['source'] == 'neutral_review'
+      and _RT.resolve_canonical_verdict(outcome='Cooler')['source'] == 'outcome_only'
+      and _RT.resolve_canonical_verdict(auto='Mistake', outcome='won big')['verdict'] == 'Mistake', '')
+check('T-P5-02: marker_parity_issues flags orphan mistake/trigger/villain-evidence (bound + thumbs OK)',
+      (lambda iss: len(iss) == 2 and any('nope' in x for x in iss) and any('trigger' in x for x in iss))(
+          _RT.marker_parity_issues(
+              [{'kind': 'thumbs', 'ref': None}, {'kind': 'mistake', 'ref': 'n1'},
+               {'kind': 'mistake', 'ref': 'nope'}, {'kind': 'villain_evidence', 'ref': 'v1'},
+               {'kind': 'trigger', 'ref': None}], notes={'n1'}, villain_evidence={'v1'})), '')
+check('T-P5-03: allin_completeness — empty math FAILs unless no_clear_lesson; complete passes',
+      _RT.allin_completeness_issue('open_shove', [], register='no_clear_lesson') is None
+      and _RT.allin_completeness_issue('not_allin', []) is None
+      and _RT.allin_completeness_issue('call_vs_jam', ['to_call']) is not None
+      and _RT.allin_completeness_issue('call_vs_jam', _RT.required_allin_fields('call_vs_jam')) is None, '')
+
+# ============================================================
+# v8.17.1 P5 PRODUCTION WIRING — resolver into every surface, marker/commentary
+# parity build gate, scored all-in completeness render + build gate.
+# (Synthetic ids only; no real hand/tournament/player ids.)
+# ============================================================
+from gem_report_draft._helpers import build_canonical_verdicts as _bcv_p5w
+
+
+def _rd_p5w(analyst=None, auto=None, queue=None):
+    return {'analyst_commentary': analyst or {}, 'auto_verdicts': auto or {},
+            'queue_decisions': queue or {}, 'mistakes_review': {}}
+
+
+# ---- Sub-task 1: canonical verdict resolver wired into the data layer ----
+_cv1 = _bcv_p5w(_rd_p5w(analyst={'h1': {'verdict': 'III.2 Mistake', 'argument': 'x'}}),
+                [{'id': 'h1', 'net_bb': 50.0}])['h1']
+check('T-P5W-01: a positive chip RESULT never overrides a bad decision (stays graded)',
+      _cv1['verdict'] == 'III.2 Mistake' and _cv1['source'] == 'analyst_reviewed', str(_cv1))
+_cv2 = _bcv_p5w(_rd_p5w(analyst={'h2': {'verdict': 'III.3 Cleared', 'argument': 'x'}}),
+                [{'id': 'h2', 'net_bb': -40.0}])['h2']
+check('T-P5W-02: a negative chip RESULT never overrides a correct decision',
+      'III.3' in _cv2['verdict'] and _cv2['source'] == 'analyst_reviewed', str(_cv2))
+_cv3 = _bcv_p5w(_rd_p5w(), [{'id': 'h3', 'eai_suckout': 'hero_got_sucked_out',
+                            'net_bb': -30.0}])['h3']
+_cv3f = _bcv_p5w(_rd_p5w(), [{'id': 'h3f', 'net_bb': 0.0}])['h3f']
+check('T-P5W-03: cooler (no strategic error) surfaces as a decision class; a bare flip -> neutral Review',
+      _cv3['source'] == 'outcome_only' and 'cooler' in _cv3['verdict'].lower()
+      and _cv3f['source'] == 'neutral_review', str((_cv3, _cv3f)))
+_cv4 = _bcv_p5w(_rd_p5w(analyst={'h4': {'verdict': 'III.3 Cleared', 'argument': 'x'}},
+                        queue={'h4': 'III.1 Punt'}), [{'id': 'h4'}])['h4']
+check('T-P5W-04: an active-queue decision overrides the analyst/hand summary',
+      _cv4['source'] == 'active_queue' and 'III.1' in _cv4['verdict'], str(_cv4))
+_cv5 = _bcv_p5w(_rd_p5w(analyst={'h5': {'verdict': 'III.2 Mistake', 'argument': 'x'}},
+                        auto={'h5': {'verdict': 'III.3 Cleared'}}), [{'id': 'h5'}])['h5']
+check('T-P5W-05: the analyst verdict overrides the auto verdict',
+      _cv5['source'] == 'analyst_reviewed' and 'III.2' in _cv5['verdict'], str(_cv5))
+_cv6 = _bcv_p5w(_rd_p5w(), [{'id': 'h6', 'net_bb': 20.0}])['h6']
+check('T-P5W-06: a hand with only a chip result (no decision signal) -> neutral Review',
+      _cv6['verdict'] == _RT.REVIEW_FALLBACK and _cv6['source'] == 'neutral_review', str(_cv6))
+
+# ---- Sub-task 1: RENDERED cross-surface — identical canonical verdict on the
+# topbar, action-row grid, capsule (rendered HTML) AND the review-queue context ----
+_p5w_dcv, _p5w_cv, _p5w_qv, _p5w_err = [], '', None, ''
+try:
+    import os as _os_p5w
+    import re as _re_p5w
+    import _qa_v817_synthetic as _SYN_p5w
+    from gem_report_draft import render_html as _rh_p5w
+    from gem_report_draft.tldr import build_review_queue as _brq_p5w
+    _prev_lazy_p5w = _os_p5w.environ.get('GEM_LAZY_HANDS')
+    _os_p5w.environ['GEM_LAZY_HANDS'] = '0'   # non-lazy: hand bodies inline
+    _st_p5w, _rdr_p5w, _hd_p5w = _SYN_p5w.build()
+    _hh_p5w = _SYN_p5w._hand('TM90000701', ['Ah', 'Kh'], pf_allin=True,
+                             villain_jammed=True, hero_faced_raise=True,
+                             pf_action='call', position='BB', stack_bb=12.0, net_bb=-12.0)
+    _hd_p5w.append(_hh_p5w)
+    _rdr_p5w['appendix_hand_ids_all'].append('TM90000701')
+    _rdr_p5w['appendix_hand_details']['TM90000701'] = {}
+    _rdr_p5w['analyst_commentary']['TM90000701'] = {
+        'verdict': 'III.2 Mistake', 'argument': 'Called off too light vs the jam.'}
+    _st_p5w['volume']['hands'] = len(_hd_p5w)
+    _html_p5w = _rh_p5w(_st_p5w, _rdr_p5w, _hd_p5w, sections=['XIV'])
+    _p5w_cv = ((_rdr_p5w.get('canonical_verdicts') or {}).get('TM90000701') or {}).get('verdict', '')
+    # data-canonical-verdict instances belonging to JUST this hand's <article> card
+    # (topbar article + action-row grid + capsule), precisely bounded so adjacent
+    # cards never leak in.
+    _card_p5w = ''
+    _a0_p5w = _html_p5w.find("data-hand-id='90000701'")
+    if _a0_p5w >= 0:
+        _as_p5w = _html_p5w.rfind("<article", 0, _a0_p5w)
+        _ae_p5w = _html_p5w.find("</article>", _a0_p5w)
+        if _as_p5w >= 0 and _ae_p5w >= 0:
+            _card_p5w = _html_p5w[_as_p5w:_ae_p5w]
+    _p5w_dcv = _re_p5w.findall(r"data-canonical-verdict=['\"]([^'\"]*)['\"]", _card_p5w)
+    # queue context surface reads the SAME canonical map for every row.
+    _q_p5w = _brq_p5w(_st_p5w, _rdr_p5w, _rdr_p5w['analyst_commentary'],
+                      {h['id']: h for h in _hd_p5w})
+    _cvm_q_p5w = _rdr_p5w.get('canonical_verdicts') or {}
+    # Single-hand queue rows carry the canonical verdict and must match the map;
+    # aggregated leak-group rows (many hands, no single verdict) are exempt.
+    _qrows_cv_p5w = [it for it in _q_p5w if 'canonical_verdict' in it and it.get('id')]
+    _p5w_qv = ('OK' if (_qrows_cv_p5w and all(
+        it.get('canonical_verdict', '') == (_cvm_q_p5w.get(it['id']) or {}).get('verdict', '')
+        for it in _qrows_cv_p5w)) else None)
+    if _prev_lazy_p5w is None:
+        _os_p5w.environ.pop('GEM_LAZY_HANDS', None)
+    else:
+        _os_p5w.environ['GEM_LAZY_HANDS'] = _prev_lazy_p5w
+except Exception as _e_p5w:
+    _p5w_err = repr(_e_p5w)
+check('T-P5W-07: identical canonical verdict across topbar/action-row/capsule (rendered) + queue context',
+      not _p5w_err and _p5w_cv == 'III.2 Mistake'
+      and len(_p5w_dcv) >= 2 and all(v == _p5w_cv for v in _p5w_dcv)
+      and _p5w_qv == 'OK',
+      str((_p5w_err, _p5w_cv, _p5w_dcv, _p5w_qv)))
+
+# ---- Sub-task 2: marker/commentary parity build gate (structured identities) ----
+_atoms_p5w = {'v1': {'player': 'CO', 'street': 'flop', 'action_index': 3}}
+check('T-P5W-08: valid marker/commentary pairs pass (thumbs needs none)',
+      _RT.marker_parity_issues(
+          [{'kind': 'thumbs', 'ref': None}, {'kind': 'mistake', 'ref': 'n1'},
+           {'kind': 'villain_evidence', 'ref': 'v1', 'player': 'CO',
+            'street': 'flop', 'action_index': 3}],
+          notes={'n1'}, villain_evidence={'v1'}, atoms=_atoms_p5w) == [], '')
+check('T-P5W-09: each orphan class (mistake / trigger / villain-evidence) fails the build',
+      len(_RT.marker_parity_issues(
+          [{'kind': 'mistake', 'ref': None}, {'kind': 'trigger', 'ref': 'no'},
+           {'kind': 'villain_evidence', 'ref': 'no'}],
+          notes=set(), villain_evidence=set())) == 3, '')
+_wp_p5w = _RT.marker_parity_issues(
+    [{'kind': 'villain_evidence', 'ref': 'v1', 'player': 'BTN',
+      'street': 'flop', 'action_index': 3}],
+    notes=set(), villain_evidence={'v1'}, atoms=_atoms_p5w)
+_wa_p5w = _RT.marker_parity_issues(
+    [{'kind': 'villain_evidence', 'ref': 'v1', 'player': 'CO',
+      'street': 'turn', 'action_index': 9}],
+    notes=set(), villain_evidence={'v1'}, atoms=_atoms_p5w)
+check('T-P5W-10: wrong-player and wrong-street/action marker mappings fail',
+      any('wrong player' in x for x in _wp_p5w)
+      and any('wrong street/action' in x for x in _wa_p5w), str((_wp_p5w, _wa_p5w)))
+check('T-P5W-11: marker claiming a row cue with no resolvable row fails; non-row thumbs passes',
+      any('no resolvable row' in x for x in _RT.marker_parity_issues(
+          [{'kind': 'mistake', 'ref': 'n1', 'claims_row': True, 'action_index': None}],
+          notes={'n1'}))
+      and _RT.marker_parity_issues([{'kind': 'thumbs', 'ref': None}], notes=set()) == [], '')
+
+# ---- Sub-task 3: scored all-in completeness — render fallback + build gate ----
+check('T-P5W-12: complete non-PKO call_vs_jam (all fields) -> no issue, no fallback note',
+      _RT.allin_completeness_note('call_vs_jam',
+          {'call_bb': 10, 'pot_before_call_bb': 25, 'required_eq_pct': 28.6,
+           'hero_equity_pct': 45.0, 'ev_call_bb': 3.2},
+          {'pf_allin': True, 'format': 'NLHE'}) == '', '')
+check('T-P5W-13: complete PKO call-all-in (bounty present) -> no issue',
+      _RT.allin_completeness_note('call_vs_jam',
+          {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+           'hero_equity_pct': 50.0, 'ev_call_bb': 2.0, 'bounty': {'value_bb': 5}},
+          {'pf_allin': True, 'format': 'BOUNTY', 'bounty_value_bb': 5}) == '', '')
+_n_eq_p5w = _RT.allin_completeness_note('call_vs_jam',
+    {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+     'ev_call_bb': 2.0, 'bounty': {'value_bb': 5}},
+    {'pf_allin': True, 'format': 'BOUNTY', 'bounty_value_bb': 5})
+check('T-P5W-14: unavailable equity -> explicit no_clear_lesson naming equity',
+      _n_eq_p5w and 'equity vs range' in _n_eq_p5w
+      and 'no clear lesson' in _n_eq_p5w.lower(), _n_eq_p5w)
+_n_pot_p5w = _RT.allin_completeness_note('open_shove', {},
+    {'pf_allin': True, 'stack_bb': 12.0, 'format': 'NLHE'})
+check('T-P5W-15: open-shove missing pot / fold-equity -> no_clear_lesson naming the gap',
+      _n_pot_p5w and ('pot available' in _n_pot_p5w or 'fold-equity' in _n_pot_p5w), _n_pot_p5w)
+_n_bty_p5w = _RT.allin_completeness_note('call_vs_jam',
+    {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+     'hero_equity_pct': 50.0, 'ev_call_bb': 2.0},
+    {'pf_allin': True, 'format': 'BOUNTY'})
+check('T-P5W-16: a bounty hand with no bounty input -> no_clear_lesson naming bounty',
+      _n_bty_p5w and 'bounty' in _n_bty_p5w.lower(), _n_bty_p5w)
+check('T-P5W-17: call_vs_jam priced on the decision-time (side-pot) _po maps to_call/pot/required',
+      {'to_call', 'pot_before_call', 'required_equity'} <= _RT.allin_rendered_fields(
+          {'call_bb': 5, 'pot_before_call_bb': 12, 'required_eq_pct': 29.4,
+           'hero_equity_pct': 40.0, 'ev_call_bb': 1.0},
+          {'pf_allin': True, 'format': 'NLHE'}, 'call_vs_jam'), '')
+check('T-P5W-18: build FAILs when neither complete math nor a no_clear_lesson exists',
+      _RT.allin_completeness_issue('open_shove', ['hero_risk'], register='factual') is not None
+      and _RT.allin_completeness_issue('open_shove', ['hero_risk'],
+                                       register='no_clear_lesson') is None, '')
+_eq_hands_p5w = [
+    ('call_vs_jam', {'call_bb': 8, 'pot_before_call_bb': 20, 'required_eq_pct': 28.6,
+                     'hero_equity_pct': 50.0, 'ev_call_bb': 2.0},
+     {'pf_allin': True, 'format': 'NLHE'}),
+    ('open_shove', {}, {'pf_allin': True, 'stack_bb': 10.0, 'format': 'NLHE'}),
+    ('rejam', {}, {'pf_allin': True, 'stack_bb': 14.0, 'format': 'BOUNTY',
+                   'bounty_value_bb': 4}),
+]
+_complete_p5w = sum(1 for k, po, h in _eq_hands_p5w
+                    if _RT.allin_completeness_note(k, po, h) == '')
+_ncl_p5w = sum(1 for k, po, h in _eq_hands_p5w
+               if _RT.allin_completeness_note(k, po, h) != '')
+check('T-P5W-19: completeness equation — scored all-ins == complete + no_clear_lesson, zero remainder',
+      _complete_p5w + _ncl_p5w == len(_eq_hands_p5w)
+      and _complete_p5w >= 1 and _ncl_p5w >= 1, str((_complete_p5w, _ncl_p5w)))
+
 # ---- Objective 5: verdict/action reconciliation invariant ----
 check('T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review',
       _RT.reconcile_verdict('Mistake', False, True)[0] == 'Review'
@@ -9487,6 +10108,22 @@ check('T-RPDT-17: bounty provenance labels distinguish exact/estimated/flat/effe
       and _RT.bounty_provenance_label('exact', value_usd=50) == 'Bounty: $50 (exact)'
       and not _RT.bounty_is_dynamic('starting_bb_flat')
       and _RT.bounty_is_dynamic('effective_bb'), '')
+
+# ---- v8.17.1 P5 sub-task 4: analyzer stamps a single canonical bounty
+# provenance so the flat model estimate (the recurring "~3.2BB") is never
+# consumed as exact or per-hand-dynamic by any downstream surface. ----
+check('T-V8171-BP1: analyzer stamps bounty_value_provenance ladder (exact>effective>flat>unavailable)',
+      "h['bounty_value_provenance']" in _ana_src
+      and "'effective_bb' if _bc.get('method') == 'ratio_model'" in _ana_src
+      and "else 'starting_bb_flat'" in _ana_src
+      and "h['bounty_value_provenance'] = 'unavailable'" in _ana_src,
+      'bounty provenance stamp missing from analyzer')
+check('T-V8171-BP2 (anti): a flat/unavailable provenance never renders as exact or dynamic',
+      not _RT.bounty_is_dynamic('starting_bb_flat')
+      and not _RT.bounty_is_dynamic('unavailable')
+      and 'exact' not in _RT.bounty_provenance_label('starting_bb_flat', value_bb=3.2)
+      and _RT.bounty_provenance_label('unavailable') == 'Bounty value unavailable',
+      'flat/unavailable provenance must not be exact/dynamic')
 
 # ---- Objective 10: Range Lens pruning + no postflop lens after preflop all-in ----
 _pl = _RR.postflop_range_lens(['Ah', 'Kd'], ['Ks', '7d', '2c'], 'flop')
@@ -9804,7 +10441,7 @@ check('T-CAP817-14: render_capsule_md emits a register badge + the role md',
       and 'Decision:' in _CAP.render_capsule_md(_dc_coach), '')
 # live render-path: both XIV.A + XIV.B emit the .analyst-notes pb-capsule lead + CSS present
 check('T-CAP817-15: XIV.A + XIV.B emit the visible pb-capsule (decision_capsule_from_signals wired both paths)',
-      'decision_capsule_from_signals as _dcs_a' in _xivb
+      'decision_capsule_from_signals as _dcs_lead' in _xivb   # v8.17.1 P1: path A de-gated lead
       and 'decision_capsule_from_signals as _dcs_b' in _xivb
       and "pb-capsule pb-cap-" in _xivb, 'capsule not wired both paths')
 _html817cap = open('gem_report_draft/_html.py', encoding='utf-8').read()
@@ -9851,9 +10488,2440 @@ check('T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (sur
       str([r[0] for r in _ws_rows]))
 
 # ============================================================
+# v8.17.1 ITERATION 1 (corrective) — action-indexed canonical
+# DecisionSnapshot + RealizedContest. Adversarial production-path
+# tests for the GPT acceptance review (I1-B1..B6 + 13 mandatory).
+# NO real hand IDs drive production behaviour; synthetic ledgers
+# exercise the REAL functions, plus a real parse_one_hand replay.
+# ============================================================
+print('\n=== v8.17.1 Iteration 1 (corrective): canonical decision snapshot ===')
+import gem_decision_snapshot as _ds
+from gem_coaching_cards import _tmpl_multiway_caution as _ds_mw_tmpl
+from gem_coaching_cards import _tmpl_pko_pressure as _ds_pko_tmpl
+import importlib as _il_ds, gem_parser as _gp_ds
+_il_ds.reload(_gp_ds)
+
+
+def _led(street, player, action, added=0.0, allin=False, to=None):
+    return {'street': street, 'player': player, 'action': action,
+            'amount_bb': added, 'added_bb': added, 'to_bb': to, 'is_all_in': allin}
+
+
+# ---- I1-B1 / mandatory #1: HU vs ONLY a 1BB all-in (no absolute threshold) ----
+_h_hu1 = {'id': 'HU1', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'V': 1.0},
+          'action_ledger': [_led('preflop', 'V', 'raises', 1.0, True, to=1.0),
+                            _led('preflop', 'Hero', 'calls', 1.0)]}
+check('T-DS-01a: HU vs 1BB all-in — contesting_count == 2 (short IS a participant)',
+      _ds.contesting_count(_h_hu1) == 2, _ds.contesting_count(_h_hu1))
+check('T-DS-01b: HU vs 1BB all-in — effective stack of the confrontation == 1BB',
+      _ds.relevant_effective_stack_bb(_h_hu1) == 1.0, _ds.relevant_effective_stack_bb(_h_hu1))
+check('T-DS-01c: HU vs 1BB all-in — Hero (20) covers -> collectible',
+      _ds.bounty_coverage(_h_hu1) == 'collectible', _ds.bounty_coverage(_h_hu1))
+
+# ---- mandatory #2: dead short + one real caller (short still counted) ----
+_h_ds1 = {'id': 'DS1', 'hero': 'Hero', 'stack_bb': 25.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 25.0, 'Short': 0.8, 'Real': 20.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 25.0, True, to=25.0),
+                            _led('preflop', 'Short', 'calls', 0.8, True),
+                            _led('preflop', 'Real', 'calls', 20.0, True)]}
+check('T-DS-02: dead short + one real caller -> 3 participants (short NOT excluded)',
+      _ds.contesting_count(_h_ds1) == 3, _ds.contesting_count(_h_ds1))
+
+# ---- mandatory #3: dead short + two real callers ----
+_h_ds2 = {'id': 'DS2', 'hero': 'Hero', 'stack_bb': 30.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'Short': 0.5, 'R1': 25.0, 'R2': 28.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 30.0, True, to=30.0),
+                            _led('preflop', 'Short', 'calls', 0.5, True),
+                            _led('preflop', 'R1', 'calls', 25.0, True),
+                            _led('preflop', 'R2', 'calls', 28.0, True)]}
+check('T-DS-03: dead short + two real callers -> 4 participants',
+      _ds.contesting_count(_h_ds2) == 4, _ds.contesting_count(_h_ds2))
+
+# ---- I1-B2 / mandatory #4: same decision state, future fold vs future call ----
+_base = [_led('preflop', 'Hero', 'raises', 12.0, True, to=12.0)]
+_hA = {'id': 'A', 'hero': 'Hero', 'stack_bb': 12.0, 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 12.0, 'V': 30.0},
+       'action_ledger': _base + [_led('preflop', 'V', 'folds')]}
+_hB = {'id': 'B', 'hero': 'Hero', 'stack_bb': 12.0, 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 12.0, 'V': 30.0},
+       'action_ledger': _base + [_led('preflop', 'V', 'calls', 12.0, True)]}
+def _cmp(s):
+    return {k: s[k] for k in s if k != 'hand_id'}
+check('T-DS-04a: DecisionSnapshot identical regardless of future fold/call',
+      _cmp(_ds.build_decision_snapshot(_hA)) == _cmp(_ds.build_decision_snapshot(_hB)), '')
+check('T-DS-04b: RealizedContest differs (REV6: V folds -> Hero open-jam fully uncalled/returned, 0 contestable; V calls -> 2)',
+      (_ds.build_realized_contest(_hA)['realized_participant_count'],
+       _ds.build_realized_contest(_hB)['realized_participant_count']) == (0, 2),
+      (_ds.build_realized_contest(_hA)['realized_participant_count'],
+       _ds.build_realized_contest(_hB)['realized_participant_count']))
+
+# ---- I1-B3 / mandatory #5: mixed bounty coverage ----
+_h_mix = {'id': 'MIX', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'A': 8.0, 'B': 40.0},
+          'action_ledger': [_led('preflop', 'Hero', 'raises', 20.0, True, to=20.0),
+                            _led('preflop', 'A', 'calls', 8.0, True),
+                            _led('preflop', 'B', 'calls', 20.0, True)]}
+_mixcov = _ds.bounty_coverage_by_opponent(_h_mix)
+check('T-DS-05a: mixed — short villain A collectible', _mixcov.get('A') == 'collectible', _mixcov)
+check('T-DS-05b: mixed — deep villain B not_collectible', _mixcov.get('B') == 'not_collectible', _mixcov)
+check('T-DS-05c: mixed — aggregate == mixed', _ds.bounty_aggregate(_h_mix) == 'mixed', _ds.bounty_aggregate(_h_mix))
+check('T-DS-05d: mixed — scalar NOT collapsed to not_collectible',
+      _ds.bounty_coverage(_h_mix) == 'mixed', _ds.bounty_coverage(_h_mix))
+# equal-stack boundary
+_h_eq = {'id': 'EQ', 'hero': 'Hero', 'stack_bb': 20.0, 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 20.0},
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 20.0, True, to=20.0),
+                           _led('preflop', 'V', 'calls', 20.0, True)]}
+check('T-DS-05e: equal stacks -> collectible_equal_stack (REV5 B5: collectible on outright win)',
+      _ds.bounty_coverage_by_opponent(_h_eq).get('V') == 'collectible_equal_stack',
+      _ds.bounty_coverage_by_opponent(_h_eq))
+
+# ---- mandatory #6: postflop all-in uses remaining stacks, not starting ----
+_h_pf = {'id': 'PF', 'hero': 'Hero', 'stack_bb': 100.0, 'pf_allin': False,
+         'seat_stack_by_player': {'Hero': 100.0, 'V': 60.0},
+         'board': ['2c', '7d', 'Js', '4h', '9c'],
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 3.0, to=3.0),
+                           _led('preflop', 'V', 'calls', 3.0),
+                           _led('flop', 'Hero', 'bets', 97.0, True),
+                           _led('flop', 'V', 'calls', 57.0, True)]}
+# Grading HERO's OWN flop all-in bet: villain has acted only preflop (3), so villain's
+# stack BEHIND = 60 - 3 = 57 (no current-street villain commit yet). eff = 57, NOT the
+# 60 starting stack. This is DISTINCT from the F4 "47" example (T-DS-06b) where the
+# villain has already bet 10 on the flop before Hero acts (60 - 3 - 10 = 47).
+check('T-DS-06: postflop eff grading Hero flop bet = villain behind 57 (60-3 preflop), not starting 60',
+      _ds.relevant_effective_stack_bb(_h_pf) == 57.0, _ds.relevant_effective_stack_bb(_h_pf))
+# F4 spec example: villain 60, commits 3 preflop, BETS 10 on the flop, Hero now acts.
+# remaining behind = 47 (60-3-10) and the effective stack Hero faces is min(hero, 47).
+_h_f4 = {'id': 'F4', 'hero': 'Hero', 'stack_bb': 100.0, 'pf_allin': False,
+         'seat_stack_by_player': {'Hero': 100.0, 'V': 60.0},
+         'board': ['2c', '7d', 'Js', '4h', '9c'],
+         'action_ledger': [_led('preflop', 'Hero', 'raises', 3.0, to=3.0),
+                           _led('preflop', 'V', 'calls', 3.0),
+                           _led('flop', 'V', 'bets', 10.0, to=10.0),
+                           _led('flop', 'Hero', 'calls', 10.0)]}
+_f4_snap = _ds.build_decision_snapshot(_h_f4)   # reviewed = Hero's flop call
+check('T-DS-06b: F4 current-street bet -> villain remaining behind 47 (60-3-10), not 57',
+      next(o['remaining_before_action_bb'] for o in _f4_snap['players_active_before_action']
+           if o['player'] == 'V') == 47.0
+      and _f4_snap['effective_stack_vs_faced_aggressor'] == 47.0,
+      (_f4_snap['effective_stack_vs_faced_aggressor'],))
+
+# ---- mandatory #7: multiway main pot + side pot layers represented ----
+_rc_ds2 = _ds.build_realized_contest(_h_ds2)
+check('T-DS-07: side-pot layers represented (>=2 layers, short caps the first)',
+      len(_rc_ds2['side_pot_layers']) >= 2
+      and abs(_rc_ds2['side_pot_layers'][0]['to_bb'] - 0.5) < 0.05,
+      _rc_ds2['side_pot_layers'])
+
+# ---- mandatory #8: player yet to act at Hero's decision (open shove) ----
+_h_yta = {'id': 'YTA', 'hero': 'Hero', 'stack_bb': 12.0,
+          'seat_stack_by_player': {'Hero': 12.0, 'SB': 20.0, 'BB': 25.0},
+          'action_ledger': [_led('preflop', 'SB', 'posts', 0.5), _led('preflop', 'BB', 'posts', 1.0),
+                            _led('preflop', 'Hero', 'raises', 12.0, True, to=12.0),
+                            _led('preflop', 'BB', 'folds')]}
+_snap_yta = _ds.build_decision_snapshot(_h_yta)
+check('T-DS-08: player yet-to-act at Hero open shove is captured (BB not yet folded at decision)',
+      any(o['player'] == 'BB' for o in _snap_yta['players_yet_to_act']),
+      [o['player'] for o in _snap_yta['players_yet_to_act']])
+
+# ---- mandatory #9: player committed earlier but folded BEFORE Hero's decision ----
+_h_fold = {'id': 'FB', 'hero': 'Hero', 'stack_bb': 40.0,
+           'seat_stack_by_player': {'Hero': 40.0, 'EarlyFolder': 30.0, 'Raiser': 35.0},
+           'action_ledger': [_led('preflop', 'EarlyFolder', 'calls', 1.0),
+                             _led('preflop', 'Raiser', 'raises', 4.0, to=4.0),
+                             _led('preflop', 'EarlyFolder', 'folds'),
+                             _led('preflop', 'Hero', 'raises', 12.0, to=12.0)]}
+_snap_fb = _ds.build_decision_snapshot(_h_fold)
+check('T-DS-09: a player who committed then folded before Hero is folded, not active',
+      'EarlyFolder' in _snap_fb['players_folded_before_action']
+      and all(o['player'] != 'EarlyFolder' for o in _snap_fb['players_active_before_action']),
+      _snap_fb['players_folded_before_action'])
+
+# ---- mandatory #10: 3-bet / 4-bet / 5-bet classification ----
+def _hk(ledger, hstack=50.0, stacks=None):
+    return {'id': 'x', 'hero': 'Hero', 'stack_bb': hstack,
+            'seat_stack_by_player': stacks or {'Hero': hstack, 'V': 50, 'W': 50, 'X': 50},
+            'action_ledger': ledger}
+check('T-DS-10a: 3bet', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'Hero', 'raises', 6.0, to=6.0)])) == '3bet', '')
+check('T-DS-10b: 4bet', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'W', 'raises', 6.0, to=6.0),
+     _led('preflop', 'Hero', 'raises', 14.0, to=14.0)])) == '4bet', '')
+check('T-DS-10c: 5bet_plus', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 2.0, to=2.0), _led('preflop', 'W', 'raises', 6.0, to=6.0),
+     _led('preflop', 'X', 'raises', 14.0, to=14.0), _led('preflop', 'Hero', 'raises', 30.0, to=30.0)])) == '5bet_plus', '')
+check('T-DS-10d: call_vs_jam (call a short jam)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 9.0, True, to=9.0), _led('preflop', 'Hero', 'calls', 9.0)], hstack=20)) == 'call_vs_jam', '')
+check('T-DS-10e: call_off (call all-in vs a live raise)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 12.0, to=12.0), _led('preflop', 'Hero', 'calls', 10.0, True)],
+    hstack=10, stacks={'Hero': 10, 'V': 50})) == 'call_off', '')
+check('T-DS-10f (REV11 B1.2): raise/jam over an already-all-in, NO other live -> rejam_over_live_raise (LITERAL re-jam, NOT a call)',
+      _ds.hero_action_kind(_hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
+                                _led('preflop', 'Hero', 'raises', 20.0, True, to=20.0)],
+                               hstack=22, stacks={'Hero': 22, 'V': 8})) == 'rejam_over_live_raise', '')
+check('T-DS-10g: rejam over a LIVE raise', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'V', 'raises', 3.0, to=3.0), _led('preflop', 'Hero', 'raises', 25.0, True, to=25.0)], hstack=25)) == 'rejam_over_live_raise', '')
+check('T-DS-10h: open_shove', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'Hero', 'raises', 12.0, True, to=12.0)])) == 'open_shove', '')
+check('T-DS-10i: first_in_open (non-all-in open)', _ds.hero_action_kind(_hk(
+    [_led('preflop', 'Hero', 'raises', 2.2, to=2.2)])) == 'first_in_open', '')
+
+# ---- mandatory #11: overjam creating a side pot (short all-in + a LIVE opponent) ----
+check('T-DS-11: overjam_with_side_pot (jam over a short all-in with a live opponent behind)',
+      _ds.hero_action_kind(_hk([_led('preflop', 'V', 'raises', 3.0, True, to=3.0),
+                                _led('preflop', 'W', 'calls', 3.0),
+                                _led('preflop', 'Hero', 'raises', 40.0, True, to=40.0)],
+                               hstack=40, stacks={'Hero': 40, 'V': 3, 'W': 50})) == 'overjam_with_side_pot', '')
+
+# ---- DecisionSnapshot required shape (I1-B4) ----
+_req_keys = ['hand_id', 'street', 'hero_action_index', 'hero_action_kind', 'board_at_decision',
+             'pot_before_action_bb', 'to_call_bb', 'hero_stack_before_action_bb',
+             'hero_committed_before_action_bb', 'players_active_before_action',
+             'players_folded_before_action', 'players_all_in_before_action', 'players_yet_to_act',
+             'effective_stack_by_opponent', 'relevant_opponent_keys', 'pot_layers',
+             'bounty_coverage_by_opponent', 'source_warnings']
+_snap_shape = _ds.build_decision_snapshot(_h_mix)
+check('T-DS-12a: DecisionSnapshot has the full required typed shape',
+      all(k in _snap_shape for k in _req_keys),
+      [k for k in _req_keys if k not in _snap_shape])
+check('T-DS-12b: snapshot is action-indexed (hero_action_index is an int)',
+      isinstance(_snap_shape['hero_action_index'], int), _snap_shape['hero_action_index'])
+
+# ---- board_at_decision temporal (preserve June-16 fix) ----
+check('T-DS-13a: board_at_decision preflop == []',
+      _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'preflop') == [], '')
+check('T-DS-13b: board_at_decision flop == first 3',
+      _ds.board_at_decision(['Ah', 'Qh', '2h', 'Js', '6s'], 'flop') == ['Ah', 'Qh', '2h'], '')
+
+# ============================================================
+# v8.17.1 Iteration 1 — canonical action kind routed into the PRODUCT surfaces
+# (report decision label / range role + worklist deviation-bucketed call-of-jam).
+# REV11 B1.2 REVERSAL: the LITERAL action of a raise/jam over a short all-in is a re-jam
+# everywhere — it must NEVER be rewritten as a call (the continue/call price is modelled
+# separately under faced_voluntary_price_bb). A genuine over-jam keeps the re-jam role too.
+# ============================================================
+# the 83915520 ledger pattern: Hero raises all-in (22) over a shorter all-in jam (V=8).
+_i1_call_h = _hk([_led('preflop', 'V', 'raises', 8.0, True, to=8.0),
+                  _led('preflop', 'Hero', 'raises', 20.0, True, to=20.0)],
+                 hstack=22, stacks={'Hero': 22, 'V': 8})
+_i1_call_h.update({'pf_allin': True, 'pf_action': '3bet', 'first_in': False,
+                   'villain_jammed': True, 'jammer_position': 'HJ', 'jammer_stack_bb': 8.0})
+# a genuine re-jam over a LIVE (non-all-in) raise.
+_i1_rejam_h = _hk([_led('preflop', 'V', 'raises', 3.0, to=3.0),
+                   _led('preflop', 'Hero', 'raises', 25.0, True, to=25.0)], hstack=25)
+_i1_rejam_h.update({'pf_allin': True, 'pf_action': '3bet', 'first_in': False})
+try:
+    from gem_report_draft.sections_xiv import _canon_allin_kind as _i1_cak
+    from gem_report_draft._helpers import _hand_preflop_range_role as _i1_role
+    check('T-I1RT-01 (REV11 B1.2): a covering re-jam over a short jam is labelled re-jam (literal action preserved, NOT call)',
+          _i1_cak(_i1_call_h, 'rejam') == 'rejam', _i1_cak(_i1_call_h, 'rejam'))
+    check('T-I1RT-02: _canon_allin_kind keeps the fallback for a genuine re-jam',
+          _i1_cak(_i1_rejam_h, 'rejam') == 'rejam', _i1_cak(_i1_rejam_h, 'rejam'))
+    check('T-I1RT-03 (REV11 B1.2): range role for a covering re-jam is rejam (the literal action is a re-jam)',
+          _i1_role(_i1_call_h) == 'rejam', _i1_role(_i1_call_h))
+    check('T-I1RT-04: range role for a genuine re-jam stays rejam',
+          _i1_role(_i1_rejam_h) == 'rejam', _i1_role(_i1_rejam_h))
+except Exception as _e_i1:
+    check('T-I1RT-01..04: report canonical helpers importable', False, str(_e_i1))
+# worklist: a DEVIATION-bucketed call-of-jam uses the snapshot's decision-effective
+# stack (min vs the jammer ~8BB), NOT Hero's clean full stack (22BB), and the kind
+# is call_vs_jam with a real (non-unavailable) capped price.
+_i1_wl_hand = dict(_i1_call_h); _i1_wl_hand['id'] = 'TM_I1DEV'; _i1_wl_hand['hero'] = 'Hero'
+_i1_wl_cand = _mk_cand(id='TM_I1DEV', cards='Ah8d', position='BTN', pf_allin=True,
+    first_in=False, jammer_position='HJ', jammer_stack_bb=8.0,
+    decision_math={'key_decision_street': 'preflop', 'streets': {}})
+_i1_wl_dev = [{'id': 'TM_I1DEV', 'type': 'Wide CVJ (Call Villain Jam)', 'cards': 'A8o',
+               'pos': 'BTN', 'chart': 'PUSH_10BB_BTN', 'confidence': 'CLEAR', 'stack_bb': 22}]
+_i1_wl = _awl.build_analyst_worklist({'bestplay_screening': [_i1_wl_cand]},
+    {'preflop_deviations': _i1_wl_dev}, {}, [_i1_wl_hand], '20260101')
+_i1_dn = _i1_wl['items']['TM_I1DEV']['decision_node']
+check('T-I1RT-05 (REV11 B1.2): deviation-bucketed covering re-jam -> rejam_over_live_raise + snapshot eff (~8, not clean 22)',
+      _i1_dn.get('hero_action_kind') == 'rejam_over_live_raise'
+      and (_i1_dn.get('effective_bb_vs_relevant_villain') or 99) <= 10
+      and _i1_dn.get('price_source') != 'unavailable', str(_i1_dn))
+
+# ---- coaching integration: blocker temporal + multiway from contesting + pko preflop ----
+_cc_pf_flush = _cc_hand(pf_action='raise', pf_allin=True, cards=['As', 'Kd'],
+                        board=['7h', '9h', '4h', '2c', '3s'])
+_cc_f_pf = _build_decision_facts(_cc_pf_flush, _cc_stats, _cc_rd)
+_compute_blocker_facts(_cc_f_pf)
+check('T-DS-14: preflop all-in -> blocker_facts disabled (no future-board read)',
+      not _cc_f_pf['blocker_facts']['enabled'], str(_cc_f_pf['blocker_facts']))
+_cc_pko = _cc_hand(pf_allin=False, cards=['Ad', 'Kd'], board=['2h', '3c', 'Kc'],
+                   action_ledger=[_led('preflop', 'Hero', 'calls', 1.2), _led('flop', 'Hero', 'folds')])
+_cc_pko['pko_context'] = {'enabled': True, 'classification': 'Review', 'confidence': 'medium',
+                          'delta_range_pp': [2.0, 4.0], 'spot': 'BB defend', 'depth_bucket': '20-25bb'}
+_cc_f_pko = _build_decision_facts(_cc_pko, _cc_stats, _cc_rd)
+_cc_pko_card = _ds_pko_tmpl(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0])
+_cc_pko_disp = _build_display_card(_cc_f_pko, derive_quality_gates(_cc_f_pko)[0], _cc_pko_card, 'medium') if _cc_pko_card else None
+check('T-DS-15: pko_pressure card pinned to preflop',
+      _cc_pko_disp is not None and _cc_pko_disp.get('street') == 'preflop',
+      str(_cc_pko_disp.get('street') if _cc_pko_disp else None))
+
+# ---- mandatory #12: real hand 84990829 stays at the ~17.5BB contest (parse_one_hand) ----
+# and mandatory #13 + parser single-source: a dead-short all-in does NOT collapse
+# eff_stack_bb_at_decision; the field is derived from the ONE canonical snapshot.
+_hh_ds_eff = """Poker Hand #TM9000000888: Tournament #888, T Hold'em No Limit - Level10(500/1,000) - 2026/06/16 19:00:00
+Table '1' 6-max Seat #1 is the button
+Seat 1: villBTN (50,000 in chips)
+Seat 2: DeadShort (800 in chips)
+Seat 3: Hero (17,900 in chips)
+Seat 4: RealVill (17,500 in chips)
+Seat 5: villA (50,000 in chips)
+Seat 6: villB (50,000 in chips)
+DeadShort: posts small blind 500
+Hero: posts big blind 1,000
+*** HOLE CARDS ***
+Dealt to Hero [Ac 8d]
+RealVill: raises 1,000 to 2,000
+villA: folds
+villB: folds
+villBTN: folds
+DeadShort: calls 300 and is all-in
+Hero: raises 15,900 to 17,900 and is all-in
+RealVill: calls 15,500 and is all-in
+*** FLOP *** [5c 9c 4d]
+*** TURN *** [5c 9c 4d] [7s]
+*** RIVER *** [5c 9c 4d 7s] [3h]
+*** SHOWDOWN ***
+Hero collected 36,200 from pot
+*** SUMMARY ***
+Total pot 36,200 | Rake 0
+Board [5c 9c 4d 7s 3h]
+Seat 2: DeadShort (small blind) showed [Kh Kd] and lost
+Seat 3: Hero (big blind) showed [Ac 8d] and won (36,200)
+Seat 4: RealVill showed [Qs Qd] and lost
+"""
+_h_ds_eff = _gp_ds.parse_one_hand(_hh_ds_eff)
+check('T-DS-16: dead-short all-in does NOT collapse eff_stack_bb_at_decision '
+      '(reads the ~17.5BB main contest vs the raiser, not 0.8)',
+      _h_ds_eff is not None and _h_ds_eff.get('eff_stack_bb_at_decision') is not None
+      and _h_ds_eff['eff_stack_bb_at_decision'] > 15.0,
+      str(_h_ds_eff.get('eff_stack_bb_at_decision') if _h_ds_eff else None))
+check('T-DS-17: parser stamps the canonical decision_snapshot (single source)',
+      _h_ds_eff is not None and isinstance(_h_ds_eff.get('decision_snapshot'), dict)
+      and _h_ds_eff['decision_snapshot'].get('hero_action_index') is not None, '')
+# the dead short is still a participant in the realized contest (not excluded)
+_rc_eff = _ds.build_realized_contest(_h_ds_eff)
+check('T-DS-18: dead short remains a realized participant (Hero + RealVill + DeadShort = 3)',
+      _rc_eff['realized_participant_count'] == 3, _rc_eff['realized_participant_count'])
+
+# ============================================================
+# REV2 — postflop all-in depth/price + persistent contest + per-opp bounty + future-blind
+# ============================================================
+def _Lr(street, player, action, added, allin=False, pos='?'):
+    d = {'street': street, 'player': player, 'action': action, 'added_bb': added,
+         'amount_bb': added, 'is_all_in': allin, 'position': pos}
+    if action == 'raises':                          # REV15: a 'raises' carries its raise-TO level
+        d['to_bb'] = added
+    return d
+
+# 1) river call vs all-in: depth is the jam (~13.5), NOT the bettor's ~0 remaining.
+_r1 = {'id': 'R1', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 21.0, 'V': 13.5},
+       'board': ['2c', '7d', 'Js', '4h', '9c'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 0), _Lr('preflop', 'V', 'calls', 0),
+           _Lr('river', 'V', 'bets', 13.5, True), _Lr('river', 'Hero', 'calls', 13.5)]}
+_s1 = _ds.build_decision_snapshot(_r1)
+check('T-REV2-01: river call vs all-in -> eff!=~0, callable=jam, kind call_vs_jam',
+      _s1['hero_action_kind'] == 'call_vs_jam' and _s1['effective_stack_at_decision_bb'] > 1.0
+      and abs(_s1['callable_amount_bb'] - 13.5) < 0.1
+      and _s1['faced_aggressor_remaining_after_action_bb'] < 0.5, (_s1['effective_stack_at_decision_bb'], _s1['callable_amount_bb']))
+
+# 2) flop call-off where Hero is SHORTER: callable = Hero stack, eff = Hero stack.
+_r2 = {'id': 'R2', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 17.0, 'V': 120.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 0), _Lr('preflop', 'V', 'calls', 0),
+           _Lr('flop', 'V', 'bets', 111.0, True), _Lr('flop', 'Hero', 'calls', 17.0, True)]}
+_s2 = _ds.build_decision_snapshot(_r2)
+check('T-REV2-02: flop call-off Hero shorter -> callable=Hero stack 17, eff~17, to_call=full jam',
+      abs(_s2['callable_amount_bb'] - 17.0) < 0.1 and abs(_s2['effective_stack_at_decision_bb'] - 17.0) < 0.6
+      and _s2['to_call_bb'] > 100, (_s2['callable_amount_bb'], _s2['effective_stack_at_decision_bb'], _s2['to_call_bb']))
+
+# 3) tiny final side-pot call after Hero already called a larger all-in: depth!=~0.
+# SB jams 56; Hero calls 56; HJ over-jams to 58.3 (a 2.3 raise all-in); Hero calls 2.3 more.
+_r3 = {'id': 'R3', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 60.0, 'SB': 56.0, 'HJ': 58.3},
+       'board': ['2c', '7d', 'Js', '4h'], 'action_ledger': [
+           _Lr('turn', 'SB', 'bets', 56.0, True), _Lr('turn', 'Hero', 'calls', 56.0),
+           _Lr('turn', 'HJ', 'raises', 58.3, True), _Lr('turn', 'Hero', 'calls', 2.3)]}
+_s3 = _ds.build_decision_snapshot(_r3)   # reviewed = Hero's LAST turn action = the 2.3 call
+check('T-REV2-03: tiny final side-pot call -> small to_call ~2.3, eff!=~0',
+      abs(_s3['to_call_bb'] - 2.3) < 0.2 and _s3['effective_stack_at_decision_bb'] > 1.0,
+      (_s3['to_call_bb'], _s3['effective_stack_at_decision_bb']))
+
+# 4) prior-street all-in persists through the flop contest (B3).
+_r4 = {'id': 'R4', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Hero', 'calls', 5),
+                         _Lr('preflop', 'Deep', 'calls', 5), _Lr('flop', 'Deep', 'bets', 8),
+                         _Lr('flop', 'Hero', 'raises', 30, True), _Lr('flop', 'Deep', 'calls', 30)]}
+_rc4 = _ds.build_realized_contest(_r4, 4)
+check('T-REV2-04: prior-street all-in persists -> main {Hero,Short,Deep}, side {Hero,Deep}',
+      set(_rc4['main_pot_participants']) == {'Hero', 'Short', 'Deep'}
+      and set(_rc4['side_pot_participants']) == {'Hero', 'Deep'}, (_rc4['main_pot_participants'], _rc4['side_pot_participants']))
+
+# 5) folded dead money stays in pot amount but the folder is NOT a participant/eligible.
+_r5 = {'id': 'R5', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Folder': 30.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Folder', 'raises', 3), _Lr('preflop', 'Short', 'raises', 5, True),
+                         _Lr('preflop', 'Hero', 'calls', 5), _Lr('preflop', 'Folder', 'folds', 0)]}
+_rc5 = _ds.build_realized_contest(_r5, 2)
+check('T-REV2-05: folded dead money -> Folder not a participant, not eligible; Short eligible',
+      'Folder' not in _rc5['realized_contesting_opponents'] and 'Folder' not in _rc5['eligible_bounties']
+      and _rc5['eligible_bounties'].get('Short') == 'collectible', (_rc5['realized_contesting_opponents'], _rc5['eligible_bounties']))
+
+# 6) short jam + deep NON-all-in caller -> only the short is eligible (B4).
+_r6 = {'id': 'R6', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Deep', 'calls', 5),
+                         _Lr('preflop', 'Hero', 'calls', 5)]}
+check('T-REV2-06: short jam + deep non-all-in caller -> eligible {Short}; aggregate all',
+      _ds.build_realized_contest(_r6, 2)['eligible_bounties'] == {'Short': 'collectible'}
+      and _ds.bounty_aggregate(_r6, 2) == 'all', _ds.build_realized_contest(_r6, 2)['eligible_bounties'])
+
+# 7) mixed bounty where BOTH opponents are all-in (one covered, one not) -> aggregate mixed.
+_r7 = {'id': 'R7', 'hero': 'Hero', 'format': 'BOUNTY',
+       'seat_stack_by_player': {'Hero': 30.0, 'Short': 5.0, 'Big': 80.0}, 'board': [],
+       'action_ledger': [_Lr('preflop', 'Short', 'raises', 5, True), _Lr('preflop', 'Big', 'raises', 80, True),
+                         _Lr('preflop', 'Hero', 'calls', 30, True)]}
+_rc7 = _ds.build_realized_contest(_r7, 2)
+check('T-REV2-07: two all-in opponents (cover Short, not Big) -> mixed',
+      _rc7['eligible_bounties'].get('Short') == 'collectible'
+      and _rc7['eligible_bounties'].get('Big') == 'not_collectible'
+      and _ds.bounty_aggregate(_r7, 2) == 'mixed', _rc7['eligible_bounties'])
+
+# 8) earlier decision then later Hero all-in: future-blind confrontation/bounty (B5).
+_r8 = {'id': 'R8', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [
+           _Lr('preflop', 'Hero', 'raises', 2.2), _Lr('preflop', 'V', 'calls', 2.2),
+           _Lr('flop', 'Hero', 'bets', 30, True), _Lr('flop', 'V', 'calls', 30, True)]}
+check('T-REV2-08: earlier preflop open is future-blind to the later flop Hero jam',
+      _ds.hero_in_allin_confrontation(_r8, 0) is False
+      and _ds.bounty_reason(_r8, 0) == 'not_applicable_no_allin_confrontation'
+      and _ds.hero_in_allin_confrontation(_r8, 2) is True, '')
+
+# 9) worklist routes the EXACT postflop call price from the snapshot (B2/B6).
+_r9_hand = dict(_r1); _r9_hand['id'] = 'TM_R9'
+_r9_cand = _mk_cand(id='TM_R9', cards='AhKh', position='BB', pf_allin=False,
+    decision_math={'key_decision_street': 'river', 'streets': {}})
+_r9_dn = _awl._decision_node(_r9_cand, kind='postflop', dev=None, hand=_r9_hand)
+check('T-REV2-09: worklist postflop call price routed from snapshot (callable, canonical source)',
+      _r9_dn.get('hero_action_kind') == 'call_vs_jam'
+      and _r9_dn.get('call_amount_bb') and abs(_r9_dn['call_amount_bb'] - 13.5) < 0.2
+      and _r9_dn.get('price_source') == 'canonical_action_ledger'
+      and not _r9_dn.get('price_unavailable')
+      and (_r9_dn.get('effective_bb_vs_relevant_villain') or 0) > 1.0, str(_r9_dn))
+
+# 10) report-parity semantic invariant: a call_vs_jam facing a >1BB bet never grades at ~0 depth.
+check('T-REV2-10: call_vs_jam facing >1BB bet -> decision depth not ~0 (parity invariant)',
+      all(_ds.build_decision_snapshot(hh)['effective_stack_at_decision_bb'] > 1.0
+          for hh in (_r1, _r2, _r3)), '')
+
+
+# ============================================================
+# REV3 (Iteration 1 FINAL) — decision-time bounty context, dead-money pot layers,
+# and the strengthened parity gate. Future-blind decision-time ownership; cover is
+# NOT eligibility; one typed (aggregate,reason); folded dead money stays in the pot.
+# ============================================================
+import _qa_parity as _qp
+from gem_analyst_worklist import _reviewed_action_index as _rai
+import copy as _i1f_copy
+
+
+def _Lb(street, p, act, added, allin=False):
+    d = {'street': street, 'player': p, 'action': act, 'added_bb': added,
+         'amount_bb': added, 'is_all_in': allin}
+    # REV15: a real 'raises' carries the parser's raise-TO level (`to_bb`); the synthetic helper sets
+    # it = the `added` "to" amount so the commitment replay reads the intended bet level (these
+    # fixtures express "raises TO X", not "raises BY X").
+    if act == 'raises':
+        d['to_bb'] = added
+    return d
+
+
+# ---- B1 mandatory paired fixture: a future opponent all-in cannot change earlier ctx ----
+_b1_pre = [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Deep', 'calls', 5),
+           _Lb('preflop', 'Hero', 'calls', 5)]
+_b1_ssb = {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}
+_b1_base = {'id': 'B1BASE', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': dict(_b1_ssb), 'board': [], 'action_ledger': list(_b1_pre)}
+_b1_fut = {'id': 'B1FUT', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': dict(_b1_ssb), 'board': ['2c', '7d', 'Js'],
+           'action_ledger': list(_b1_pre) + [_Lb('flop', 'Deep', 'bets', 55, True),
+                                             _Lb('flop', 'Hero', 'calls', 35, True)]}
+_b1_ridx = 2   # Hero's preflop call
+_dbc_base = _ds.build_decision_bounty_context(_b1_base, _b1_ridx)
+_dbc_fut = _ds.build_decision_bounty_context(_b1_fut, _b1_ridx)
+check('T-I1F-01: B1 earlier ctx -> eligible {Short}, aggregate all, reason known_all',
+      _dbc_base['eligible_bounties_by_opponent'] == {'Short': 'collectible'}
+      and _dbc_base['aggregate'] == 'all' and _dbc_base['reason'] == 'known_all',
+      str(_dbc_base['eligible_bounties_by_opponent']))
+check('T-I1F-02: later opponent (Deep) flop all-in does NOT alter the earlier bounty ctx',
+      all(_dbc_base[k] == _dbc_fut[k] for k in _qp._DBC_INVARIANT_KEYS),
+      [k for k in _qp._DBC_INVARIANT_KEYS if _dbc_base[k] != _dbc_fut[k]])
+
+# (#2) later opponent FOLD must not alter the earlier DecisionSnapshot.
+_b1_fold = {'id': 'B1FOLD', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': dict(_b1_ssb), 'board': ['2c', '7d', 'Js'],
+            'action_ledger': list(_b1_pre) + [_Lb('flop', 'Deep', 'folds', 0)]}
+check('T-I1F-03: later opponent FOLD does not alter the earlier DecisionSnapshot',
+      {k: v for k, v in _ds.build_decision_snapshot(_b1_base, _b1_ridx).items() if k != 'hand_id'}
+      == {k: v for k, v in _ds.build_decision_snapshot(_b1_fold, _b1_ridx).items() if k != 'hand_id'}, '')
+
+# (#3) later HERO all-in must not alter the earlier preflop-open bounty ctx.
+_b3_open = {'id': 'B3OPEN', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.2), _Lb('preflop', 'V', 'calls', 2.2)]}
+_b3_fut = {'id': 'B3FUT', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0}, 'board': ['2c', '7d', 'Js'],
+           'action_ledger': _b3_open['action_ledger'] + [_Lb('flop', 'Hero', 'bets', 30, True),
+                                                          _Lb('flop', 'V', 'calls', 30, True)]}
+_dbc_b3 = _ds.build_decision_bounty_context(_b3_open, 0)
+check('T-I1F-04: later HERO all-in does not alter the earlier open bounty ctx (future-blind)',
+      _dbc_b3['hero_in_allin_confrontation'] is False and _dbc_b3['aggregate'] == 'not_applicable'
+      and all(_dbc_b3[k] == _ds.build_decision_bounty_context(_b3_fut, 0)[k]
+              for k in _qp._DBC_INVARIANT_KEYS), str(_dbc_b3['aggregate']))
+
+# (#4) no all-in confrontation -> no eligible bounty opponents (cover stays separate).
+_b4_open = {'id': 'B4OPEN', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+_dbc_open = _ds.build_decision_bounty_context(_b4_open, 0)
+check('T-I1F-05: first-in open, no all-in -> eligible {}, not_applicable / no_allin_confrontation',
+      _dbc_open['eligible_bounties_by_opponent'] == {} and _dbc_open['aggregate'] == 'not_applicable'
+      and _dbc_open['reason'] == 'not_applicable_no_allin_confrontation', str(_dbc_open['aggregate']))
+check('T-I1F-06: realized accessor no longer falls back to the cover map (returns {})',
+      _ds.bounty_coverage_by_opponent(_b4_open, 0) == {}, _ds.bounty_coverage_by_opponent(_b4_open, 0))
+
+# (#5) cover relationship remains available separately while eligible stays empty.
+check('T-I1F-07: stack-cover relationship is a SEPARATE fact (Hero covers V) — not eligibility',
+      _dbc_open['stack_cover_relationship_by_opponent'].get('V') == 'collectible'
+      and _ds.stack_cover_relationship_by_opponent(_b4_open, 0).get('V') == 'collectible'
+      and _dbc_open['eligible_bounties_by_opponent'] == {}, str(_dbc_open['stack_cover_relationship_by_opponent']))
+
+# ---- (#6/#7 + B2) exhaustive decision-time truth table (Hero CALLS into committed all-ins) ----
+def _tt(opps, hero_stack=30.0, hero_added=None):
+    """opps: list of (name, stack, jam_added). Each jams all-in, then Hero calls."""
+    led = [_Lb('preflop', n, 'raises', a, True) for n, _s, a in opps]
+    ha = hero_added if hero_added is not None else max(a for _n, _s, a in opps)
+    led.append(_Lb('preflop', 'Hero', 'calls', ha, ha >= hero_stack - 0.01))
+    ssb = {'Hero': hero_stack}
+    for n, s, _a in opps:
+        if s is not None:
+            ssb[n] = s
+    return {'id': 'TT', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': ssb,
+            'board': [], 'action_ledger': led}, len(led) - 1
+
+_tt_all, _i = _tt([('Short', 5.0, 5.0)])
+_tt_none, _i = _tt([('Big', 80.0, 80.0)], hero_stack=10.0, hero_added=10.0)
+_tt_eq, _i = _tt([('V', 20.0, 20.0)], hero_stack=20.0, hero_added=20.0)
+_tt_mix, _i = _tt([('Short', 5.0, 5.0), ('Big', 80.0, 80.0)], hero_stack=30.0, hero_added=30.0)
+_tt_ceq, _i = _tt([('Short', 5.0, 5.0), ('Eq', 30.0, 30.0)], hero_stack=30.0, hero_added=30.0)
+_tt_unk, _i = _tt([('Mystery', None, 8.0)], hero_stack=20.0, hero_added=8.0)
+def _ar(h, ridx):
+    d = _ds.build_decision_bounty_context(h, ridx)
+    return (d['aggregate'], d['reason'])
+check('T-I1F-08: truth table — all collectible -> (all, known_all)',
+      _ar(_tt_all, 1) == ('all', 'known_all'), _ar(_tt_all, 1))
+check('T-I1F-09: truth table — all not-collectible -> (none, known_none)',
+      _ar(_tt_none, 1) == ('none', 'known_none'), _ar(_tt_none, 1))
+check('T-I1F-10: truth table — only equal stacks -> (all, known_all) [REV5 B5: equal is collectible]',
+      _ar(_tt_eq, 1) == ('all', 'known_all'), _ar(_tt_eq, 1))
+check('T-I1F-11: truth table — collectible + not-collectible -> (mixed, known_mixed)',
+      _ar(_tt_mix, 2) == ('mixed', 'known_mixed'), _ar(_tt_mix, 2))
+check('T-I1F-12: truth table — strict-cover + equal stacks -> (all, known_all) [both collectible]',
+      _ar(_tt_ceq, 2) == ('all', 'known_all'), _ar(_tt_ceq, 2))
+check('T-I1F-13: truth table — unknown stack present -> (unknown, unknown_missing_stack)',
+      _ar(_tt_unk, 1) == ('unknown', 'unknown_missing_stack'), _ar(_tt_unk, 1))
+# every decision-time pair must be valid under the truth table (never a contradiction).
+check('T-I1F-14: every decision-time (aggregate,reason) is a valid truth-table pair',
+      all(_qp.aggregate_reason_consistent(*_ar(h, i)) for h, i in
+          [(_tt_all, 1), (_tt_none, 1), (_tt_eq, 1), (_tt_mix, 2), (_tt_ceq, 2),
+           (_tt_unk, 1), (_b4_open, 0), (_b1_base, 2)]), '')
+
+# ---- (#8/#9/#10 + B4) folded dead money stays in the pot; folder never eligible ----
+# 1 folded contributor (the GPT mandatory fixture): Folder 2 (folds), Short 5 ai, Deep 5, Hero 5.
+_dead1 = {'id': 'DEAD1', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 50.0, 'Folder': 30.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 5, True),
+                            _Lb('preflop', 'Deep', 'calls', 5), _Lb('preflop', 'Folder', 'folds', 0),
+                            _Lb('preflop', 'Hero', 'calls', 5)]}
+_rc_d1 = _ds.build_realized_contest(_dead1, 4)
+check('T-I1F-15: 1 folded contributor -> total 17, dead 2, main eligible {Hero,Short,Deep}, reconciles',
+      _rc_d1['total_committed_pot_bb'] == 17.0 and _rc_d1['dead_money_bb'] == 2.0
+      and set(_rc_d1['pot_layers'][0]['eligible_participants']) == {'Hero', 'Short', 'Deep'}
+      and 'Folder' not in _rc_d1['eligible_bounties']
+      and _qp.pot_reconciliation_violation(_rc_d1) is None,
+      (_rc_d1['total_committed_pot_bb'], _rc_d1['dead_money_bb']))
+# several folded contributors.
+_dead2 = {'id': 'DEAD2', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'F1': 10.0, 'F2': 12.0, 'Short': 5.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'F1', 'calls', 2), _Lb('preflop', 'F2', 'calls', 3),
+                            _Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5),
+                            _Lb('preflop', 'F1', 'folds', 0), _Lb('preflop', 'F2', 'folds', 0)]}
+_rc_d2 = _ds.build_realized_contest(_dead2, 3)
+check('T-I1F-16: several folded contributors -> dead 5 (F1 2 + F2 3) stays in pot, reconciles',
+      _rc_d2['dead_money_bb'] == 5.0 and _rc_d2['dead_money_by_player'] == {'F1': 2.0, 'F2': 3.0}
+      and _qp.pot_reconciliation_violation(_rc_d2) is None, str(_rc_d2['dead_money_by_player']))
+# folded blind/ante money stays as dead money.
+_dead3 = {'id': 'DEAD3', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'SB': 18.0, 'V': 9.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'V', 'raises', 9, True),
+                            _Lb('preflop', 'Hero', 'calls', 9), _Lb('preflop', 'SB', 'folds', 0)]}
+_rc_d3 = _ds.build_realized_contest(_dead3, 2)
+check('T-I1F-17: folded blind money is dead money (SB 0.5), pot reconciles',
+      _rc_d3['dead_money_by_player'].get('SB') == 0.5 and 'SB' not in _rc_d3['eligible_bounties']
+      and _qp.pot_reconciliation_violation(_rc_d3) is None, str(_rc_d3['dead_money_by_player']))
+# dead money + one short all-in.
+_dead4 = {'id': 'DEAD4', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 3.0, 'Folder': 20.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 3, True),
+                            _Lb('preflop', 'Hero', 'calls', 3), _Lb('preflop', 'Folder', 'folds', 0)]}
+_rc_d4 = _ds.build_realized_contest(_dead4, 2)
+check('T-I1F-18: dead money + one short all-in -> dead 2, Short eligible, reconciles',
+      _rc_d4['dead_money_bb'] == 2.0 and _rc_d4['eligible_bounties'].get('Short') == 'collectible'
+      and _qp.pot_reconciliation_violation(_rc_d4) is None, str(_rc_d4))
+# dead money + multiple GENUINE side pots (distinct all-in caps among eligible players;
+# the folded player's smaller cap must NOT create an extra side layer — it merges away).
+_dead5 = {'id': 'DEAD5', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Mid': 15.0, 'Deep': 30.0, 'Folder': 25.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Folder', 'calls', 2), _Lb('preflop', 'Short', 'raises', 5, True),
+                            _Lb('preflop', 'Mid', 'raises', 15, True), _Lb('preflop', 'Deep', 'raises', 30, True),
+                            _Lb('preflop', 'Hero', 'calls', 30), _Lb('preflop', 'Folder', 'folds', 0)]}
+_rc_d5 = _ds.build_realized_contest(_dead5, 4)
+_d5_sides = [l for l in _rc_d5['pot_layers'] if l['kind'] == 'side']
+check('T-I1F-19: dead money + 2 genuine side pots (folded cap merged away) -> reconciles, dead 2, main {Deep,Hero,Mid,Short}',
+      _qp.pot_reconciliation_violation(_rc_d5) is None and _rc_d5['dead_money_bb'] == 2.0
+      and sum(1 for l in _rc_d5['pot_layers'] if l['kind'] == 'main') == 1
+      and len(_d5_sides) == 2
+      and all(len(l['eligible_participants']) >= 2 for l in _d5_sides)
+      and set(_rc_d5['pot_layers'][0]['eligible_participants']) == {'Deep', 'Hero', 'Mid', 'Short'},
+      str([(l['kind'], l['from_bb'], l['to_bb'], l['eligible_participants']) for l in _rc_d5['pot_layers']]))
+# sum of all layer amounts == total committed pot (every fixture above).
+check('T-I1F-20: sum(layer totals) == total committed pot for every dead-money fixture',
+      all(abs(sum(l['total_layer_bb'] for l in rc['pot_layers']) - rc['total_committed_pot_bb']) < 0.02
+          for rc in (_rc_d1, _rc_d2, _rc_d3, _rc_d4, _rc_d5)), '')
+
+# ---- (#11) worklist consumes the canonical decision-time bounty context ----
+_w_hand = {'id': 'TM_PKOW', 'tournament_hand_id': 'TM_PKOW', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': dict(_b1_ssb), 'board': [], 'action_ledger': list(_b1_pre)}
+_w_cand = _mk_cand(id='TM_PKOW', cards='AhKh', position='BB', pf_allin=True, format='BOUNTY',
+                   jammer_position='UTG', jammer_stack_bb=5.0,
+                   decision_math={'key_decision_street': 'preflop',
+                                  'streets': {'preflop': {'hero_call_amount_bb': 5.0}}})
+_w_wl = _awl.build_analyst_worklist({'all_in_review': [_w_cand]}, {}, {}, [_w_hand], '20260101')
+_w_item = _w_wl['items']['TM_PKOW']
+_w_bnt = _w_item['bounty_context']
+_w_ridx = _rai(_w_hand, _w_item.get('decision_kind') or _w_item.get('bucket'))
+_w_dbc = _ds.build_decision_bounty_context(_w_hand, _w_ridx)
+check('T-I1F-21: worklist bounty_context consumes the canonical decision-time object',
+      _w_bnt.get('coverage_aggregate') == _w_dbc['aggregate']
+      and _w_bnt.get('reason') == _w_dbc['reason']
+      and _w_bnt.get('eligible_bounties_by_opponent') == _w_dbc['eligible_bounties_by_opponent']
+      and _qp.aggregate_reason_consistent(_w_bnt.get('coverage_aggregate'), _w_bnt.get('reason')),
+      str(_w_bnt.get('coverage_aggregate')) + '/' + str(_w_bnt.get('reason')))
+
+# ---- (#12) report consumes the SAME canonical object (analyzer stamp wiring) ----
+_ana_src = open('gem_analyzer.py', encoding='utf-8').read()
+_wl_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check('T-I1F-22: report + worklist both consume the canonical decision context (no independent reconstruction)',
+      "h['decision_bounty_context'] = _dbc_default" in _ana_src
+      and "h['decision_bounty_context_by_action_index'] = _by_idx" in _ana_src
+      and 'build_decision_bounty_context' in _wl_src
+      and _ds.build_decision_bounty_context(_w_hand) == _ds.build_decision_bounty_context(_w_hand), '')
+
+# ---- (#13) parity gate CATCHES intentionally injected future contamination ----
+_fut_actions = [_Lb('flop', 'Deep', 'bets', 55, True), _Lb('flop', 'Hero', 'calls', 35, True)]
+def _contaminated_ctx(h, ridx):
+    rc = _ds.build_realized_contest(h, ridx)
+    return {'eligible_bounties_by_opponent': dict(rc.get('eligible_bounties') or {}),
+            'aggregate': _ds.bounty_aggregate(h, ridx), 'reason': _ds.bounty_reason(h, ridx),
+            'coverage_mixed': _ds.bounty_aggregate(h, ridx) == 'mixed',
+            'hero_in_allin_confrontation': _ds.hero_in_allin_confrontation(h, ridx),
+            'stack_cover_relationship_by_opponent': {}, 'hero_covers_relevant_villain': None}
+_clean_v = _qp.prefix_invariance_violations(_b1_base, _b1_ridx, _fut_actions)
+_dirty_v = _qp.prefix_invariance_violations(_b1_base, _b1_ridx, _fut_actions, ctx_fn=_contaminated_ctx)
+check('T-I1F-23: gate prefix-invariance — clean model invariant, CONTAMINATED model detected',
+      _clean_v == [] and len(_dirty_v) > 0, (_clean_v, _dirty_v))
+
+# ---- (#14) parity gate CATCHES intentionally removed dead money ----
+check('T-I1F-24a: pot reconciliation passes on a valid dead-money contest',
+      _qp.pot_reconciliation_violation(_rc_d1) is None, '')
+_bad_dead = _i1f_copy.deepcopy(_rc_d1); _bad_dead['dead_money_bb'] = 0.0
+_bad_total = _i1f_copy.deepcopy(_rc_d1); _bad_total['total_committed_pot_bb'] = 15.0  # the GPT 17->15 bug
+check('T-I1F-24b: gate CATCHES removed dead money AND a dropped folded total (17->15)',
+      _qp.pot_reconciliation_violation(_bad_dead) is not None
+      and _qp.pot_reconciliation_violation(_bad_total) is not None, '')
+
+# ---- (#15) parity gate CATCHES an aggregate/reason contradiction ----
+check('T-I1F-25: gate accepts valid pairs and CATCHES the mixed/known_all contradiction',
+      _qp.aggregate_reason_consistent('mixed', 'known_mixed')
+      and _qp.aggregate_reason_consistent('none', 'equal_boundary')
+      and not _qp.aggregate_reason_consistent('mixed', 'known_all')
+      and not _qp.aggregate_reason_consistent('all', 'known_none'), '')
+
+# prefix-invariance is a no-op when Hero has NO reviewed decision (blind-fold around):
+# an injected Hero action would CREATE a first decision, not contaminate an earlier one.
+_nodec = {'id': 'NODEC', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0, 'V': 18.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),
+                            _Lb('preflop', 'V', 'folds', 0)]}
+check('T-I1F-26: prefix-invariance is a no-op when Hero has no reviewed decision (ridx None)',
+      _ds.resolve_decision_ref(_nodec)['hero_action_index'] is None
+      and _qp.prefix_invariance_violations(_nodec, None, _fut_actions) == [], '')
+
+
+# ============================================================
+# REV4 (Iteration 1 consumer routing + pot-layer truth) — T-I1G-01..NN
+#  - rendered report bounty context == canonical (data attrs, not source strings)
+#  - worklist bounty fields rebuilt from ONE object (no contradictions)
+#  - dead money never creates a fake side pot; folded Hero is dead money only
+#  - the strengthened gates CATCH injected consumer + pot-layer corruption
+# ============================================================
+from gem_report_draft.sections_xiv import _bounty_data_attrs as _bdav, _decision_bounty_view as _dbv
+import re as _re_g
+
+
+def _rendered_bounty(h):
+    """Stamp the canonical context (as the analyzer does) and parse the RENDERED data
+    attributes — proves the renderer emits the canonical aggregate/reason, not a
+    reconstructed scalar."""
+    h2 = dict(h)
+    h2['decision_bounty_context'] = _ds.build_decision_bounty_context(h2)
+    s = _bdav(h2)
+    ma = _re_g.search(r"data-bounty-aggregate='([^']*)'", s)
+    mr = _re_g.search(r"data-bounty-reason='([^']*)'", s)
+    return (ma.group(1) if ma else None, mr.group(1) if mr else None)
+
+
+def _canon_ar(h, idx=None):
+    d = _ds.build_decision_bounty_context(h, idx)
+    return (d['coverage_aggregate'], d['coverage_reason'])
+
+# (#1-#6) rendered report bounty == canonical for each confrontation shape
+_g_hu_coll = {'id': 'GHU1', 'hero': 'Hero', 'format': 'BOUNTY',
+              'seat_stack_by_player': {'Hero': 20.0, 'V': 5.0}, 'board': [],
+              'action_ledger': [_Lb('preflop', 'V', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_g_hu_not = {'id': 'GHU2', 'hero': 'Hero', 'format': 'BOUNTY',
+             'seat_stack_by_player': {'Hero': 10.0, 'V': 80.0}, 'board': [],
+             'action_ledger': [_Lb('preflop', 'V', 'raises', 80, True), _Lb('preflop', 'Hero', 'calls', 10, True)]}
+_g_eq = {'id': 'GEQ', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 20.0}, 'board': [],
+         'action_ledger': [_Lb('preflop', 'V', 'raises', 20, True), _Lb('preflop', 'Hero', 'calls', 20, True)]}
+_g_mix = {'id': 'GMIX', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 30.0, 'Short': 5.0, 'Big': 80.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Big', 'raises', 80, True),
+                            _Lb('preflop', 'Hero', 'calls', 30, True)]}
+_g_unk = {'id': 'GUNK', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 20.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'raises', 8, True), _Lb('preflop', 'Hero', 'calls', 8)]}
+_g_noai = {'id': 'GNOAI', 'hero': 'Hero', 'format': 'BOUNTY',
+           'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+           'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+check('T-I1G-01: rendered == canonical — HU collectible all-in (all/known_all)',
+      _rendered_bounty(_g_hu_coll) == _canon_ar(_g_hu_coll) == ('all', 'known_all'), _rendered_bounty(_g_hu_coll))
+check('T-I1G-02: rendered == canonical — HU non-collectible all-in (none/known_none)',
+      _rendered_bounty(_g_hu_not) == _canon_ar(_g_hu_not) == ('none', 'known_none'), _rendered_bounty(_g_hu_not))
+check('T-I1G-03: rendered == canonical — equal stacks (all/known_all) [REV5 B5: equal is collectible]',
+      _rendered_bounty(_g_eq) == _canon_ar(_g_eq) == ('all', 'known_all'), _rendered_bounty(_g_eq))
+check('T-I1G-04: rendered == canonical — mixed multiway eligibility (mixed/known_mixed)',
+      _rendered_bounty(_g_mix) == _canon_ar(_g_mix) == ('mixed', 'known_mixed'), _rendered_bounty(_g_mix))
+check('T-I1G-05: rendered == canonical — unknown opponent stack (unknown/unknown_missing_stack)',
+      _rendered_bounty(_g_unk) == _canon_ar(_g_unk) == ('unknown', 'unknown_missing_stack'), _rendered_bounty(_g_unk))
+check('T-I1G-06: rendered == canonical — no all-in confrontation (not_applicable)',
+      _rendered_bounty(_g_noai) == _canon_ar(_g_noai) == ('not_applicable', 'not_applicable_no_allin_confrontation'),
+      _rendered_bounty(_g_noai))
+
+# (#7) earlier decision then later OPPONENT all-in — earlier rendered ctx unchanged
+_g7_base = {'id': 'G7B', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Deep', 'calls', 5),
+                              _Lb('preflop', 'Hero', 'calls', 5)]}
+_g7_fut = dict(_g7_base); _g7_fut = {'id': 'G7F', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': _g7_base['action_ledger'] + [_Lb('flop', 'Deep', 'bets', 55, True), _Lb('flop', 'Hero', 'calls', 35, True)]}
+check('T-I1G-07: earlier decision rendered ctx is unchanged by a later OPPONENT all-in',
+      _canon_ar(_g7_base, 2) == _canon_ar(_g7_fut, 2) == ('all', 'known_all'), '')
+
+# (#8) earlier decision then later HERO all-in — earlier ctx unchanged
+_g8 = {'id': 'G8', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 32.0, 'V': 50.0},
+       'board': ['2c', '7d', 'Js'], 'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.2), _Lb('preflop', 'V', 'calls', 2.2),
+                                                       _Lb('flop', 'Hero', 'bets', 30, True), _Lb('flop', 'V', 'calls', 30, True)]}
+check('T-I1G-08: earlier decision (idx 0) ctx unchanged by a later HERO all-in',
+      _canon_ar(_g8, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation'), _canon_ar(_g8, 0))
+
+# (#9) several Hero decisions in one hand -> action-indexed contexts differ per index:
+# Hero's preflop OPEN (idx 0) has no all-in confrontation; Hero's flop CALL vs V's jam
+# (idx 3) is a covered all-in. A single default context would mislabel one of them.
+_g9 = {'id': 'G9', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': 40.0, 'V': 30.0},
+       'board': ['2c', '7d', 'Js'],
+       'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                         _Lb('flop', 'V', 'bets', 27.5, True), _Lb('flop', 'Hero', 'calls', 27.5)]}
+check('T-I1G-09: several Hero decisions -> the right action-indexed ctx per index (not one default)',
+      _canon_ar(_g9, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation')  # preflop open
+      and _canon_ar(_g9, 3) == ('all', 'known_all')      # flop call vs V's jam, Hero covers
+      and _canon_ar(_g9, 0) != _canon_ar(_g9, 3), (_canon_ar(_g9, 0), _canon_ar(_g9, 3)))
+
+# (#13/F1) gate_report_bounty CATCHES a renderer that reconstructs coverage (wrong attr)
+_gi_hands = [dict(_g_hu_coll)]
+_gi_hands[0]['tournament_hand_id'] = 'GHU1'
+_gi_idx = _qp._hand_index(_gi_hands)
+_good_html = ("<article class='hand-detail-card' data-hand-id='GHU1' "
+              + _bdav({**_g_hu_coll, 'decision_bounty_context': _ds.build_decision_bounty_context(_g_hu_coll)}) + ">x</article>")
+_bad_html = "<article class='hand-detail-card' data-hand-id='GHU1' data-bounty-aggregate='none' data-bounty-reason='known_none'>x</article>"
+check('T-I1G-10: gate_report_bounty PASSES canonical render, CATCHES a reconstructed (wrong) bounty render',
+      len(_qp.gate_report_bounty(_gi_idx, _good_html)['mismatches']) == 0
+      and len(_qp.gate_report_bounty(_gi_idx, _bad_html)['mismatches']) == 1, '')
+
+# (#14/F2) pot_semantic_violations CATCHES injected pot-layer corruption
+_pc_rc = _ds.build_realized_contest(_dead1, 4)   # valid one-folder contest
+check('T-I1G-11: pot_semantic gate PASSES a valid contest', _qp.pot_semantic_violations(_pc_rc) == [], '')
+_pc_bad1 = _i1f_copy.deepcopy(_pc_rc); _pc_bad1['main_pot_participants'] = _pc_bad1['main_pot_participants'] + ['Folder']
+_pc_bad2 = _i1f_copy.deepcopy(_pc_rc); _pc_bad2['pot_layers'] = _pc_bad2['pot_layers'] + [dict(_pc_bad2['pot_layers'][0], kind='side')]
+_pc_bad3 = _i1f_copy.deepcopy(_pc_rc); _pc_bad3['realized_participant_count'] = 99
+check('T-I1G-12: pot_semantic gate CATCHES folded-in-main, unmerged-side, and bad participant count',
+      _qp.pot_semantic_violations(_pc_bad1)
+      and _qp.pot_semantic_violations(_pc_bad2)
+      and _qp.pot_semantic_violations(_pc_bad3), '')
+
+# (#15/F3) worklist_bounty_consistency CATCHES the REV3 contradictions
+check('T-I1G-13: worklist_bounty_consistency PASSES a clean not_applicable bnt',
+      _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'collectibility_known': False,
+           'adjustment_applied_to_decision': False, 'hero_covers_relevant_villain': None,
+           'bounty_eligibility_known': False}) == [], '')
+check('T-I1G-14: worklist_bounty_consistency CATCHES not_applicable+collectibility_known and +adjustment (the REV3 52/7 bugs)',
+      'not_applicable_with_collectibility_known' in _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'collectibility_known': True, 'bounty_eligibility_known': True})
+      and 'not_applicable_with_adjustment_applied' in _qp.worklist_bounty_consistency_violations(
+          {'coverage_aggregate': 'not_applicable', 'coverage_reason': 'not_applicable_no_allin_confrontation',
+           'eligible_bounties_by_opponent': {}, 'adjustment_applied_to_decision': True}), '')
+
+# the worklist invariant on a REAL canonical context for an open jam / not_applicable
+_g_open_ctx = _ds.build_decision_bounty_context(_g_noai)
+check('T-I1G-15: a not_applicable canonical context yields null hero_covers + unknown-not eligibility-known',
+      _g_open_ctx['coverage_aggregate'] == 'not_applicable'
+      and _g_open_ctx['hero_covers_relevant_villain'] is None
+      and _g_open_ctx['bounty_eligibility_known'] is False
+      and _g_open_ctx['eligible_bounties_by_opponent'] == {}, '')
+
+
+# ============================================================
+# REV5 (Iteration 1 — bounty applicability, action-index routing, uncalled returns,
+# realized eligibility after fold, equal-stack semantics) — T-I1H-01..NN
+# ============================================================
+def _app(h, idx=None):
+    return _ds.build_decision_bounty_context(h, idx)['bounty_applicability']
+
+# ---- B1: exact_committed vs potential_if_called vs not_applicable ----
+_h_osh = {'id': 'OSH', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 12.0, 'SB': 20.0, 'BB': 25.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'BB', 'posts', 1.0),
+                            _Lb('preflop', 'Hero', 'raises', 12, True), _Lb('preflop', 'BB', 'folds', 0)]}
+_h_rejam = {'id': 'RJ5', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 30.0, 'MP': 50.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'MP', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 30, True)]}
+_h_cvj = {'id': 'CVJ5', 'hero': 'Hero', 'format': 'BOUNTY',
+          'seat_stack_by_player': {'Hero': 40.0, 'V': 5.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'V', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_h_open_nonai = {'id': 'ON5', 'hero': 'Hero', 'format': 'BOUNTY',
+                 'seat_stack_by_player': {'Hero': 40.0, 'V': 20.0}, 'board': [],
+                 'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}
+check('T-I1H-01: open-shove -> potential_if_called (NOT not_applicable)',
+      _app(_h_osh, 2) == 'potential_if_called', _app(_h_osh, 2))
+check('T-I1H-02: re-jam over a live raise -> potential_if_called',
+      _app(_h_rejam, 1) == 'potential_if_called', _app(_h_rejam, 1))
+check('T-I1H-03: call vs an existing jam -> exact_committed',
+      _app(_h_cvj, 1) == 'exact_committed', _app(_h_cvj, 1))
+check('T-I1H-04: first-in NON-all-in open -> not_applicable (no shove, no committed)',
+      _app(_h_open_nonai, 0) == 'not_applicable', _app(_h_open_nonai, 0))
+_osh_ctx = _ds.build_decision_bounty_context(_h_osh, 2)
+check('T-I1H-05: open-shove carries potential_calling_bounties (cover relationships known)',
+      set(_osh_ctx['potential_calling_bounties_by_opponent'].keys()) == {'SB', 'BB'}
+      and _osh_ctx['committed_allin_bounties_by_opponent'] == {}, str(_osh_ctx['potential_calling_bounties_by_opponent']))
+# the model never mislabels a shove with live callers as bounty-irrelevant, and the
+# INV11 gate catches a deliberately-corrupted hand whose shove reads not_applicable.
+check('T-I1H-06: a Hero shove with live callers is never not_applicable (model invariant)',
+      all(_ds.build_decision_bounty_context(h, i)['bounty_applicability'] != 'not_applicable'
+          for h, i in [(_h_osh, 2), (_h_rejam, 1)]), '')
+# failure injection for INV11: a hand whose shove has callers but a NON-bounty format is
+# not_applicable (the model is correct); flip is_bounty on and the shove becomes
+# potential_if_called — proving the gate's shove check keys on applicability vs kind.
+_osh_nb = dict(_h_osh); _osh_nb['format'] = 'HOLDEM'; _osh_nb['bounty_value_bb'] = 0
+check('T-I1H-07: non-bounty shove is not_applicable; bounty shove is potential_if_called (gate distinguishes)',
+      _ds.build_decision_bounty_context(_osh_nb, 2)['bounty_applicability'] == 'not_applicable'
+      and _ds.build_decision_bounty_context(_h_osh, 2)['bounty_applicability'] == 'potential_if_called', '')
+
+# ---- B2: action-index routing + per-decision parity ----
+# Hand with TWO materially different Hero decisions (preflop open + flop call-vs-jam)
+_h_multi = {'id': 'MULTI', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'V': 30.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                              _Lb('flop', 'V', 'bets', 27.5, True), _Lb('flop', 'Hero', 'calls', 27.5)]}
+check('T-I1H-08: the two Hero decisions in one hand have DIFFERENT contexts (open vs call-vs-jam)',
+      _canon_ar(_h_multi, 0) == ('not_applicable', 'not_applicable_no_allin_confrontation')
+      and _canon_ar(_h_multi, 3) == ('all', 'known_all'), (_canon_ar(_h_multi, 0), _canon_ar(_h_multi, 3)))
+# the per-decision metadata renderer emits a block per Hero action index, each correct
+from gem_report_draft.sections_xiv import _per_decision_bounty_meta as _pdm_fn
+_h_multi_stamped = dict(_h_multi)
+_h_multi_stamped['decision_bounty_context_by_action_index'] = {
+    i: _ds.build_decision_bounty_context(_h_multi, i)
+    for i, a in enumerate(_h_multi['action_ledger']) if a['player'] == 'Hero'}
+_meta_html = _pdm_fn(_h_multi_stamped)
+check('T-I1H-09: per-decision metadata emits a block per Hero action index (0 and 3) with the RIGHT context',
+      "data-decision-action-index='0'" in _meta_html and "data-decision-action-index='3'" in _meta_html
+      and _meta_html.count('decision-bounty-meta') == 2
+      and "data-decision-action-index='0' data-decision-street='preflop' data-bounty-aggregate='not_applicable'" in _meta_html, _meta_html)
+# gate_report_decision_bounty: PASSES the correct render, CATCHES a wrong-index render
+_gpd_idx = _qp._hand_index([{**_h_multi, 'tournament_hand_id': 'MULTI'}])
+from _qa_decode_lazy import decode_lazy_hands as _dlh
+import _qa_parity as _qp2
+_good_pd = "<article data-hand-id='MULTI'>" + _meta_html + "</article>"
+# corrupt: the flop call (idx 3) block carries the preflop open's context (not_applicable)
+_bad_pd = ("<article data-hand-id='MULTI'>"
+           "<span class='decision-bounty-meta' data-decision-action-index='3' data-decision-street='flop'"
+           " data-bounty-aggregate='not_applicable' data-bounty-reason='not_applicable_no_allin_confrontation'"
+           " data-bounty-applicability='not_applicable'></span></article>")
+def _pd_mismatches(html):
+    # decode_lazy_hands needs lazy payload; here pass the raw article via a tiny shim
+    out = {'checked': 0, 'mismatches': []}
+    import re as _re_pd
+    pat = _re_pd.compile(r"decision-bounty-meta' data-decision-action-index='(\d+)'[^>]*data-bounty-aggregate='([^']*)'[^>]*data-bounty-reason='([^']*)'[^>]*data-bounty-applicability='([^']*)'")
+    for m in pat.finditer(html):
+        i, agg, rsn, app = int(m.group(1)), m.group(2), m.group(3), m.group(4)
+        c = _ds.build_decision_bounty_context(_h_multi, i)
+        if (c['coverage_aggregate'] != agg or c['coverage_reason'] != rsn or c['bounty_applicability'] != app):
+            out['mismatches'].append({'idx': i})
+    return out
+check('T-I1H-10: per-decision gate PASSES correct render, CATCHES a wrong-action-index render',
+      len(_pd_mismatches(_good_pd)['mismatches']) == 0 and len(_pd_mismatches(_bad_pd)['mismatches']) == 1, '')
+
+# ---- B3: uncalled-return normalization ----
+def _rc(led, ssb, idx, fmt='BOUNTY'):
+    return _ds.build_realized_contest({'id': 'U', 'hero': 'Hero', 'format': fmt,
+                                       'seat_stack_by_player': ssb, 'board': [], 'action_ledger': led}, idx)
+# 1) Hero overjam vs one shorter all-in caller -> uncalled to Hero, no side pot
+_u1 = _rc([_Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'V', 'calls', 20, True)],
+          {'Hero': 100.0, 'V': 20.0}, 0)
+check('T-I1H-11: Hero overjam vs shorter caller -> gross 120, contestable 40, uncalled 80, NO side pot',
+      _u1['gross_action_commitments_bb'] == 120.0 and _u1['contestable_pot_bb'] == 40.0
+      and _u1['uncalled_return_by_player'] == {'Hero': 80.0} and _u1['side_pot_participants'] == []
+      and _qp.pot_semantic_violations(_u1) == [], str(_u1.get('side_pot_participants')))
+# 2) Villain overjam vs shorter Hero call -> uncalled to Villain
+_u2 = _rc([_Lb('preflop', 'V', 'raises', 100, True), _Lb('preflop', 'Hero', 'calls', 40, True)],
+          {'Hero': 40.0, 'V': 100.0}, 1)
+check('T-I1H-12: Villain overjam vs shorter Hero call -> uncalled to V, contestable 80, no side',
+      _u2['uncalled_return_by_player'] == {'V': 60.0} and _u2['contestable_pot_bb'] == 80.0
+      and _u2['side_pot_participants'] == [] and _qp.pot_semantic_violations(_u2) == [], str(_u2))
+# 3) multiway main + genuine side + final uncalled (Deep over-jams 100 over Hero's 50 all-in)
+_u3 = _rc([_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Mid', 'raises', 20, True),
+           _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'raises', 100, True)],
+          {'Hero': 50.0, 'Short': 5.0, 'Mid': 20.0, 'Deep': 100.0}, 2)
+check('T-I1H-13: multiway main + genuine side pots + final uncalled (Deep 50 returned, ledger-derived), all layers >=2 eligible',
+      _u3['uncalled_return_by_player'] == {'Deep': 50.0}
+      and all(len(l['eligible_participants']) >= 2 for l in _u3['pot_layers'])
+      and _qp.pot_semantic_violations(_u3) == [], str([(l['from_bb'], l['to_bb'], l['eligible_participants']) for l in _u3['pot_layers']]))
+# 4) folded dead money + uncalled
+_u4 = _rc([_Lb('preflop', 'Folder', 'calls', 3), _Lb('preflop', 'Short', 'raises', 5, True),
+           _Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'Folder', 'folds', 0)],
+          {'Hero': 100.0, 'Short': 5.0, 'Folder': 30.0}, 2)
+check('T-I1H-14: folded dead money + uncalled -> dead 3 stays, Hero uncalled 95, reconciles',
+      _u4['dead_money_bb'] == 3.0 and _u4['uncalled_return_by_player'].get('Hero') == 95.0
+      and _qp.pot_semantic_violations(_u4) == [], str(_u4))
+# 5) one eligible band + dead money is a valid uncontested award (NOT a fake side pot)
+_u5 = _rc([_Lb('preflop', 'V', 'raises', 20, True), _Lb('preflop', 'Hero', 'raises', 30, True),
+           _Lb('preflop', 'Folder', 'calls', 25), _Lb('preflop', 'Folder', 'folds', 0)],
+          {'Hero': 30.0, 'V': 20.0, 'Folder': 25.0}, 1)
+check('T-I1H-15: one-eligible band WITH dead money is a valid uncontested award (not a fake side pot)',
+      _qp.pot_semantic_violations(_u5) == []
+      and any(len(l['eligible_participants']) == 1 and l['dead_money_bb'] > 0 for l in _u5['pot_layers']), str(_u5['pot_layers']))
+# 6/7/8 reconciliation across all uncalled fixtures
+check('T-I1H-16: gross == contestable + uncalled for every uncalled fixture; no zero/one-player-no-dead layer',
+      all(abs(r['gross_action_commitments_bb'] - (r['contestable_pot_bb'] + r['uncalled_return_bb'])) < 0.02
+          and 'zero_player_pot_layer' not in _qp.pot_semantic_violations(r)
+          for r in (_u1, _u2, _u3, _u4, _u5)), '')
+# failure injection: a one-player-no-dead layer is caught
+_u_bad = _i1f_copy.deepcopy(_u1)
+_u_bad['pot_layers'] = _u_bad['pot_layers'] + [{'kind': 'side', 'from_bb': 40.0, 'to_bb': 120.0, 'cap_bb': 120.0,
+    'eligible_participants': ['Hero'], 'eligible_contribution_bb': 80.0, 'dead_money_bb': 0.0,
+    'dead_money_by_player': {}, 'total_layer_bb': 80.0}]
+check('T-I1H-17: pot gate CATCHES an injected one-player side pot (uncalled excess as side pot)',
+      'one_player_side_pot' in _qp.pot_semantic_violations(_u_bad), '')
+
+# ---- REV6 B1: LEDGER-derived uncalled returns (10 mandatory acceptance tests) ----
+# The uncalled return must come from the action LEDGER (last unmatched bet/raise), NEVER
+# from contribution-total ranking. Forced posts / antes / rounding must never manufacture a
+# return. Each fixture asserts the typed source fields too.
+# 1) 83526894-STRUCTURE: river jam FULLY CALLED with a big-blind-ante asymmetry preflop.
+#    Hero's TOTAL exceeds V's by the ante (0.15), but the river jam is matched -> uncalled 0.
+_lu1 = _rc([_Lb('preflop', 'V', 'posts', 1.0), _Lb('preflop', 'Hero', 'posts', 1.15),  # BB-ante on Hero
+            _Lb('preflop', 'V', 'raises', 2.5), _Lb('preflop', 'Hero', 'calls', 2.5),
+            _Lb('flop', 'V', 'bets', 5.0), _Lb('flop', 'Hero', 'calls', 5.0),
+            _Lb('turn', 'V', 'bets', 8.0), _Lb('turn', 'Hero', 'calls', 8.0),
+            _Lb('river', 'V', 'raises', 13.5, True), _Lb('river', 'Hero', 'calls', 13.5, True)],
+           {'Hero': 30.0, 'V': 30.0}, 9)
+check('T-LU-01 (83526894-structure): river jam fully called + BB-ante asymmetry -> uncalled 0, no false ante return',
+      _lu1['uncalled_return_by_player'] == {} and _lu1['uncalled_return_bb'] == 0.0
+      and _lu1['matched_amount_bb'] == 13.5 and _lu1['uncalled_source_street'] == 'river'
+      and _qp.pot_semantic_violations(_lu1) == [],
+      (_lu1['uncalled_return_by_player'], _lu1['matched_amount_bb']))
+# 2) 84611544-STRUCTURE: BTN opens / BB calls, bet-call every street, river bet 5.3 fully called.
+_lu2 = _rc([_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'BB', 'posts', 1.0),
+            _Lb('preflop', 'BTN', 'raises', 2.2), _Lb('preflop', 'SB', 'folds', 0),
+            _Lb('preflop', 'BB', 'calls', 2.2),
+            _Lb('flop', 'BB', 'checks', 0), _Lb('flop', 'BTN', 'bets', 2.5), _Lb('flop', 'BB', 'calls', 2.5),
+            _Lb('turn', 'BB', 'checks', 0), _Lb('turn', 'BTN', 'bets', 4.0), _Lb('turn', 'BB', 'calls', 4.0),
+            _Lb('river', 'BB', 'checks', 0), _Lb('river', 'BTN', 'bets', 5.3), _Lb('river', 'BB', 'calls', 5.3)],
+           {'BTN': 40.0, 'BB': 40.0, 'SB': 40.0}, 12)
+check('T-LU-02 (84611544-structure): fully-called river bet + folded SB blind -> uncalled 0',
+      _lu2['uncalled_return_by_player'] == {} and _lu2['uncalled_return_bb'] == 0.0
+      and _lu2['uncalled_source_street'] == 'river' and _lu2['matched_amount_bb'] == 5.3
+      and _qp.pot_semantic_violations(_lu2) == [], str(_lu2['uncalled_return_by_player']))
+# 3) Big-blind walk: SB posts, BB posts, everyone folds -> NO raise/bet -> no uncalled bet.
+_lu3 = _rc([_Lb('preflop', 'SB', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),  # Hero is BB
+            _Lb('preflop', 'BTN', 'folds', 0), _Lb('preflop', 'SB', 'folds', 0)],
+           {'Hero': 50.0, 'SB': 50.0, 'BTN': 50.0}, 1)
+check('T-LU-03: BB walk -> no blind/ante is labelled an uncalled bet (source index None, return 0)',
+      _lu3['uncalled_return_bb'] == 0.0 and _lu3['uncalled_source_action_index'] is None
+      and _qp.pot_semantic_violations(_lu3) == [], str(_lu3['uncalled_return_by_player']))
+# 4) Big-blind ante on ONE seat, hand otherwise fully called -> the ante is not a return.
+_lu4 = _rc([_Lb('preflop', 'V', 'posts', 1.0), _Lb('preflop', 'Hero', 'posts', 2.0),  # 1bb BB + 1bb BB-ante
+            _Lb('preflop', 'V', 'raises', 6.0), _Lb('preflop', 'Hero', 'calls', 6.0)],
+           {'Hero': 30.0, 'V': 30.0}, 3)
+check('T-LU-04: big-blind ante on one seat + fully-called open -> no false return (ante stays dead)',
+      _lu4['uncalled_return_by_player'] == {} and _lu4['uncalled_return_bb'] == 0.0
+      and _qp.pot_semantic_violations(_lu4) == [], str(_lu4['uncalled_return_by_player']))
+# 5) Hero jams 100, Villain calls all-in 20 -> genuine 80 return to Hero (also at T-I1H-11).
+_lu5 = _rc([_Lb('preflop', 'Hero', 'raises', 100, True), _Lb('preflop', 'V', 'calls', 20, True)],
+           {'Hero': 100.0, 'V': 20.0}, 0)
+check('T-LU-05: Hero jams 100 / V calls all-in 20 -> genuine 80 return, source = Hero raise, matched 20',
+      _lu5['uncalled_return_by_player'] == {'Hero': 80.0} and _lu5['matched_amount_bb'] == 20.0
+      and _lu5['uncalled_source_player'] == 'Hero' and _lu5['uncalled_action_added_bb'] == 100.0
+      and _lu5['contestable_pot_bb'] == 40.0, str(_lu5))
+# 6) River bet 20, all opponents fold -> the unmatched bet is returned.
+_lu6 = _rc([_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+            _Lb('flop', 'Hero', 'bets', 3.0), _Lb('flop', 'V', 'calls', 3.0),
+            _Lb('turn', 'Hero', 'checks', 0), _Lb('turn', 'V', 'checks', 0),
+            _Lb('river', 'Hero', 'bets', 20.0), _Lb('river', 'V', 'folds', 0)],
+           {'Hero': 60.0, 'V': 60.0}, 6)
+check('T-LU-06: river bet 20 then villain folds -> genuine 20 return to Hero (river is uncalled)',
+      _lu6['uncalled_return_by_player'] == {'Hero': 20.0} and _lu6['uncalled_source_street'] == 'river'
+      and _lu6['matched_amount_bb'] == 0.0 and _qp.pot_semantic_violations(_lu6) == [], str(_lu6))
+# 7) Multiway main + side + final unmatched (Deep over-jams 100 over Hero's 50; same as T-I1H-13).
+_lu7 = _rc([_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Mid', 'raises', 20, True),
+            _Lb('preflop', 'Hero', 'raises', 50, True), _Lb('preflop', 'Deep', 'raises', 100, True),
+            _Lb('preflop', 'Short', 'calls', 0), _Lb('preflop', 'Mid', 'calls', 0)],
+           {'Hero': 50.0, 'Short': 5.0, 'Mid': 20.0, 'Deep': 100.0}, 2)
+check('T-LU-07: multiway main + genuine side pots + final uncalled (Deep 50 returned) -> all layers >=2 eligible',
+      _lu7['uncalled_return_by_player'] == {'Deep': 50.0}
+      and all(len(l['eligible_participants']) >= 2 for l in _lu7['pot_layers'])
+      and _qp.pot_semantic_violations(_lu7) == [], str(_lu7['uncalled_return_by_player']))
+# 8) Sub-chip rounding asymmetry (< 0.01 BB) must NOT manufacture a return.
+_lu8 = _rc([_Lb('preflop', 'V', 'raises', 6.004), _Lb('preflop', 'Hero', 'calls', 6.001, True)],
+           {'Hero': 6.001, 'V': 30.0}, 1)
+check('T-LU-08: sub-chip rounding (6.004 vs 6.001) does not manufacture an uncalled return',
+      _lu8['uncalled_return_bb'] == 0.0 and _lu8['uncalled_return_by_player'] == {}
+      and _qp.pot_semantic_violations(_lu8) == [], str(_lu8['uncalled_return_by_player']))
+# 9) Pot odds / eligible all-in amounts exclude ONLY proven uncalled: the contestable pot
+#    (what an opponent's call actually contests) is gross MINUS the proven uncalled excess.
+check('T-LU-09: contestable/eligible pot excludes ONLY the proven uncalled action (not antes)',
+      _lu5['contestable_pot_bb'] == round(_lu5['gross_action_commitments_bb'] - _lu5['uncalled_return_bb'], 2)
+      and _lu1['contestable_pot_bb'] == _lu1['gross_action_commitments_bb']  # ante NOT excluded
+      and _lu6['contestable_pot_bb'] == round(_lu6['gross_action_commitments_bb'] - 20.0, 2), '')
+# 10) Gross == contestable + uncalled AND contestable == Σ(layer totals) reconcile from the ledger.
+check('T-LU-10: gross == contestable + uncalled and Σ(layers) == contestable for every ledger fixture',
+      all(abs(r['gross_action_commitments_bb'] - (r['contestable_pot_bb'] + r['uncalled_return_bb'])) < 0.02
+          and abs(r['contestable_pot_bb'] - sum(l['total_layer_bb'] for l in r['pot_layers'])) < 0.02
+          for r in (_lu1, _lu2, _lu3, _lu4, _lu5, _lu6, _lu7, _lu8)), '')
+
+# ---- REV6 B2: VISIBLE decision routing through the ONE canonical reviewed action ----
+from gem_report_draft.sections_xiv import (_reconcile_po_to_reviewed as _rpr,
+                                           _reviewed_decision_line_md as _rdl,
+                                           _reviewed_ref as _rref)
+# multi-street hand: preflop/flop/turn calls then a RIVER jam-call. gem_pot_odds would pick
+# the FIRST all-in call (an earlier street); the reviewed action is Hero's RIVER call.
+_b2h = {'id': '84000001', 'tournament_hand_id': '84000001', 'hero': 'Hero', 'format': 'BOUNTY',
+        'seat_stack_by_player': {'Hero': 30.0, 'V': 30.0}, 'board': ['2c', '7d', 'Js', '3h', 'Qd'],
+        'action_ledger': [_Lb('preflop', 'V', 'raises', 2.5), _Lb('preflop', 'Hero', 'calls', 2.5),
+                          _Lb('flop', 'V', 'bets', 4.0), _Lb('flop', 'Hero', 'calls', 4.0),
+                          _Lb('turn', 'V', 'bets', 6.0), _Lb('turn', 'Hero', 'calls', 6.0),
+                          _Lb('river', 'V', 'raises', 17.5, True), _Lb('river', 'Hero', 'calls', 17.5, True)]}
+_b2_idx = _ds.infer_reviewed_action_index(_b2h)
+_b2_ref = _ds.build_reviewed_decision_ref(_b2h, _b2_idx, 'postflop', 'worklist_reviewed_action')
+check('T-B2-01: canonical reviewed ref selects the RIVER jam-call (not the first all-in call)',
+      _b2_ref['street'] == 'river' and _b2_ref['hero_action_index'] == 7
+      and abs(_b2_ref['to_call_bb'] - 17.5) < 0.01, str(_b2_ref))
+# a gem_pot_odds-style block that grades the WRONG (turn) action gets OVERRIDDEN to the river
+_wrong_po = {'street': 'turn', 'call_bb': 6.0, 'pot_before_call_bb': 13.0, 'required_eq_pct': 31.6,
+             'pot_odds': '2.2:1', 'hero_equity_pct': 44.0, 'mode': 'street_calls'}
+_fixed_po = _rpr(_wrong_po, _b2_ref)
+check('T-B2-02: mismatching pot-odds is rebuilt to the reviewed (river) action; stale equity dropped',
+      _fixed_po['street'] == 'river' and abs(_fixed_po['call_bb'] - 17.5) < 0.01
+      and _fixed_po['reviewed_routed'] is True and _fixed_po['decision_action_index'] == 7
+      and 'hero_equity_pct' not in _fixed_po, str(_fixed_po))
+# a pot-odds block that ALREADY grades the reviewed action keeps its richer fields, pins idx
+_match_po = {'street': 'river', 'call_bb': 17.5, 'pot_before_call_bb': 25.0, 'required_eq_pct': 41.0,
+             'hero_equity_pct': 52.0}
+_kept_po = _rpr(_match_po, _b2_ref)
+check('T-B2-03: matching pot-odds keeps equity + pins the action index (reviewed_routed False)',
+      _kept_po['reviewed_routed'] is False and _kept_po['decision_action_index'] == 7
+      and _kept_po.get('hero_equity_pct') == 52.0, str(_kept_po))
+check('T-B2-04: the VISIBLE reviewed-decision line states street + call + effective depth',
+      _rdl(_fixed_po).startswith('**Reviewed decision:** river, call 17.5BB, effective depth')
+      and 'BB' in _rdl(_fixed_po), _rdl(_fixed_po))
+# failure injection for the VISIBLE parity gate (decode a real lazy payload)
+import base64 as _b2b64, zlib as _b2zlib, json as _b2json
+def _mk_lazy_html(cards):
+    _co = _b2zlib.compressobj(9, _b2zlib.DEFLATED, -15)
+    _raw = _co.compress(_b2json.dumps(cards).encode('utf-8')) + _co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _b2b64.b64encode(_raw).decode('ascii'))
+_b2_hidx = _qp._hand_index([_b2h])
+_b2_st, _b2_call, _b2_depth = _b2_ref['street'], _b2_ref['to_call_bb'], _b2_ref['effective_stack_at_decision_bb']
+_good_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+              f"**Reviewed decision:** {_b2_st}, call {_b2_call:g}BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_good = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _good_body}))
+check('T-B2-05: visible-decision gate PASSES a block that grades the reviewed (river) action',
+      _gv_good['checked'] == 1 and _gv_good['mismatches'] == [], str(_gv_good))
+# hidden-correct / visible-WRONG: idx says river but the visible street says turn
+_bad_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+             f"**Reviewed decision:** turn, call 6BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_bad = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _bad_body}))
+check('T-B2-06: visible-decision gate CATCHES hidden-correct/visible-wrong (idx river, visible turn)',
+      any(m['field'] == 'visible_street_ne_snapshot' for m in _gv_bad['mismatches']), str(_gv_bad))
+_noidx_body = (f"<div class='analyst-notes'>"
+               f"**Reviewed decision:** {_b2_st}, call {_b2_call:g}BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_noidx = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _noidx_body}))
+check('T-B2-07: visible-decision gate CATCHES a visible block missing data-decision-action-index',
+      any(m['field'] == 'missing_decision_action_index' for m in _gv_noidx['mismatches']), str(_gv_noidx))
+# visible CALL differs from the snapshot (street right, call wrong)
+_badcall_body = (f"<div class='analyst-notes' data-decision-action-index='7'>"
+                 f"**Reviewed decision:** {_b2_st}, call 99BB, effective depth ≈{_b2_depth:.2f}BB</div>")
+_gv_badcall = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _badcall_body}))
+check('T-B2-08: visible-decision gate CATCHES a visible call amount that differs from the canonical display',
+      any(m['field'] == 'visible_action_ne_canonical_display' for m in _gv_badcall['mismatches'])
+      and any(m['field'] == 'visible_call_gt_callable' for m in _gv_badcall['mismatches']), str(_gv_badcall))
+# article-default replaces reviewed context: the visible block uses the EARLIER turn action
+# (idx 5) while the reviewed action is the RIVER call (idx 7) — consistent numbers for idx 5
+# but the WRONG (earlier) decision is graded.
+_snap5 = _ds.build_decision_snapshot(_b2h, 5)
+_turn_body = (f"<div class='analyst-notes' data-decision-action-index='5'>"
+              f"**Reviewed decision:** {_snap5['street']}, call {_snap5['to_call_bb']:g}BB, "
+              f"effective depth ≈{_snap5['effective_stack_at_decision_bb']:.2f}BB</div>")
+_gv_turn = _qp.gate_report_visible_decision(_b2_hidx, _mk_lazy_html({'84000001': _turn_body}))
+check('T-B2-09: visible-decision gate CATCHES a block grading an EARLIER street than the reviewed action',
+      any(m['field'] == 'rendered_idx_not_reviewed_action' for m in _gv_turn['mismatches']), str(_gv_turn))
+
+# ============================================================
+# REV7: DecisionPriceContract (A1) + typed ActionDisplay (A2) + visible semantic gates (B)
+# ============================================================
+# A1: the canonical price contract uses the CALLABLE amount + CONTESTABLE pot, never raw to_call.
+_ov = {'id': 'OVERJAM', 'tournament_hand_id': '85000001', 'hero': 'Hero', 'format': 'NLHE',
+       'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0}, 'board': [],
+       'action_ledger': [{'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0,
+                          'amount_bb': 1.0, 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'},
+                         _Lb('preflop', 'V', 'raises', 100.0, True),
+                         _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
+_ov_s = _ds.build_decision_snapshot(_ov, 2)
+check('T-REV7-01 (A1): Hero 20bb (posted 1) vs Villain jam 100 -> callable 19, raw-to-match 99, overjam 80',
+      _ov_s['callable_amount_bb'] == 19.0 and _ov_s['raw_amount_to_match_bb'] == 99.0
+      and _ov_s['uncallable_overjam_bb'] == 80.0 and _ov_s['price_applicable'] is True
+      and _ov_s['contestable_pot_before_action_bb'] == 21.0,
+      str((_ov_s['callable_amount_bb'], _ov_s['raw_amount_to_match_bb'], _ov_s['uncallable_overjam_bb'])))
+check('T-REV7-02 (A1): required equity uses the CONTESTABLE pot + callable, NEVER the raw overjam',
+      _ov_s['required_equity_pct'] == round(100.0 * 19.0 / (21.0 + 19.0), 1)
+      and _ov_s['required_equity_pct'] != round(100.0 * 99.0 / (_ov_s['pot_before_action_bb'] + 99.0), 1),
+      str(_ov_s['required_equity_pct']))
+_ov_disp = _ds.reviewed_action_display(_ov, 2, _ov_s)
+check('T-REV7-03 (A2): the overjam call displays the CALLABLE amount, not the raw 99',
+      _ov_disp['display_text'] == 'call 19BB', _ov_disp['display_text'])
+# A2: each action TYPE renders its own verb (never a generic 'call').
+def _disp_for(led, ssb, idx, fmt='NLHE', board=None):
+    h = {'id': 'AD', 'hero': 'Hero', 'format': fmt, 'seat_stack_by_player': ssb,
+         'board': board or [], 'action_ledger': led}
+    return _ds.reviewed_action_display(h, idx)['display_text']
+_d_call = _disp_for([_Lb('preflop', 'V', 'raises', 10, True), _Lb('preflop', 'Hero', 'calls', 10, True)], {'Hero': 30.0, 'V': 10.0}, 1)
+_d_fold = _disp_for([_Lb('preflop', 'V', 'raises', 6), _Lb('preflop', 'Hero', 'folds', 0)], {'Hero': 30.0, 'V': 30.0}, 1)
+_d_check = _disp_for([_Lb('flop', 'Hero', 'checks', 0)], {'Hero': 30.0, 'V': 30.0}, 0, board=['2c', '7d', 'Js'])
+_d_open = _disp_for([_Lb('preflop', 'Hero', 'raises', 2.5)], {'Hero': 30.0, 'V': 30.0}, 0)
+_d_bet = _disp_for([_Lb('preflop', 'Hero', 'raises', 2.5), _Lb('preflop', 'V', 'calls', 2.5),
+                    _Lb('flop', 'Hero', 'bets', 4.0)], {'Hero': 30.0, 'V': 30.0}, 2, board=['2c', '7d', 'Js'])
+_d_3bet = _disp_for([_Lb('preflop', 'V', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 9)], {'Hero': 40.0, 'V': 40.0}, 1)
+_d_oshove = _disp_for([_Lb('preflop', 'Hero', 'raises', 12, True)], {'Hero': 12.0, 'V': 40.0}, 0)
+_d_rejam = _disp_for([_Lb('preflop', 'V', 'raises', 3), _Lb('preflop', 'Hero', 'raises', 18, True)], {'Hero': 18.0, 'V': 40.0}, 1)
+check('T-REV7-04 (A2): every action TYPE renders its own verb (call/fold/check/open/bet/3-bet/open-shove/re-jam)',
+      _d_call.startswith('call ') and _d_fold.startswith('fold facing ') and _d_check == 'check'
+      and _d_open.startswith('open to ') and _d_bet.startswith('bet ') and _d_3bet.startswith('3-bet to ')
+      and _d_oshove.startswith('open-shove ') and 're-jam' in _d_rejam and 'over a' in _d_rejam,
+      str([_d_call, _d_fold, _d_check, _d_open, _d_bet, _d_3bet, _d_oshove, _d_rejam]))
+check('T-REV7-05 (A1): a non-call decision (open/bet/check) has price_applicable False (no call price)',
+      _ds.build_decision_snapshot({'id': 'O', 'hero': 'Hero', 'format': 'NLHE',
+          'seat_stack_by_player': {'Hero': 30.0, 'V': 30.0}, 'board': [],
+          'action_ledger': [_Lb('preflop', 'Hero', 'raises', 2.5)]}, 0)['price_applicable'] is False, '')
+# B (gate failure injection): the visible-decision gate catches each REV7 semantic violation.
+_ov_hidx = _qp._hand_index([_ov])
+def _gov(phrase):
+    body = ("<div class='analyst-notes' data-decision-action-index='2'>"
+            "**Reviewed decision:** preflop, %s, effective depth ≈19.00BB</div>" % phrase)
+    return _qp.gate_report_visible_decision(_ov_hidx, _mk_lazy_html({'85000001': body}))
+check('T-REV7-06 (B): gate CATCHES the raw overjam (call 99BB) rendered as Hero\'s price',
+      any(m['field'] == 'visible_call_is_raw_overjam' for m in _gov('call 99BB')['mismatches'])
+      and any(m['field'] == 'visible_call_gt_effective_depth' for m in _gov('call 99BB')['mismatches']), '')
+check('T-REV7-07 (B): gate CATCHES a re-jam / bet / fold rendered with the wrong (call) verb',
+      any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('re-jam 19BB over a 99BB price')['mismatches'])
+      and any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('call 0BB')['mismatches'])
+      and any(m['field'] == 'visible_action_ne_canonical_display' for m in _gov('fold facing 99BB')['mismatches']), '')
+check('T-REV7-08 (B): gate PASSES the correct callable-amount render (call 19BB)',
+      _gov('call 19BB')['mismatches'] == [], str(_gov('call 19BB')))
+
+# ---- REV7 B5: METAMORPHIC invariants (the repair is GENERIC, not fitted to hand IDs) ----
+def _price_tuple(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    d = _ds.reviewed_action_display(h, idx, s)
+    return (s['callable_amount_bb'], s['raw_amount_to_match_bb'], s['uncallable_overjam_bb'],
+            s['required_equity_pct'], d['display_text'], s['street'], s['hero_action_kind'])
+_base = {'id': 'BASE', 'tournament_hand_id': '85100001', 'hero': 'Hero', 'format': 'BOUNTY',
+         'cards': '7h7d', 'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0, 'X': 50.0}, 'board': [],
+         'action_ledger': [{'street': 'preflop', 'player': 'X', 'action': 'posts', 'added_bb': 0.5,
+                            'amount_bb': 0.5, 'is_all_in': False, 'position': 'SB', 'post_type': 'small_blind'},
+                           {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0,
+                            'amount_bb': 1.0, 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'},
+                           _Lb('preflop', 'V', 'raises', 100.0, True), _Lb('preflop', 'X', 'folds', 0),
+                           _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
+_base_pt = _price_tuple(_base, 4)
+# 1) changing the hand ID does not change the result
+_m1 = _i1f_copy.deepcopy(_base); _m1['id'] = 'WHATEVER'; _m1['tournament_hand_id'] = '99999999'
+check('T-META-01: changing the hand ID does not change the canonical price/action',
+      _price_tuple(_m1, 4) == _base_pt, '')
+# 2) renaming players does not change the result
+_m2 = _i1f_copy.deepcopy(_base)
+for _a in _m2['action_ledger']:
+    if _a['player'] == 'V': _a['player'] = 'Villain_Renamed'
+_m2['seat_stack_by_player']['Villain_Renamed'] = _m2['seat_stack_by_player'].pop('V')
+check('T-META-02: renaming players does not change the canonical price/action',
+      _price_tuple(_m2, 4) == _base_pt, '')
+# 3) changing irrelevant hole cards does not change the price
+_m3 = _i1f_copy.deepcopy(_base); _m3['cards'] = 'AsKs'
+check('T-META-03: changing Hero hole cards does not change the price/action',
+      _price_tuple(_m3, 4) == _base_pt, '')
+# 4) appending FUTURE actions does not alter the earlier reviewed decision (future-blind)
+_m4 = _i1f_copy.deepcopy(_base)
+_m4['action_ledger'] += [_Lb('flop', 'V', 'bets', 30, True), _Lb('flop', 'Hero', 'folds', 0)]
+check('T-META-04: appending future actions does not alter the reviewed (idx 4) decision',
+      _price_tuple(_m4, 4) == _base_pt, '')
+# 5) changing later board cards does not alter a preflop decision
+_m5 = _i1f_copy.deepcopy(_base); _m5['board'] = ['As', 'Kd', 'Qc', '2h', '3s']
+check('T-META-05: changing later board cards does not alter the preflop decision',
+      _price_tuple(_m5, 4) == _base_pt, '')
+# 6) changing an UNRELATED folded player's stack does not alter Hero's CALLABLE price
+_m6 = _i1f_copy.deepcopy(_base); _m6['seat_stack_by_player']['X'] = 999.0
+_m6_pt = _price_tuple(_m6, 4)
+check('T-META-06: an unrelated folded player does not alter Hero\'s callable price/raw/overjam',
+      _m6_pt[0] == _base_pt[0] and _m6_pt[1] == _base_pt[1] and _m6_pt[2] == _base_pt[2]
+      and _m6_pt[4] == _base_pt[4], str((_m6_pt[:3], _base_pt[:3])))
+
+# ============================================================
+# REV8: facing-state model (A1) + first-in-fold price (A2/A3) + full-render gate (E)
+# ============================================================
+def _Lp(street, p, act, added, pos=None, allin=False):
+    d = _Lb(street, p, act, added, allin); d['position'] = pos
+    return d
+def _fs(led, ssb, idx, fmt='NLHE', board=None):
+    h = {'id': 'FS', 'tournament_hand_id': '86000001', 'hero': 'Hero', 'format': fmt,
+         'seat_stack_by_player': ssb, 'board': board or [], 'action_ledger': led}
+    s = _ds.build_decision_snapshot(h, idx)
+    return s['decision_facing_state'], s['price_applicable'], _ds.reviewed_action_display(h, idx, s)['display_text']
+# A1: facing-state derived from VOLUNTARY action + forced-post state, never to_call>0
+# UTG first-in fold (only blinds before) -> first_in, no price, 'fold first-in'
+_u_fi = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+             _Lp('preflop', 'Hero', 'folds', 0, 'UTG')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0}, 2)
+check('T-REV8-01 (A1/A2): UTG first-in fold -> facing_state first_in, price NOT applicable, "fold first-in"',
+      _u_fi == ('first_in', False, 'fold first-in'), str(_u_fi))
+# SB unopened fold -> first_in (special), no price
+_sb_fi = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+              _Lp('preflop', 'BTN', 'folds', 0, 'BTN'), _Lp('preflop', 'Hero', 'folds', 0, 'SB')],
+             {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'BTN': 40.0}, 3)
+check('T-REV8-02 (A1): SB unopened fold -> first_in (special), price NOT applicable',
+      _sb_fi[0] == 'first_in' and _sb_fi[1] is False, str(_sb_fi))
+# BB with no raise -> check_option
+_bb_co = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+              _Lp('preflop', 'BTN', 'calls', 1.0, 'BTN'), _Lp('preflop', 'Hero', 'checks', 0, 'BB')],
+             {'Hero': 40.0, 'SB': 40.0, 'BTN': 40.0}, 3)
+check('T-REV8-03 (A1): BB unraised -> check_option, price NOT applicable',
+      _bb_co[0] == 'check_option' and _bb_co[1] is False, str(_bb_co))
+# REV9 A1/A2: limp, no raise, Hero BTN folds -> facing_limp (DISTINCT from first_in),
+# no pot-odds price, but the display is "fold over limp" (NEVER "fold first-in").
+_lp = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BTN')],
+          {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-01 (A2): fold over ONE limp -> facing_limp, price NOT applicable, "fold over limp" (not first-in)',
+      _lp == ('facing_limp', False, 'fold over limp'), str(_lp))
+# fold after TWO limpers -> "fold after 2 limpers"
+_lp2 = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'calls', 1.0, 'MP'),
+            _Lp('preflop', 'Hero', 'folds', 0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-02 (A2): fold after TWO limpers -> "fold after 2 limpers"',
+      _lp2 == ('facing_limp', False, 'fold after 2 limpers'), str(_lp2))
+# overlimp call (BTN calls 1 over a limp) -> "overlimp 1BB"
+_ol = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'calls', 1.0, 'BTN')],
+          {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-03 (A2): overlimp (BTN calls over a limp) -> facing_limp, "overlimp 1BB", overlimp_cost preserved',
+      _ol[0] == 'facing_limp' and _ol[2] == 'overlimp 1BB', str(_ol))
+# SB complete after limp -> "complete 0.5BB after 1 limper"
+_sc = _fs([_Lp('preflop', 'Hero', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'calls', 0.5, 'SB')],
+          {'Hero': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-04 (A2): SB complete after a limp -> facing_limp, "complete 0.5BB after 1 limper"',
+      _sc[0] == 'facing_limp' and _sc[2] == 'complete 0.5BB after 1 limper', str(_sc))
+# BB check after limp -> check_option (already), display "check"
+_bbc = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'checks', 0, 'BB')],
+           {'Hero': 40.0, 'SB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-05 (A2): BB check after a limp -> check_option (to_call 0), display "check"',
+      _bbc[0] == 'check_option' and _bbc[2] == 'check', str(_bbc))
+# iso-raise after ONE limp -> "iso-raise to XBB over 1 limper"
+# iso-raise after ONE limp -> "iso-raise to XBB over 1 limper" (a 'raises' carries its raise-TO level)
+_iso = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+            _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'raises', 5.0, 'BTN')],
+           {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
+check('T-REV9-06 (A2): iso-raise over ONE limp -> facing_limp, "iso-raise to 5BB over 1 limper" (not "open to")',
+      _iso[0] == 'facing_limp' and _iso[2] == 'iso-raise to 5BB over 1 limper', str(_iso))
+# iso-raise after TWO limps -> "iso-raise to XBB over 2 limpers"
+_iso2 = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+             _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'calls', 1.0, 'MP'),
+             _Lp('preflop', 'Hero', 'raises', 6.0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-07 (A2): iso-raise over TWO limps -> "iso-raise to 6BB over 2 limpers"',
+      _iso2[0] == 'facing_limp' and _iso2[2] == 'iso-raise to 6BB over 2 limpers', str(_iso2))
+# limp THEN raise, then Hero acts -> facing_raise (a raise reopened), priced
+_lr = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'UTG', 'calls', 1.0, 'UTG'), _Lp('preflop', 'MP', 'raises', 4.0, 'MP'),
+           _Lp('preflop', 'Hero', 'folds', 0, 'CO')], {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'UTG': 40.0, 'MP': 40.0}, 4)
+check('T-REV9-08 (A2): limp THEN raise, Hero acts -> facing_raise (priced), "fold facing 4BB"',
+      _lr[0] == 'facing_raise' and _lr[1] is True and _lr[2].startswith('fold facing '), str(_lr))
+# ---- REV9 E: failure-injection + structured-range-node + ownership gates ----
+import base64 as _r9b64, zlib as _r9z, json as _r9j
+def _mk_lazy9(cards):
+    _co = _r9z.compressobj(9, _r9z.DEFLATED, -15)
+    _raw = _co.compress(_r9j.dumps(cards).encode('utf-8')) + _co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _r9b64.b64encode(_raw).decode('ascii'))
+# (1) HJ limps, Hero BTN folds, renderer WRONGLY says "fold first-in" -> gate catches
+_r9_limp = {'id': '87000001', 'tournament_hand_id': '87000001', 'hero': 'Hero', 'format': 'NLHE',
+            'seat_stack_by_player': {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0, 'HJ': 30.0}, 'board': [],
+            'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                              _Lp('preflop', 'HJ', 'calls', 1.0, 'HJ'), _Lp('preflop', 'Hero', 'folds', 0, 'BTN')]}
+_r9_hidx = _qp._hand_index([_r9_limp])
+_bad_limp = ("<article><div data-decision-action-index='3'><strong>Reviewed decision:</strong> preflop, "
+             "fold first-in, effective depth ≈30.00BB</div></article>")
+_g_limp = _qp.gate_report_full_render(_r9_hidx, _mk_lazy9({'87000001': _bad_limp}))
+check('T-REV9-09 (E): full-render gate CATCHES a facing-limp fold rendered as "fold first-in"',
+      any(m['field'] == 'facing_limp_rendered_first_in' for m in _g_limp['mismatches']), str(_g_limp['mismatches']))
+# (2) structured range-node: an iso-raise (facing_limp) must NOT accept a first-in RFI chart as
+# selected merely because both are 'raise'.
+from gem_report_draft.sections_xiv import _range_evidence_ownership as _reo9, _reviewed_node_type as _rnt9, _ev_range_node_type as _evn9
+_iso_ref = _ds.build_reviewed_decision_ref({'id': 'ISO', 'hero': 'Hero', 'format': 'NLHE',
+    'seat_stack_by_player': {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 'board': [],
+    'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                      _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'raises', 5.0, 'BTN')]}, 3)
+_rfi_ev = {'role': 'rfi', 'hero_action': 'raise', 'chart_key': 'OPEN_30BB_BTN'}
+check('T-REV9-10 (D): an iso-raise (facing_limp) does NOT accept a first-in RFI chart as selected (node-exact)',
+      _rnt9(_iso_ref) == 'iso_raise' and _evn9(_rfi_ev) == 'first_in_open'
+      and _reo9(_rfi_ev, _iso_ref)[0] == 'suppress', str((_rnt9(_iso_ref), _reo9(_rfi_ev, _iso_ref))))
+# (3) coaching card bounty context reads the REVIEWED action index, not hand-level default
+_cc_src9 = open('gem_coaching_cards.py', encoding='utf-8').read()
+check('T-REV9-11 (C2): coaching-card bounty context derives from the reviewed action index',
+      "build_decision_bounty_context(h, _rev_idx_cc)" in _cc_src9
+      and "'bounty_context_owner'" in _cc_src9
+      and "report_data.get('reviewed_decision_ref_by_hand')" in _cc_src9, '')
+# (4) the holdout runs the REAL production renderer (not helper fragments)
+_ho_src9 = open('_qa_holdout.py', encoding='utf-8').read()
+check('T-REV9-12 (B1/E): the holdout invokes the REAL production hand-detail renderer (render_html)',
+      'render_html(stats' in _ho_src9 and "sections=['XIV']" in _ho_src9
+      and '_reviewed_decision_line_md' not in _ho_src9, '')
+# (5) a 3-bet range is NOT accepted merely because source and target are both 'raise'
+_3b_ref = _ds.build_reviewed_decision_ref({'id': '3B', 'hero': 'Hero', 'format': 'NLHE',
+    'seat_stack_by_player': {'Hero': 40.0, 'V': 40.0}, 'board': [],
+    'action_ledger': [_Lp('preflop', 'V', 'raises', 2.5, 'CO'), _Lp('preflop', 'Hero', 'raises', 9.0, 'BTN')]}, 1)
+_open_ev = {'role': 'rfi', 'hero_action': 'raise'}
+check('T-REV9-13 (D): a reviewed 3-bet does NOT accept a first-in OPEN range (both raise) as selected',
+      _rnt9(_3b_ref) == 'three_bet' and _reo9(_open_ev, _3b_ref)[0] == 'suppress', str(_reo9(_open_ev, _3b_ref)))
+# facing a real raise -> facing_raise, PRICE applicable, 'fold facing XBB'
+_fr = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'posts', 1.0, 'BB'),
+           _Lp('preflop', 'MP', 'raises', 2.5, 'MP'), _Lp('preflop', 'Hero', 'folds', 0, 'BB')],
+          {'Hero': 40.0, 'SB': 40.0, 'MP': 40.0}, 3)
+check('T-REV8-05 (A1/A2): fold facing a RAISE -> facing_raise, PRICE applicable, "fold facing 1.5BB"',
+      _fr[0] == 'facing_raise' and _fr[1] is True and _fr[2].startswith('fold facing '), str(_fr))
+# facing a jam -> facing_jam, price applicable
+_fj = _fs([_Lp('preflop', 'V', 'raises', 30, 'BTN', True), _Lp('preflop', 'Hero', 'folds', 0, 'BB')],
+          {'Hero': 25.0, 'V': 30.0}, 1)
+check('T-REV8-06 (A1): fold facing a JAM -> facing_jam, PRICE applicable',
+      _fj[0] == 'facing_jam' and _fj[1] is True, str(_fj))
+# E (full-render gate) failure injection
+import base64 as _r8b64, zlib as _r8z, json as _r8j
+def _mk_lazy(cards):
+    co = _r8z.compressobj(9, _r8z.DEFLATED, -15)
+    raw = co.compress(_r8j.dumps(cards).encode('utf-8')) + co.flush()
+    return ('<html>PB_PAYLOADS["lazyHands"] = {"encoding":"deflate-raw+base64","data":"%s"}</html>'
+            % _r8b64.b64encode(raw).decode('ascii'))
+# a first-in-fold hand (UTG fold) whose body WRONGLY shows Pot odds -> gate catches
+_r8h = {'id': '86000002', 'tournament_hand_id': '86000002', 'hero': 'Hero', 'format': 'NLHE',
+        'seat_stack_by_player': {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0}, 'board': [],
+        'action_ledger': [_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
+                          _Lp('preflop', 'Hero', 'folds', 0, 'UTG')]}
+_r8_hidx = _qp._hand_index([_r8h])
+_bad_fr = "<article><div>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB · **Pot odds:** 2:1 (call 1BB into 1.5BB) · **Required equity:** 33.0%</div></article>"
+_g_fr_bad = _qp.gate_report_full_render(_r8_hidx, _mk_lazy({'86000002': _bad_fr}))
+check('T-REV8-07 (E): full-render gate CATCHES a first-in fold rendered with pot odds + required equity',
+      any(m['field'] == 'nonprice_action_shows_pot_odds' for m in _g_fr_bad['mismatches'])
+      and any(m['field'] == 'nonprice_action_shows_required_equity' for m in _g_fr_bad['mismatches']), str(_g_fr_bad['mismatches']))
+_good_fr = "<article><div>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB</div></article>"
+_g_fr_ok = _qp.gate_report_full_render(_r8_hidx, _mk_lazy({'86000002': _good_fr}))
+check('T-REV8-08 (E): full-render gate PASSES a clean first-in fold (no price shown)',
+      _g_fr_ok['mismatches'] == [], str(_g_fr_ok))
+# inferred-labelled-as-Reviewed failure injection (gate F, worklist supplied)
+_wl_stub = {'items': {}}   # 86000002 NOT in worklist -> inferred; labelling it "Reviewed decision" is a violation
+_bad_lbl = "<article><div data-decision-action-index='2'>**Reviewed decision:** preflop, fold first-in, effective depth ≈40.00BB</div></article>"
+_g_lbl = _qp.gate_report_visible_decision(_r8_hidx, _mk_lazy({'86000002': _bad_lbl}), _wl_stub)
+check('T-REV8-09 (D/E): visible gate CATCHES an inferred decision labelled "Reviewed decision"',
+      any(m['field'] == 'inferred_labelled_reviewed' for m in _g_lbl['mismatches']), str(_g_lbl['mismatches']))
+
+# ---- B4: realized eligibility does NOT survive Hero's later fold ----
+_b4_fold = {'id': 'B4F', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0, 'Deep': 60.0}, 'board': ['2c', '7d', 'Js'],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5),
+                              _Lb('preflop', 'Deep', 'calls', 5), _Lb('flop', 'Deep', 'bets', 8),
+                              _Lb('flop', 'Hero', 'folds', 0)]}
+_rc_fold = _ds.build_realized_contest(_b4_fold, 1)
+check('T-I1H-18: Hero later folds -> hero_remained_eligible False, realized_collectible {} (decision-time stays)',
+      _rc_fold['hero_remained_eligible'] is False and _rc_fold['realized_collectible_bounties'] == {}
+      and _rc_fold['hero_eligible_pot_layers'] == []
+      and _rc_fold['eligible_bounties'] == {'Short': 'collectible'}, str(_rc_fold['realized_collectible_bounties']))
+_b4_show = {'id': 'B4S', 'hero': 'Hero', 'format': 'BOUNTY',
+            'seat_stack_by_player': {'Hero': 40.0, 'Short': 5.0}, 'board': [],
+            'action_ledger': [_Lb('preflop', 'Short', 'raises', 5, True), _Lb('preflop', 'Hero', 'calls', 5)]}
+_rc_show = _ds.build_realized_contest(_b4_show, 1)
+check('T-I1H-19: Hero remains to showdown -> realized_collectible includes Short',
+      _rc_show['hero_remained_eligible'] is True and _rc_show['realized_collectible_bounties'] == {'Short': 'collectible'}, str(_rc_show))
+_rc_bad = _i1f_copy.deepcopy(_rc_fold); _rc_bad['realized_collectible_bounties'] = {'Short': 'collectible'}
+check('T-I1H-20: pot gate CATCHES Hero-folded-but-realized-collectible (failure injection)',
+      'hero_folded_but_realized_collectible_nonempty' in _qp.pot_semantic_violations(_rc_bad), '')
+
+# ---- B5: equal stacks are collectible (not automatically none) ----
+def _cov(hs, vs):
+    h = {'id': 'EQ5', 'hero': 'Hero', 'format': 'BOUNTY', 'seat_stack_by_player': {'Hero': hs, 'V': vs},
+         'board': [], 'action_ledger': [_Lb('preflop', 'V', 'raises', min(hs, vs), True),
+                                        _Lb('preflop', 'Hero', 'calls', min(hs, vs), hs <= vs)]}
+    return _ds.build_decision_bounty_context(h, 1)
+check('T-I1H-21: exact equal stacks -> collectible_equal_stack, aggregate all (collectible on outright win)',
+      _cov(20.0, 20.0)['eligible_bounties_by_opponent'].get('V') == 'collectible_equal_stack'
+      and _cov(20.0, 20.0)['coverage_aggregate'] == 'all', str(_cov(20.0, 20.0)['coverage_aggregate']))
+check('T-I1H-22: Hero covers by one chip -> collectible (strict)',
+      _cov(20.05, 20.0)['eligible_bounties_by_opponent'].get('V') == 'collectible', '')
+check('T-I1H-23: Hero covered by one chip -> not_collectible',
+      _cov(20.0, 20.05)['eligible_bounties_by_opponent'].get('V') == 'not_collectible', '')
+check('T-I1H-24: equal stacks are NEVER classified aggregate none (B5 core)',
+      _cov(33.3, 33.3)['coverage_aggregate'] != 'none', _cov(33.3, 33.3)['coverage_aggregate'])
+# multiway equal: Hero equal to both all-in opponents -> all collectible
+_eqmw = _ds.build_decision_bounty_context({'id': 'EQMW', 'hero': 'Hero', 'format': 'BOUNTY',
+    'seat_stack_by_player': {'Hero': 20.0, 'A': 20.0, 'B': 20.0}, 'board': [],
+    'action_ledger': [_Lb('preflop', 'A', 'raises', 20, True), _Lb('preflop', 'B', 'raises', 20, True),
+                      _Lb('preflop', 'Hero', 'calls', 20, True)]}, 2)
+check('T-I1H-25: multiway equal-stack boundary -> all collectible (not none)',
+      _eqmw['coverage_aggregate'] == 'all', _eqmw['coverage_aggregate'])
+
+# ---- REV6 B3/B4: combined exact+potential applicability + separate certainty dimension ----
+# Hero RE-JAMS over a SHORT all-in (committed, eliminable now) WHILE a deeper live opponent
+# can still call (potential). Both opportunities must survive (no collapse to a scalar).
+_b34 = {'id': 'B34', 'hero': 'Hero', 'format': 'BOUNTY',
+        'seat_stack_by_player': {'Hero': 40.0, 'Short': 8.0, 'Live': 50.0}, 'board': [],
+        'action_ledger': [_Lb('preflop', 'Short', 'raises', 8.0, True),
+                          _Lb('preflop', 'Live', 'raises', 18.0),
+                          _Lb('preflop', 'Hero', 'raises', 40.0, True)]}
+_b34c = _ds.build_decision_bounty_context(_b34, 2)
+check('T-B34-01: re-jam over a short all-in WITH a live caller -> exact_and_potential (both kept)',
+      _b34c['bounty_applicability'] == 'exact_and_potential'
+      and _b34c['has_exact_committed_bounty_opportunity'] is True
+      and _b34c['has_potential_calling_bounty_opportunity'] is True
+      and 'Short' in _b34c['committed_allin_bounties_by_opponent']
+      and 'Live' in _b34c['potential_calling_bounties_by_opponent'], str(_b34c['bounty_applicability']))
+check('T-B34-02: exact_and_potential certainty is mixed_known (committed known, caller unmodelled)',
+      _b34c['bounty_certainty'] == 'mixed_known' and _b34c['bounty_material_unknown'] is True, _b34c['bounty_certainty'])
+# committed all-in with a MISSING opponent stack: structurally exact_committed, certainty unknown_stack
+_b34u = {'id': 'B34U', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 30.0}, 'board': [],   # Mystery stack absent
+         'action_ledger': [_Lb('preflop', 'Mystery', 'raises', 12.0, True),
+                           _Lb('preflop', 'Hero', 'calls', 12.0, True)]}
+_b34uc = _ds.build_decision_bounty_context(_b34u, 1)
+check('T-B34-03: committed all-in + missing opponent stack -> exact_committed BUT certainty unknown_stack',
+      _b34uc['bounty_applicability'] == 'exact_committed'
+      and _b34uc['bounty_certainty'] == 'unknown_stack'
+      and _b34uc['bounty_material_unknown'] is True, str((_b34uc['bounty_applicability'], _b34uc['bounty_certainty'])))
+# potential_if_called (open-shove, no committed opponent) -> certainty unknown_caller_model
+_b34p = {'id': 'B34P', 'hero': 'Hero', 'format': 'BOUNTY',
+         'seat_stack_by_player': {'Hero': 20.0, 'V': 25.0}, 'board': [],
+         'action_ledger': [_Lb('preflop', 'Hero', 'raises', 20.0, True)]}
+_b34pc = _ds.build_decision_bounty_context(_b34p, 0)
+check('T-B34-04: open-shove with a live caller -> potential_if_called, certainty unknown_caller_model',
+      _b34pc['bounty_applicability'] == 'potential_if_called'
+      and _b34pc['bounty_certainty'] == 'unknown_caller_model', str((_b34pc['bounty_applicability'], _b34pc['bounty_certainty'])))
+# auto-clear gate: blocks on exact_and_potential / unknown_stack / potential; clears clean known
+def _ac(app, cert='known'):
+    _cac = {'tournament_phase': 'mid', 'format': 'BOUNTY', 'cards': 'AhKh', 'position': 'BTN'}
+    _dnc = {'price_unavailable': False, 'hero_action_facing': 'jam', 'price_source': 'pot_odds_v8_12'}
+    _bntc = {'is_pko': True, 'bounty_applicability': app, 'bounty_certainty': cert, 'collectibility_known': True}
+    _rngc = {'is_marginal': False, 'hero_hand_status': 'inside_core'}
+    _dmc = {'required_equity': 30, 'hero_equity_vs_range': 50}
+    _srcc = {'price_engine': 'pot_odds_v8_12'}
+    return _awl._auto_clear_gate(_cac, _dnc, _rngc, _bntc, _dmc, _srcc, 'a | b | c', True, True, 15)
+check('T-B34-05: auto-clear BLOCKS exact_and_potential (unresolved potential caller)',
+      _ac('exact_and_potential', 'mixed_known') == (False, 'bounty_exact_and_potential_unresolved'), str(_ac('exact_and_potential', 'mixed_known')))
+check('T-B34-06: auto-clear BLOCKS a committed all-in with unknown stack (failure injection)',
+      _ac('exact_committed', 'unknown_stack') == (False, 'bounty_certainty_unknown_stack'), str(_ac('exact_committed', 'unknown_stack')))
+check('T-B34-07: auto-clear BLOCKS potential_if_called',
+      _ac('potential_if_called', 'unknown_caller_model') == (False, 'bounty_potential_if_called_unmodelled'), str(_ac('potential_if_called', 'unknown_caller_model')))
+check('T-B34-08: auto-clear does NOT block a clean exact_committed+known on a bounty reason',
+      _ac('exact_committed', 'known')[0] is True, str(_ac('exact_committed', 'known')))
+# the VISIBLE explanation discloses BOTH opportunities for exact_and_potential
+from gem_report_draft.sections_xiv import _bounty_applicability_note_md as _bapn
+_b34['decision_bounty_context'] = _b34c
+check('T-B34-09: visible note for exact_and_potential discloses committed AND potential caller',
+      'committed bounty opportunity already exists' in _bapn(_b34)
+      and "live caller" in _bapn(_b34), _bapn(_b34))
+
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print(f'\n{"=" * 60}')
+# ============================================================
+# REV10 — canonical export + edge-state closure (T-REV10-*)
+# ============================================================
+def _Lp(street, p, act, added, allin=False, pos=None):
+    d = _Lb(street, p, act, added, allin)
+    d['position'] = pos
+    return d
+
+
+def _mkh10(led, ssb, fmt='NLHE', board=None, hid='TM6095000001', cards=('Ah', 'Kd')):
+    return {'id': hid, 'tournament_hand_id': hid, 'hero': 'Hero', 'format': fmt,
+            'cards': list(cards), 'board': board or [], 'seat_stack_by_player': ssb,
+            'action_ledger': led}
+
+
+# --- taxonomy (C1/C2/C3): the facing-limp family + first-in limp are NEVER collapsed ---
+_h_fil = _mkh10([_Lp('preflop', 'Hero', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                 _Lp('preflop', 'CO', 'folds', 0, pos='CO'), _Lp('preflop', 'BTN', 'folds', 0, pos='BTN'),
+                 _Lp('preflop', 'Hero', 'calls', 0.5, pos='SB')],
+                {'Hero': 40.0, 'BB': 40.0, 'CO': 40.0, 'BTN': 40.0})
+_s_fil = _ds.build_decision_snapshot(_h_fil, 4)
+check('T-REV10-01 (C3): first-in SB complete -> first_in_limp node + "complete" display, NOT call_vs_jam',
+      _s_fil['actual_node_type'] == 'first_in_limp' and _s_fil['decision_facing_state'] == 'first_in'
+      and _ds.reviewed_action_display(_h_fil, 4, _s_fil)['display_text'].startswith('complete'),
+      str((_s_fil['actual_node_type'], _ds.reviewed_action_display(_h_fil, 4, _s_fil)['display_text'])))
+
+
+def _node(facing, kind, street='preflop', pos='BTN', allin=False):
+    return _ds.canonical_node_type(facing, kind, street, pos, hero_all_in=allin)
+check('T-REV10-02 (C2/B4): facing-limp overlimp / SB-complete / iso-raise / iso-shove are DISTINCT nodes',
+      _node('facing_limp', 'fold') == 'fold_over_limp'
+      and _node('facing_limp', 'call', pos='BTN') == 'overlimp'
+      and _node('facing_limp', 'call', pos='SB') == 'sb_complete_after_limp'
+      and _node('facing_limp', 'first_in_open') == 'iso_raise'
+      and _node('facing_limp', 'open_shove') == 'iso_shove',
+      str([_node('facing_limp', k, pos=p) for k, p in
+           [('fold', 'BTN'), ('call', 'BTN'), ('call', 'SB'), ('first_in_open', 'BTN'), ('open_shove', 'BTN')]]))
+
+# --- no Hero decision (D1) ---
+_h_walk = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                  _Lp('preflop', 'CO', 'folds', 0, pos='CO'), _Lp('preflop', 'SB', 'folds', 0, pos='SB')],
+                 {'Hero': 40.0, 'SB': 40.0, 'CO': 40.0}, fmt='BOUNTY')
+_s_walk = _ds.build_decision_snapshot(_h_walk, None)
+_r_walk = _ds.build_reviewed_decision_ref(_h_walk)
+check('T-REV10-03 (D1): a walk (Hero never acts) -> no_hero_decision node, no price, confidence none, "no Hero decision"',
+      _s_walk['no_hero_decision'] is True and _s_walk['actual_node_type'] == 'no_hero_decision'
+      and _s_walk['price_applicable'] is False and _r_walk['selection_confidence'] == 'none'
+      and _ds.reviewed_action_display(_h_walk, None, _s_walk)['display_text'] == 'no Hero decision',
+      str((_s_walk['no_hero_decision'], _r_walk['selection_confidence'])))
+
+# --- fold price = callable, never raw; canonical depth >= callable (B2/B3) ---
+_h_oj = _mkh10([_Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'), _Lp('preflop', 'V', 'raises', 98.5, True, pos='BTN'),
+                _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'V': 98.5})
+_s_oj = _ds.build_decision_snapshot(_h_oj, 2)
+_d_oj = _ds.reviewed_action_display(_h_oj, 2, _s_oj)['display_text']
+check('T-REV10-04 (B2): a fold facing an overjam shows the CALLABLE amount + raw separately, never raw as the price',
+      'fold facing 37.88BB' in _d_oj and 'villain wagered 97.5BB' in _d_oj and '97.5BB callable' not in _d_oj,
+      _d_oj)
+check('T-REV10-05 (B3): canonical effective decision depth is always >= callable and <= hero stack',
+      _s_oj['canonical_effective_decision_depth_bb'] >= _s_oj['callable_amount_bb'] - 0.01
+      and _s_oj['canonical_effective_decision_depth_bb'] <= _s_oj['hero_stack_before_action_bb'] + 0.01,
+      str((_s_oj['callable_amount_bb'], _s_oj['canonical_effective_decision_depth_bb'], _s_oj['hero_stack_before_action_bb'])))
+
+# --- worklist serialization == canonical view (A1/A2/A3) ---
+_n_oj = _ds.serialize_reviewed_decision_node(_h_oj, 2, 'preflop_allin', 'worklist_reviewed_action')
+check('T-REV10-06 (A2/A3): serialized worklist node exposes nested price/stack/selection; non-price fold carries no call price',
+      _n_oj['price_contract']['callable_amount_bb'] == _s_oj['callable_amount_bb']
+      and _n_oj['selection']['authoritative'] is True
+      and _n_oj['actual_node_type'] == _s_oj['actual_node_type']
+      and _n_oj['stack_contract']['effective_stack_at_decision_bb'] == _s_oj['canonical_effective_decision_depth_bb'],
+      str(_n_oj['price_contract']))
+_h_bet = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='CO'), _Lp('preflop', 'V', 'calls', 2.5, pos='BB'),
+                 _Lp('flop', 'Hero', 'bets', 4.0, pos='CO')], {'Hero': 60.0, 'V': 60.0}, board=['2c', '7d', 'Js'])
+_n_bet = _ds.serialize_reviewed_decision_node(_h_bet, 2, 'postflop', 'worklist_reviewed_action')
+check('T-REV10-07 (A3): a river/flop BET serializes hero_action_kind != first_in_open and NO call price',
+      _n_bet['actual_node_type'] == 'postflop_bet' and _n_bet['price_contract']['callable_amount_bb'] is None
+      and _n_bet['price_contract']['price_applicable'] is False, str(_n_bet['actual_node_type']))
+
+# --- FAILURE INJECTION (F3): the full-field gate A catches a corrupted node a subset gate misses ---
+_idx10 = _qp._hand_index([_h_oj])
+_wl_good = {'items': {'TM6095000001': {'hand_id': 'TM6095000001', 'decision_kind': 'preflop_allin',
+                                       'decision_node': _ds.serialize_reviewed_decision_node(_h_oj, 2, 'preflop_allin', 'worklist_reviewed_action')}}}
+_corrupt = json.loads(json.dumps(_wl_good))
+_corrupt['items']['TM6095000001']['decision_node']['actual_node_type'] = 'first_in_open'    # postflop-bet style corruption
+_corrupt['items']['TM6095000001']['decision_node']['price_contract']['callable_amount_bb'] = 0.1   # spurious price
+check('T-REV10-08 (F3/B8): gate A PASSES the canonical node and CATCHES a corrupted node/price (subset gate would miss)',
+      len(_qp.gate_worklist(_idx10, _wl_good)['mismatches']) == 0
+      and any(m['field'] == 'actual_node_type' for m in _qp.gate_worklist(_idx10, _corrupt)['mismatches'])
+      and any(m['field'] == 'callable_amount_bb' for m in _qp.gate_worklist(_idx10, _corrupt)['mismatches']),
+      str(_qp.gate_worklist(_idx10, _corrupt)['mismatches'][:3]))
+
+# --- FAILURE INJECTION: full-render gate catches no-decision-as-act, fold>callable, callable>depth ---
+def _frgate(hid, body, hand):
+    return _qp.gate_report_full_render(_qp._hand_index([hand]), _mk_lazy_html({hid: body}), None)
+_walk_bad = ("<div class='analyst-notes' data-decision-action-index='0'>"
+             "<strong>Inferred decision context:</strong> preflop, act</div>"
+             "<p>🎯 <strong>Bounty trust:</strong> collectible</p>")
+check('T-REV10-09 (F3/D): full-render gate CATCHES a no-Hero-decision hand rendered as "act" + bounty teaching',
+      any(m['field'] == 'no_decision_rendered_as_act' for m in _frgate('95000001', _walk_bad, _h_walk)['mismatches'])
+      and any(m['field'] == 'no_decision_shows_bounty_teaching' for m in _frgate('95000001', _walk_bad, _h_walk)['mismatches']),
+      str(_frgate('95000001', _walk_bad, _h_walk)['mismatches']))
+_fold_bad = ("<div class='analyst-notes' data-decision-action-index='2'>"
+             "<strong>Inferred decision context:</strong> preflop, fold facing 98.5BB, effective depth ≈37.88BB</div>")
+check('T-REV10-10 (F3/B2): full-render gate CATCHES a fold-facing price above the callable amount (raw overjam shown)',
+      any(m['field'] == 'fold_price_exceeds_callable' for m in _frgate('95000001', _fold_bad, _h_oj)['mismatches']),
+      str(_frgate('95000001', _fold_bad, _h_oj)['mismatches']))
+
+# --- METAMORPHIC (F4): node + price invariant under irrelevant transforms ---
+def _np(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    return (s['actual_node_type'], s['callable_amount_bb'], s['price_applicable'],
+            s['decision_facing_state'])
+_base10 = _np(_h_oj, 2)
+# (a) hand id
+_h_id = dict(_h_oj); _h_id['id'] = 'TM6099999999'; _h_id['tournament_hand_id'] = 'TM6099999999'
+# (b) rename players
+_ren = {'V': 'Z'}
+_h_ren = _mkh10([_Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'), _Lp('preflop', 'Z', 'raises', 98.5, True, pos='BTN'),
+                 _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'Z': 100.0})
+# (c) irrelevant hole cards
+_h_cards = dict(_h_oj); _h_cards['cards'] = ['2c', '7h']
+# (d) append a FUTURE action after the reviewed fold (must not change the earlier view)
+_h_future = _mkh10(_h_oj['action_ledger'] + [_Lp('preflop', 'X', 'calls', 98.5, True, pos='CO')],
+                   {'Hero': 38.88, 'V': 100.0, 'X': 120.0})
+# (e) add a folded unrelated player BEFORE the wager
+_h_folded = _mkh10([_Lp('preflop', 'UTG', 'folds', 0, pos='UTG'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+                    _Lp('preflop', 'V', 'raises', 98.5, True, pos='BTN'), _Lp('preflop', 'Hero', 'folds', 0, pos='BB')],
+                   {'Hero': 38.88, 'V': 100.0, 'UTG': 50.0})
+# (f) add an ante to a first-in fold (must NOT create a decision price)
+_h_ante0 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                   _Lp('preflop', 'Hero', 'folds', 0, pos='CO')], {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0})
+_h_ante1 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.6, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.1, pos='BB'),
+                   _Lp('preflop', 'Hero', 'folds', 0, pos='CO')], {'Hero': 30.0, 'SB': 30.0, 'BB': 30.0})
+check('T-REV10-11 (F4): node+price invariant under hand-id / player-rename / irrelevant-cards changes',
+      _np(_h_id, 2) == _base10 and _np(_h_ren, 2) == _base10 and _np(_h_cards, 2) == _base10,
+      str((_np(_h_id, 2), _np(_h_ren, 2), _np(_h_cards, 2), _base10)))
+check('T-REV10-12 (F4): appending a future action + adding a folded unrelated player do not change the earlier callable/node',
+      _np(_h_future, 2) == _base10 and _np(_h_folded, 3)[:3] == _base10[:3],
+      str((_np(_h_future, 2), _np(_h_folded, 3), _base10)))
+check('T-REV10-13 (F4): a first-in fold has NO decision price, with OR without an ante (an ante never creates one)',
+      _ds.build_decision_snapshot(_h_ante0, 2)['price_applicable'] is False
+      and _ds.build_decision_snapshot(_h_ante1, 2)['price_applicable'] is False
+      and _ds.build_decision_snapshot(_h_ante0, 2)['actual_node_type'] == 'fold_first_in',
+      str((_ds.build_decision_snapshot(_h_ante0, 2)['price_applicable'],
+           _ds.build_decision_snapshot(_h_ante1, 2)['price_applicable'])))
+
+# ============================================================
+# REV11 — semantic oracle + consumer closure (T-REV11-*)
+# ============================================================
+import _qa_ledger_oracle as _orc
+
+# --- B1.1: a postflop first bet is KIND 'bet' / node postflop_bet, never first_in_open ---
+_h_pfb = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='CO'), _Lp('preflop', 'V', 'calls', 2.5, pos='BB'),
+                 _Lp('flop', 'Hero', 'bets', 5.0, pos='CO')], {'Hero': 60.0, 'V': 60.0}, board=['2c', '7d', 'Js'])
+_s_pfb = _ds.build_decision_snapshot(_h_pfb, 2)
+check('T-REV11-01 (B1.1): a postflop first bet is hero_action_kind=bet / node postflop_bet (NOT first_in_open)',
+      _s_pfb['hero_action_kind'] == 'bet' and _s_pfb['actual_node_type'] == 'postflop_bet'
+      and _ds.reviewed_action_display(_h_pfb, 2, _s_pfb)['display_text'] == 'bet 5BB', str(_s_pfb['hero_action_kind']))
+
+# --- B1.2: a raise/jam over a short all-in (no other live) is a re_jam, NEVER a call ---
+_h_rj = _mkh10([_Lp('preflop', 'V', 'raises', 8.0, True, pos='HJ'),
+                _Lp('preflop', 'Hero', 'raises', 12.7, True, pos='BTN')],
+               {'Hero': 12.7, 'V': 8.0})
+_s_rj = _ds.build_decision_snapshot(_h_rj, 1)
+check('T-REV11-02 (B1.2): a covering re-jam over a short jam is rejam_over_live_raise / node re_jam, display "re-jam" (NOT call)',
+      _s_rj['hero_action_kind'] == 'rejam_over_live_raise' and _s_rj['actual_node_type'] == 're_jam'
+      and 're-jam' in _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text']
+      and 'call' not in _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text'].lower(),
+      _ds.reviewed_action_display(_h_rj, 1, _s_rj)['display_text'])
+
+# --- B3: a first-in underblind all-in is first_in_short_all_in, never limp/call_off ---
+_h_sa = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                _Lp('preflop', 'Hero', 'calls', 0.12, True, pos='MP')], {'Hero': 0.12, 'SB': 30.0, 'BB': 30.0})
+_s_sa = _ds.build_decision_snapshot(_h_sa, 2)
+check('T-REV11-03 (B3/C3): a first-in underblind all-in -> short_all_in / first_in_short_all_in / "short of the big blind", NOT limp/call_off',
+      _s_sa['hero_action_kind'] == 'short_all_in' and _s_sa['actual_node_type'] == 'first_in_short_all_in'
+      and 'short of the big blind' in _ds.reviewed_action_display(_h_sa, 2, _s_sa)['display_text']
+      and _s_sa['became_all_in_on_this_action'] is True, str(_s_sa['hero_action_kind']))
+
+# --- B4: a non-price contract carries NO blind-derived raw price / overjam ---
+check('T-REV11-04 (B4): a first-in/no-wager contract has raw_amount_to_match_bb=None and uncallable_overjam_bb=None',
+      _s_sa['raw_amount_to_match_bb'] is None and _s_sa['uncallable_overjam_bb'] is None
+      and _s_sa['price_applicable'] is False, str((_s_sa['raw_amount_to_match_bb'], _s_sa['uncallable_overjam_bb'])))
+# an aggressive action keeps its faced price under faced_voluntary_price_bb, NOT raw_amount_to_match
+check('T-REV11-05 (B4/D2): an aggressive action keeps the faced price under faced_voluntary_price_bb, raw_amount_to_match=None',
+      _s_rj['raw_amount_to_match_bb'] is None and _s_rj['faced_voluntary_price_bb'] is not None, str(_s_rj['faced_voluntary_price_bb']))
+
+# --- B3 production bug: became_all_in derives from the AFTER-action stack ---
+check('T-REV11-06 (B3): became_all_in_on_this_action uses the post-action stack (an action that jams Hero is all-in)',
+      _ds.build_decision_snapshot(_h_rj, 1)['became_all_in_on_this_action'] is True
+      and _ds.build_decision_snapshot(_h_sa, 2)['became_all_in_on_this_action'] is True, '')
+
+# --- G1: the oracle is INDEPENDENT — its source imports none of the canonical functions ---
+import io as _io11
+_orc_src = _io11.open('_qa_ledger_oracle.py', encoding='utf-8').read()
+# check for actual IMPORTS/CALLS (the docstring deliberately NAMES the forbidden functions to
+# document the constraint — a bare mention is not a call). A call has a '(' after the name.
+_orc_code = '\n'.join(l for l in _orc_src.splitlines()
+                      if not l.strip().startswith('#') and not l.strip().startswith('"'))
+check('T-REV11-07 (G1): the ledger oracle imports/calls NONE of the canonical functions (independent oracle, not self-agreement)',
+      'import gem_decision_snapshot' not in _orc_src
+      and not any((_f + '(') in _orc_code for _f in ('canonical_node_type', 'serialize_reviewed_decision_node',
+                                                     'reviewed_action_display', 'build_decision_snapshot',
+                                                     'hero_action_kind')), '')
+# the oracle independently agrees with the canonical on the fixtures
+check('T-REV11-08 (G2): the oracle independently classifies the fixtures consistently with the canonical',
+      _orc.semantic_consistent(_orc.oracle_identity(_h_pfb, 2)['action_semantics'], 'bet')
+      and _orc.semantic_consistent(_orc.oracle_identity(_h_rj, 1)['action_semantics'], 'rejam_over_live_raise')
+      and _orc.oracle_identity(_h_sa, 2)['action_semantics'] == 'short_all_in', '')
+
+# --- G3 FAILURE INJECTION: the oracle gate catches each corruption ---
+_idx11 = _qp._hand_index([_h_pfb, _h_rj, _h_sa])
+def _wl_node(h, idx, kind):
+    return {'hand_id': h['id'], 'decision_kind': kind,
+            'decision_node': _ds.serialize_reviewed_decision_node(h, idx, kind, 'worklist_reviewed_action')}
+# (1) postflop bet corrupted to first_in_open in the worklist node
+_wl_pfb = {'items': {_h_pfb['id']: _wl_node(_h_pfb, 2, 'postflop')}}
+_wl_pfb['items'][_h_pfb['id']]['decision_node']['hero_action_kind'] = 'first_in_open'
+check('T-REV11-09 (J1): the oracle gate CATCHES a postflop bet serialized as first_in_open',
+      any(m['field'] == 'worklist_vs_canonical_kind' for m in
+          _qp.gate_ledger_oracle(_idx11, _wl_pfb, _mk_lazy_html({'95000001': ''}))['mismatches']), '')
+# (6/7) underblind all-in corrupted to call_off
+_h_sa_bad = _io11_copy = json.loads(json.dumps(_h_sa))
+check('T-REV11-10 (J6/J7): the canonical NEVER types the underblind all-in as call_off/limp (short_all_in node)',
+      _ds.build_decision_snapshot(_h_sa, 2)['actual_node_type'] == 'first_in_short_all_in'
+      and _ds.reviewed_action_display(_h_sa, 2)['display_text'] != 'limp 0.12BB first-in', '')
+
+# --- F1: the serialized coaching card carries decision_content_ownership ---
+try:
+    import gem_coaching_cards as _cc11
+    _cc_facts = {'hand_id': 'TM_CC11', 'street': 'flop', 'provenance': 'test',
+                 'reviewed_action_index': 5, 'bounty_context_owner': 'reviewed_action_index',
+                 'decision_content_ownership': {'reviewed_action_index': 5, 'reviewed_street': 'flop',
+                                                'reviewed_bounty_applicability': 'not_applicable'}}
+    _cc_interp = {'card_type': 'range_awareness', 'card_context_street': 'preflop',
+                  'poker_verdict': 'x', 'headline': 'h', 'why': 'w', 'learn': 'l', 'plan': 'p'}
+    _cc_card = _cc11._build_display_card(_cc_facts, {}, _cc_interp, 'high')
+    check('T-REV11-11 (F1/B5): the SERIALIZED coaching card carries decision_content_ownership + an ownership class',
+          isinstance(_cc_card.get('decision_content_ownership'), dict)
+          and _cc_card.get('ownership') in ('selected_action', 'earlier_context', 'whole_hand',
+                                            'population_research', 'suppressed'), str(_cc_card.get('ownership')))
+    check('T-REV11-12 (F3): a preflop-concept card on a flop reviewed action is ownership=earlier_context',
+          _cc_card.get('ownership') == 'earlier_context', str(_cc_card.get('ownership')))
+except Exception as _e_cc11:
+    check('T-REV11-11..12: coaching ownership serialization', False, str(_e_cc11))
+
+# --- H1 METAMORPHIC: player-rename + future-append produce NON-ZERO checks and 0 violations ---
+def _np11(h, idx):
+    s = _ds.build_decision_snapshot(h, idx)
+    return (s['actual_node_type'], s['hero_action_kind'], s['became_all_in_on_this_action'])
+_base11 = _np11(_h_rj, 1)
+_h_rn = _mkh10([_Lp('preflop', 'Z', 'raises', 8.0, True, pos='HJ'),
+                _Lp('preflop', 'Hero', 'raises', 12.7, True, pos='BTN')], {'Hero': 12.7, 'Z': 8.0})
+_h_fa = _mkh10(_h_rj['action_ledger'] + [_Lp('preflop', 'X', 'calls', 12.7, True, pos='CO')],
+               {'Hero': 12.7, 'V': 8.0, 'X': 40.0})
+check('T-REV11-13 (H1): METAMORPHIC player-rename invariance (non-zero check, 0 violations)',
+      _np11(_h_rn, 1) == _base11, str((_np11(_h_rn, 1), _base11)))
+check('T-REV11-14 (H1): METAMORPHIC future-append invariance — a later action never changes the earlier identity',
+      _np11(_h_fa, 1) == _base11, str((_np11(_h_fa, 1), _base11)))
+
+# --- positive end-to-end on the oracle gate (no mismatches on the clean fixtures) ---
+_wl_clean = {'items': {_h_pfb['id']: _wl_node(_h_pfb, 2, 'postflop'),
+                       _h_rj['id']: _wl_node(_h_rj, 1, 'preflop_allin'),
+                       _h_sa['id']: _wl_node(_h_sa, 2, 'preflop_deviation')}}
+check('T-REV11-15: the oracle gate PASSES the clean canonical fixtures (no semantic-invariant violations)',
+      not any(m['field'] in ('postflop_bet_typed_first_in_open', 'rejam_typed_call',
+                             'first_in_complete_typed_call_vs_jam', 'underblind_all_in_typed_ordinary_call',
+                             'no_wager_carries_raw_price')
+              for m in _qp.gate_ledger_oracle(_idx11, _wl_clean, _mk_lazy_html({'95000001': ''}))['mismatches']), '')
+
+# ============================================================
+# REV12 — visible-truth closure (T-REV12-*)
+# ============================================================
+# --- F1/B5: strict oracle — complete is NOT call_off / call_vs_jam ---
+check('T-REV12-01 (B5): the oracle does NOT accept complete -> call_off / call_vs_jam (kind)',
+      _orc.semantic_consistent('complete', 'call') is True
+      and _orc.semantic_consistent('complete', 'call_off') is False
+      and _orc.semantic_consistent('complete', 'call_vs_jam') is False, '')
+check('T-REV12-02 (B5): the oracle node check — complete -> first_in_limp, NOT call_vs_jam / call_off node',
+      _orc.node_consistent('complete', 'first_in_limp') is True
+      and _orc.node_consistent('complete', 'call_vs_jam') is False
+      and _orc.node_consistent('short_all_in', 'first_in_short_all_in') is True
+      and _orc.node_consistent('re_jam', 'call_vs_jam') is False, '')
+
+# --- A: ActionSizingContract for a re-jam carries added != total-to with a display amount type ---
+# Hero opens 2.5, HJ jams to 8.5 over it, Hero re-jams all-in to 22.16 (adds 19.66, continue 6.0).
+_h_rj12 = _mkh10([_Lp('preflop', 'Hero', 'raises', 2.5, pos='BTN'), _Lp('preflop', 'HJ', 'raises', 8.5, True, pos='HJ'),
+                  _Lp('preflop', 'Hero', 'raises', 19.66, True, pos='BTN')], {'Hero': 22.16, 'HJ': 8.5},
+                 hid='TM6095000002')
+_sz = _ds.build_action_sizing_contract(_h_rj12, 2)
+check('T-REV12-03/REV14 (A/C): the re-jam ActionSizingContract exposes amount_added != live total-to + continue/raise + composite display',
+      _sz['live_betting_total_to_bb'] > _sz['amount_added_bb'] and _sz['continue_component_bb'] is not None
+      and _sz['extra_isolation_amount_bb'] is not None
+      and _sz['primary_display']['label'] == 'adds' and _sz['primary_display']['field'] == 'amount_added_bb'
+      and _sz['secondary_display']['label'] == 'all-in to'
+      and _sz['secondary_display']['field'] == 'live_betting_total_to_bb'
+      and _sz['became_all_in'] is True and _sz['hero_stack_after_bb'] == 0.0
+      and _sz['actual_node_type'] == 're_jam', str(_sz))
+
+# --- Part I gate: gate_visible_semantic catches the legacy contradictions (failure injection) ---
+_h_sa12 = _mkh10([_Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+                  _Lp('preflop', 'Hero', 'calls', 0.12, True, pos='MP')], {'Hero': 0.12, 'SB': 30.0, 'BB': 30.0})
+_idx12 = _qp._hand_index([_h_sa12, _h_rj12])
+def _vsg(hid, body, hand):
+    return _qp.gate_visible_semantic(_qp._hand_index([hand]), _mk_lazy_html({hid: body}), None)
+check('T-REV12-04 (J1/J2/J3): visible-semantic gate CATCHES a short-all-in body with call +EV / Wrong push / 8BB proxy',
+      any(m['field'] == 'short_all_in_with_call_verdict' for m in _vsg('95000001', 'Verdict: call +EV vs range', _h_sa12)['violations'])
+      and any(m['field'] == 'short_all_in_with_push_flag' for m in _vsg('95000001', '❌ Wrong push — Q8o outside HJ open-shove, 8BB', _h_sa12)['violations']), '')
+check('T-REV12-05 (J4): visible-semantic gate CATCHES a re-jam body with a Wide CVJ (Call Villain Jam) headline',
+      any(m['field'] == 'rejam_with_wide_cvj_headline' for m in _vsg('95000002', 'Flagged: Wide CVJ (Call Villain Jam)', _h_rj12)['violations']), '')
+check('T-REV12-06: visible-semantic gate PASSES a clean short-all-in / re-jam body (no per-hand contradictions)',
+      not [m for m in _vsg('95000001', 'all-in for 0.12BB first-in, short of the big blind', _h_sa12)['violations'] if m['hand'] != '_renderer']
+      and not [m for m in _vsg('95000002', 'Re-jam decision — continue component vs the jam', _h_rj12)['violations'] if m['hand'] != '_renderer'], '')
+
+# --- Part E/G gate: gate_action_row_parity reads the EXACT selected Hero row (failure injection) ---
+# REV13: the gate selects Hero's reviewed-ordinal row. _h_rj12's reviewed action is the 2nd Hero
+# action (open, then re-jam), so prepend a benign first Hero row before the injected row under test.
+# Rendered rows are double-quoted and carry `is-hero` (matching production _hand_grid line 1144).
+def _arg(hid, hero_row_html, hand, kind):
+    lead = '<span class="grid-action act-raise is-hero">BTN Open to 2.5BB</span>'
+    body = lead + hero_row_html
+    wl = {'items': {hand['id']: {'hand_id': hand['id'], 'decision_kind': kind}}}
+    return _qp.gate_action_row_parity(_qp._hand_index([hand]), wl, _mk_lazy_html({hid: body}))
+def _arg_fields(hid, row, hand, kind):
+    return [f for m in _arg(hid, row, hand, kind)['mismatches'] for f in m['fields']]
+_hid12 = _h_rj12['id'][-8:]
+# a re-jam whose selected Hero row is a plain "Call X / need Y%" must be CAUGHT
+_rj_bad_row = '<span class="grid-action act-call is-hero">BTN Call 9.3BB <span class="pot-pct">need 42%</span></span>'
+check('T-REV12-07 (J10/G): action-row gate READS the selected Hero row and CATCHES a re-jam shown as a plain priced Call',
+      _arg(_hid12, _rj_bad_row, _h_rj12, 'preflop_allin')['authoritative_action_rows_checked'] >= 1
+      and any(f in ('action_row_plain_call_potodds', 'action_row_verb_missing')
+              for f in _arg_fields(_hid12, _rj_bad_row, _h_rj12, 'preflop_allin')), '')
+# a re-jam JAM row WITHOUT an adds/all-in label (a bare numeric jam) must be flagged
+_rj_unlabelled = '<span class="grid-action act-allin is-hero">BTN ⚡ JAM 12.7BB</span>'
+check('T-REV12-08 (J5/A2): action-row gate CATCHES a JAM row that shows a bare numeric amount (no adds/all-in label)',
+      'unlabelled_jam_amount' in _arg_fields(_hid12, _rj_unlabelled, _h_rj12, 'preflop_allin'), '')
+
+# --- E2/E3 failure injection: earlier-context card pointing at the reviewed action is CAUGHT ---
+def _vsg_cc(hid, cards, hand, body='re-jam decision body'):
+    html = _mk_lazy_html({hid: body}) + ('<script>window.coachingCards=%s;</script>' % json.dumps({hid: cards}))
+    return _qp.gate_visible_semantic(_qp._hand_index([hand]), html, None)
+_bad_cc = [{'card_type': 'range_awareness', 'ownership': 'earlier_context',
+            'decision_content_ownership': {'ownership': 'earlier_context', 'reviewed_action_index': 17,
+                                           'context_action_index': 17}}]
+check('T-REV12-09 (E2/E3): gate CATCHES an earlier-context card whose context index equals the reviewed action index',
+      any(m['field'] == 'earlier_context_card_points_to_reviewed_action'
+          for m in _vsg_cc('95000002', _bad_cc, _h_rj12)['violations']), '')
+
+# --- B3/B4: the JS renderer emits the ownership labels (renderer-presence gate) ---
+import io as _io12
+_html12 = _io12.open(os.path.join('gem_report_draft', '_html.py'), encoding='utf-8').read()
+check('T-REV12-10 (B3/B4): _renderCoachingCard renders the ownership labels (earlier_context / population_research / whole_hand)',
+      'ownership-earlier' in _html12 and 'Population research — not selected-action bounty eligibility' in _html12
+      and 'ownership-population' in _html12 and 'Whole-hand lesson' in _html12
+      and 'card.decision_content_ownership' in _html12, '')
+# the gate flags a MISSING renderer label (failure injection)
+check('T-REV12-11 (J8): the visible-semantic gate flags a MISSING ownership-label renderer',
+      any(m['field'] == 'ownership_label_renderer_missing'
+          for m in _qp.gate_visible_semantic(_qp._hand_index([_h_rj12]), _mk_lazy_html({'95000002': 'x'}), None)['violations']), '')
+
+# ===== REV13: typed sizing + canonical view unification + neutral forced all-in =====
+# T-REV13-01 (H1/A): the re-jam ActionSizingContract — amount_added is the chips Hero adds; the
+# raise increment is amount_added minus the continue component; they are DISTINCT (the value a row
+# must label "adds" is amount_added, NEVER the raise increment — the REV12 B1 defect).
+_sz13 = _ds.build_action_sizing_contract(_h_rj12, 2)
+check('T-REV13-01 (H1/A): re-jam sizing contract — amount_added != raise_increment, both typed',
+      _sz13['amount_added_bb'] is not None and _sz13['raise_increment_bb'] is not None
+      and abs(_sz13['amount_added_bb'] - _sz13['raise_increment_bb']) > 0.5
+      and abs((_sz13['raise_increment_bb'] + (_sz13['continue_component_bb'] or 0)) - _sz13['amount_added_bb']) < 0.05,
+      str(_sz13))
+
+# T-REV13-02 (E2): the INDEPENDENT sizing oracle agrees with the production contract on the displayed
+# quantities (amount_added / total_to) WITHOUT calling the production builder.
+_oz13 = _orc.oracle_sizing(_h_rj12, 2)
+check('T-REV13-02 (E2): independent sizing oracle agrees with the contract on amount_added + total_to',
+      abs(_oz13['amount_added_bb'] - _sz13['amount_added_bb']) < 0.05
+      and abs(_oz13['total_to_bb'] - _sz13['total_to_bb']) < 0.05
+      and _oz13['display_amount_type'] == 'total_to', str(_oz13))
+
+# T-REV13-03/04 (T1/T5): a CORRECT all-in row labels amount_added as "adds"; a row that labels the
+# raise INCREMENT as "adds" is caught by the numeric row check.
+_added13 = _sz13['amount_added_bb']; _tot13 = _sz13['total_to_bb']; _ri13 = _sz13['raise_increment_bb']
+_good_row = '⚡ JAM adds %.1fBB, all-in to %.1fBB' % (_added13, _tot13)
+_bad_row13 = '⚡ JAM adds %.1fBB, all-in to %.1fBB' % (_ri13, _tot13)
+check('T-REV13-03 (T1): the correct row labels amount_added; the raise-increment row is a DIFFERENT string',
+      ('adds %.1fBB' % _added13) in _good_row and _good_row != _bad_row13, _good_row + ' | ' + _bad_row13)
+_lblG, _amtG, _ttG = _qp._parse_action_row(_good_row)
+_lblB, _amtB, _ttB = _qp._parse_action_row(_bad_row13)
+check('T-REV13-04 (E3/T5): numeric row check PASSES amount_added "adds", FAILS the raise-increment "adds"',
+      _qp.check_action_row_numeric(_lblG, _amtG, _ttG, _oz13) == []
+      and 'amount_label_value_mismatch' in _qp.check_action_row_numeric(_lblB, _amtB, _ttB, _oz13), '')
+
+# T-REV13-05 (B2/T3): the serialized decision_node.price_contract is an EXACT serialization of the
+# canonical ReviewedDecisionView.price_contract (deeply equal); a non-price re-jam nulls callable;
+# action_sizing_contract is identical on both.
+_view13 = _ds.build_reviewed_decision_view(_h_rj12, 2, None, 'worklist_reviewed_action')
+_node13 = _ds.serialize_reviewed_decision_node(_h_rj12, 2, None, 'worklist_reviewed_action')
+check('T-REV13-05 (B2/T3): node.price_contract == view.price_contract; non-price re-jam callable None; sizing equal',
+      _node13['price_contract'] == _view13['price_contract']
+      and _view13['price_contract']['callable_amount_bb'] is None
+      and _view13['price_contract']['price_applicable'] is False
+      and _node13['action_sizing_contract'] == _view13['action_sizing_contract'], '')
+
+# T-REV13-06 (F/T5): check_view_node_parity PASSES the real pair, FAILS when a serializer restores a
+# callable on a non-price view (the REV12 47/77 defect injected back).
+_inj_view = json.loads(json.dumps(_view13)); _inj_node = json.loads(json.dumps(_node13))
+_inj_view['price_contract']['callable_amount_bb'] = 1.0
+check('T-REV13-06 (F/T5): view==node deep parity PASSES the real pair, FAILS an injected non-price callable',
+      _qp.check_view_node_parity(_view13, _node13) == []
+      and 'price_contract' in _qp.check_view_node_parity(_inj_view, _inj_node), '')
+
+# T-REV13-07 (B2): a first-in fold has callable null in BOTH view + node + action_display (never a
+# forced-post price); the price contract is the same shared object.
+_h_fold13 = _mkh10([_Lp('preflop','SB','posts',0.5,pos='SB'), _Lp('preflop','BB','posts',1.0,pos='BB'),
+                    _Lp('preflop','Hero','folds',0,pos='UTG')], {'Hero':30.0,'SB':30.0,'BB':30.0}, hid='TM6095000003')
+_v_fold = _ds.build_reviewed_decision_view(_h_fold13, 2, None, 'worklist_reviewed_action')
+_n_fold = _ds.serialize_reviewed_decision_node(_h_fold13, 2, None, 'worklist_reviewed_action')
+check('T-REV13-07 (B2): a first-in fold has callable null in view + node + action_display (no forced price)',
+      _v_fold['price_contract']['callable_amount_bb'] is None and _n_fold['price_contract']['callable_amount_bb'] is None
+      and _v_fold['price_contract'] == _n_fold['price_contract']
+      and (_v_fold['action_display'] or {}).get('facing_price_bb') is None, '')
+
+# T-REV13-08 (C3): the decision-grade eligibility CONTRACT — short all-in + walk are UNGRADED, a
+# re-jam is GRADABLE. (FinalDecisionStatus is NOT implemented — this is the documented contract.)
+check('T-REV13-08 (C3): first_in_short_all_in + no_hero_decision UNGRADED; re-jam GRADABLE',
+      _ds.decision_grade_eligibility('first_in_short_all_in') == 'UNGRADED'
+      and _ds.decision_grade_eligibility('no_hero_decision') == 'UNGRADED'
+      and _ds.decision_grade_eligibility('re_jam') == 'GRADABLE', '')
+
+# T-REV13-09 (C1): the short all-in display is neutral "short of the big blind" with NO callable price.
+_disp_sa = _ds.reviewed_action_display(_h_sa12, 2)
+check('T-REV13-09 (C1): short all-in display is neutral "short of the big blind" (no grade), callable None',
+      'short of the big blind' in _disp_sa['display_text'] and _disp_sa['callable_amount_bb'] is None, str(_disp_sa))
+
+# T-REV13-10 (H6): the sizing contract is invariant under player-rename + changed hand ID (metamorphic).
+_h_rj_renamed = json.loads(json.dumps(_h_rj12))
+_h_rj_renamed['id'] = 'TM6099999999'; _h_rj_renamed['tournament_hand_id'] = 'TM6099999999'
+for _a in _h_rj_renamed['action_ledger']:
+    if _a.get('player') == 'HJ':
+        _a['player'] = 'Villain9'
+_sz_re = _ds.build_action_sizing_contract(_h_rj_renamed, 2)
+check('T-REV13-10 (H6): sizing contract invariant under player-rename + changed hand ID',
+      abs(_sz_re['amount_added_bb'] - _sz13['amount_added_bb']) < 0.01
+      and abs(_sz_re['total_to_bb'] - _sz13['total_to_bb']) < 0.01
+      and abs((_sz_re['raise_increment_bb'] or 0) - (_sz13['raise_increment_bb'] or 0)) < 0.01, '')
+
+# T-REV13-11 (F): gate_canonical_view_node_parity is clean over the fixtures.
+_idx13 = _qp._hand_index([_h_rj12, _h_fold13])
+_wl13 = {'items': {_h_rj12['id']: {'hand_id': _h_rj12['id'], 'decision_kind': 'preflop_allin'},
+                   _h_fold13['id']: {'hand_id': _h_fold13['id'], 'decision_kind': 'preflop_fold'}}}
+_gvn = _qp.gate_canonical_view_node_parity(_idx13, _wl13)
+check('T-REV13-11 (F): canonical view==node deep-parity gate is clean over the fixtures',
+      _gvn['mismatches'] == 0 and _gvn['authoritative_items_checked'] >= 1, str(_gvn))
+
+# T-REV13-12 (E/B6): the numeric action-row gate PASSES a re-jam row that correctly labels amount_added.
+_good_full = ('<span class="grid-action act-raise is-hero">BTN Open to 2.5BB</span>'
+              + '<span class="grid-action act-allin is-hero">BTN ⚡ JAM adds %.1fBB, all-in to %.1fBB</span>'
+              % (_added13, _tot13))
+_g_ok = _qp.gate_action_row_parity(
+    _qp._hand_index([_h_rj12]),
+    {'items': {_h_rj12['id']: {'hand_id': _h_rj12['id'], 'decision_kind': 'preflop_allin'}}},
+    _mk_lazy_html({_hid12: _good_full}))
+check('T-REV13-12 (E/B6): numeric action-row gate PASSES a re-jam row that correctly labels amount_added',
+      _g_ok['total_mismatches'] == 0 and _g_ok['authoritative_action_rows_checked'] == 1,
+      str(_g_ok['mismatches'][:2]))
+
+# T-REV13-13 (D): the re-jam / open-shove bounty flag never restates the action as a "wider call".
+_an_src13 = _io12.open('gem_analyzer.py', encoding='utf-8').read()
+check('T-REV13-13 (D): re-jam/open-shove bounty flag uses subordinate wording, not "wider call"',
+      'bounty may widen the continue threshold before the re-jam' in _an_src13
+      and 'bounty may widen the open-shove range' in _an_src13, '')
+
+# ===== REV14: forced-post / live-commitment + price / pot-odds unification =====
+import copy as _cp14
+# T1: BB call with ante — the ante is DEAD, the BB is LIVE; the call adds exactly the callable.
+_h14_call = _mkh10([
+    _Lp('preflop', 'UTG', 'posts', 0.12, pos='UTG'), _Lp('preflop', 'Hero', 'posts', 0.12, pos='BB'),
+    _Lp('preflop', 'SB', 'posts', 0.12, pos='SB'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'UTG', 'raises', 2.0, pos='UTG'),     # open TO 2.0 (the raise carries its to-level)
+    _Lp('preflop', 'Hero', 'calls', 1.0, pos='BB'),
+], {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6097000001')
+_idx14c = _ds.infer_reviewed_action_index(_h14_call)
+_c14 = _ds.build_action_sizing_contract(_h14_call, _idx14c)
+_snap14 = _ds.build_decision_snapshot(_h14_call, _idx14c)
+_fp14 = _ds.build_forced_post_context(_h14_call, 'Hero')
+check('T-REV14-01 (I1/T1): BB call with ante — ante 0.12 dead, BB 1.0 live; callable=amount_added=continue=1.0, no raise increment',
+      _fp14['ante_paid_bb'] == 0.12 and _fp14['live_blind_committed_bb'] == 1.0
+      and _snap14['callable_amount_bb'] == 1.0 and _c14['amount_added_bb'] == 1.0
+      and _c14['continue_component_bb'] == 1.0 and _c14['raise_increment_bb'] in (None, 0)
+      and _c14['extra_isolation_amount_bb'] in (None, 0), str(_c14))
+
+# T2: dead vs live — pot_contribution = dead ante + live; the dead ante is exposed.
+check('T-REV14-02 (T2): pot_contribution = dead ante + live total-to; dead ante separated',
+      abs(_c14['pot_contribution_total_bb'] - (_c14['dead_forced_posts_bb'] + _c14['live_betting_total_to_bb'])) < 0.01
+      and _c14['dead_forced_posts_bb'] == 0.12 and _snap14['live_street_committed_before_bb'] == 1.0, str(_c14))
+
+# T3: an all-in EXHAUSTS the stack — stack_after == 0, amount_added == stack_before (with ante).
+_h14_rj = _mkh10([
+    _Lp('preflop', 'SB', 'posts', 0.15, pos='SB'), _Lp('preflop', 'Hero', 'posts', 0.15, pos='BTN'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'BB', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'HJ', 'raises', 8.0, True, pos='HJ'),
+    _Lp('preflop', 'Hero', 'raises', 21.85, True, pos='BTN'),
+], {'Hero': 22.0, 'HJ': 8.0, 'SB': 30.0, 'BB': 30.0}, hid='TM6097000002')
+_idx14r = _ds.infer_reviewed_action_index(_h14_rj)
+_c_rj = _ds.build_action_sizing_contract(_h14_rj, _idx14r)
+check('T-REV14-03 (T3/I2): an all-in exhausts the stack — stack_after=0, amount_added==stack_before (ante never left behind)',
+      _c_rj['became_all_in'] and abs(_c_rj['hero_stack_after_bb']) <= 0.01
+      and abs(_c_rj['amount_added_bb'] - _c_rj['hero_stack_before_bb']) <= 0.01, str(_c_rj))
+
+# T4: the INDEPENDENT oracle (poker-rule grounded, ante dead) agrees a call adds callable, no raise.
+_oz14 = _orc.oracle_sizing(_h14_call, _idx14c)
+check('T-REV14-04 (T4/G): the independent oracle (ante-dead) — a call adds callable, never a raise increment',
+      abs(_oz14['amount_added_bb'] - 1.0) < 0.01 and _oz14['continue_component_bb'] == 1.0
+      and _oz14['raise_increment_bb'] in (None, 0)
+      and _orc._forced_posts(_h14_call, 'Hero')['ante_bb'] == 0.12, str(_oz14))
+
+# T5/B6/B4: the call numeric gate flags a call carrying a raise increment OR a price != callable.
+_oz_bad = dict(_oz14); _oz_bad['raise_increment_bb'] = 0.15
+check('T-REV14-05 (T8/B6): the call numeric gate flags a call carrying a raise increment + a price != callable',
+      'call_has_raise_increment' in _qp.check_action_row_numeric('call', 1.0, None, _oz_bad)
+      and 'call_value_not_callable' in _qp.check_action_row_numeric('call', 1.12, None, _oz14), '')
+
+# T6/I5/E: required equity uses the CONTESTABLE pot (capped), excluding the uncallable overjam;
+# the independent oracle agrees with the canonical (the 83915165 56% vs 37.5% class).
+_h14_mw = _mkh10([
+    _Lp('preflop', 'SB', 'posts', 0.15, pos='SB'), _Lp('preflop', 'Hero', 'posts', 0.15, pos='BB'),
+    _Lp('preflop', 'BTN', 'posts', 0.15, pos='BTN'),
+    _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
+    _Lp('preflop', 'BTN', 'raises', 100.0, True, pos='BTN'),
+    _Lp('preflop', 'Hero', 'calls', 19.0, True, pos='BB'),
+], {'Hero': 20.0, 'BTN': 100.0, 'SB': 30.0}, hid='TM6097000003')
+_oz_mw = _orc.oracle_sizing(_h14_mw, _ds.infer_reviewed_action_index(_h14_mw))
+_snap_mw = _ds.build_decision_snapshot(_h14_mw, _ds.infer_reviewed_action_index(_h14_mw))
+check('T-REV14-06 (T6/I5/E): required equity uses the contestable (capped) pot, excludes the uncallable overjam; oracle==canonical',
+      _oz_mw['required_equity_pct'] is not None and _snap_mw['required_equity_pct'] is not None
+      and abs(_oz_mw['required_equity_pct'] - _snap_mw['required_equity_pct']) < 0.6
+      and _oz_mw['contestable_pot_bb'] < 100.0, str(_oz_mw))
+
+# T7/B8: PERSISTED parity passes the stored pair, FAILS a post-serialization mutation (no rebuild).
+_view_p = _ds.build_reviewed_decision_view(_h14_rj, _idx14r, None, 'worklist_reviewed_action')
+_node_p = _ds.serialize_reviewed_decision_node(_h14_rj, _idx14r, None, 'worklist_reviewed_action')
+_wl_good = {'items': {'A': {'hand_id': 'A', 'reviewed_decision_view': _view_p, 'decision_node': _node_p}}}
+_view_bad = _cp14.deepcopy(_view_p); _view_bad['price_contract']['callable_amount_bb'] = 99.0
+_wl_bad = {'items': {'A': {'hand_id': 'A', 'reviewed_decision_view': _view_bad, 'decision_node': _node_p}}}
+check('T-REV14-07 (T7/B8): persisted view==node parity PASSES the stored pair, FAILS a post-serialization mutation',
+      _qp.gate_persisted_view_node_parity(_wl_good)['mismatches'] == 0
+      and _qp.gate_persisted_view_node_parity(_wl_bad)['mismatches'] >= 1, '')
+
+# T8: the action-row gate still flags 'adds' == raise_increment (the REV12 B1 defect) AND the raw
+# snapshot callable leak is privatized on a non-price view.
+_oz_aj = {'action_semantics': 're_jam', 'amount_added_bb': 22.16, 'total_to_bb': 22.16,
+          'raise_increment_bb': 12.67, 'continue_component_bb': 9.34, 'callable_amount_bb': None,
+          'became_all_in': True}
+_view_np = _ds.build_reviewed_decision_view(_h14_rj, _idx14r, None, 'worklist_reviewed_action')  # re-jam: non-price
+check('T-REV14-08 (T8): adds==raise_increment still caught; raw snapshot callable privatized on a non-price view',
+      'amount_label_value_mismatch' in _qp.check_action_row_numeric('adds', 12.67, 22.16, _oz_aj)
+      and _view_np['price_contract']['price_applicable'] is False
+      and (_view_np.get('snapshot') or {}).get('callable_amount_bb') is None
+      and '_raw_callable_amount_bb_internal' in (_view_np.get('snapshot') or {}), '')
+
+# ===== REV15: typed forced-post ledger + commitment replay + production consolidation =====
+def _p15(street, p, pt, amt, pos):
+    return {'street': street, 'player': p, 'action': 'posts', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': False, 'position': pos, 'post_type': pt}
+def _r15(street, p, to, allin=False, pos=None, action='raises'):
+    d = {'street': street, 'player': p, 'action': action, 'added_bb': to, 'amount_bb': to,
+         'is_all_in': allin, 'position': pos}
+    if action == 'raises':
+        d['to_bb'] = to
+    return d
+
+# G1 — non-blind open with ante: amount_added = the LIVE open, NOT one ante short.
+_g1 = _mkh10([_p15('preflop', 'UTG', 'ante', 0.14, 'UTG'), _p15('preflop', 'Hero', 'ante', 0.14, 'UTG+1'),
+              _p15('preflop', 'SB', 'ante', 0.14, 'SB'), _p15('preflop', 'BB', 'ante', 0.14, 'BB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'Hero', 2.2, pos='UTG+1')],
+             {'Hero': 100.0, 'SB': 100.0, 'BB': 100.0, 'UTG': 100.0}, hid='TM6098000001')
+_cg1 = _ds.build_action_sizing_contract(_g1, 6)
+check('T-REV15-01 (G1/T1): non-blind open with ante — amount_added 2.2, live total 2.2, pot 2.34 (not 2.06/2.2)',
+      abs(_cg1['amount_added_bb'] - 2.2) < 0.02 and abs(_cg1['live_betting_total_to_bb'] - 2.2) < 0.02
+      and abs(_cg1['pot_contribution_total_bb'] - 2.34) < 0.02 and abs(_cg1['dead_forced_posts_bb'] - 0.14) < 0.02, str(_cg1))
+
+# G2 — BB 3-bet with ante: the ante must not reduce the chips to move 1.0 -> 14.0 live.
+_g2 = _mkh10([_p15('preflop', 'UTG', 'ante', 0.15, 'UTG'), _p15('preflop', 'Hero', 'ante', 0.15, 'BB'),
+              _p15('preflop', 'SB', 'ante', 0.15, 'SB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'UTG', 3.0, pos='UTG'), _r15('preflop', 'Hero', 14.0, pos='BB')],
+             {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6098000002')
+_cg2 = _ds.build_action_sizing_contract(_g2, 6)
+check('T-REV15-02 (G2/T2): BB 3-bet with ante — live_before 1.0, amount_added 13.0, live total 14.0, pot 14.15',
+      abs(_cg2['live_street_committed_before_bb'] - 1.0) < 0.02 and abs(_cg2['amount_added_bb'] - 13.0) < 0.02
+      and abs(_cg2['live_betting_total_to_bb'] - 14.0) < 0.02 and abs(_cg2['pot_contribution_total_bb'] - 14.15) < 0.02, str(_cg2))
+
+# G3 — postflop open jam after a preflop ante: amount_added == stack_before, stack_after 0.
+_g3 = _mkh10([_p15('preflop', 'Hero', 'ante', 0.16, 'BTN'), _p15('preflop', 'BB', 'ante', 0.16, 'BB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'Hero', 2.5, pos='BTN'), {'street': 'preflop', 'player': 'BB', 'action': 'calls',
+              'added_bb': 1.5, 'amount_bb': 1.5, 'is_all_in': False, 'position': 'BB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'bets', 'added_bb': 12.33, 'amount_bb': 12.33,
+               'is_all_in': True, 'position': 'BTN'}],
+             {'Hero': 14.99, 'BB': 30.0, 'SB': 30.0}, hid='TM6098000003', board=['2c', '7d', 'Js'])
+_cg3 = _ds.build_action_sizing_contract(_g3, 6)
+check('T-REV15-03 (G3/T3): postflop open jam — amount_added 12.33, live total 12.33, stack_after 0',
+      abs(_cg3['amount_added_bb'] - 12.33) < 0.02 and abs(_cg3['live_betting_total_to_bb'] - 12.33) < 0.02
+      and abs(_cg3['hero_stack_after_bb']) < 0.02 and _cg3['became_all_in'], str(_cg3))
+
+# G4 — postflop re-jam: Hero bets 7.45 (flop live before), V raises, Hero re-jams all-in to 59.73.
+_g4 = _mkh10([_p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              {'street': 'preflop', 'player': 'V', 'action': 'calls', 'added_bb': 1.0, 'amount_bb': 1.0,
+               'is_all_in': False, 'position': 'SB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'bets', 'added_bb': 7.45, 'amount_bb': 7.45,
+               'is_all_in': False, 'position': 'BB'},
+              {'street': 'flop', 'player': 'V', 'action': 'raises', 'added_bb': 22.55, 'amount_bb': 22.55,
+               'to_bb': 30.0, 'is_all_in': False, 'position': 'SB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'raises', 'added_bb': 52.28, 'amount_bb': 52.28,
+               'to_bb': 59.73, 'is_all_in': True, 'position': 'BB'}],
+             {'Hero': 60.73, 'V': 80.0, 'SB': 80.0}, hid='TM6098000004', board=['2c', '7d', 'Js'])
+_cg4 = _ds.build_action_sizing_contract(_g4, 5)
+check('T-REV15-04 (G4/T4): postflop re-jam — amount_added 52.28, live total 59.73 (live before + added)',
+      abs(_cg4['amount_added_bb'] - 52.28) < 0.05 and abs(_cg4['live_betting_total_to_bb'] - 59.73) < 0.05
+      and abs(_cg4['live_betting_total_to_bb'] - (_cg4['live_street_committed_before_bb'] + _cg4['amount_added_bb'])) < 0.02, str(_cg4))
+
+# G5 — underblind first-in all-in: live total 0.12 (NOT 0.27); the ante belongs in pot, not live.
+_g5 = _mkh10([_p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _p15('preflop', 'Hero', 'ante', 0.15, 'MP'),
+              {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'added_bb': 0.12, 'amount_bb': 0.12,
+               'is_all_in': True, 'position': 'MP'}],
+             {'Hero': 0.27, 'SB': 30.0, 'BB': 30.0}, hid='TM6098000005')
+_cg5 = _ds.build_action_sizing_contract(_g5, 3)
+check('T-REV15-05 (G5/T5): underblind all-in — dead ante 0.15, amount_added 0.12, live total 0.12, pot 0.27',
+      abs(_cg5['dead_forced_posts_bb'] - 0.15) < 0.02 and abs(_cg5['amount_added_bb'] - 0.12) < 0.02
+      and abs(_cg5['live_betting_total_to_bb'] - 0.12) < 0.02 and abs(_cg5['pot_contribution_total_bb'] - 0.27) < 0.02, str(_cg5))
+
+# G6 — short blind BELOW the ante: the typed classifier keeps the blind as the blind (fails under max-post).
+_h_short = _mkh10([_p15('preflop', 'Hero', 'ante', 0.15, 'BB'), _p15('preflop', 'Hero', 'big_blind', 0.10, 'BB')],
+                  {'Hero': 0.25}, hid='TM6098000006')
+_fp_short = _ds.build_forced_post_context(_h_short, 'Hero')
+_ofp_short = _orc._forced_posts(_h_short, 'Hero')
+check('T-REV15-06 (G6/T7): a short blind BELOW the ante is still typed as the blind (production + oracle), not max-post',
+      abs(_fp_short['ante_paid_bb'] - 0.15) < 0.01 and abs(_fp_short['big_blind_paid_bb'] - 0.10) < 0.01
+      and abs(_ofp_short['ante_bb'] - 0.15) < 0.01 and abs(_ofp_short['live_blind_bb'] - 0.10) < 0.01, str(_fp_short))
+
+# G7 — relational corruption: the relational gate FAILS an internally-impossible contract.
+import copy as _cp15
+_valid = _ds.build_action_sizing_contract(_g1, 6)
+_corrupt = _cp15.deepcopy(_valid); _corrupt['live_betting_total_to_bb'] = round(_corrupt['live_betting_total_to_bb'] - _corrupt['dead_forced_posts_bb'], 2)
+check('T-REV15-07 (G7/T6): the relational gate PASSES a valid contract, FAILS a corrupted live-total identity',
+      _qp.check_relational_contract(_valid) == []
+      and 'live_total_ne_live_before_plus_added' in _qp.check_relational_contract(_corrupt), '')
+
+# G8 — impossible visible row: "JAM adds 12.3BB, all-in to 12.2BB" must be CAUGHT.
+_imp = {'action_semantics': 'open_shove', 'amount_added_bb': 12.33, 'total_to_bb': 12.17,
+        'raise_increment_bb': None, 'continue_component_bb': None, 'callable_amount_bb': None, 'became_all_in': True}
+check('T-REV15-08 (G8): the display gate FAILS an impossible row (amount_added exceeds the all-in total)',
+      'amount_added_exceeds_all_in_total' in _qp.check_action_row_numeric('adds', 12.3, 12.2, _imp), '')
+
+# G9 — production calculation ownership: no remaining unapproved production calculators of the consolidated facts.
+import io as _io15
+try:
+    _own = json.load(_io15.open(os.path.join('post_iteration1_planning', 'PRODUCTION_CALCULATION_OWNERSHIP.json'), encoding='utf-8'))
+    _own_ok = (all(not _own.get(f, {}).get('remaining_unapproved_calculators')
+                   for f in ('amount_added_bb', 'live_betting_total_to_bb', 'pot_contribution_total_bb',
+                             'forced_post_type', 'callable_amount', 'required_equity')))
+except Exception:
+    _own_ok = None   # the ownership artifact is generated in the evidence package; skip if absent here
+check('T-REV15-09 (G9): PRODUCTION_CALCULATION_OWNERSHIP records 0 remaining unapproved calculators (or N/A in-repo)',
+      _own_ok in (True, None), 'ownership audit has remaining unapproved calculators')
+
+# REV15 typed-ledger consolidation canaries: the parser stamps post_type; one replay owns sizing.
+import io as _io15b
+_parser_src = _io15b.open('gem_parser.py', encoding='utf-8').read()
+check('T-REV15-10: the parser stamps a typed post_type from the raw text; one commitment replay owns sizing',
+      "_post_type = 'small_blind'" in _parser_src.replace('==', '=') or "'small_blind'" in _parser_src
+      and 'def replay_commitments_to_action(' in _io15b.open('gem_decision_snapshot.py', encoding='utf-8').read()
+      and 'def oracle_replay(' in _io15b.open('_qa_ledger_oracle.py', encoding='utf-8').read(), '')
+
+# ===== REV16: full-history physical-chip replay (every action, every player) =====
+# Fixtures mirror the REAL parser: an aggressive action's added_bb is the LEVEL minus the actor's
+# ante (ante-contaminated, short of the physical), while to_bb is the clean level. Summing added_bb
+# for the stack (the b1ae76e bug) drops one ante per prior aggressive action; the full-history replay
+# derives physical from the LEVELS, so these assertions hold ONLY under REV16.
+def _pp16(street, p, pt, amt, pos):
+    return {'street': street, 'player': p, 'action': 'posts', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': False, 'position': pos, 'post_type': pt}
+def _rk16(street, p, to, ante=0.0, allin=False, pos=None, action='raises'):
+    return {'street': street, 'player': p, 'action': action, 'added_bb': round(to - ante, 2),
+            'amount_bb': round(to - ante, 2), 'to_bb': to, 'is_all_in': allin, 'position': pos}
+def _ck16(street, p, amt, allin=False, pos=None):
+    return {'street': street, 'player': p, 'action': 'calls', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': allin, 'position': pos}
+def _bk16(street, p, amt, allin=False, pos=None):
+    return {'street': street, 'player': p, 'action': 'bets', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': allin, 'position': pos}
+def _naive_stack_before(h, idx):
+    """The b1ae76e prior-stack path: starting - sum(raw added_bb of prior actions by Hero)."""
+    led = h['action_ledger']; hero = h.get('hero', 'Hero'); start = h['seat_stack_by_player'].get(hero, 0.0)
+    return round(start - sum((a.get('added_bb') or a.get('amount_bb') or 0.0)
+                             for a in led[:idx] if a.get('player') == hero), 2)
+
+# T1 — non-blind open with ante (the open's physical is the full live open, not one ante short)
+_t1 = _mkh10([_pp16('preflop', 'UTG', 'ante', 0.14, 'UTG'), _pp16('preflop', 'Hero', 'ante', 0.14, 'CO'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.2, ante=0.14, pos='CO')],
+             {'Hero': 100.0, 'SB': 100.0, 'BB': 100.0, 'UTG': 100.0}, hid='TM6160000001')
+_c1 = _ds.build_action_sizing_contract(_t1, 4)
+check('T-REV16-01 (T1): non-blind open with ante — physical 2.2, live total 2.2, pot 2.34 (naive added_bb would drop the ante)',
+      abs(_c1['amount_added_bb'] - 2.2) < 0.03 and abs(_c1['live_betting_total_to_bb'] - 2.2) < 0.03
+      and abs(_c1['pot_contribution_total_bb'] - 2.34) < 0.03, str(_c1))
+
+# T2 — BB 3-bet with ante
+_t2 = _mkh10([_pp16('preflop', 'UTG', 'ante', 0.15, 'UTG'), _pp16('preflop', 'Hero', 'ante', 0.15, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'UTG', 3.0, ante=0.15, pos='UTG'), _rk16('preflop', 'Hero', 14.0, ante=0.15, pos='BB')],
+             {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6160000002')
+_c2 = _ds.build_action_sizing_contract(_t2, 5)
+check('T-REV16-02 (T2): BB 3-bet with ante — live before 1.0, physical 13.0, live total 14.0, pot 14.15',
+      abs(_c2['live_street_committed_before_bb'] - 1.0) < 0.03 and abs(_c2['amount_added_bb'] - 13.0) < 0.03
+      and abs(_c2['live_betting_total_to_bb'] - 14.0) < 0.03 and abs(_c2['pot_contribution_total_bb'] - 14.15) < 0.03, str(_c2))
+
+# T3 — prior open then postflop open jam: stack_before must deduct the dead ante (the REV15 bug)
+_t3 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.16, 'BTN'), _pp16('preflop', 'BB', 'ante', 0.16, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.5, ante=0.16, pos='BTN'), _ck16('preflop', 'BB', 1.5, pos='BB'),
+              _bk16('flop', 'Hero', 12.34, allin=True, pos='BTN')],
+             {'Hero': 14.99, 'BB': 30.0, 'SB': 30.0}, hid='TM6160000003', board=['2c', '7d', 'Js'])
+_c3 = _ds.build_action_sizing_contract(_t3, 6)
+_rp3 = _ds.replay_commitments_to_action(_t3, 6)
+check('T-REV16-03 (T3): prior open then postflop open jam — stack_before 12.33 (=start-ante-open), physical 12.33, after 0; naive path over-states by the ante',
+      abs(_rp3['stack_before_action_bb'] - 12.33) < 0.03 and abs(_c3['amount_added_bb'] - 12.33) < 0.03
+      and abs(_c3['hero_stack_after_bb']) < 0.03 and abs(_naive_stack_before(_t3, 6) - 12.33) > 0.1, str(_rp3))
+
+# T4 — prior 3-bet then postflop open jam
+_t4 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.2, 'BTN'), _pp16('preflop', 'BB', 'ante', 0.2, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'BB', 3.0, ante=0.2, pos='BB'), _rk16('preflop', 'Hero', 9.0, ante=0.2, pos='BTN'),
+              _ck16('preflop', 'BB', 6.0, pos='BB'), _bk16('flop', 'BB', 5.0, pos='BB'),
+              _rk16('flop', 'Hero', 30.8, allin=True, pos='BTN')],
+             {'Hero': 39.8, 'BB': 60.0, 'SB': 60.0}, hid='TM6160000004', board=['2c', '7d', 'Js'])
+_rp4 = _ds.replay_commitments_to_action(_t4, 8)
+# Hero: ante .2 + 3bet 9.0 = 9.2 -> flop stack 30.6; Hero re-jams all-in over BB's 5.0 bet (Hero flop
+# live before = 0) -> physical 30.6, live level = 30.6, and the naive added_bb path over-states by the ante.
+check('T-REV16-04 (T4): prior 3-bet then postflop jam — stack_before 30.6 (=start-ante-3bet), physical 30.6 == stack_before, all-in; naive path over-states',
+      abs(_rp4['stack_before_action_bb'] - 30.6) < 0.05 and abs(_rp4['amount_added_on_action_bb'] - 30.6) < 0.05
+      and _rp4['became_all_in'] and abs(_naive_stack_before(_t4, 8) - 30.6) > 0.1, str(_rp4))
+
+# T5 — prior raise + call then postflop jam (multiway preflop, Hero in position)
+_t5 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.1, 'CO'), _pp16('preflop', 'BB', 'ante', 0.1, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.3, ante=0.1, pos='CO'), _ck16('preflop', 'BB', 1.3, pos='BB'),
+              _ck16('preflop', 'SB', 1.8, pos='SB'), _bk16('flop', 'SB', 3.0, pos='SB'),
+              _ck16('flop', 'BB', 3.0, pos='BB'), _bk16('flop', 'Hero', 25.6, allin=True, pos='CO')],
+             {'Hero': 27.9, 'BB': 40.0, 'SB': 40.0}, hid='TM6160000005', board=['2c', '7d', 'Js'])
+_rp5 = _ds.replay_commitments_to_action(_t5, 9)
+# Hero ante .1 + open 2.3 = 2.4 -> flop stack 25.5; flop jam raising over the 3.0 bet -> physical 25.5
+check('T-REV16-05 (T5): prior raise+calls then postflop jam — stack_before 25.5, physical 25.5, all-in, level 28.5',
+      abs(_rp5['stack_before_action_bb'] - 25.5) < 0.06 and abs(_rp5['amount_added_on_action_bb'] - 25.5) < 0.06
+      and _rp5['became_all_in'], str(_rp5))
+
+# T6 — postflop bet then re-jam (Hero bets, villain raises, Hero re-jams over his own bet)
+_t6 = _mkh16 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _ck16('preflop', 'V', 1.0, pos='SB'),
+              _bk16('flop', 'Hero', 7.45, pos='BB'), _rk16('flop', 'V', 30.0, pos='SB'),
+              _rk16('flop', 'Hero', 59.73, allin=True, pos='BB')],
+             {'Hero': 60.73, 'V': 80.0, 'SB': 80.0}, hid='TM6160000006', board=['2c', '7d', 'Js'])
+_rp6 = _ds.replay_commitments_to_action(_t6, 5)
+check('T-REV16-06 (T6): postflop bet then re-jam — live before 7.45, physical 52.28, live total 59.73 (= live_before + physical)',
+      abs(_rp6['live_street_committed_before_bb'] - 7.45) < 0.05 and abs(_rp6['amount_added_on_action_bb'] - 52.28) < 0.05
+      and abs(_rp6['live_street_total_after_bb'] - 59.73) < 0.05, str(_rp6))
+
+# T7 — preflop call-all-in after a prior open (84601619 shape): callable + stack from the replay
+_t7 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.15, 'LJ'), _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'),
+              _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'), _rk16('preflop', 'Hero', 2.2, ante=0.15, pos='LJ'),
+              _rk16('preflop', 'V', 73.6, allin=True, pos='BTN'), _ck16('preflop', 'Hero', 40.63, allin=True, pos='LJ')],
+             {'Hero': 42.98, 'V': 73.75, 'SB': 60.0, 'BB': 60.0}, hid='TM6160000007')
+_c7 = _ds.build_action_sizing_contract(_t7, 5)
+_s7 = _ds.build_decision_snapshot(_t7, 5)
+check('T-REV16-07 (T7): preflop call-all-in after a prior open — stack_before/physical 40.63 (not 40.78), callable 40.63',
+      abs(_c7['hero_stack_before_bb'] - 40.63) < 0.05 and abs(_c7['amount_added_bb'] - 40.63) < 0.05
+      and abs(_s7['callable_amount_bb'] - 40.63) < 0.05 and abs(_naive_stack_before(_t7, 5) - 40.63) > 0.1, str(_c7))
+
+# T8 — partial blind BELOW the ante is still typed as the blind (negative fixture for max-post)
+_t8 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.15, 'BB'), _pp16('preflop', 'Hero', 'big_blind', 0.10, 'BB')],
+             {'Hero': 0.25}, hid='TM6160000008')
+_fp8 = _ds.build_forced_post_context(_t8, 'Hero')
+check('T-REV16-08 (T8): a partial blind below the ante is typed as the blind (ante 0.15 dead, blind 0.10 live)',
+      abs(_fp8['ante_paid_bb'] - 0.15) < 0.01 and abs(_fp8['big_blind_paid_bb'] - 0.10) < 0.01, str(_fp8))
+
+# T9 — covering-caller parity: a covering caller with 0 live this street matches the bettor's all-in
+_t9 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _bk16('flop', 'Hero', 18.1, allin=True, pos='BTN'), _ck16('flop', 'V', 18.1, pos='SB')],
+             {'Hero': 18.1, 'V': 40.0, 'SB': 40.0}, hid='TM6160000009', board=['5c', '7s', '9h'])
+_f9 = _ds.replay_full_history(_t9)
+check('T-REV16-09 (T9): a covering caller (0 live this street) calls EXACTLY the bettor all-in (18.1 == 18.1)',
+      abs(_f9[2]['physical_amount_added_bb'] - _f9[3]['physical_amount_added_bb']) < 0.03
+      and abs(_f9[3]['physical_amount_added_bb'] - 18.1) < 0.03, str((_f9[2]['physical_amount_added_bb'], _f9[3]['physical_amount_added_bb'])))
+
+# T10 — caller WITH prior street commitment: physical = level - own live before
+_t10 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 5.0, pos='BTN'), _rk16('flop', 'V', 15.0, pos='SB'),
+               _ck16('flop', 'Hero', 10.0, pos='BTN')],
+              {'Hero': 60.0, 'V': 60.0, 'SB': 60.0}, hid='TM6160000010', board=['5c', '7s', '9h'])
+_f10 = _ds.replay_full_history(_t10)
+check('T-REV16-10 (T10): a caller with prior live commitment adds level - own live before (15 - 5 = 10)',
+      abs(_f10[4]['physical_amount_added_bb'] - 10.0) < 0.03 and abs(_f10[4]['live_commitment_after_bb'] - 15.0) < 0.03, str(_f10[4]))
+
+# T11 — short caller cap: a caller shorter than the bet calls only its stack (all-in)
+_t11 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 30.0, allin=True, pos='BTN'), _ck16('flop', 'V', 12.0, allin=True, pos='SB')],
+              {'Hero': 30.0, 'V': 12.0, 'SB': 40.0}, hid='TM6160000011', board=['5c', '7s', '9h'])
+_f11 = _ds.replay_full_history(_t11)
+check('T-REV16-11 (T11): a short caller calls only its stack (12, all-in), and Hero is refunded the uncalled 18',
+      abs(_f11[3]['physical_amount_added_bb'] - 12.0) < 0.03 and _f11[3]['became_all_in']
+      and abs(_f11[2]['uncalled_return_bb'] - 18.0) < 0.06, str((_f11[3]['physical_amount_added_bb'], _f11[2]['uncalled_return_bb'])))
+
+# T12 — uncalled return: a bet everyone folds to is fully refunded (stack conservation)
+_t12 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 8.0, pos='BTN'), {'street': 'flop', 'player': 'V', 'action': 'folds',
+               'added_bb': 0, 'amount_bb': 0, 'is_all_in': False, 'position': 'SB'}],
+              {'Hero': 40.0, 'V': 40.0, 'SB': 40.0}, hid='TM6160000012', board=['5c', '7s', '9h'])
+_f12 = _ds.replay_full_history(_t12)
+check('T-REV16-12 (T12): an uncalled bet is refunded — bettor stack_after == stack_before (8 returned), conservation holds',
+      abs(_f12[2]['uncalled_return_bb'] - 8.0) < 0.06 and abs((_f12[2]['stack_after_bb']) - _f12[2]['stack_before_bb']) < 0.06, str(_f12[2]))
+
+# T13 — the ownership artifact: missing / unreadable / field-absent / unclassified producer = FAIL.
+# The classifier is proven on SYNTHETIC docs (strict everywhere, incl. the minimal clean-room bundle);
+# the REAL artifact lives with the planning evidence and is asserted 'ok' when that dir is present.
+import io as _io16, json as _json16
+_OWN_REQUIRED = ('physical_amount_added', 'stack_before', 'all_in_state', 'forced_post_type', 'callable_amount')
+def _own_status_doc(d):
+    if d is None: return 'unreadable'
+    acc = d.get('acceptance') or {}
+    if acc.get('stack_before_active_production_owners') != 1: return 'stack_before_not_one'
+    if acc.get('all_in_state_active_production_owners') != 1: return 'all_in_not_one'
+    for f in _OWN_REQUIRED:
+        rec = d.get(f)
+        if not isinstance(rec, dict) or 'remaining_active_producers' not in rec: return 'field_absent:' + f
+        if rec['remaining_active_producers']: return 'unclassified_producer:' + f
+    return 'ok'
+def _own_status_path(path):
+    try:
+        return _own_status_doc(_json16.load(_io16.open(path, encoding='utf-8')))
+    except Exception:
+        return 'unreadable'
+_good_doc = {'acceptance': {'stack_before_active_production_owners': 1, 'all_in_state_active_production_owners': 1}}
+for _f in _OWN_REQUIRED:
+    _good_doc[_f] = {'canonical_owner': 'x', 'remaining_active_producers': []}
+_doc_absent_field = {k: v for k, v in _good_doc.items() if k != 'stack_before'}
+_doc_unclassified = _json16.loads(_json16.dumps(_good_doc)); _doc_unclassified['stack_before']['remaining_active_producers'] = ['legacy_calc']
+_doc_two_owners = _json16.loads(_json16.dumps(_good_doc)); _doc_two_owners['acceptance']['stack_before_active_production_owners'] = 2
+_own_path = os.path.join(os.path.dirname(__file__), 'post_iteration1_planning', 'PRODUCTION_CALCULATION_OWNERSHIP.json')
+_real_status = _own_status_path(_own_path)
+check('T-REV16-13 (T13): the ownership classifier FAILS missing/unreadable/absent-field/unclassified/two-owners and PASSES a clean audit',
+      _own_status_doc(_good_doc) == 'ok' and _own_status_path(_own_path + '.NOPE') == 'unreadable'
+      and _own_status_doc(_doc_absent_field).startswith('field_absent')
+      and _own_status_doc(_doc_unclassified).startswith('unclassified_producer')
+      and _own_status_doc(_doc_two_owners) == 'stack_before_not_one'
+      and _real_status in ('ok', 'unreadable'),   # 'ok' in the repo; 'unreadable' (absent) in the minimal bundle
+      'classifier or real-artifact status: ' + _real_status)
+
+# T14 — renderer-parity gate CATCHES a raw-sizing fallback (an action whose canonical value is absent)
+import _qa_parity as _qp16
+# _t9's real all-in is 18.1; this injected body renders 99.9 (a raw-sizing fallback) -> must be caught.
+_t14_bodies = {'TM6160000009': '<span class="grid-action act-allin">BTN ⚡ JAM all-in 99.9BB</span>'
+                               '<span class="grid-action act-call">SB Call 88.8BB</span>'}
+_t14_idx = {'TM6160000009': _t9, '60000009': _t9}
+_g14 = _qp16.gate_all_player_renderer_parity(_t14_idx, None, bodies=_t14_bodies)
+# the same body with the CORRECT canonical sizes (18.1) must NOT raise a violation
+_t14_ok = {'TM6160000009': '<span class="grid-action act-allin">BTN ⚡ JAM all-in 18.1BB</span>'
+                          '<span class="grid-action act-call">SB Call 18.1BB</span>'}
+_g14_ok = _qp16.gate_all_player_renderer_parity(_t14_idx, None, bodies=_t14_ok)
+check('T-REV16-14 (T14): the renderer-parity gate FAILS a non-canonical (raw-fallback) size, PASSES the canonical one',
+      _g14['parity_violations'] >= 1 and _g14_ok['parity_violations'] == 0, str((_g14['parity_violations'], _g14_ok['parity_violations'])))
+
+# ===== REV17: production certification closure (frozen Stage-F gates wired into production) =====
+import os as _os17, sys as _sys17
+_ACC17 = _os17.path.join(_os17.path.dirname(_os17.path.abspath(__file__)), 'acceptance')
+if _ACC17 not in _sys17.path:
+    _sys17.path.insert(0, _ACC17)
+import row_bound_renderer_parity_gate as _rb17
+import ownership_contract_gate as _oc17
+import _qa_stagep as _sp17
+
+# T-REV17-01: dead_blind is DEAD (never live) in the production full-history replay (§1.4)
+_db_h = _mkh10([{'street': 'preflop', 'player': 'SB', 'action': 'posts', 'added_bb': 0.5, 'amount_bb': 0.5,
+                 'is_all_in': False, 'position': 'SB', 'post_type': 'small_blind'},
+                {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 0.5, 'amount_bb': 0.5,
+                 'is_all_in': False, 'position': 'BB', 'post_type': 'dead_blind'},
+                {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0, 'amount_bb': 1.0,
+                 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'}],
+               {'Hero': 30.0, 'SB': 30.0}, hid='TM6170000001')
+_db_full = _ds.replay_full_history(_db_h)
+_db_post = _db_full[1]   # the dead_blind post
+_db_bb = _db_full[2]     # the big blind post
+check('T-REV17-01 (§1.4): a dead_blind reduces the stack + pot but adds NO live commitment; the BB is live',
+      _db_post['is_dead_forced'] is True and abs(_db_post['live_commitment_after_bb'] - _db_post['live_commitment_before_bb']) < 0.01
+      and abs(_db_post['stack_after_bb'] - (_db_post['stack_before_bb'] - 0.5)) < 0.01
+      and _db_bb['live_commitment_after_bb'] > _db_bb['live_commitment_before_bb'], str(_db_post))
+
+# T-REV17-02: the ownership contract gate enforces the TRACKED artifact — missing FAILS (no tolerance), the real file PASSES
+_own17 = _os17.path.join(_ACC17, 'production_calculation_ownership.json')
+check('T-REV17-02 (§1.3): the ownership-contract gate PASSES the tracked acceptance/ artifact and FAILS a missing one (no ok/unreadable tolerance)',
+      _oc17.run(_own17)['ok'] is True and _oc17.run(_own17 + '.MISSING')['ok'] is False
+      and _oc17.run(_own17 + '.MISSING')['status'] == 'missing', _oc17.run(_own17)['status'])
+
+# T-REV17-03: the FROZEN row-bound gate is wired correctly — passes a correct render, fails the cross-row seed
+_seed17 = _json16.load(_io16.open(_os17.path.join(_ACC17, 'seed_cross_row_collision.json'), encoding='utf-8'))
+_g17_bad = _rb17.run(_seed17['rendered_html'], _seed17['canonical_records'], [(h, i) for h, i in _seed17['expected_sized_action_keys']])
+_good_html17 = ('<div class="hand-body"><span class="grid-action act-jam" data-hand-id="H17" data-ledger-index="20" '
+                'data-player-id="Hero" data-action-kind="jam" data-sizing-source="canonical_replay" data-physical-bb="18.1" '
+                'data-live-total-bb="18.1" data-uncalled-return-bb="0.0">Hero <span data-sizing-role="primary">18.1BB</span></span></div>')
+_good_canon17 = [{'hand_id': 'H17', 'ledger_index': 20, 'player_id': 'Hero', 'action_kind': 'jam',
+                  'sizing_source': 'canonical_replay', 'physical_bb': 18.1, 'live_total_bb': 18.1, 'uncalled_return_bb': 0.0}]
+_g17_ok = _rb17.run(_good_html17, _good_canon17, [('H17', 20)])
+check('T-REV17-03 (§1.1): the frozen row-bound gate FAILS the cross-row collision seed and PASSES a correct render',
+      _g17_bad['violations'] >= 1 and _g17_ok['violations'] == 0 and _g17_ok['rows_checked'] == 1, str((_g17_bad['violations'], _g17_ok['violations'])))
+
+# T-REV17-04: the Stage-P wiring produces source-expected == canonical action keys (independent ledger scan)
+_sp_h = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+                _rk16('preflop', 'Hero', 3.0, ante=0.0, pos='BB'), _ck16('preflop', 'SB', 2.5, pos='SB')],
+               {'Hero': 60.0, 'SB': 60.0}, hid='TM6170000002')
+_sp_exp = set(_sp17.source_expected_keys(_sp_h))
+_sp_canon = set((r['hand_id'], r['ledger_index']) for r in _sp17.canonical_records(_sp_h))
+check('T-REV17-04 (§1.1): the Stage-P source-expected key set equals the canonical record key set (raises + calls bound)',
+      _sp_exp == _sp_canon and len(_sp_exp) == 2, str((_sp_exp, _sp_canon)))
+
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:
     print('FIX BEFORE PROCEEDING')

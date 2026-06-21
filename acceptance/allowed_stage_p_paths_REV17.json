@@ -1,0 +1,16 @@
+{
+  "description": "REV17 Stage-P scope freeze (rev 4). Stage P may modify ONLY the allowed production / release paths below. The acceptance gates, seeds, gate-seed map, fixtures, mutation audit and self-check are FROZEN and NOT editable in Stage P (the authoritative frozen-file list + hashes are in acceptance/frozen_paths_REV17.json and external_hashes_REV17.txt). Any expansion requires STOP and a Stage-F amendment.",
+  "baseline_commit": "66238a5",
+  "allowed_production_paths": ["gem_decision_snapshot.py", "gem_report_data.py", "gem_report_draft/_hand_grid.py", "_qa_ledger_oracle.py"],
+  "allowed_tracked_contract_paths": ["acceptance/production_calculation_ownership.json"],
+  "allowed_release_paths": ["_build_bundle.py", "verify_release.py"],
+  "allowed_test_path": ["_test_scratch.py"],
+  "frozen_not_editable_in_stage_p": "see acceptance/frozen_paths_REV17.json#frozen_not_editable_in_stage_p (every acceptance/* gate, seed, map, fixture, mutation audit + self-check; only acceptance/production_calculation_ownership.json is writable by Stage P)",
+  "stage_p_obligations": {
+    "gem_report_data.py / gem_report_draft/_hand_grid.py": "stamp every sized row with the full identity (data-hand-id, data-ledger-index, data-player-id, data-action-kind, data-sizing-source=canonical_replay, data-physical-bb, data-live-total-bb, data-uncalled-return-bb) AND one explicitly-marked non-hidden primary display element (data-sizing-role=\"primary\") whose amount follows the action-kind rule (call/bet/jam->physical, raise->total-to); a secondary value uses data-sizing-role=\"secondary\"",
+    "acceptance_invocation": "invoke the row-bound + zero-fallback gates with the SHIPPED report HTML (not a synthetic list), a STRICT complete canonical record list, and an INDEPENDENT source-derived expected_sized_action_keys; require source==canonical==rendered; run a browser/DOM computed-visibility acceptance over the actual rendered DOM",
+    "gem_decision_snapshot.py + _qa_ledger_oracle.py": "remove dead_blind from the live-post tuple (explicit_unknown / dead: reduces stack + pot, never live); invoke the dead-blind gate with the MANDATORY expected_dead_blind_keys identity set derived from an independent source scan (and ship the source-scan proof the pilot set is empty)",
+    "acceptance/production_calculation_ownership.json": "tracked contract; add to _build_bundle + verify_release so the clean-room run fails when absent",
+    "do_not_change": "the accepted full-history replay values for ordinary ante/SB/BB actions, unless a frozen golden fails"
+  }
+}

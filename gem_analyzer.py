@@ -1476,13 +1476,34 @@ def check_preflop_deviations(hands, ranges):
                     # framing is kept only when Hero does NOT cover.
                     _hero_covers = (stack or 0) >= (jammer_bb or 0)
                     _n_behind = len(h.get('stacks_behind') or {})
-                    if _hero_covers:
+                    # Iteration-1 root fix (83915520): the legacy detector
+                    # labelled EVERY covering re-jam "re-jam over jam", but the
+                    # canonical decision model treats a HU covering re-jam as a
+                    # call vs the jammer (the excess is returned \u2014 exactly the
+                    # B176 reasoning above). Only keep the "re-jam over jam"
+                    # framing when the canonical action kind is a genuine
+                    # side-pot over-jam that isolates a live opponent. A
+                    # canonical call_vs_jam renders as a plain CVJ call so the
+                    # report/worklist never show "re-jam over jam" for a call.
+                    try:
+                        from gem_decision_snapshot import hero_action_kind as _ds_akind
+                        _canon_kind = _ds_akind(h)
+                    except Exception:
+                        _canon_kind = None
+                    _genuine_rejam = _canon_kind == 'overjam_with_side_pot'
+                    if _hero_covers and _genuine_rejam:
                         flag_type = 'Wide CVJ \u2014 re-jam over jam (covers)'
                         flag_note = (f'Re-jam over {jammer_pos_raw} jam '
                                      f'({round(jammer_bb)}BB) with {hs} \u2014 '
                                      f'Hero covers, so vs the jammer this is a '
                                      f'call; the raise isolates {_n_behind} '
                                      f'player(s) behind')
+                    elif _hero_covers:
+                        # Canonical call_vs_jam \u2014 HU covering re-jam == a call
+                        # vs the jammer. No "re-jam over jam" framing.
+                        flag_type = 'Wide CVJ (Call Villain Jam)'
+                        flag_note = (f'Called {jammer_pos_raw} jam '
+                                     f'({round(jammer_bb)}BB) with {hs}')
                     else:
                         # Defensive fallback - effectively unreachable: to
                         # RAISE over a jam Hero must out-chip it, so every
@@ -1995,12 +2016,23 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             h['bounty_discount_pp'] = _bc.get('discount_pp', 0)
             h['bounty_value_bb'] = _bc.get('value_bb', 0)
             h['bounty_label'] = _bc.get('label', '')
+            # v8.17.1 P5 (sub-task 4): stamp provenance so the renderer NEVER
+            # presents the flat model estimate as exact or per-hand-dynamic (the
+            # recurring "≈3.2BB" leak). Hierarchy: exact (recorded $) > effective_bb
+            # (ratio-model) > starting_bb_flat (flat-table estimate, explicitly
+            # labelled) > unavailable. No bounty_ratio is threaded here (GG HH lack
+            # buy-in structure), so a real bounty stays a LABELLED flat estimate.
+            h['bounty_value_provenance'] = (
+                'unavailable' if h['bounty_type'] in ('none', 'unknown')
+                else 'effective_bb' if _bc.get('method') == 'ratio_model'
+                else 'starting_bb_flat')
     except Exception:
         for h in hands:
             h['bounty_type'] = 'unknown'
             h['bounty_discount_pp'] = 0
             h['bounty_value_bb'] = 0
             h['bounty_label'] = ''
+            h['bounty_value_provenance'] = 'unavailable'
 
     # --- VOLUME ---
     fmt_counts = defaultdict(int)
@@ -8126,6 +8158,10 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     # ---- BATCH 5 (ACE-4): ICM/BOUNTY RED-FLAG APPROXIMATION ----
     # Rough flags per hand — not full ICM math, just practical warnings.
     from gem_bounty import bounty_collectibility as _bounty_collectibility
+    from gem_decision_snapshot import (bounty_coverage as _ds_bounty_coverage,
+                                       bounty_coverage_by_opponent as _ds_cover_by_opp,
+                                       bounty_aggregate as _ds_bounty_agg,
+                                       hero_in_allin_confrontation as _ds_confront)
     for h in hands:
         _phase = h.get('tournament_phase', '')
         _fmt = h.get('format', '')
@@ -8143,16 +8179,83 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         # 'unknown' (never a fabricated cover) when it is absent. Unknown is safe:
         # it asserts neither collectible nor not-collectible, so it can never
         # contradict the PKO audit's own cover classification.
-        _opp_stk = h.get('jammer_stack_bb')
-        _collect = _bounty_collectibility(
-            _stack, [_opp_stk] if _opp_stk else [], h.get('bounty_value_bb', 0),
-            is_bounty=(_fmt == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0))
+        _is_bnt = (_fmt == 'BOUNTY' or (h.get('bounty_value_bb', 0) or 0) > 0)
+        # v8.17.1 Iteration 1 (bounty cover — ONE source of truth): derive
+        # collectibility from the live CONTESTING opponents at the decision, which
+        # works whether Hero jammed, CALLED a jam, jammed-and-got-called, or it was
+        # multiway. jammer_stack_bb only names a villain who jammed BEFORE Hero, so
+        # it was 0 (-> false 'unknown') for all of those, leaving 24 hands saying
+        # "cover/collectibility unresolved" when coverage was plainly knowable. We
+        # gate on Hero actually being all-in; if the contesting set is unresolvable
+        # we fall back to the legacy jammer read (which never fabricates a cover).
+        if _is_bnt and _ds_confront(h):
+            # v8.17.1 Iter-1 rev: per-opponent coverage over the REALIZED contest,
+            # with a typed aggregate that supports 'mixed' (Hero covers some all-in
+            # opponents but not others) — never collapsed to not_collectible. Stamp
+            # the per-opponent detail + aggregate alongside the scalar.
+            h['bounty_coverage_by_opponent'] = _ds_cover_by_opp(h)
+            h['bounty_aggregate'] = _ds_bounty_agg(h)
+            _collect = _ds_bounty_coverage(h)
+            if _collect == 'unknown':
+                _opp_stk = h.get('jammer_stack_bb')
+                _collect = _bounty_collectibility(
+                    _stack, [_opp_stk] if _opp_stk else [],
+                    h.get('bounty_value_bb', 0), is_bounty=True)
+        else:
+            _opp_stk = h.get('jammer_stack_bb')
+            _collect = _bounty_collectibility(
+                _stack, [_opp_stk] if _opp_stk else [],
+                h.get('bounty_value_bb', 0), is_bounty=_is_bnt)
+        # h['bounty_collectible'] is the REALIZED collectibility (describes the played
+        # hand). It MUST NOT drive decision-time teaching/pricing/verdicts/trust strips/
+        # coaching — those consume h['decision_bounty_context'] (REV4 B2).
+        h['realized_bounty_collectible'] = _collect
         h['bounty_collectible'] = _collect
+        # REV3/REV4 B2: route the canonical FUTURE-BLIND decision-time bounty context
+        # onto the hand the report renders (default = the reviewed all-in confrontation)
+        # PLUS an action-indexed map for hands with several Hero actions, so every
+        # decision-time consumer reads the SAME canonical object at the SAME index — never
+        # an independently reconstructed bounty truth.
+        _dbc_default = None
+        if _is_bnt:
+            from gem_decision_snapshot import (build_decision_bounty_context as _ds_dbc,
+                                               resolve_decision_ref as _ds_ref)
+            _dbc_default = _ds_dbc(h)
+            h['decision_bounty_context'] = _dbc_default
+            _ledger = h.get('action_ledger') or []
+            _hero_nm = h.get('hero', 'Hero')
+            _by_idx = {}
+            for _ai, _a in enumerate(_ledger):
+                if _a.get('player') == _hero_nm and _a.get('action') != 'posts':
+                    _by_idx[_ai] = _ds_dbc(h, _ai)
+            h['decision_bounty_context_by_action_index'] = _by_idx
+        # REV6 B2: stamp the ONE canonical reviewed-decision reference (ledger-inferred,
+        # future-blind) onto EVERY hand so the visible capsule / pot-odds / bounty trust
+        # strip route through the SAME graded action — independent of which render path
+        # (full / --quick / analyst-rerender) runs. The worklist later OVERWRITES this with
+        # the candidate-kind-authoritative ref where it has one (full path renders after).
+        try:
+            from gem_decision_snapshot import build_reviewed_decision_ref as _ds_rdr
+            h['reviewed_decision_ref'] = _ds_rdr(h)
+        except Exception:
+            pass
+        # decision-time bounty flag (teaching: "bounty may justify wider call") comes from
+        # the canonical context AT THE REVIEWED ACTION INDEX (REV7 A5) — never the hand-level
+        # default (a first-in open whose LATER all-in covers a villain must NOT show the flag,
+        # 84074364/83765091). Hero covers an ELIGIBLE villain (all/mixed) at the reviewed
+        # action, with a real committed bounty opportunity there.
+        _dbc_agg = (_dbc_default or {}).get('coverage_aggregate')
+        _rdref_icm = h.get('reviewed_decision_ref') or {}
+        _rev_bapp_icm = _rdref_icm.get('bounty_applicability')
+        _rev_bagg_icm = _rdref_icm.get('bounty_aggregate')
+        _rev_kind_icm = _rdref_icm.get('hero_action_kind')
         _icm = {
             'near_bubble': _phase in ('bubble', 'ft_bubble'),
             'final_table': _phase in ('final_table', 'ft_zone'),
             'satellite': _fmt == 'SATELLITE',
-            'bounty_covers_villain': (_collect == 'collectible'),
+            # REV7 A5: cover at the REVIEWED action (an eligible committed bounty there)
+            'bounty_covers_villain': bool(_rev_bagg_icm in ('all', 'mixed')
+                                          and _rev_bapp_icm in ('exact_committed', 'exact_and_potential')),
             'hero_covered': (_stack or 0) < (h.get('jammer_stack_bb') or 0) if h.get('jammer_stack_bb') else False,
             'stack_utility': ('low' if _stack < 15 else 'high' if _stack > 80 else 'medium'),
             'icm_flag': None,
@@ -8164,8 +8267,19 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             _icm['icm_flag'] = 'Near bubble with big stack — ICM says fold wider than chipEV'
         elif _icm['near_bubble'] and _stack < _avg_stack * 0.5:
             _icm['icm_flag'] = 'Near bubble short — ICM pressure high, pick spots carefully'
-        elif _icm['bounty_covers_villain'] and h.get('pf_allin'):
-            _icm['icm_flag'] = 'Bounty covers villain — bounty may justify wider call'
+        elif _icm['bounty_covers_villain'] and _rev_kind_icm in (
+                'call_vs_jam', 'call_off', 'open_shove', 'rejam_over_live_raise',
+                'overjam_with_side_pot'):
+            # REV13 D: the bounty flag must name the SELECTED action, never restate a literal
+            # re-jam / open-shove as a "call" (83915520 / 84990829). For a re-jam/overjam the
+            # bounty widens the CONTINUE threshold before the re-jam; for a shove it widens the
+            # shove range; only a genuine call gets "wider call".
+            if _rev_kind_icm in ('rejam_over_live_raise', 'overjam_with_side_pot'):
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may widen the continue threshold before the re-jam'
+            elif _rev_kind_icm == 'open_shove':
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may widen the open-shove range'
+            else:
+                _icm['icm_flag'] = 'Bounty covers villain — bounty may justify wider call'
         h['icm_context'] = _icm
 
     # ---- BATCH 4 (R5): SIZING-TELL DETECTION ----
@@ -10451,6 +10565,14 @@ if __name__ == '__main__':
     if _n_cc:
         print(f"  Coaching cards: {_n_cc} cards for "
               f"{len(report_data['coaching_cards'])} hands")
+    # REV9 C2/C3: the report_data JSON was dumped BEFORE coaching_cards were built, so the
+    # persisted file lacked them (consumer-ownership evidence read 0). Re-dump now so the
+    # coaching-card ownership (reviewed_action_index) is in the file post-hoc consumers read.
+    try:
+        with open(rd_path, 'w', encoding='utf-8') as _ccf:
+            json.dump(report_data, _ccf, indent=2, default=str, ensure_ascii=False)
+    except Exception:
+        pass
 
     _t0 = _time.perf_counter()
     # Perf fix (Ron 2026-05-30): render_both() builds the Doc ONCE and
@@ -10889,6 +11011,74 @@ if __name__ == '__main__':
                 _val_issues.extend(_v14)
             else:
                 print(f"  ✅ All Mistake/Punt verdicts substantiated (v8.16.4 Obj-5)")
+        except Exception:
+            pass
+        # Check 15 (v8.17.1 P5(2,3)): marker/commentary parity + scored all-in
+        # completeness BUILD GATES. Built from STRUCTURED decision/evidence atoms
+        # (analyst_commentary verdict+argument, villain_intel atoms, the
+        # classify_preflop_allin kind + the rendered pot-odds fields + the render's
+        # stamped _allin_register) — never from text proximity. A build FAILs (❌) on
+        # an orphan / wrong-player / wrong-action marker, or a scored all-in that
+        # rendered neither complete math nor an explicit no_clear_lesson.
+        try:
+            from gem_review_trust import (marker_parity_issues as _mpi15,
+                                          classify_preflop_allin as _cpa15,
+                                          allin_rendered_fields as _arf15,
+                                          allin_completeness_issue as _aci15)
+            _ac15 = report_data.get('analyst_commentary') or {}
+            _atoms_by_hand15 = ((report_data.get('villain_intel') or {})
+                                .get('atoms_by_hand') or {})
+            _pob15 = report_data.get('pot_odds_by_hand') or {}
+            _mk_issues, _ai_issues = [], []
+            for _h15 in (hands or []):
+                _hid15 = _h15.get('id') or ''
+                if not _hid15:
+                    continue
+                _hs15 = _hid15[-8:] if len(_hid15) > 8 else _hid15
+                # --- marker/commentary parity (structured identities only) ---
+                _markers, _notes, _ve, _atoms = [], set(), set(), {}
+                _c15 = _ac15.get(_hid15) or _ac15.get(_hs15) or {}
+                if isinstance(_c15, dict):
+                    _vd15 = str(_c15.get('verdict', '') or '').lower()
+                    if (_vd15.startswith('iii.2') or _vd15.startswith('iii.1')
+                            or 'mistake' in _vd15 or 'punt' in _vd15):
+                        _markers.append({'kind': 'mistake', 'ref': _hid15})
+                        if (_c15.get('argument') or '').strip():
+                            _notes.add(_hid15)
+                for _atom in (_atoms_by_hand15.get(_hid15)
+                              or _atoms_by_hand15.get(_hs15) or []):
+                    if not isinstance(_atom, dict):
+                        continue
+                    _aref = '%s:%s:%s' % (_hs15, _atom.get('signal', ''),
+                                          _atom.get('street', ''))
+                    _ve.add(_aref)
+                    _atoms[_aref] = {'player': _atom.get('villain_position'),
+                                     'street': _atom.get('street'),
+                                     'action_index': _atom.get('action_index')}
+                    _markers.append({'kind': 'villain_evidence', 'ref': _aref,
+                                     'player': _atom.get('villain_position'),
+                                     'street': _atom.get('street'),
+                                     'action_index': _atom.get('action_index')})
+                for _miss in _mpi15(_markers, _notes, _ve, atoms=_atoms):
+                    _mk_issues.append("❌ %s marker parity: %s" % (_hs15, _miss))
+                # --- scored all-in completeness (only hands the render processed) ---
+                if _h15.get('pf_allin') and _h15.get('_allin_register'):
+                    _k15 = _cpa15(_h15)[0]
+                    if _k15 not in ('not_allin', 'unknown'):
+                        _po15 = _pob15.get(_hid15) or _pob15.get(_hs15)
+                        _ci15 = _aci15(_k15, _arf15(_po15, _h15, _k15),
+                                       register=_h15.get('_allin_register'))
+                        if _ci15:
+                            _ai_issues.append("❌ %s all-in completeness: %s"
+                                              % (_hs15, _ci15))
+            if _mk_issues:
+                _val_issues.extend(_mk_issues)
+            else:
+                print("  ✅ Marker/commentary parity clean (v8.17.1 P5)")
+            if _ai_issues:
+                _val_issues.extend(_ai_issues)
+            else:
+                print("  ✅ All scored all-ins complete or no_clear_lesson (v8.17.1 P5)")
         except Exception:
             pass
     except Exception as _val_e:

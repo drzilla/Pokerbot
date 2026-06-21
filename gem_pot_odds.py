@@ -408,6 +408,11 @@ def _parse_per_street_calls(raw_hh, bb, hero_name='Hero'):
             hc = re.match(rf'{hero_esc}:\s+calls\s+(\d+)(?!\s+and is all-in)', line)
             if hc:
                 hero_call_amount = float(hc.group(1))
+                # v8.17.1 P5 (sub-task 5) decision-time invariant: the pot Hero is
+                # priced on is the running pot PLUS only the chips contributed BEFORE
+                # this line. Any player who acts AFTER Hero on this street (a later
+                # caller or re-raiser) is parsed further down the loop and so never
+                # enters pot_at_hero_call / required equity — future callers excluded.
                 pot_at_hero_call = running_pot + street_pot_additions
                 hero_called_this_street = True
                 street_pot_additions += hero_call_amount

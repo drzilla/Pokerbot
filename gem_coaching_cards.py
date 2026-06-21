@@ -9,6 +9,7 @@ Phase 2: blocker analysis + hero range awareness insight cards.
 """
 
 from gem_parser import normalize_hand
+import gem_decision_snapshot as _ds  # v8.17.1 Iter-1 canonical decision-time owner
 
 _COACHING_VERSION = 'v2'
 
@@ -120,23 +121,62 @@ def _build_decision_facts(h, stats, report_data):
 
     bounty_bb = h.get('bounty_value_bb', 0) if fmt == 'BOUNTY' else 0
     hero_stack = h.get('stack_bb', 0)
-    hero_covers = all(hero_stack > vs for vs in villain_stacks.values()) if villain_stacks else False
-    # v8.14.1 rev-3 (Blocker 2): the canonical bounty collectibility stamped by
-    # the analyzer is the ONE source of truth shared with the "bounty covers
-    # villain" flag, so the not-collectible card can never contradict it. Fall
-    # back to the shared helper (all-in opponent effective stack) only if the
-    # analyzer hasn't run. NOTE: this is deliberately NOT the all-seats
-    # `hero_covers` above — that wrongly counts FOLDED big stacks as "covering".
-    _collectibility = h.get('bounty_collectible')
-    if _collectibility is None:
-        from gem_bounty import bounty_collectibility as _bounty_collectibility
-        # jammer_stack_bb is the ONLY field that reliably names the all-in
-        # opponent; eff_stack_bb is the shortest table villain, so it must NOT be
-        # used as a cover proxy (see gem_analyzer rev-3 note). Absent -> 'unknown'.
-        _opp_stk = h.get('jammer_stack_bb')
-        _collectibility = _bounty_collectibility(
-            hero_stack, [_opp_stk] if _opp_stk else [], bounty_bb,
-            is_bounty=(fmt == 'BOUNTY'))
+    # REV4 B2: decision-time bounty collectibility + cover are read from the ONE
+    # canonical decision-time context (never the legacy realized scalar
+    # h['bounty_collectible']). `hero_covers` means Hero covers an ELIGIBLE all-in
+    # villain at the decision (not the all-seats stack compare, which wrongly counts
+    # folded big stacks); `_collectibility` preserves mixed distinctly. The context is
+    # stamped by the analyzer; build it on the fly if the analyzer hasn't run.
+    # REV9 C2: the coaching card teaches the SELECTED decision, so its bounty context comes
+    # from the REVIEWED action index (the worklist-authored ref in report_data, else the
+    # analyzer/ledger-inferred ref) — NEVER the hand-level default (Hero's last action).
+    _rdref_cc = ((report_data.get('reviewed_decision_ref_by_hand') or {}).get(hid)
+                 or (report_data.get('reviewed_decision_ref_by_hand') or {}).get(
+                     hid[-8:] if len(hid) > 8 else hid)
+                 or h.get('reviewed_decision_ref') or {})
+    _rev_idx_cc = _rdref_cc.get('hero_action_index')
+    _dbc_cc = None
+    if fmt == 'BOUNTY' or bounty_bb:
+        try:
+            if _rev_idx_cc is not None:
+                _dbc_cc = _ds.build_decision_bounty_context(h, _rev_idx_cc)
+            else:
+                _dbc_cc = h.get('decision_bounty_context') or _ds.build_decision_bounty_context(h)
+        except Exception:
+            _dbc_cc = {}
+    _dbc_cc = _dbc_cc or {}
+    _cc_agg = _dbc_cc.get('coverage_aggregate') or _dbc_cc.get('aggregate')
+    _collectibility = {'all': 'collectible', 'none': 'not_collectible', 'mixed': 'mixed',
+                       'unknown': 'unknown', 'not_applicable': None}.get(_cc_agg)
+    hero_covers = bool(_dbc_cc.get('hero_covers_relevant_villain'))
+    # REV10 B7: the FULL decision-content ownership contract. Every DECISION-SPECIFIC coaching
+    # fact (street, action, node, price, bounty, range, verdict) is OWNED by the selected
+    # ReviewedDecisionView at _rev_idx_cc; fields that are inherently whole-hand/session (the
+    # realized equity vs shown cards, the showdown villain range) are marked as such — so the
+    # ownership inventory can compare ACTUAL CONTENT against the selected action, not merely an
+    # owner label (the REV9 B7 gap).
+    _rev_disp_cc = (_rdref_cc.get('action_display') or {})
+    _decision_content_ownership = {
+        'reviewed_action_index': _rev_idx_cc,
+        'reviewed_street': _rdref_cc.get('street'),
+        'reviewed_action_display': _rev_disp_cc.get('display_text') or _rdref_cc.get('display_text'),
+        'reviewed_actual_node_type': _rdref_cc.get('actual_node_type'),
+        'reviewed_hero_action_kind': _rdref_cc.get('hero_action_kind'),
+        'reviewed_price_applicable': _rdref_cc.get('price_applicable'),
+        'reviewed_selection_confidence': _rdref_cc.get('selection_confidence'),
+        'reviewed_bounty_applicability': _dbc_cc.get('bounty_applicability'),
+        'no_hero_decision': bool(_rdref_cc.get('no_hero_decision')),
+        'field_ownership': {
+            'street': 'reviewed_action_index',
+            'action': 'reviewed_action_index',
+            'bounty_context': ('reviewed_action_index' if _rev_idx_cc is not None else 'hand_level_default'),
+            'price_context': 'reviewed_action_index',
+            'range_context': 'reviewed_action_index',
+            'verdict_context': 'reviewed_action_index',
+            'hero_equity_vs_shown': 'whole_hand_realized',
+            'villain_range_showdown': 'whole_hand_realized',
+        },
+    }
 
     range_facts = []
     for vpos, vdata in h.get('villains', {}).items():
@@ -173,6 +213,12 @@ def _build_decision_facts(h, stats, report_data):
     facts = {
         'hand_id': hid,
         'street': street,
+        # REV9 C2: the selected reviewed action this card teaches (for the ownership inventory).
+        'reviewed_action_index': _rev_idx_cc,
+        'reviewed_selection_source': _rdref_cc.get('selection_source'),
+        'bounty_context_owner': ('reviewed_action_index' if _rev_idx_cc is not None
+                                 else ('hand_level_default' if (fmt == 'BOUNTY' or bounty_bb) else 'not_applicable')),
+        'decision_content_ownership': _decision_content_ownership,   # REV10 B7
         'decision_meta': {
             'pf_action': h.get('pf_action', ''),
             'hero_bets': len(h.get('hero_bets', [])) if isinstance(h.get('hero_bets', []), (list, tuple)) else (h.get('hero_bets', 0) or 0),
@@ -264,7 +310,14 @@ def _build_decision_facts(h, stats, report_data):
 def _compute_blocker_facts(facts):
     """Compute blocker analysis from hero cards + board.  Mutates facts in place."""
     hero_cards = facts.get('hero', {}).get('cards', [])
-    board_cards = facts.get('board', {}).get('cards', [])
+    # v8.17.1 Iteration 1 (temporal board): blocker analysis must use the board Hero
+    # ACTUALLY saw at the decision street, never the final runout. A preflop all-in
+    # saw no board -> board_at_decision == [] -> no blocker card. This killed 11
+    # "your A blocks the nut flush on this 3-flush board" cards stamped on preflop
+    # jams that merely ran out to a flush. Flop-decision blocker cards keep their
+    # 3-card flop board and still fire.
+    board_cards = _ds.board_at_decision(facts.get('board', {}).get('cards', []),
+                                        facts.get('street', 'preflop'))
 
     if len(hero_cards) < 2 or len(board_cards) < 3:
         return
@@ -642,13 +695,16 @@ def _tmpl_multiway_caution(facts, gates):
     h = facts.get('_hand') or {}
     if h.get('pf_allin') and h.get('first_in'):
         return None
-    gc = facts['game_context']
-    _entered = h.get('players_at_flop') or 0
-    if not _entered:
-        _entered = gc.get('players_at_decision', 2)
-    if _entered <= 2:
+    # v8.17.1 Iteration 1 (actual pot entrants): count players actually CONTESTING
+    # the pot at Hero's decision (committed, not folded, dead-short side pots
+    # excluded) — NOT everyone dealt. players_at_flop was 0 for a preflop-ending jam
+    # so the old code fell back to players_at_decision, which counted blind posters
+    # => "8-way pot — equity less reliable" on a jam that folded out (83506399), and
+    # a 0.8BB dead-short all-in inflated 84990829 to "3-way". The canonical snapshot
+    # owns the contesting count.
+    n = _ds.contesting_count(h)
+    if n <= 2:
         return None
-    n = _entered
 
     headline = f"{n}-way pot — equity is less reliable"
     verdict = 'Multiway caution'
@@ -894,6 +950,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "Note whether deviations are deliberate exploits or leaks."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'outside_chart',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -911,6 +968,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "After flatting a premium, be ready for aggressive villain lines."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'capped_premium',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -928,6 +986,7 @@ def _tmpl_range_awareness(facts, gates):
         plan = "From EP with premiums, expect folds or strong resistance."
         return {
             'card_type': 'range_awareness', '_insight_trigger': 'premium_early',
+            'card_context_street': 'preflop',
             'poker_verdict': verdict,
             'headline': _clamp_words(headline, 9),
             'why': _clamp_words(why, 22),
@@ -969,6 +1028,9 @@ def _tmpl_pko_pressure(facts, gates):
     return {
         'card_type': 'pko_pressure',
         '_insight_trigger': 'pko_' + cls.lower(),
+        # v8.17.1 Iter-1: PKO bounty pressure is a PREFLOP defend/jam decision; pin
+        # the street so the card never renders on a later (flop/river) action street.
+        'street': 'preflop',
         'poker_verdict': 'review',
         'metrics': [], 'ranges': [], 'warnings': [],
         'variant': 'blue',
@@ -1093,10 +1155,69 @@ def _run_assertions(facts, gates, interp):
 
 def _build_display_card(facts, gates, interp, confidence):
     """Assemble final display_card dict."""
+    # v8.17.1 Iter-1: a template may PIN the card's decision street. The PKO
+    # bounty-pressure card is a PREFLOP defend/jam concept; without this it inherited
+    # facts['street'] (Hero's last-action street) and rendered "PKO Review" on the
+    # flop/river (83793494 river value-bet, 84295953 flop fold).
+    _street = interp.get('street') or facts['street']
+    # REV11 F1: SERIALIZE the per-card decision-content ownership onto the rendered/serialised
+    # card (window.coachingCards) — not only the intermediate facts (the REV10 B5 gap). Classify
+    # the card's ownership CLASS: a card whose concept belongs to an EARLIER street than the
+    # reviewed action is earlier_context (84295885: a preflop flat-call card on a flop re-jam); a
+    # not-applicable PKO pressure card is population_research; a whole-hand card with no reviewed
+    # action is whole_hand; otherwise selected_action.
+    _dco = dict(facts.get('decision_content_ownership') or {})
+    _rev_street = _dco.get('reviewed_street') or facts.get('street')
+    _content_street = interp.get('card_context_street') or _street
+    _ct = interp.get('card_type')
+    if _ct == 'pko_pressure' and _dco.get('reviewed_bounty_applicability') == 'not_applicable':
+        _ownclass = 'population_research'
+    elif _content_street and _rev_street and _content_street != _rev_street:
+        _ownclass = 'earlier_context'
+    elif facts.get('reviewed_action_index') is None:
+        _ownclass = 'whole_hand'
+    else:
+        _ownclass = 'selected_action'
+    _dco['ownership'] = _ownclass
+    _dco['card_context_street'] = _content_street
+    # REV12 E2/E3: for an earlier-context card, derive the ACTUAL earlier action index + node from
+    # the ledger on the card's CONTEXT street (the preflop flat) — NEVER reuse reviewed_action_index
+    # (the later reviewed action). 84295885: a preflop-flat card on a flop re-jam must point at the
+    # preflop flat, not the flop action.
+    _ctx_idx = None
+    _ctx_node = None
+    _ctx_sem = None
+    if _ownclass == 'earlier_context':
+        _h_cc = facts.get('_hand') or {}
+        _led_cc = _h_cc.get('action_ledger') or []
+        _hero_cc = _h_cc.get('hero', 'Hero')
+        for _i_cc, _a_cc in enumerate(_led_cc):
+            if (_a_cc.get('player') == _hero_cc and _a_cc.get('action') != 'posts'
+                    and _a_cc.get('street') == _content_street):
+                _ctx_idx = _i_cc                       # last Hero action on the context street
+        if _ctx_idx is not None and _h_cc:
+            try:
+                _csnap = _ds.build_decision_snapshot(_h_cc, _ctx_idx)
+                _ctx_node = _csnap.get('actual_node_type')
+                _ctx_sem = _csnap.get('hero_action_kind')
+            except Exception:
+                pass
+    elif _ownclass == 'population_research':
+        _ctx_idx = _dco.get('reviewed_action_index')
+    _dco['context_action_index'] = _ctx_idx
+    _dco['context_node_type'] = _ctx_node
+    _dco['context_action_semantics'] = _ctx_sem
+    _dco['context_linked'] = (_ctx_idx is not None) if _ownclass == 'earlier_context' else None
+    # the decision_question reflects the CONTEXT node for an earlier-context card, else the reviewed node
+    _dco['decision_question'] = (_ctx_node if (_ownclass == 'earlier_context' and _ctx_node)
+                                 else (_dco.get('decision_question') or _dco.get('reviewed_actual_node_type')))
+    for _k in ('price_owner', 'bounty_owner', 'range_owner', 'verdict_owner'):
+        _dco.setdefault(_k, ('selected_action' if _ownclass == 'selected_action'
+                             else ('whole_hand' if _ownclass == 'whole_hand' else _ownclass)))
     return {
-        'card_id': _card_id(facts['hand_id'], facts['street'], interp['card_type']),
+        'card_id': _card_id(facts['hand_id'], _street, interp['card_type']),
         'hand_id': facts['hand_id'],
-        'street': facts['street'],
+        'street': _street,
         'card_type': interp['card_type'],
         'poker_verdict': interp['poker_verdict'],
         'headline': interp['headline'],
@@ -1109,6 +1230,14 @@ def _build_display_card(facts, gates, interp, confidence):
         'variant': interp.get('variant', ''),
         'display_confidence': confidence,
         'provenance': facts['provenance'],
+        # REV9 C2: the selected reviewed action this card's decision facts derive from
+        # (the consumer-ownership inventory proves coaching-card bounty context is the
+        # reviewed action, never the hand-level default).
+        'reviewed_action_index': facts.get('reviewed_action_index'),
+        'bounty_context_owner': facts.get('bounty_context_owner'),
+        # REV11 F1: the full ownership contract on the SERIALISED card.
+        'ownership': _ownclass,
+        'decision_content_ownership': _dco,
     }
 
 

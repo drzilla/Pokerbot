@@ -1,0 +1,38 @@
+{
+  "description": "REV17 Stage-F structural fixtures (rev 4: F1-F5 + G1-G3 + H1-H4) — the canonical SHAPES + frozen contracts the gates require Stage-P production to emit. Frozen; Stage P implements production to satisfy them.",
+  "baseline_commit": "66238a5",
+  "canonical_truth_record": {
+    "description": "H1: the gate VALIDATES the canonical truth set strictly and NON-COERCINGLY before any rendered comparison. Identity is the COMPOSITE (hand_id, ledger_index). Input is a LIST of complete records (a dict is rejected).",
+    "required_fields": ["hand_id", "ledger_index", "player_id", "action_kind", "sizing_source", "physical_bb", "live_total_bb", "uncalled_return_bb"],
+    "strict_rules": ["hand_id / player_id are non-empty strings", "ledger_index is an EXACT non-negative int (a float like 20.9 or a string fails — no truncation)", "action_kind in {call,bet,jam,raise}", "sizing_source == canonical_replay", "physical_bb / live_total_bb / uncalled_return_bb are FINITE numbers (NaN / Infinity fail)", "the dict-key inference is removed — every required field, including ledger_index, must be explicit", "duplicate composite identities fail"],
+    "example_record": {"hand_id": "TM6083975040", "ledger_index": 20, "player_id": "Hero", "action_kind": "jam", "sizing_source": "canonical_replay", "physical_bb": 18.1, "live_total_bb": 18.1, "uncalled_return_bb": 0.0}
+  },
+  "independent_source_expected_coverage": {
+    "description": "H1: the gate is invoked with expected_sized_action_keys — the set of (hand_id, ledger_index) the SOURCE/action ledger inventory says are sized actions, derived INDEPENDENTLY of the canonical replay under test. It is MANDATORY; None / omitted FAILS.",
+    "required_equality": "source_expected_keys == canonical_keys == rendered_marked_keys",
+    "report_runs": "for June-16 + holdout, a missing or empty expected-source inventory FAILS (an empty set is only valid if independently proven empty)."
+  },
+  "row_bound_rendered_action_element": {
+    "description": "every sized grid-action row carries the FULL machine-readable identity; sized-ness comes from the canonical record + the structural marker, never visible English.",
+    "required_attributes": ["data-hand-id", "data-ledger-index", "data-player-id", "data-action-kind", "data-sizing-source", "data-physical-bb", "data-live-total-bb", "data-uncalled-return-bb"],
+    "required_sizing_source_value": "canonical_replay",
+    "rendered_input": "the gate runs against the SHIPPED HTML string; a synthetic pre-parsed list is rejected (synthetic evidence cannot stand in for the DOM).",
+    "example_canonical_row": "<span class=\"grid-action act-jam\" data-hand-id=\"TM6083975040\" data-ledger-index=\"20\" data-player-id=\"Hero\" data-action-kind=\"jam\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">BTN <span data-sizing-role=\"primary\">18.1BB</span> all-in</span>"
+  },
+  "primary_visible_display": {
+    "description": "H2: each sized row contains EXACTLY ONE non-hidden element marked data-sizing-role=\"primary\" whose parsed amount equals the action-required field. A second value uses data-sizing-role=\"secondary\".",
+    "display_grammar": "visible amount is integer OR decimal (\\d+(?:\\.\\d+)?BB)",
+    "primary_field_by_action_kind": {"call": "physical_bb", "bet": "physical_bb", "jam": "physical_bb (the 'adds X' / 'all-in X' amount)", "raise": "live_total_bb (the 'raise to' total-to)"},
+    "fails_if": ["no primary element", "primary hidden / aria-hidden / display:none / visibility:hidden", "duplicate primary", "primary amount missing/unparseable", "primary amount != the action-required field", "the correct number only in a hidden / tooltip / unrelated child"],
+    "stage_p_note": "Stage P additionally runs a browser/DOM computed-visibility acceptance over the actual rendered DOM; this static gate freezes marker cardinality + text + static-hidden."
+  },
+  "dead_blind_structural_fixture": {
+    "description": "H3: the gate is invoked with expected_dead_blind_keys — the stable idx identities the SOURCE inventory says are dead blinds, derived independently of the replay output. MANDATORY (None fails, even for an empty set). The replay dead-blind idx set must EQUAL the expected set (identity, not count).",
+    "recon": {"parser_emits_dead_blind": false, "raw_corpus_dead_blind": 0, "raw_corpus_straddle": 0, "current_bug": "dead_blind in the live-post tuple at replay_full_history + oracle"},
+    "scan_not_filter": "any record declaring post_type==dead_blind is checked; a wrong/missing action FAILS as malformed (not filtered away).",
+    "required_fields": ["idx (exact int, unique)", "post_type", "semantic_status (in {explicit_unknown,dead,unsupported})", "physical_bb", "stack_before_bb", "stack_after_bb", "total_contribution_before_bb", "total_contribution_after_bb", "live_commitment_before_bb", "live_commitment_after_bb (all present + FINITE)"],
+    "required_identities": ["stack_after == stack_before - physical", "contribution_after == contribution_before + physical", "live_after == live_before (EQUALITY — a decrease fails)", "physical > 0"],
+    "fixture_record": {"idx": 1, "player": "Hero", "action": "posts", "post_type": "dead_blind", "semantic_status": "explicit_unknown", "physical_bb": 0.5, "stack_before_bb": 30.0, "stack_after_bb": 29.5, "total_contribution_before_bb": 1.0, "total_contribution_after_bb": 1.5, "live_commitment_before_bb": 0.0, "live_commitment_after_bb": 0.0},
+    "pilot_empty_proof": "because the pilot corpus has 0 dead blinds, Stage P must ship the independent source-scan evidence that the expected key set is genuinely empty; a default None or unproved empty list is insufficient."
+  }
+}

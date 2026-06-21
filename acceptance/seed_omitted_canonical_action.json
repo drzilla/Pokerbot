@@ -1,0 +1,47 @@
+{
+  "seed_id": "R1B",
+  "title": "omitted canonical action",
+  "description": "Expected 20+21; only 21 rendered.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    },
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 21,
+      "player_id": "HJ",
+      "action_kind": "call",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ],
+    [
+      "TM6083975040",
+      21
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-call\" data-hand-id=\"TM6083975040\" data-ledger-index=\"21\" data-player-id=\"HJ\" data-action-kind=\"call\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">HJ <span data-sizing-role=\"primary\">18.1BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "coverage_violation",
+    "required_why_any": [
+      "expected_action_not_rendered"
+    ],
+    "also_fails_zero_fallback": true
+  }
+}

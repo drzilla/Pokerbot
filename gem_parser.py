@@ -561,38 +561,15 @@ def parse_one_hand(text, filename=''):
         if info.get('position')
     }
 
-    # === v7.48.1: eff_stack_bb_at_decision ===
-    # Effective stack at Hero's LAST preflop action (the decision moment).
-    # Closes the v7.47 PARSER GAP for preflop shoves and faced-jam folds
-    # where players_at_flop < 2 and the existing eff_stack_bb fell back to
-    # Hero's stack. NEW field — leaves eff_stack_bb (flop-context) untouched
-    # to avoid regressions in postflop SPR / EV math. Per v7.47 PREFLIGHT-1:
-    # "Players behind who could still enter the pot are INCLUDED — they
-    # constrain the effective stack of the decision even if they end up
-    # folding."
-    seat_stack_by_player = {info['player']: info['stack_bb'] for info in seats.values()}
-    folded_so_far = set()
-    last_hero_active_set = None
-    for line in streets['preflop'].split('\n'):
-        am = re.match(r'(\S+):\s+(folds|calls|raises|checks|bets)', line)
-        if not am:
-            continue
-        actor = am.group(1)
-        act = am.group(2)
-        # Snapshot at Hero's action (BEFORE processing this line's fold effect)
-        if actor == hero_name:
-            last_hero_active_set = {p for p in player_position
-                                    if p != hero_name and p not in folded_so_far}
-        if act == 'folds':
-            folded_so_far.add(actor)
-    if last_hero_active_set:
-        candidates = [hand['stack_bb']] + [
-            seat_stack_by_player.get(opp, hand['stack_bb'])
-            for opp in last_hero_active_set
-        ]
-        hand['eff_stack_bb_at_decision'] = round(min(candidates), 2)
-    else:
-        hand['eff_stack_bb_at_decision'] = hand['stack_bb']
+    # === eff_stack_bb_at_decision — ONE canonical source (v8.17.1 Iter-1 rev) ===
+    # The parser no longer carries its own min-stack algorithm (the v7.48.1 walk +
+    # the dead-short threshold are removed). The single canonical owner is
+    # gem_decision_snapshot.build_decision_snapshot(); the field is stamped from it
+    # AFTER the action_ledger is built (the snapshot replays the ledger to Hero's
+    # exact action index). We persist the per-player starting stacks the snapshot
+    # needs so every consumer derives effective stacks from the SAME numbers.
+    hand['seat_stack_by_player'] = {info['player']: info['stack_bb']
+                                    for info in seats.values()}
 
     hand['hero_3bet'] = hero_raised_pf and hero_faced_raise
     # fold_to_3bet: Hero OPENED (was first raiser), faced 3-bet, folded
@@ -1411,11 +1388,18 @@ def parse_one_hand(text, filename=''):
     action_ledger = []
     bb = hand.get('bb_blind', 1) or 1
     for _al_street in ('preflop', 'flop', 'turn', 'river'):
+        # v8.17.1 Iter-1: track the per-street bet level + per-player round commit so
+        # we can record `added_bb` = chips ACTUALLY put in by each action (exact for
+        # raises: "raises X to Y" adds Y - prior-round-commit). This lets the decision
+        # snapshot reconstruct decision-time remaining stacks without re-reading the
+        # raw text. Blinds set the level; antes (dead money) do not.
+        _al_level = 0.0           # current bet-to level this street (bb units)
+        _al_round = {}            # player -> committed THIS street (bb units)
         for _al_line in streets.get(_al_street, '').split('\n'):
             _al_line = _al_line.strip()
             if not _al_line or ': ' not in _al_line:
                 continue
-            # Parse: "PlayerName: action amount[ and is all-in]"
+            # Parse: "PlayerName: action amount[ to total][ and is all-in]"
             _al_m = re.match(r'(\S+):\s+(raises|bets|calls|checks|folds|posts \S+ \S+)\s*([\d,]*\.?\d*)?(?:\s+to\s+([\d,]*\.?\d*))?', _al_line)
             if not _al_m:
                 continue
@@ -1423,17 +1407,75 @@ def parse_one_hand(text, filename=''):
             _al_action = _al_m.group(2).split()[0]  # 'raises', 'bets', 'calls', 'checks', 'folds', 'posts'
             _al_amt_str = _al_m.group(3) or _al_m.group(4) or '0'
             _al_amt = float(_al_amt_str.replace(',', '')) if _al_amt_str else 0
+            _al_amt_bb = round(_al_amt / bb, 2) if bb > 0 else 0
+            _al_to = _al_m.group(4)
+            _al_to_bb = (round(float(_al_to.replace(',', '')) / bb, 2)
+                         if (_al_to and bb > 0) else None)
             _al_is_allin = 'all-in' in _al_line.lower()
             _al_pos = player_position.get(_al_player, '?') if 'player_position' in dir() else '?'
-            action_ledger.append({
+            # chips ADDED this action (bb units)
+            _prev = _al_round.get(_al_player, 0.0)
+            if _al_action == 'raises':
+                _newlvl = _al_to_bb if _al_to_bb is not None else (_al_level + _al_amt_bb)
+                _added = max(0.0, round(_newlvl - _prev, 2))
+                _al_round[_al_player] = _newlvl
+                _al_level = max(_al_level, _newlvl)
+            elif _al_action == 'bets':
+                _added = _al_amt_bb
+                _al_round[_al_player] = _prev + _al_amt_bb
+                _al_level = max(_al_level, _al_round[_al_player])
+            elif _al_action == 'calls':
+                _added = _al_amt_bb
+                _al_round[_al_player] = _prev + _al_amt_bb
+            elif _al_action == 'posts':
+                _added = _al_amt_bb
+                _al_round[_al_player] = _prev + _al_amt_bb
+                if 'blind' in _al_line.lower():   # antes are dead money, not a bet level
+                    _al_level = max(_al_level, _al_round[_al_player])
+            else:                                  # checks / folds
+                _added = 0.0
+            # REV15 B: TYPED forced-post reason preserved from the RAW hand-history text at the
+            # ledger boundary — the canonical source downstream code reads (never re-inferred by
+            # amount/seat). "posts small blind" / "posts big blind" / "posts the ante".
+            _post_type = None
+            if _al_action == 'posts':
+                _pl = _al_line.lower()
+                if 'small blind' in _pl:
+                    _post_type = 'small_blind'
+                elif 'big blind' in _pl:
+                    _post_type = 'big_blind'
+                elif 'ante' in _pl:
+                    _post_type = 'ante'
+                else:
+                    _post_type = 'unknown'
+            _al_event = {
                 'street': _al_street,
                 'player': _al_player,
                 'position': _al_pos,
                 'action': _al_action,
-                'amount_bb': round(_al_amt / bb, 2) if bb > 0 else 0,
+                'amount_bb': _al_amt_bb,
+                'added_bb': _added,
+                'to_bb': _al_to_bb,
                 'is_all_in': _al_is_allin,
-            })
+            }
+            if _post_type is not None:
+                _al_event['post_type'] = _post_type
+            action_ledger.append(_al_event)
     hand['action_ledger'] = action_ledger
+
+    # v8.17.1 Iter-1: ONE canonical decision-time snapshot owns eff_stack_bb_at_decision
+    # (and the full DecisionSnapshot). Computed here, after the ledger exists.
+    try:
+        from gem_decision_snapshot import build_decision_snapshot as _bld_snap
+        _ds_snap = _bld_snap(hand)
+        hand['decision_snapshot'] = _ds_snap
+        _ds_eff = _ds_snap.get('effective_stack_vs_faced_aggressor')
+        if _ds_eff is None:
+            _ds_eff = _ds_snap.get('max_effective_stack_among_active_opponents')
+        hand['eff_stack_bb_at_decision'] = (round(_ds_eff, 2) if _ds_eff is not None
+                                            else hand.get('stack_bb'))
+    except Exception:
+        hand['eff_stack_bb_at_decision'] = hand.get('stack_bb')
 
     # Build full line label: Role_PotType_PosBucket_actions_outcome
     if hand['vpip'] and hand.get('line_actions', 'preflop_only') != 'preflop_only':

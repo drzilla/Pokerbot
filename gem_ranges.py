@@ -854,7 +854,13 @@ def preflop_range_lens(ev, ranges, highlight=False):
     # path (and its tests) is unchanged.
     if highlight:
         try:
-            rng = highlight_range_expression(rng, mem, cov, ev.get('role'))['html']
+            # Pass Hero's combo + action so the coloured expression visibly marks
+            # Hero (bolded in place, else an appended 'Hero: <combo>' token) — the
+            # same Hero-combo coverage guarantee as the range_evidence_md lens. The
+            # membership word stays in hero_clause; the token never implies inclusion.
+            rng = highlight_range_expression(rng, mem, cov, ev.get('role'),
+                                             hero_combo=(hero or None),
+                                             action=ev.get('hero_action'))['html']
         except Exception:
             pass
     return f"Range lens: the {spot} range{cov_note} is roughly {rng}.{hero_clause}"
@@ -1069,36 +1075,98 @@ DECISION_NODE_LABELS = {
 }
 
 
-def range_membership_color(membership, coverage):
+def range_membership_color(membership, coverage, action=None):
     """green / amber / red / neutral. Any non-exact coverage (proxy/closest/none)
-    downgrades to neutral so we never assert a hard in/out on an inexact source."""
+    downgrades to neutral so we never assert a hard in/out on an inexact source.
+
+    v8.17.1 P2c: when the Hero ACTION is known, colour by ACTION-vs-chart
+    AGREEMENT, not membership alone — folding a hand OUTSIDE the open range is
+    CORRECT (green); opening one outside is a deviation (red); folding a hand
+    clearly INSIDE is a miss (red). action=None keeps the legacy membership-only
+    colouring. The proxy/closest -> neutral downgrade is always applied first."""
     if not coverage or coverage in ('none', 'unknown'):
         return 'neutral'
     if coverage != 'exact' and membership != 'inside':
         # proxy/closest charts: only 'inside' stays confident; out/boundary -> neutral
-        return 'neutral' if membership in ('outside', 'boundary', 'mixed', None) else \
-            _RH_COLOR.get(membership, 'neutral')
-    return _RH_COLOR.get(membership, 'neutral')
+        if membership in ('outside', 'boundary', 'mixed', None):
+            return 'neutral'
+        return _RH_COLOR.get(membership, 'neutral')
+    base = _RH_COLOR.get(membership, 'neutral')
+    if not action:
+        return base
+    act = str(action).lower()
+    is_fold = 'fold' in act
+    is_play = any(k in act for k in ('open', 'raise', 'rfi', 'first', 'jam',
+                                     'shove', 'call', '3bet', '3-bet', 'bet'))
+    if membership == 'inside':
+        return 'red' if is_fold else ('green' if is_play else base)
+    if membership == 'outside':
+        return 'green' if is_fold else ('red' if is_play else 'neutral')
+    return base   # boundary / mixed / unknown keep the membership colour
 
 
 def decision_node_label(role):
     return DECISION_NODE_LABELS.get(role, '')
 
 
-def highlight_range_expression(expr, membership, coverage, role=None):
+def _bold_combo_in_expr(expr, combo):
+    """v8.17.1 P2b: wrap the FIRST standalone occurrence of Hero's exact combo
+    token inside the range expression with <span class='rng-combo-hero'> so the
+    reader sees WHERE the hand sits. Matches the exact token only (e.g. A6o, not
+    the 'A6o' inside 'A6o+' nor 'A6s'); a miss is a no-op — never invents a
+    combo (handles the compact-notation case the spec calls out)."""
+    if not expr or not combo:
+        return expr
+    import re as _re
+    pat = _re.compile(r'(?<![A-Za-z0-9])' + _re.escape(str(combo).strip())
+                      + r'(?![A-Za-z0-9+])')
+    m = pat.search(expr)
+    if not m:
+        return expr
+    s, e = m.span()
+    return (expr[:s] + "<span class='rng-combo-hero'>" + expr[s:e]
+            + "</span>" + expr[e:])
+
+
+def highlight_range_expression(expr, membership, coverage, role=None,
+                               hero_combo=None, action=None):
     """Return an HTML span wrapping the range EXPRESSION itself with a colour
     class (rng-hl rng-hl-{color}) + a tooltip stating node + membership, so the
     relationship is visible ON the notation (not only in a separate sentence).
-    Returns {'color','css_class','html','node_label'}. expr is shown verbatim."""
-    color = range_membership_color(membership, coverage)
+    v8.17.1 P2b/P2c: colours by action-vs-chart agreement (action).
+
+    v8.17.1 rev (Hero-combo coverage): ALWAYS surfaces Hero's normalized combo
+    with a rng-combo-hero span — bolded IN PLACE when the combo is among the shown
+    classes, otherwise appended as a clearly-labeled 'Hero: <combo>' token INSIDE
+    the coloured lens. The truncated top-examples list almost never literally
+    contains Hero, so in-place-only bolding marked Hero on <3% of lenses; appending
+    the token guarantees every rendered lens emphasizes Hero WITHOUT implying
+    range membership (the INSIDE/OUTSIDE claim lives on the line above and in the
+    caller's 'Includes' vs 'Reference classes' label). Returns
+    {'color','css_class','html','node_label','combo_highlighted','combo_in_expr',
+     'combo_appended'}."""
+    color = range_membership_color(membership, coverage, action=action)
     node = decision_node_label(role)
     tip_bits = [b for b in (node, (membership or 'unknown'),
                             (coverage if coverage and coverage != 'exact' else ''))
                 if b]
     tip = ' · '.join(tip_bits)
     css = 'rng-hl rng-hl-%s' % color
-    html = "<span class='%s' title='%s'>%s</span>" % (css, tip, expr)
-    return {'color': color, 'css_class': css, 'html': html, 'node_label': node}
+    combo = str(hero_combo).strip() if hero_combo else ''
+    shown = _bold_combo_in_expr(expr, combo) if combo else expr
+    combo_in_expr = bool(combo) and shown != expr
+    combo_appended = bool(combo) and not combo_in_expr
+    inner = shown
+    if combo_appended:
+        # Hero's class is not among the top examples shown — surface it as a
+        # labeled, emphasized token (does NOT claim membership; the membership
+        # word is on the line above + the caller's label).
+        inner = ("%s · <span class='rng-combo-hero'>Hero: %s</span>"
+                 % (shown, combo))
+    html = "<span class='%s' title='%s'>%s</span>" % (css, tip, inner)
+    return {'color': color, 'css_class': css, 'html': html, 'node_label': node,
+            'combo_highlighted': bool(combo),
+            'combo_in_expr': combo_in_expr, 'combo_appended': combo_appended}
 
 
 def outside_open_negative_ok(role, source_authoritative, table_caveat_handled,

@@ -1,0 +1,35 @@
+{
+  "seed_id": "R4B",
+  "title": "dead blind ignored entirely",
+  "description": "live unchanged but stack not reduced + no contribution + status absent.",
+  "target_gate": "dead_blind_attribution_gate",
+  "replay_records": [
+    {
+      "idx": 1,
+      "player": "Hero",
+      "action": "posts",
+      "post_type": "dead_blind",
+      "semantic_status": null,
+      "physical_bb": 0.5,
+      "stack_before_bb": 30.0,
+      "stack_after_bb": 30.0,
+      "total_contribution_before_bb": 1.0,
+      "total_contribution_after_bb": 1.0,
+      "live_commitment_before_bb": 0.0,
+      "live_commitment_after_bb": 0.0
+    }
+  ],
+  "expected_dead_blind_keys": [
+    1
+  ],
+  "required_failure": {
+    "detector": "dead_blind_attribution_gate",
+    "failure_class": "dead_blind_silently_dropped",
+    "min_violations": 1,
+    "required_mismatch_field_any": [
+      "stack_not_reduced_by_physical_post",
+      "contribution_not_conserved",
+      "missing_field:semantic_status"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "seed_id": "R4I",
+  "title": "non-integer / invalid idx",
+  "description": "A dead-blind record with a non-integer idx.",
+  "target_gate": "dead_blind_attribution_gate",
+  "replay_records": [
+    {
+      "idx": "x",
+      "player": "Hero",
+      "action": "posts",
+      "post_type": "dead_blind",
+      "semantic_status": "explicit_unknown",
+      "physical_bb": 0.5,
+      "stack_before_bb": 30.0,
+      "stack_after_bb": 29.5,
+      "total_contribution_before_bb": 1.0,
+      "total_contribution_after_bb": 1.5,
+      "live_commitment_before_bb": 0.0,
+      "live_commitment_after_bb": 0.0
+    }
+  ],
+  "expected_dead_blind_keys": [
+    "x"
+  ],
+  "required_failure": {
+    "detector": "dead_blind_attribution_gate",
+    "failure_class": "dead_blind_bad_identity",
+    "min_violations": 1,
+    "required_mismatch_field_any": [
+      "idx_not_exact_int"
+    ]
+  }
+}

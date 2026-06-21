@@ -1,0 +1,201 @@
+{
+  "description": "REV17 Stage-F frozen gate-to-seed map (rev 4: F1-F5 + G1-G3 + H1-H4). Each gap maps to its gate and the seeds it must fail. Frozen before Stage P; gates + seeds + this map are not editable in Stage P.",
+  "baseline_commit": "66238a5 (parent b1ae76e) — REV16 ordinary ante/SB/BB replay values are provisional accepted truth, not recalculated",
+  "self_check": "acceptance/_stage_f_selfcheck.py — 45/45 assertions (seeds + controls + universal mutation probes)",
+  "gates": {
+    "row_bound_renderer_parity_gate": [
+      {
+        "seed": "acceptance/seed_cross_row_collision.json",
+        "seed_id": "R1",
+        "title": "cross-row collision — wrong Hero value masked by a correct caller",
+        "failure_class": "row_bound_parity_violation"
+      },
+      {
+        "seed": "acceptance/seed_omitted_canonical_action.json",
+        "seed_id": "R1B",
+        "title": "omitted canonical action",
+        "failure_class": "coverage_violation"
+      },
+      {
+        "seed": "acceptance/seed_wrong_player_action_identity.json",
+        "seed_id": "R1C",
+        "title": "correct numbers, wrong player/action identity",
+        "failure_class": "identity_violation"
+      },
+      {
+        "seed": "acceptance/seed_missing_required_attributes.json",
+        "seed_id": "R1D",
+        "title": "required attributes omitted",
+        "failure_class": "missing_attribute_violation"
+      },
+      {
+        "seed": "acceptance/seed_raise_displays_physical.json",
+        "seed_id": "R1E",
+        "title": "raise displays the physical increment instead of total-to",
+        "failure_class": "visible_sizing_not_action_bound"
+      },
+      {
+        "seed": "acceptance/seed_sparse_canonical_record.json",
+        "seed_id": "R1F",
+        "title": "sparse / malformed canonical truth record",
+        "failure_class": "canonical_validation_failure"
+      },
+      {
+        "seed": "acceptance/seed_shared_ledger_index_two_hands.json",
+        "seed_id": "R1G",
+        "title": "two hands share ledger index 20 (composite identity)",
+        "failure_class": "composite_identity_violation"
+      },
+      {
+        "seed": "acceptance/seed_visible_amount_omitted.json",
+        "seed_id": "R1H",
+        "title": "visible BB amount omitted",
+        "failure_class": "visible_sizing_absent"
+      },
+      {
+        "seed": "acceptance/seed_canonical_missing_ledger_index.json",
+        "seed_id": "R1I",
+        "title": "complete canonical record except explicit ledger_index",
+        "failure_class": "canonical_validation_failure"
+      },
+      {
+        "seed": "acceptance/seed_canonical_fractional_ledger_index.json",
+        "seed_id": "R1J",
+        "title": "fractional / non-integer ledger_index",
+        "failure_class": "canonical_validation_failure"
+      },
+      {
+        "seed": "acceptance/seed_canonical_empty_identity.json",
+        "seed_id": "R1K",
+        "title": "empty hand_id / player_id",
+        "failure_class": "canonical_validation_failure"
+      },
+      {
+        "seed": "acceptance/seed_canonical_nonfinite_numeric.json",
+        "seed_id": "R1L",
+        "title": "NaN / Infinity canonical sizing field",
+        "failure_class": "canonical_validation_failure"
+      },
+      {
+        "seed": "acceptance/seed_source_expected_canonical_omitted.json",
+        "seed_id": "R1M",
+        "title": "source-expected action omitted from canonical replay",
+        "failure_class": "source_to_canonical_coverage_violation"
+      },
+      {
+        "seed": "acceptance/seed_all_empty_with_nonempty_source.json",
+        "seed_id": "R1N",
+        "title": "canonical + rendered empty while source expected non-empty",
+        "failure_class": "source_to_canonical_coverage_violation"
+      },
+      {
+        "seed": "acceptance/seed_visible_wrong_plus_hidden_correct.json",
+        "seed_id": "R1O",
+        "title": "wrong visible amount + hidden correct amount",
+        "failure_class": "visible_sizing_not_action_bound"
+      },
+      {
+        "seed": "acceptance/seed_correct_only_in_tooltip.json",
+        "seed_id": "R1P",
+        "title": "correct amount only in an unrelated child / tooltip",
+        "failure_class": "visible_sizing_absent"
+      },
+      {
+        "seed": "acceptance/seed_duplicate_primary_display.json",
+        "seed_id": "R1Q",
+        "title": "duplicate primary action-sizing elements",
+        "failure_class": "duplicate_primary_display"
+      },
+      {
+        "seed": "acceptance/seed_multiple_amounts_wrong_primary.json",
+        "seed_id": "R1R",
+        "title": "multiple amounts with the wrong primary",
+        "failure_class": "visible_sizing_not_action_bound"
+      },
+      {
+        "seed": "acceptance/seed_synthetic_rendered_list.json",
+        "seed_id": "R1S",
+        "title": "gate invoked with a synthetic pre-parsed list",
+        "failure_class": "synthetic_rendered_evidence_rejected"
+      }
+    ],
+    "dead_blind_attribution_gate": [
+      {
+        "seed": "acceptance/seed_dead_blind_live.json",
+        "seed_id": "R4",
+        "title": "dead blind treated as live",
+        "failure_class": "dead_blind_live_commitment"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_ignored.json",
+        "seed_id": "R4B",
+        "title": "dead blind ignored entirely",
+        "failure_class": "dead_blind_silently_dropped"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_fields_omitted.json",
+        "seed_id": "R4C",
+        "title": "attribution fields omitted",
+        "failure_class": "dead_blind_attribution_incomplete"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_removed.json",
+        "seed_id": "R4D",
+        "title": "expected dead-blind action removed (coverage)",
+        "failure_class": "dead_blind_coverage_mismatch"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_live_decrease.json",
+        "seed_id": "R4E",
+        "title": "dead blind decreases live commitment",
+        "failure_class": "dead_blind_live_changed"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_expected_omitted.json",
+        "seed_id": "R4F",
+        "title": "expected dead-blind identity set omitted",
+        "failure_class": "expected_identity_set_omitted"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_nonfinite.json",
+        "seed_id": "R4G",
+        "title": "NaN / Infinity dead-blind numeric field",
+        "failure_class": "dead_blind_nonfinite"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_wrong_identity.json",
+        "seed_id": "R4H",
+        "title": "wrong dead-blind identity substituted (same count)",
+        "failure_class": "dead_blind_identity_mismatch"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_bad_idx.json",
+        "seed_id": "R4I",
+        "title": "non-integer / invalid idx",
+        "failure_class": "dead_blind_bad_identity"
+      },
+      {
+        "seed": "acceptance/seed_dead_blind_wrong_action.json",
+        "seed_id": "R4J",
+        "title": "post_type=dead_blind with missing / wrong action",
+        "failure_class": "dead_blind_malformed_action"
+      }
+    ],
+    "zero_fallback_gate": [
+      {
+        "seed": "acceptance/seed_equal_value_fallback.json",
+        "seed_id": "R2",
+        "title": "equal-valued raw fallback — visual parity green, source raw",
+        "failure_class": "raw_sizing_fallback_used"
+      }
+    ],
+    "ownership_contract_gate": [
+      {
+        "seed": "acceptance/seed_missing_ownership.json",
+        "seed_id": "R3",
+        "title": "missing ownership contract",
+        "failure_class": "ownership_contract_unavailable_or_invalid"
+      }
+    ]
+  }
+}

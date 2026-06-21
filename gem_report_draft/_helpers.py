@@ -574,6 +574,66 @@ def auto_verdict_needs_review(verdict, is_auto_verdict, agg_label):
     return ('missed' not in lbl) and ('too aggressive' not in lbl)
 
 
+def build_canonical_verdicts(rd, hands):
+    """v8.17.1 P5(1): build the ONE canonical decision-quality verdict per hand
+    that EVERY surface reads — modal/topbar, .mh-verdict, Commentary Capsule,
+    action-row thumbs/mistake markers, push & call-jam footer, evidence queue,
+    review queue, hand-list, the analyst-reviewed path and the AUTO_ONLY path —
+    so no two surfaces can disagree. Built ONCE in the render data layer (the
+    review queue in the dashboard renders BEFORE the XIV hand details, so a
+    per-hand stamp made during XIV would be too late for it).
+
+    Priority (via gem_review_trust.resolve_canonical_verdict):
+      1. active-queue decision   (rd['queue_decisions'][id] — explicit override)
+      2. analyst-reviewed verdict
+      3. auto verdict — but only when it is USABLE (an auto Mistake/Punt with no
+         corroborating action-level marker is downgraded, exactly as the topbar
+         did, so it is NOT passed as a decision)
+      4. neutral Review
+      5. an outcome label ONLY when it is itself a decision classification
+         (a cooler) — a pure RESULT (won/lost/net BB/finish) NEVER becomes a grade.
+
+    Returns {full_id: cv, short_id: cv} where cv is the resolver dict plus
+    {'auto_downgraded', 'auto_downgraded_label'} so the topbar can still show the
+    explicit Review pill for a downgraded auto verdict. Pure-ish (reads rd/hands)."""
+    from gem_review_trust import resolve_canonical_verdict as _rcv
+    ac = rd.get('analyst_commentary') or {}
+    mr = rd.get('mistakes_review') or {}
+    av = rd.get('auto_verdicts') or {}
+    qd = rd.get('queue_decisions') or {}
+    out = {}
+    for h in (hands or []):
+        hid = h.get('id') or ''
+        if not hid:
+            continue
+        hid_short = hid[-8:] if len(hid) > 8 else hid
+        _c = ac.get(hid) or ac.get(hid_short) or {}
+        _r = mr.get(hid) or mr.get(hid_short) or {}
+        analyst_v = (_c.get('verdict', '') if isinstance(_c, dict) else '') or ''
+        if not analyst_v and isinstance(_r, dict):
+            analyst_v = _r.get('verdict', '') or ''
+        _a = av.get(hid) or av.get(hid_short) or {}
+        auto_raw = (_a.get('verdict', '') if isinstance(_a, dict) else '') or ''
+        try:
+            _agl = _agg_gate_label(hid, rd) or _agg_gate_label(hid_short, rd)
+        except Exception:
+            _agl = None
+        auto_usable = '' if (auto_raw and auto_verdict_needs_review(
+            auto_raw, True, (_agl[1] if _agl else ''))) else auto_raw
+        # decision-class outcome ONLY (a cooler is a decision classification; a
+        # bare win/loss/net BB is NOT and must never become a grade).
+        outcome_dc = 'cooler' if (h.get('eai_suckout') or '') == \
+            'hero_got_sucked_out' else ''
+        _aq = qd.get(hid) or qd.get(hid_short) or None
+        cv = dict(_rcv(active_queue=_aq, analyst=analyst_v or None,
+                       auto=auto_usable or None, outcome=outcome_dc or None))
+        cv['auto_downgraded'] = bool(auto_raw and not auto_usable)
+        cv['auto_downgraded_label'] = auto_raw if cv['auto_downgraded'] else ''
+        out[hid] = cv
+        out[hid_short] = cv
+    return out
+
+
 def monotone_overcommit_lesson(board, hsa, net_bb=None, spr=None):
     """v8.13.1 P2: monotone-board over-commit SEQUENCE leak. When the flop is
     monotone (a flush is already possible), Hero CHECKED the flop (skipped cheap
@@ -657,7 +717,30 @@ def range_evidence_md(ev):
         f"> {hero}: **{mtag} the {label} range{bnd}.**",
     ]
     if tops:
-        lines.append(f"> Includes (top hand classes): {tops}.")
+        # v8.17.1 P2b/P2c: colour the range expression by ACTION-vs-chart agreement
+        # and pinpoint Hero's exact combo inside it — same membership/coverage as
+        # the line above (single source of truth). Renders via the whitelisted
+        # rng-hl / rng-combo-hero spans; a combo not literally in the list (e.g. an
+        # OUTSIDE hand) simply isn't bolded — the OUTSIDE line above states it.
+        _lens_html = ''
+        try:
+            from gem_ranges import highlight_range_expression as _hre_md
+            _hl = _hre_md(tops, ev.get('membership'), cov, role=ev.get('role'),
+                          hero_combo=ev.get('hero_combo') or hero,
+                          action=ev.get('hero_action'))
+            _lens_html = _hl.get('html', '')
+        except Exception:
+            _lens_html = ''
+        # INSIDE -> "Includes …" (Hero is a member). OUTSIDE -> "Reference classes …"
+        # so an appended 'Hero: <combo>' token never reads as a membership claim.
+        _lbl = 'Includes (top hand classes)' if inside else 'Reference classes'
+        if _lens_html:
+            lines.append(f"> {_lbl}: {_lens_html}")
+        else:
+            # Defensive fallback (highlighter unavailable): still emphasize Hero so
+            # every rendered lens carries a rng-combo-hero span (coverage gate).
+            lines.append(f"> {_lbl}: {tops} · "
+                         f"<span class='rng-combo-hero'>Hero: {hero}</span>.")
     if bex:
         lines.append(f"> Boundary hand classes: {bex}.")
     return '\n'.join(lines)
@@ -672,6 +755,20 @@ def _hand_preflop_range_role(h):
     pa = (h.get('pf_action') or '').lower()
     first_in = bool(h.get('first_in'))
     pf_allin = bool(h.get('pf_allin'))
+    # Iteration-1 root fix (83915520): when the canonical decision model
+    # classifies the all-in as a CALL (a HU covering re-jam vs a single jam
+    # commits exactly a call vs the jammer), use the call-jam chart role, not
+    # the rejam role — so the report never shows a re-jam range lens for a
+    # call. Genuine side-pot over-jams (e.g. 73559949) are classified
+    # overjam_with_side_pot by the canonical model and keep the rejam role.
+    if pf_allin:
+        try:
+            from gem_decision_snapshot import hero_action_kind as _ds_akind
+            _ck = _ds_akind(h)
+            if _ck in ('call_vs_jam', 'call_off'):
+                return 'call_jam'
+        except Exception:
+            pass
     # A 3-bet/4-bet jam is a re-jam/over-jam, NOT a first-in open-shove, even
     # when the record marks first_in (e.g. 73559949 ATs 4bet+ overjam over a
     # short jam). Route those to rejam so the open-shove chart is not misapplied.
@@ -717,10 +814,17 @@ def hand_range_evidence(h, ranges=None):
     except Exception:
         return None
     _eff = h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb') or h.get('stack_bb') or 0
-    return _bre(role, h.get('position', '?'), h.get('cards', []),
-                h.get('stack_bb') or 0, _eff, ranges,
-                jammer_pos=(h.get('jammer_position') or h.get('opener_position') or ''),
-                opener_pos=(h.get('opener_position') or ''))
+    ev = _bre(role, h.get('position', '?'), h.get('cards', []),
+              h.get('stack_bb') or 0, _eff, ranges,
+              jammer_pos=(h.get('jammer_position') or h.get('opener_position') or ''),
+              opener_pos=(h.get('opener_position') or ''))
+    # v8.17.1 P2: carry Hero's role + action + exact combo so the range block can
+    # colour by action-vs-chart agreement and pinpoint the combo (no recompute).
+    if isinstance(ev, dict):
+        ev.setdefault('role', role)
+        ev.setdefault('hero_action', (h.get('pf_action') or '').lower())
+        ev.setdefault('hero_combo', ev.get('hero_hand'))
+    return ev
 
 
 def _agg_commentary(c):

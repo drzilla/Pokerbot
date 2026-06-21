@@ -1,0 +1,16 @@
+{
+  "seed_id": "R4F",
+  "title": "expected dead-blind identity set omitted",
+  "description": "expected_dead_blind_keys is None — the coverage parameter is MANDATORY even for an empty set.",
+  "target_gate": "dead_blind_attribution_gate",
+  "replay_records": [],
+  "expected_dead_blind_keys": null,
+  "required_failure": {
+    "detector": "dead_blind_attribution_gate",
+    "failure_class": "expected_identity_set_omitted",
+    "min_violations": 1,
+    "required_why_any": [
+      "expected_dead_blind_identity_set_omitted"
+    ]
+  }
+}

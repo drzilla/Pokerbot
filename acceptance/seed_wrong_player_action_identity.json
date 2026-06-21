@@ -1,0 +1,33 @@
+{
+  "seed_id": "R1C",
+  "title": "correct numbers, wrong player/action identity",
+  "description": "Ledger 20 rendered with correct numbers but player Villain / action call.",
+  "target_gate": "row_bound_renderer_parity_gate",
+  "canonical_records": [
+    {
+      "hand_id": "TM6083975040",
+      "ledger_index": 20,
+      "player_id": "Hero",
+      "action_kind": "jam",
+      "sizing_source": "canonical_replay",
+      "physical_bb": 18.1,
+      "live_total_bb": 18.1,
+      "uncalled_return_bb": 0.0
+    }
+  ],
+  "expected_sized_action_keys": [
+    [
+      "TM6083975040",
+      20
+    ]
+  ],
+  "rendered_html": "<div class=\"hand-body\"><span class=\"grid-action act-call\" data-hand-id=\"TM6083975040\" data-ledger-index=\"20\" data-player-id=\"Villain\" data-action-kind=\"call\" data-sizing-source=\"canonical_replay\" data-physical-bb=\"18.1\" data-live-total-bb=\"18.1\" data-uncalled-return-bb=\"0.0\">Villain <span data-sizing-role=\"primary\">18.1BB</span></span></div>",
+  "required_failure": {
+    "detector": "row_bound_renderer_parity_gate",
+    "failure_class": "identity_violation",
+    "required_mismatch_field_any": [
+      "player_id_ne_canonical",
+      "action_kind_ne_canonical"
+    ]
+  }
+}

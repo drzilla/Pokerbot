@@ -125,35 +125,435 @@ def _pko_bounty_usd(rd, h):
         return None
 
 
-def _bounty_trust_strip_md(rd, h, _po):
+# REV7 A2/A3: the canonical reviewed-action kinds that are genuine all-in confrontations,
+# and their display labels for the "Decision:" line (derived from the REVIEWED action, never
+# the hand-level pf_allin classification — a first-in open is never "Call vs jam").
+_ALLIN_REVIEW_KINDS = ('call_vs_jam', 'call_off', 'open_shove',
+                       'rejam_over_live_raise', 'overjam_with_side_pot')
+_REV_KIND_LABEL = {
+    'call_vs_jam': 'Call vs jam', 'call_off': 'Call-off', 'open_shove': 'Open-shove',
+    'rejam_over_live_raise': 'Re-jam', 'overjam_with_side_pot': 'Overjam',
+}
+
+
+def _decision_bounty_view(h, dbc_override=None):
+    """Canonical DECISION-TIME bounty view for the reviewed all-in confrontation
+    (REV4 B2 / REV7 A5). Reads the bounty context AT THE REVIEWED ACTION INDEX when supplied
+    (dbc_override), else h['decision_bounty_context'] — NEVER the legacy realized scalar
+    h['bounty_collectible']. Maps the typed aggregate to (collect_scalar, cover_bucket,
+    can_collect), preserving mixed and equal-boundary distinctly."""
+    dbc = dbc_override if dbc_override is not None else h.get('decision_bounty_context')
+    if dbc is None:
+        try:
+            from gem_decision_snapshot import build_decision_bounty_context
+            dbc = build_decision_bounty_context(h)
+        except Exception:
+            dbc = {}
+    dbc = dbc or {}
+    agg = dbc.get('coverage_aggregate') or dbc.get('aggregate')
+    rsn = dbc.get('coverage_reason') or dbc.get('reason')
+    if agg == 'all':
+        return dbc, 'collectible', 'Hero covers', True
+    if agg == 'mixed':
+        return dbc, 'mixed', 'Mixed', None
+    if agg == 'none':
+        if rsn == 'equal_boundary':
+            return dbc, 'equal', 'Equal', None
+        return dbc, 'not_collectible', 'Hero covered', False
+    return dbc, None, '', None   # unknown / not_applicable / non-bounty
+
+
+def _bounty_data_attrs(h):
+    """Emit the canonical decision-time bounty aggregate/reason/eligibility as data
+    attributes on the rendered hand so the report carries the SAME canonical context the
+    worklist grades from (REV4 B2). Read by _qa_parity to prove rendered == canonical and
+    that no renderer reconstructs coverage from the legacy scalar."""
+    dbc = h.get('decision_bounty_context') or {}
+    if not dbc.get('is_bounty'):
+        return ''
+    agg = dbc.get('coverage_aggregate') or dbc.get('aggregate') or ''
+    rsn = dbc.get('coverage_reason') or dbc.get('reason') or ''
+    hc = dbc.get('hero_covers_relevant_villain')
+    hc_s = '' if hc is None else ('1' if hc else '0')
+    n_elig = len(dbc.get('eligible_bounties_by_opponent') or {})
+    return (f" data-bounty-aggregate='{agg}' data-bounty-reason='{rsn}'"
+            f" data-bounty-eligible-n='{n_elig}' data-bounty-hero-covers='{hc_s}'")
+
+
+def _per_decision_bounty_meta(h):
+    """REV5 B2: emit ONE hidden metadata element per Hero DECISION (action index),
+    consuming the analyzer's action-indexed map h['decision_bounty_context_by_action_index'].
+    A hand can contain several materially different Hero decisions (e.g. a preflop open AND
+    a later flop call-vs-jam) with DIFFERENT bounty contexts; the article-level default
+    attribute is for navigation only. Each element carries data-decision-action-index +
+    the per-decision aggregate/reason/applicability so the parity gate proves EVERY decision
+    block uses the correct action-index context (never one hand-level default)."""
+    if (h.get('format') != 'BOUNTY') and not h.get('bounty_value_bb'):
+        return ''
+    by_idx = h.get('decision_bounty_context_by_action_index')
+    if not by_idx:
+        try:
+            from gem_decision_snapshot import build_decision_bounty_context as _b
+            ledger = h.get('action_ledger') or []
+            hero = h.get('hero', 'Hero')
+            by_idx = {i: _b(h, i) for i, a in enumerate(ledger)
+                      if a.get('player') == hero and a.get('action') != 'posts'}
+        except Exception:
+            return ''
+    out = []
+    # REV10: a no-Hero-decision hand contributes no per-action index; ignore any None key.
+    for idx in sorted((k for k in by_idx if k is not None), key=lambda x: int(x)):
+        dbc = by_idx[idx] or {}
+        if not dbc.get('is_bounty'):
+            continue
+        agg = _html_escape(dbc.get('coverage_aggregate') or '')
+        rsn = _html_escape(dbc.get('coverage_reason') or '')
+        app = _html_escape(dbc.get('bounty_applicability') or '')
+        st = _html_escape(dbc.get('street') or '')
+        out.append(f"<span class='decision-bounty-meta' data-decision-action-index='{int(idx)}'"
+                   f" data-decision-street='{st}' data-bounty-aggregate='{agg}'"
+                   f" data-bounty-reason='{rsn}' data-bounty-applicability='{app}'></span>")
+    return ''.join(out)
+
+
+def _rdr_f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _reviewed_ref(rd, h, hid, hid_short):
+    """REV6 B2: the ONE canonical reviewed-decision reference for this hand. Prefers the
+    worklist-authored ref in report_data (carries the candidate decision_kind), then the
+    analyzer's ledger-inferred default stamped on the hand. {} when neither exists."""
+    return ((rd.get('reviewed_decision_ref_by_hand') or {}).get(hid)
+            or (rd.get('reviewed_decision_ref_by_hand') or {}).get(hid_short)
+            or h.get('reviewed_decision_ref') or {})
+
+
+def _reviewed_bounty_ctx(h, _rdref):
+    """REV7 A5: the FULL decision-time bounty context AT the reviewed action index — the
+    object the bounty trust strip / applicability note must consume so they describe the
+    graded action's bounty, never a later all-in's cover on a first-in open. None if no ref."""
+    if not _rdref:
+        return None
+    idx = _rdref.get('hero_action_index')
+    if idx is None:
+        return None
+    try:
+        from gem_decision_snapshot import build_decision_bounty_context as _bdbc
+        return _bdbc(h, idx)
+    except Exception:
+        return None
+
+
+def _ev_range_node_type(ev):
+    """REV9 D: map the range-evidence object to a canonical NODE TYPE."""
+    role = (ev or {}).get('role') or ''
+    act = (ev or {}).get('hero_action') or ''
+    if role in ('rfi', 'open', 'first_in'):
+        return 'first_in_open'
+    if role in ('call_jam', 'callvjam'):
+        return 'call_vs_jam'
+    if role in ('3bet', 'threebet'):
+        return 'three_bet'
+    if role in ('4bet',):
+        return 'four_bet'
+    if role in ('bb_defend', 'defend'):
+        return 'bb_defend'
+    if role in ('rejam', 're_jam'):
+        return 're_jam'
+    if role in ('open_shove', 'push'):
+        return 'open_shove'
+    return ('first_in_open' if act == 'raise' else ('call_vs_jam' if act == 'call' else 'unknown'))
+
+
+def _reviewed_node_type(rdref):
+    """REV10 C1: the canonical actual_node_type for the reviewed action — derived by the ONE
+    taxonomy in gem_decision_snapshot.canonical_node_type and carried on the rdref. Falls back
+    to deriving it when an older rdref lacks the field. Postflop nodes are returned as
+    'postflop_*'; the ownership gate treats any postflop reviewed action as earlier context."""
+    if rdref and rdref.get('actual_node_type'):
+        return rdref['actual_node_type']
+    try:
+        from gem_decision_snapshot import canonical_node_type
+        return canonical_node_type(
+            (rdref or {}).get('decision_facing_state') or '',
+            (rdref or {}).get('hero_action_kind') or '',
+            (rdref or {}).get('street') or 'preflop',
+            (rdref or {}).get('hero_position') or '',
+            no_hero_decision=bool((rdref or {}).get('no_hero_decision')))
+    except Exception:
+        return 'unknown'
+
+
+# REV10 C4: node-type families that may legitimately share a range chart. The value set is the
+# CHART (ev) node types compatible with the reviewed (actual) node. The chart is ACTUAL-action
+# evidence only when ev_node is in _ACTUAL_CHART[rev_node]; any OTHER compatible chart is a
+# RECOMMENDED-ALTERNATIVE (e.g. a first-in fold/limp uses the RFI open chart to show what Hero
+# should have done) — never silently presented as the actual-action chart, never dropped.
+_NODE_COMPAT = {
+    'first_in_open': {'first_in_open'},
+    # A FIRST-IN limp (Hero is first voluntary actor, e.g. an SB complete with no limper before)
+    # may use the RFI open chart as a RECOMMENDED ALTERNATIVE (open-or-fold instead of limp).
+    'first_in_limp': {'first_in_open'},
+    # REV11 C3: a forced first-in short/underblind all-in (<1BB) has NO meaningful strategic
+    # chart — a push chart at ~0BB effective is nonsensical — so its range is suppressed.
+    'first_in_short_all_in': set(),
+    'first_in_open_shove': {'open_shove', 'first_in_open'},
+    'fold_first_in': {'first_in_open', 'fold_first_in'},
+    # The FACING-LIMP family (a limper already entered) is a genuinely DIFFERENT spot — it must
+    # NEVER pull in the first-in RFI chart (REV9 D / GPT C4); its reference is an iso-raise node.
+    'fold_over_limp': {'iso_raise', 'fold_over_limp'},
+    'overlimp': {'overlimp'},
+    'sb_complete_after_limp': {'sb_complete_after_limp'},
+    'iso_raise': {'iso_raise'},
+    'iso_shove': {'iso_shove', 'open_shove'},
+    'fold_vs_open': {'bb_defend', 'call_vs_jam', 'fold_vs_open'},
+    'call_vs_open': {'call_vs_jam', 'bb_defend'},
+    'three_bet': {'three_bet'},
+    'fold_vs_three_bet': {'three_bet', 'call_vs_jam', 'fold_vs_three_bet'},
+    'call_vs_three_bet': {'call_vs_jam', 'three_bet'},
+    'four_bet': {'four_bet'},
+    'fold_vs_jam': {'call_vs_jam', 'fold_vs_jam'},
+    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
+    're_jam': {'re_jam', 'three_bet'},
+    'check_option': {'check_option'},
+    'no_hero_decision': set(),                 # a walk owns NO range evidence
+}
+
+# the chart node that IS the reviewed action's own actual-action chart (vs a recommendation)
+_ACTUAL_CHART = {
+    'first_in_open': {'first_in_open'},
+    'first_in_open_shove': {'open_shove'},
+    'iso_raise': {'iso_raise'},
+    'iso_shove': {'open_shove'},
+    'call_vs_open': {'call_vs_jam', 'bb_defend'},
+    'call_vs_three_bet': {'call_vs_jam', 'three_bet'},
+    'call_vs_jam': {'call_vs_jam', 'bb_defend'},
+    're_jam': {'re_jam', 'three_bet'},
+    'three_bet': {'three_bet'},
+    'four_bet': {'four_bet'},
+}
+
+
+def _range_evidence_ownership(ev, rdref):
+    """REV8 B2/B5 / REV9 D / REV10 C4: decide whether the PREFLOP range-evidence block describes
+    the SELECTED reviewed action, by ACTION INDEX + STREET + canonical NODE TYPE, and classify
+    its PURPOSE. Returns (mode, label, purpose):
+      mode    'selected' | 'earlier' | 'suppress'
+      purpose 'actual_action_range' | 'recommended_alternative' | 'earlier_context'
+              | 'population_context' | 'suppressed'
+    A first-in fold/limp keeps the RFI open chart as an explicitly-labelled recommended
+    alternative (never dropped, never shown as the actual-action chart); a facing-limp iso-raise
+    or an open-vs-'call a jam' mismatch is suppressed; a walk (no_hero_decision) owns nothing."""
+    if not rdref:
+        return 'selected', '', 'actual_action_range'
+    rstreet = rdref.get('street')
+    if rstreet and rstreet != 'preflop':
+        return 'earlier', ("*Earlier preflop context — not the reviewed %s decision.*" % rstreet), 'earlier_context'
+    rev_node = _reviewed_node_type(rdref)
+    ev_node = _ev_range_node_type(ev)
+    if rev_node == 'no_hero_decision' or (rdref or {}).get('no_hero_decision'):
+        return 'suppress', '', 'suppressed'
+    if ev_node == 'unknown' or rev_node == 'unknown':
+        return 'selected', '', 'actual_action_range'
+    if ev_node not in _NODE_COMPAT.get(rev_node, {rev_node}):
+        return 'suppress', '', 'suppressed'
+    if ev_node in _ACTUAL_CHART.get(rev_node, set()):
+        return 'selected', '', 'actual_action_range'
+    return ('selected', '*Recommended-alternative range — Hero took a different action.*',
+            'recommended_alternative')
+
+
+def range_ownership_record(h, ev, rdref):
+    """REV9 D / REV10 C4: structured per-block range ownership record for the inventory/gate."""
+    mode, _lbl, purpose = _range_evidence_ownership(ev, rdref)
+    return {
+        'hand_id': h.get('id', ''),
+        'selected_action_index': (rdref or {}).get('hero_action_index'),
+        'selected_street': (rdref or {}).get('street'),
+        'range_street': 'preflop',
+        'selected_node_type': _reviewed_node_type(rdref),
+        'range_node_type': _ev_range_node_type(ev),
+        'evidence_purpose': purpose,
+        'hero_position': (rdref or {}).get('hero_position') or (ev or {}).get('position'),
+        'effective_depth_bb': (rdref or {}).get('effective_stack_at_decision_bb'),
+        'chart_key': (ev or {}).get('chart_key'),
+        'ownership': mode,
+    }
+
+
+def reviewed_range_ownership(h, rdref, ranges=None):
+    """REV10 A1/C4: the range-node ownership the analyst WORKLIST serializes onto its canonical
+    decision node — computed by the SAME helper the report renders from, so the worklist range
+    node equals the visible report range node (closes the B8 false-confidence gap)."""
+    rev_node = _reviewed_node_type(rdref)
+    ev = None
+    try:
+        from gem_report_draft._helpers import hand_range_evidence
+        ev = hand_range_evidence(h, ranges)
+    except Exception:
+        ev = None
+    if not ev:
+        return {'actual_node_type': rev_node, 'reference_node_type': None, 'evidence_purpose': None}
+    mode, _lbl, purpose = _range_evidence_ownership(ev, rdref)
+    return {'actual_node_type': rev_node,
+            'reference_node_type': _ev_range_node_type(ev),
+            'evidence_purpose': ('suppressed' if mode == 'suppress' else purpose)}
+
+
+def _reconcile_po_to_reviewed(_po, _rdref):
+    """REV6 B2 / REV7 A1-A5: force the VISIBLE pot-odds block to describe the canonical
+    reviewed action AND its CALLABLE price (never the raw to_call / overjam).
+
+    REV7 A1: the displayed price is `callable_amount_bb` (what Hero can actually commit) and
+    required equity uses the `contestable_pot` (excludes the uncallable overjam) — the REV6
+    bug rendered the raw to_call (83974506 'call 111.46BB'). REV7 A2: the action-typed display
+    text travels on the block. REV7 A5: the reviewed-index bounty applicability/certainty/
+    aggregate travel on the block so the trust strip / note never read a hand-level default."""
+    if not _rdref:
+        return _po
+    out = dict(_po) if _po else {}
+    canon_street = _rdref.get('street')
+    canon_call = _rdref.get('callable_amount_bb')          # REV7 A1: CALLABLE, never raw to_call
+    out['decision_action_index'] = _rdref.get('hero_action_index')
+    out['reviewed_selection_source'] = _rdref.get('selection_source')
+    out['reviewed_selection_confidence'] = _rdref.get('selection_confidence')
+    out['reviewed_street'] = canon_street
+    out['reviewed_call_bb'] = canon_call
+    out['reviewed_action_display'] = (_rdref.get('action_display') or {}).get('display_text')
+    out['reviewed_action_kind'] = _rdref.get('hero_action_kind')
+    out['reviewed_price_applicable'] = _rdref.get('price_applicable')
+    out['reviewed_raw_to_match_bb'] = _rdref.get('raw_amount_to_match_bb')
+    out['reviewed_overjam_bb'] = _rdref.get('uncallable_overjam_bb')
+    out['reviewed_contestable_pot_bb'] = _rdref.get('contestable_pot_before_action_bb')
+    # REV10 B3: the VISIBLE decision depth is the canonical contract value (callable <= depth <=
+    # hero stack), never the bare stack-behind-the-bet which could fall below the callable price.
+    out['effective_stack_bb'] = (_rdref.get('canonical_effective_decision_depth_bb')
+                                 if _rdref.get('canonical_effective_decision_depth_bb') is not None
+                                 else _rdref.get('effective_stack_at_decision_bb'))
+    # REV10 D1/C1: carry the no-decision flag + canonical node type so the visible decision line
+    # can render "No Hero decision" and suppress the price/bounty/range/verdict for a walk.
+    out['no_hero_decision'] = bool(_rdref.get('no_hero_decision'))
+    out['reviewed_actual_node_type'] = _rdref.get('actual_node_type')
+    # REV7 A5: bounty context AT the reviewed action index travels on the block
+    out['reviewed_bounty_applicability'] = _rdref.get('bounty_applicability')
+    out['reviewed_bounty_certainty'] = _rdref.get('bounty_certainty')
+    out['reviewed_bounty_aggregate'] = _rdref.get('bounty_aggregate')
+    # ALWAYS pin the PRICE to the canonical contract — callable / contestable / required-eq —
+    # regardless of whether gem_pot_odds graded the same action, so the displayed price can
+    # never be the raw overjam and required equity can never include uncallable chips.
+    out['call_bb'] = canon_call
+    out['pot_before_call_bb'] = _rdref.get('contestable_pot_before_action_bb')
+    if _rdref.get('price_applicable'):
+        out['required_eq_pct'] = _rdref.get('required_eq_pct')
+    else:
+        out['required_eq_pct'] = None
+    _pb, _tc = _rdr_f(_rdref.get('contestable_pot_before_action_bb')), _rdr_f(canon_call)
+    out['pot_odds'] = (f"{_pb / _tc:.1f}:1" if (_tc > 0 and _rdref.get('price_applicable'))
+                       else (_po.get('pot_odds') if _po else '—'))
+    matches = (_po and _po.get('street') == canon_street
+               and abs(_rdr_f(_po.get('call_bb')) - _rdr_f(canon_call)) <= 0.30)
+    if matches:
+        out['reviewed_routed'] = False
+        return out   # keep gem_pot_odds' richer equity / range fields for the SAME action
+    # mismatch (or no _po): the equity/range/per-street facts belonged to the OTHER (un-graded)
+    # action — drop them so a stale equity is never shown beside the corrected action.
+    out['reviewed_routed'] = True
+    out['street'] = canon_street
+    for _k in ('hero_equity_pct', 'realized_equity_vs_shown', 'villain_range_spec',
+               'equity_mode', 'per_street_summary', 'required_eq_note', 'mode',
+               'is_overbet', 'bet_pct_of_pot'):
+        out.pop(_k, None)
+    return out
+
+
+def _reviewed_decision_line_md(_po):
+    """REV6 B2 / REV7 A2: the explicit VISIBLE line the parity gate parses — the ACTION-TYPED
+    description of the canonical reviewed action (call / fold / check / open / 3-bet / bet /
+    open-shove / re-jam) plus its effective depth. NEVER a generic 'call XBB' for a non-call
+    action (the REV6 bug), and the call price is the CALLABLE amount, never the raw to_call."""
+    # REV10 D1: a hand where Hero never acted (a walk) has NO reviewed decision — render a typed
+    # no-decision line, never an "Inferred decision context: preflop, act" with a price/bounty.
+    if _po.get('no_hero_decision') or _po.get('reviewed_actual_node_type') == 'no_hero_decision':
+        return "**No reviewed decision** — Hero took no action in this hand (won the blinds / walk)."
+    st = _po.get('reviewed_street')
+    if not st:
+        return ''
+    disp = _po.get('reviewed_action_display')
+    depth = _po.get('effective_stack_bb')
+    if disp:
+        action_phrase = disp
+    else:
+        # fallback (no action display): name the action kind, never assume 'call'
+        call = _po.get('reviewed_call_bb')
+        action_phrase = (f"call {_rdr_f(call):g}BB" if call is not None else 'decision')
+    # REV8 D1: only a WORKLIST-authoritative selection may be presented as the analyst-selected
+    # "Reviewed decision"; a ledger-inferred fallback is labelled "Inferred decision context"
+    # so it is never presented as analyst-selected and never feeds final verdict/status truth.
+    _label = ('Reviewed decision'
+              if _po.get('reviewed_selection_confidence') == 'authoritative'
+              else 'Inferred decision context')
+    parts = [f"**{_label}:** {st}, {action_phrase}"]
+    if depth is not None:
+        parts.append(f"effective depth ≈{_rdr_f(depth):.2f}BB")
+    return ', '.join(parts)
+
+
+def _bounty_applicability_note_md(h, dbc_override=None):
+    """REV6 B3/B4 / REV7 A5: the VISIBLE disclosure of a COMBINED bounty opportunity
+    (committed + unresolved potential caller — 84990829) or an unresolved committed stack.
+    REV7: reads the bounty context AT THE REVIEWED ACTION INDEX (passed in), NEVER the
+    hand-level default — so a first-in open (84074364/83765091) shows no all-in bounty note."""
+    dbc = dbc_override if dbc_override is not None else (h.get('decision_bounty_context') or {})
+    app = dbc.get('bounty_applicability')
+    cert = dbc.get('bounty_certainty')
+    if app == 'exact_and_potential':
+        return ("**Bounty (combined):** one committed bounty opportunity already exists, and "
+                "another live caller's bounty may become relevant if that player calls — the "
+                "potential caller's bounty EV is not modelled, so review manually.")
+    if app == 'exact_committed' and cert == 'unknown_stack':
+        return ("**Bounty:** a committed all-in bounty is at stake but the opponent's stack is "
+                "missing from the export, so collectibility is unresolved — review manually.")
+    return ''
+
+
+def _bounty_trust_strip_md(rd, h, _po, dbc_override=None):
     """v8.14.1 rev-3 (Blocker 1): the compact reconciled "Bounty trust:" strip,
     rendered in the REAL per-hand pot-odds block (XIV.A + XIV.B) for ANY bounty
     hand — NOT gated on the BB-defense pko_context, which never enables for the
     push / call-jam all-ins the user actually flagged (73281442, 73559949).
 
     Reuses the pure, tested reconcile_pko_trust() so cover / collectibility /
-    $ bounty / chip-vs-PKO threshold are reconciled in ONE place; the cover state
-    comes from the canonical h['bounty_collectible'] (the same one-source-of-truth
-    fact the analyzer's "bounty covers villain" flag and the coaching card use),
-    so the strip can never contradict them. When no chip-vs-PKO threshold was
-    modelled, the strip says so explicitly rather than implying a silent verdict.
-    Returns '' for non-bounty hands or when there is nothing concrete to say.
+    $ bounty / chip-vs-PKO threshold are reconciled in ONE place. REV4 B2: the cover /
+    collectibility state comes from the canonical DECISION-TIME bounty context
+    (h['decision_bounty_context'], via _decision_bounty_view) — the SAME object the icm
+    flag, coaching card and worklist consume — NEVER the legacy realized scalar
+    h['bounty_collectible']. When no chip-vs-PKO threshold was modelled, the strip says
+    so explicitly. Returns '' for non-bounty hands or when there is nothing concrete.
     """
     _po = _po or {}
     _fmt = h.get('format', '')
     _bnt = _po.get('bounty') or {}
     _bv = _bnt.get('value_bb') or h.get('bounty_value_bb') or 0
-    _collect = h.get('bounty_collectible')
-    if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible'):
+    # REV4 B2: the cover/collectibility state comes from the canonical DECISION-TIME
+    # bounty context (never the legacy realized scalar h['bounty_collectible']),
+    # preserving mixed / equal-boundary distinctly.
+    # REV7 A5: read the bounty context AT THE REVIEWED ACTION INDEX (dbc_override) when the
+    # caller supplied it, so the strip never describes a later all-in's cover on a first-in
+    # open (84074364/83765091). A not_applicable reviewed context yields no strip.
+    _dbc, _collect, _cover_bucket, _can_collect = _decision_bounty_view(h, dbc_override)
+    if dbc_override is not None and (_dbc.get('bounty_applicability') == 'not_applicable'
+                                     or not _dbc.get('is_bounty')):
+        return ''
+    if _fmt != 'BOUNTY' and not _bv and _collect not in ('collectible', 'not_collectible', 'mixed', 'equal'):
         return ''
     try:
         from gem_pko_research import reconcile_pko_trust
     except Exception:
         return ''
-    _cover_bucket = {'collectible': 'Hero covers',
-                     'not_collectible': 'Hero covered'}.get(_collect, '')
-    _can_collect = (True if _collect == 'collectible'
-                    else False if _collect == 'not_collectible' else None)
     _vpos = h.get('jammer_position') or ''
     if _collect == 'collectible':
         _cover_label = (f'Hero covers the {_vpos}; bounty collectible' if _vpos
@@ -161,6 +561,10 @@ def _bounty_trust_strip_md(rd, h, _po):
     elif _collect == 'not_collectible':
         _cover_label = (f'{_vpos} covers Hero; bounty not collectible' if _vpos
                         else 'Villain covers Hero; bounty not collectible')
+    elif _collect == 'mixed':
+        _cover_label = 'Multiway: Hero covers some all-in villains but not others'
+    elif _collect == 'equal':
+        _cover_label = 'Equal stacks at the boundary; no bounty collected on a chop'
     else:
         _cover_label = ''
     _n_sd = _po.get('n_players_at_showdown') or 2
@@ -527,6 +931,32 @@ def _canon_supersede(h):
     return (False, None, None, None)
 
 
+def _canon_allin_kind(h, fallback):
+    """Iteration-1 root fix: the rendered "Decision:" label (and capsule lead /
+    all-in-math caveat) for ANY preflop all-in must derive from the ONE canonical
+    action kind, not the legacy ``classify_preflop_allin`` — which keys a Hero
+    re-jam off ``first_in`` and so mislabels "Hero opens, faces a raise, re-jams"
+    as ``open_shove`` (83578445, 84107187), contradicting the range-evidence that
+    already reads "re-jam". It also calls a HU covering re-jam over a single jam a
+    "re-jam" when canonically it is a CALL (83915520). Map the full canonical
+    all-in taxonomy onto the review_trust label kinds so the Decision label always
+    matches the canonical kind AND the range lens. Non-all-in / unknown canonical
+    kinds keep the legacy ``fallback`` (e.g. a non-all-in 3-bet)."""
+    _MAP = {
+        'open_shove': 'open_shove',
+        'call_vs_jam': 'call_vs_jam', 'call_off': 'call_vs_jam',
+        'rejam_over_live_raise': 'rejam', 'overjam_with_side_pot': 'rejam',
+    }
+    try:
+        from gem_decision_snapshot import hero_action_kind as _ds_akind
+        _ck = _ds_akind(h)
+        if _ck in _MAP:
+            return _MAP[_ck]
+    except Exception:
+        pass
+    return fallback
+
+
 def _deviation_range_text(hid, s, h=None):
     """Look up the correct range for a hand's preflop deviation from
     s['preflop_deviations']. For punts/mistakes promoted from deviations,
@@ -648,6 +1078,17 @@ def _xivb_flag_note(hid, s, rd, h=None):
     for m in (s.get('mistakes', []) or []):
         if isinstance(m, dict) and m.get('id') == hid:
             t = m.get('type', 'Flagged')
+            # REV12 D2: a canonical RE-JAM must NEVER be headlined as a "Call Villain Jam" — the
+            # continue/call component is SUBORDINATE to the literal re-jam. Relabel the CVJ flag.
+            _cvj_rejam = False
+            if 'CVJ' in t or 'Call Villain Jam' in t:
+                try:
+                    from gem_decision_snapshot import hero_action_kind as _hak_cvj
+                    if _hak_cvj(h) in ('rejam_over_live_raise', 'overjam_with_side_pot'):
+                        _cvj_rejam = True
+                        t = 'Re-jam decision — continue component vs the jam (subordinate to the re-jam)'
+                except Exception:
+                    pass
             asum = (m.get('action_summary') or '').rstrip('.')
             expl = (t + '. ' + asum).strip().rstrip('.') + '.'
             # B159 (Ron 2026-05-23): feedback loop — when the flag is a
@@ -705,10 +1146,16 @@ def _xivb_flag_note(hid, s, rd, h=None):
             # the clause in m['note'] after a "| Villain ..." marker; lift it
             # into the appendix note so Ron sees what was called, vs what,
             # at what price - not just "outside threshold".
-            if ('CVJ' in t or 'Iso-Jam' in t) and m.get('note'):
+            if ('CVJ' in t or 'Iso-Jam' in t or _cvj_rejam) and m.get('note'):
                 _ci = m['note'].find('| Villain ')
                 if _ci != -1:
-                    expl = expl.rstrip('.') + '. ' + m['note'][_ci + 2:].strip() + '.'
+                    _cvj_clause = m['note'][_ci + 2:].strip()
+                    # REV12 D2: for a canonical re-jam, the villain-range/call-price clause is a
+                    # SUBORDINATE reference continue threshold, NOT an "acceptable call" verdict.
+                    if _cvj_rejam:
+                        _cvj_clause = ('Continue/call threshold vs the jam (reference only, subordinate '
+                                       'to the literal re-jam): ' + _cvj_clause)
+                    expl = expl.rstrip('.') + '. ' + _cvj_clause + '.'
             # B-RANGE (Ron 2026-05-30): append correct chart/iso range for
             # detector-flagged deviations so the hand card shows what range
             # Hero deviated from. Skip when open_range_core already renders
@@ -1096,7 +1543,12 @@ def _emit_villain_street_notes(doc, s, hid, hid_short):
                     _str = _a.get('strength', 0)
                     if _dim and _str:
                         _dim_label = _dim.replace('_', ' ').title()
-                        doc.w(f"<p class='vsn-entry vsn-impact'>Read impact: {_dim_label} +{_str}</p>")
+                        # v8.17.1 P3a: plain-word strength — NEVER a raw +N support
+                        # weight (the numeric _str stays internal for scoring).
+                        _imp_w = ('slight' if _str <= 2 else
+                                  'moderate' if _str == 3 else 'strong')
+                        doc.w(f"<p class='vsn-entry vsn-impact'>Read impact: "
+                              f"{_dim_label} ({_imp_w} read)</p>")
             doc.w("</div>")
             doc.w("")
             return True
@@ -1630,10 +2082,19 @@ def _build_villain_badges(hid, s):
                      'expect': ('bets', 'raises')})
             elif sig in _SIG_BADGE and _has_teaching:
                 # red ! evidence badge — renders only if the ❗ Note block
-                # below the grid carries the explanation (same atom)
+                # below the grid carries the explanation (same atom).
+                # v8.17.1 P3b: route to a VILLAIN-side sentinel keyed (street, -1)
+                # carrying villain_position. The atom's action_index is LEDGER
+                # space while grid rows are per-street index — that drift made the
+                # expect filter suppress ~every evid badge (1/585). The grid pins
+                # this sentinel to THAT villain's last action row by position
+                # (never 'last villain action' — the position gate keeps it on the
+                # correct seat, guarding the v8.8.9 BUG-4 mis-placement).
                 _alias = atom.get('villain_alias', '')
-                badges.setdefault(key, []).append({
+                _vpos = (atom.get('villain_position') or '').upper()
+                badges.setdefault((street, -1), []).append({
                     'type': 'evid', 'label': '! ' + _SIG_BADGE[sig],
+                    'villain_position': _vpos, 'villain_alias': _alias,
                     'expect': _SIG_EXPECT.get(sig),
                     'tip': (f"{_alias + ': ' if _alias else ''}"
                             f"{_SIG_BADGE[sig]} tell — see the ❗ Note "
@@ -1980,9 +2441,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     or h.get('stack_bb') or 0)
         _vaa_t = _html_escape(str(h.get('tournament', '') or ''))
         _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
+        # v8.17.1 P5(1): stamp the ONE canonical verdict on the card so every
+        # surface (this topbar, the action-row grid, the capsule, the queue row)
+        # carries an identical data-canonical-verdict — zero cross-surface drift.
+        _cv_art = ((rd.get('canonical_verdicts') or {}).get(hid)
+                   or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
+        _cvv_art = _html_escape(_cv_art.get('verdict', '') or '')
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
-              f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'>")
+              f"data-canonical-verdict='{_cvv_art}' "
+              f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'"
+              f"{_bounty_data_attrs(h)}>")
+        _pdm = _per_decision_bounty_meta(h)
+        if _pdm:
+            doc.w(_pdm)
         # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
         doc.w("<div class='mh-top'><div class='mh-title'>")
         doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -1996,8 +2468,28 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # touches analyst verdicts; preflop/no-label mistakes are left alone.
         _review_downgrade = False
         _orig_auto_label = ''
-        if auto_verdict_needs_review(verdict, _is_auto_verdict,
-                                     (_agl[1] if _agl else '')):
+        # v8.17.1 P5(1): adopt the ONE canonical verdict (built in the data layer)
+        # instead of re-deriving the analyst>auto ladder + downgrade here, so the
+        # topbar, .mh-verdict, pill, action markers, footer and queue can never
+        # disagree. Preserve "blank when there is no decision signal" (a neutral
+        # Review with nothing behind it does not paint every ungraded hand) and the
+        # explicit Review pill for a downgraded auto verdict.
+        _cv = ((rd.get('canonical_verdicts') or {}).get(hid)
+               or (rd.get('canonical_verdicts') or {}).get(hid_short))
+        if _cv is not None:
+            if _cv.get('source') != 'neutral_review':
+                verdict = _cv.get('verdict', '') or ''
+                _is_auto_verdict = (_cv.get('source') == 'auto')
+            else:
+                verdict = ''
+                _is_auto_verdict = False
+                if _cv.get('auto_downgraded'):
+                    _review_downgrade = True
+                    _orig_auto_label = (_verdict_display_label(
+                        _cv.get('auto_downgraded_label') or '') or 'Mistake')
+        elif auto_verdict_needs_review(verdict, _is_auto_verdict,
+                                       (_agl[1] if _agl else '')):
+            # Legacy fallback (canonical map absent).
             _review_downgrade = True
             _orig_auto_label = _verdict_display_label(verdict) or 'Mistake'
             verdict = ''
@@ -2787,6 +3279,106 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         if not locals().get('_agg_conflict'):
             _emit_agg_gate_block(doc, h.get('id') or hid_short, rd, hand=h)
 
+        # v8.17.1 P1 (§9 capsule de-gate): the register-classified DECISION
+        # capsule is the LEAD of this hand's commentary and is built for EVERY
+        # scored/evidenced hand — NOT only hands that carry a pot-odds object
+        # (the v8.17.0 regression: capsule lived inside `if _po:` → ~1% coverage).
+        # _po (pot odds) is now ONE optional Math anchor. A capsule emits only
+        # when it has a visible anchor (Range / Math / Exploit) OR a gradable
+        # decision label (so no_clear_lesson can name the gap); otherwise it falls
+        # through to the existing notes (zero-drop). The detailed notes (range
+        # block, _po lines, villain notes) all still render BELOW this lead.
+        try:
+            from gem_commentary_capsule import (
+                decision_capsule_from_signals as _dcs_lead,
+                render_capsule_md as _rcm_lead)
+            from gem_review_trust import (classify_preflop_allin as _cpa_lead,
+                                          allin_kind_label as _akl_lead,
+                                          multiway_render_plan as _mwp_lead)
+            _po_lead = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                        or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+            # REV6 B2: route the capsule lead through the SAME canonical reviewed action as
+            # the pot-odds block below, so the capsule street/required-equity grade the
+            # graded decision (never the first all-in call on an earlier street).
+            _rdref_lead = _reviewed_ref(rd, h, hid, hid_short)
+            _po_lead = _reconcile_po_to_reviewed(_po_lead, _rdref_lead) or {}
+            _rev_lead = locals().get('_rev_xiva') or {}
+            # REV7 A2/A3: the capsule Decision label derives from the REVIEWED action kind, so
+            # a first-in open is never labelled "Call vs jam" (84074364).
+            _capdec_lead = ''
+            _rev_kind_lead = _po_lead.get('reviewed_action_kind')
+            if _rev_kind_lead in _ALLIN_REVIEW_KINDS:
+                _capdec_lead = _REV_KIND_LABEL[_rev_kind_lead]
+            elif _rev_kind_lead is None and h.get('pf_allin'):
+                _kc_lead = _canon_allin_kind(h, _cpa_lead(h)[0])
+                if _kc_lead != 'not_allin':
+                    _capdec_lead = _akl_lead(_kc_lead)
+            # Range line: the canonical membership (single source of truth; the
+            # full proxy/closest coverage is disclosed by the range block below).
+            # REV12 C1: a forced first-in UNDERBLIND short all-in (<1BB) has NO meaningful strategic
+            # decision — suppress the "call +EV vs range" verdict + the 8BB-proxy range in the Read
+            # capsule (the structured evidence is already suppressed); a neutral note may remain.
+            _short_allin_lead = ((_rdref_lead or {}).get('actual_node_type') == 'first_in_short_all_in'
+                                 or (_po_lead or {}).get('reviewed_actual_node_type') == 'first_in_short_all_in')
+            _rng_lead = ''
+            if (not _short_allin_lead and _rev_lead.get('hero_hand')
+                    and _rev_lead.get('membership') in ('inside', 'outside')):
+                # v8.17.1 verify: humanize the chart key (PUSH_8BB_HJ ->
+                # readable) so the capsule Range role never leaks a raw chart id.
+                _ck_raw_l = _rev_lead.get('chart_key')
+                _ck_lead = (_cdl(_ck_raw_l) if _ck_raw_l
+                            else (_rev_lead.get('spot_label') or 'range'))
+                _rng_lead = '%s %s %s' % (
+                    _rev_lead['hero_hand'],
+                    'inside' if _rev_lead['membership'] == 'inside' else 'outside',
+                    _ck_lead)
+            _mwp_l = {'suppress_hu_required_equity': False}
+            if _po_lead:
+                try:
+                    _mwp_l = _mwp_lead(
+                        n_live_opponents=max(0, (_po_lead.get('n_players_at_showdown') or 0) - 1),
+                        players_still_to_act=_po_lead.get('players_still_to_act', 0) or 0)
+                except Exception:
+                    pass
+            _why_lead = ((rd.get('analyst_commentary') or {}).get(hid, {})
+                         or {}).get('hand_strength', '')
+            # REV12 C1/C2: for a forced short all-in, suppress the call verdict + required-equity and
+            # carry the neutral factual note instead.
+            _vh_lead = '' if _short_allin_lead else (_po_lead.get('verdict_hint', '') if _po_lead else '')
+            if _short_allin_lead and not _why_lead:
+                _why_lead = ('Hero had less than one big blind and was forced all-in — not a meaningful '
+                             'open-shove or call-off decision; no strategic range grade is assigned.')
+            _cap_lead = _dcs_lead(
+                (_po_lead.get('street') if _po_lead else None)
+                    or (h.get('hero_decision_street') or '').lower() or 'preflop',
+                decision_label=_capdec_lead,
+                verdict_hint=_vh_lead,
+                analyst_why=_why_lead,
+                required_eq_pct=(None if _short_allin_lead else (_po_lead.get('required_eq_pct') if _po_lead else None)),
+                multiway_suppressed=bool(_mwp_l.get('suppress_hu_required_equity')),
+                range_line=_rng_lead)
+            # Emit only with a real anchor OR a gradable decision (no_clear_lesson
+            # names the gap). Never a bare no-anchor capsule on a non-decision hand.
+            if _cap_lead and (_cap_lead.get('has_anchor') or _capdec_lead):
+                _cs_lead = _street_attr(_cap_lead.get('street'))
+                _ds_lead = f" data-street='{_cs_lead}'" if _cs_lead else ''
+                # v8.17.1 P5(1): the capsule carries the SAME canonical verdict
+                # the topbar / action row / queue read (zero cross-surface drift).
+                _cvd_lead = f" data-canonical-verdict='{_html_escape(verdict or '')}'"
+                # REV6 B2: the capsule is a visible decision block -> carry the canonical
+                # reviewed action index so the rendered-parity gate proves it.
+                _dai_lead = (_rdref_lead or {}).get('hero_action_index')
+                _dai_lead_attr = (f" data-decision-action-index='{int(_dai_lead)}'"
+                                  if _dai_lead is not None else '')
+                doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_lead['register']}'{_ds_lead}{_cvd_lead}{_dai_lead_attr}>")
+                doc.w(_rcm_lead(_cap_lead))
+                doc.w("</div>")
+                doc.w("")
+                h['_pb_capsule_emitted'] = True
+                h['_pb_capsule_register'] = _cap_lead.get('register', '')
+        except Exception:
+            pass
+
         # v8.14.1 P0-2: chart-backed Range evidence block. Any preflop range
         # claim (RFI / open-shove / call-jam / re-jam) gets a visible block whose
         # IN/OUTSIDE line is the SINGLE SOURCE OF TRUTH (real chart cells; proxy
@@ -2796,8 +3388,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         try:
             from gem_report_draft._helpers import range_evidence_md as _rem
             _rev = locals().get('_rev_xiva')
-            if _rev:
+            # REV8 B2: the preflop range block is the SELECTED decision's evidence only when
+            # the reviewed action is a matching preflop action; a postflop reviewed action gets
+            # it relabelled as earlier context, and a different preflop action suppresses it.
+            _re_mode, _re_label, _re_purpose = _range_evidence_ownership(
+                _rev, _reviewed_ref(rd, h, hid, hid_short))
+            if _rev and _re_mode != 'suppress':
                 doc.w("")
+                if _re_label:
+                    doc.w(_re_label)
                 doc.w(_rem(_rev))
                 # Backstop lint: fire only on an ASSERTIVE inside/standard
                 # membership claim that survives the data corrections + the
@@ -2888,24 +3487,44 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # equity in the hand detail when computed.
         _po = (rd.get('pot_odds_by_hand') or {}).get(hid) or \
               (rd.get('pot_odds_by_hand') or {}).get(hid_short)
+        # REV6 B2: route the VISIBLE pot-odds block through the ONE canonical reviewed
+        # action (the worklist's graded decision) so the lesson never grades a different
+        # action than the worklist (the 83526894 turn-vs-river bug). When _po grades a
+        # different action it is rebuilt from the canonical decision snapshot; a hand with a
+        # reviewed ref but no pot-odds object still renders the canonical street/call/depth.
+        _rdref_po = _reviewed_ref(rd, h, hid, hid_short)
+        _po = _reconcile_po_to_reviewed(_po, _rdref_po)
+        # REV10 D2: a NO-HERO-DECISION hand (a walk) attaches NO decision bounty trust / pot
+        # odds / range / verdict teaching — only the typed no-decision line.
+        _no_dec_a = bool(_po.get('no_hero_decision')) if _po else False
         if _po:
             _po_lines = []
-            _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
-                             f"(call {_po.get('call_bb', '\u2014')}BB into "
-                             f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
-            # v8.16.4 DTI Blocker 2: the SAME structurally-provable all-in
-            # decision-kind label the compact path carries, on the XIV.A full
-            # card too (same _po object family / same hand fields, no recompute).
-            # Unprovable -> "All-in decision (exact node type unavailable)".
-            try:
-                from gem_review_trust import (classify_preflop_allin as _cpa_a,
-                                              allin_kind_label as _akl_a)
-                if h.get('pf_allin'):
-                    _k_a = _cpa_a(h)[0]
+            _rev_line = _reviewed_decision_line_md(_po)
+            if _rev_line:
+                _po_lines.append(_rev_line)
+            # REV7 A1: the "Pot odds" call/price line renders ONLY for a CALL/FOLD decision
+            # facing a wager (price_applicable). A first-in open / bet / raise / jam SETS the
+            # price, so 'call XBB into YBB' would be nonsense (84074364 'call 1BB' bug).
+            _price_appl = _po.get('reviewed_price_applicable')
+            if _price_appl is not False:
+                _po_lines.append(f"**Pot odds:** {_po.get('pot_odds', '\u2014')} "
+                                 f"(call {_po.get('call_bb', '\u2014')}BB into "
+                                 f"{_po.get('pot_before_call_bb', '\u2014')}BB)")
+            # REV7 A2/A3: the all-in Decision label derives from the REVIEWED action kind
+            # (not hand-level pf_allin), so a first-in open is never labelled "Call vs jam".
+            _rev_kind_a = _po.get('reviewed_action_kind')
+            if _rev_kind_a in _ALLIN_REVIEW_KINDS:
+                _po_lines.append("**Decision:** " + _REV_KIND_LABEL[_rev_kind_a])
+            elif _rev_kind_a is None and h.get('pf_allin'):
+                # no reviewed ref \u2014 fall back to the structural all-in label
+                try:
+                    from gem_review_trust import (classify_preflop_allin as _cpa_a,
+                                                  allin_kind_label as _akl_a)
+                    _k_a = _canon_allin_kind(h, _cpa_a(h)[0])
                     if _k_a != 'not_allin':
                         _po_lines.append("**Decision:** " + _akl_a(_k_a))
-            except Exception:
-                pass
+                except Exception:
+                    pass
             # v8.16.4 Obj 8: a multiway all-in is NOT a heads-up spot. Suppress the
             # single heads-up "Required equity" threshold (valid only vs one
             # villain) and frame the decision against the FIELD; flag uncertainty
@@ -2919,36 +3538,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             except Exception:
                 _mw_plan = {'suppress_hu_required_equity': False,
                             'pot_odds_uncertain': False, 'label': ''}
-            # v8.17 Epic A \u00a79: the VISIBLE DECISION CAPSULE \u2014 the prioritized,
-            # register-classified LEAD of this street's commentary. Built from the
-            # SAME canonical signals (decision-kind, verdict_hint, analyst why,
-            # required-equity, multiway suppression \u2014 no recompute); the existing
-            # detailed notes follow it (preserved = zero-drop). Routed via
-            # .analyst-notes[data-street]; styled distinctly by .pb-capsule.
-            try:
-                from gem_commentary_capsule import (
-                    decision_capsule_from_signals as _dcs_a, render_capsule_md as _rcm_a)
-                _capdec_a = ''
-                if h.get('pf_allin'):
-                    _kc_a = _cpa_a(h)[0]
-                    if _kc_a != 'not_allin':
-                        _capdec_a = _akl_a(_kc_a)
-                _cap_a = _dcs_a(
-                    _po.get('street') or 'preflop', decision_label=_capdec_a,
-                    verdict_hint=_po.get('verdict_hint', ''),
-                    analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
-                    required_eq_pct=_po.get('required_eq_pct'),
-                    multiway_suppressed=bool(_mw_plan.get('suppress_hu_required_equity')))
-                if _cap_a:
-                    _cst_a = _street_attr(_po.get('street'))
-                    _cds_a = f" data-street='{_cst_a}'" if _cst_a else ''
-                    doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_a['register']}'{_cds_a}>")
-                    doc.w(_rcm_a(_cap_a))
-                    doc.w("</div>")
-                    doc.w("")
-            except Exception:
-                pass
-            if not _mw_plan.get('suppress_hu_required_equity'):
+            # v8.17.1 P1: the \u00a79 decision-capsule LEAD now renders ABOVE this
+            # block (de-gated from `if _po:` so it covers every scored/evidenced
+            # hand, not only pot-odds hands). Here _po only contributes the
+            # detailed Math notes below; the capsule was already emitted as the lead.
+            # REV7 A1: required equity renders ONLY for a CALL/FOLD decision (price_applicable).
+            if _price_appl is not False and not _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(f"**Required equity:** {_po.get('required_eq_pct', '\u2014')}%")
                 # v8.12.8 QA3: side-pot-aware price carries its basis
                 if _po.get('required_eq_note'):
@@ -2961,7 +3556,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         "*This is the share you need to win versus the betting/"
                         "jamming range (including draws and worse hands) to break "
                         "even \u2014 not how often you are ahead right now.*")
-            else:
+            elif _price_appl is not False and _mw_plan.get('suppress_hu_required_equity'):
                 _po_lines.append(
                     f"**{_mw_plan.get('label') or 'Multiway all-in'}** \u2014 heads-up "
                     "required equity is not shown here; compare your equity to the "
@@ -2980,7 +3575,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _n_sd = _po.get('n_players_at_showdown') or 0
             _mw_tag = f" *(multiway \u2014 {_n_sd} players)*" if _n_sd > 2 else ''
             _eq = _po.get('hero_equity_pct')
-            if _eq is not None:
+            # REV13 C2: a forced underblind short all-in has no meaningful strategic decision \u2014
+            # suppress the decision-range equity (a "Hero equity vs range: 39.0%" line reads as a
+            # decision grade the contract says does not exist; 84078253). UNGRADED node.
+            if _eq is not None and _po.get('reviewed_actual_node_type') != 'first_in_short_all_in':
                 _eq_mode = _po.get('equity_mode', '\u2014')
                 _eq_label = ('Hero equity vs shown hand'
                              if _eq_mode == 'exact_vs_shown'
@@ -3085,12 +3683,24 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # two Bounty-trust lines for the same decision (prefer the specific one).
             _pko_will_strip = bool(((rd.get('pko_research') or {}).get('by_hand', {})
                                     .get(hid) or h.get('pko_context') or {}).get('enabled'))
-            _bts = '' if _pko_will_strip else _bounty_trust_strip_md(rd, h, _po)
+            # REV7 A5: the bounty trust strip + applicability note read the bounty context AT
+            # THE REVIEWED ACTION INDEX, never the hand-level default — so a first-in open
+            # (84074364/83765091) shows no all-in cover/collectibility strip.
+            _rev_dbc_a = _reviewed_bounty_ctx(h, _rdref_po)
+            _bts = '' if (_pko_will_strip or _no_dec_a) else _bounty_trust_strip_md(rd, h, _po, dbc_override=_rev_dbc_a)
             if _bts:
                 _po_lines.append(_bts)
+            # REV6 B3/B4: disclose a COMBINED exact+potential bounty opportunity (or an
+            # unresolved committed-stack) in the visible lesson, never just the committed one.
+            _bapp_note = '' if _no_dec_a else _bounty_applicability_note_md(h, dbc_override=_rev_dbc_a)
+            if _bapp_note:
+                _po_lines.append(_bapp_note)
             _ev = _po.get('ev_call_bb')
             _vh = _po.get('verdict_hint', '')
-            if _ev is not None:
+            # REV8 B2: the EV-of-call / call verdict applies ONLY to a CALL/FOLD decision
+            # facing a wager. A first-in open / 3-bet / bet (price not applicable) must never
+            # show a 'call +EV vs shown' verdict (83765091).
+            if _ev is not None and _po.get('reviewed_price_applicable') is not False:
                 _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
             # v8.16.4 DTI: OPTIONAL root/downstream attribution render support on
             # the XIV.A full card too. Renders ONLY when a producer stamped
@@ -3105,7 +3715,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             if _po_lines:
                 _po_st = _street_attr(_po.get('street'))
                 _po_ds = f" data-street='{_po_st}'" if _po_st else ''
-                doc.w(f"<div class='analyst-notes'{_po_ds}>")
+                # REV6 B2: the visible decision-bearing block carries the canonical reviewed
+                # action index so the rendered-parity gate can prove it grades that action.
+                _po_dai = _po.get('decision_action_index')
+                _po_dai_attr = (f" data-decision-action-index='{int(_po_dai)}'"
+                                if _po_dai is not None else '')
+                doc.w(f"<div class='analyst-notes'{_po_ds}{_po_dai_attr}>")
                 doc.w("\U0001F4CA **Pot-Odds & Equity:**")
                 doc.w("")
                 for _pl in _po_lines:
@@ -3133,9 +3748,46 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             doc.w("</div>")
             doc.w("")
 
+        # v8.17.1 P5(3): every scored Hero all-in renders the COMPLETE math block
+        # OR an explicit no_clear_lesson naming the exact missing canonical input —
+        # never an empty/partial body or a bare verdict. Suppressed when the lead
+        # capsule already states the gap (register == no_clear_lesson). Stamps
+        # h['_allin_register'] for the build-gate validator (gem_analyzer Check 15).
+        # REV8 B2: the all-in math note describes the SELECTED action — render it only when the
+        # REVIEWED action is an all-in CONFRONTATION (call-vs-jam / call-off / open-shove /
+        # re-jam / overjam), never when the reviewed action is a first-in open / 3-bet / bet /
+        # call / fold (84074364: a first-in open must not show 'call-vs-jam math').
+        _rev_kind_acn = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('hero_action_kind')
+        if h.get('pf_allin') and _rev_kind_acn in _ALLIN_REVIEW_KINDS:
+            try:
+                from gem_review_trust import (classify_preflop_allin as _cpa_ac,
+                                              allin_completeness_note as _acn)
+                _ak_ac = _canon_allin_kind(h, _cpa_ac(h)[0])
+                _note_ac = _acn(_ak_ac, _po, h, h.get('_pb_capsule_register'))
+                if _note_ac:
+                    doc.w("<div class='analyst-notes' data-street='preflop'>")
+                    doc.w("  " + _note_ac)
+                    doc.w("</div>")
+                    doc.w("")
+                    h['_allin_register'] = 'no_clear_lesson'
+                elif _ak_ac not in ('not_allin', 'unknown'):
+                    h['_allin_register'] = (h.get('_pb_capsule_register') or 'complete')
+            except Exception:
+                pass
+
         _pko_ctx = ((rd.get('pko_research') or {}).get('by_hand', {})
                     .get(hid) or h.get('pko_context') or {})
-        if _pko_ctx.get('enabled'):
+        # REV7 A5: the PKO BB-defense pill describes the PREFLOP spot — render it ONLY when the
+        # reviewed decision is preflop (a later-street graded decision suppresses it).
+        # REV8 C1: preflop street equality is NOT enough for the bounty COVER claim — when the
+        # reviewed action's bounty_applicability is not_applicable, the cover/collectibility
+        # strip and positive-incentive teaching are suppressed and the pill is relabelled as
+        # population research (83793494 / 84074559), keeping the Δ-aggregate range note only.
+        _pko_ref = _reviewed_ref(rd, h, hid, hid_short) or {}
+        _rev_street_pko = _pko_ref.get('street')
+        _rev_bapp_pko = _pko_ref.get('bounty_applicability')
+        _pko_not_applicable = (_rev_bapp_pko == 'not_applicable')
+        if _pko_ctx.get('enabled') and _rev_street_pko in (None, 'preflop') and not _no_dec_a:
             _pk_rng = _pko_ctx.get('delta_range_pp') or [0, 0]
             _pk_d = (f"{_pk_rng[0]:+.1f} to {_pk_rng[1]:+.1f}pp"
                      if _pk_rng[0] != _pk_rng[1] else f"{_pk_rng[0]:+.1f}pp")
@@ -3172,17 +3824,23 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                   f"\u00b7 {_pk_players} "
                   f"\u00b7 \u0394 {_pk_d} aggregate"
                   + (f" \u00b7 {_cov_lbl}"
-                     if _cov_lbl else ""))
+                     if (_cov_lbl and not _pko_not_applicable) else ""))
+            # REV8 C1: a not_applicable reviewed action gets the PKO aggregate as labelled
+            # POPULATION RESEARCH only \u2014 no cover/collectibility claim, no positive incentive.
+            if _pko_not_applicable:
+                doc.w("")
+                doc.w("  *PKO aggregate is population research for this spot family \u2014 not the "
+                      "selected decision's bounty eligibility (no committed bounty at this action).*")
             # Slice E rev-2: compact reconciled "Bounty trust:" strip (cover /
             # collectibility / bounty $ / chip-vs-PKO threshold), with a visible
             # contradiction flag so a bounty conclusion can never fight its math.
-            if _pk_render.get('strip_md'):
+            if _pk_render.get('strip_md') and not _pko_not_applicable:
                 doc.w("")
                 doc.w("  " + _pk_render['strip_md'])
             # v8.17 Epic B (B7): the explicit "how the bounty changes the decision"
             # coaching line — built by pko_trust_render from the SAME reconciled
             # facts (no recompute). Empty on a contradiction / no-bounty / Hero-covered.
-            if _pk_render.get('how_changes_md'):
+            if _pk_render.get('how_changes_md') and not _pko_not_applicable:
                 doc.w("")
                 doc.w("  " + _pk_render['how_changes_md'])
             # v8.16.4 Obj 9 / v8.17 B6: user-visible bounty PROVENANCE — one of the
@@ -3220,15 +3878,50 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # strip (no _po) nor a PKO pill (not a BB-defense pko_context) \u2014 so the
         # bounty math was silently absent (73559949). Render an explicit note so
         # the user knows WHY rather than leaving it silent. Never fabricates math.
+        _dbc_pko = h.get('decision_bounty_context') or {}
+        _dbc_app = _dbc_pko.get('bounty_applicability')
+        _dbc_aidx = _dbc_pko.get('hero_action_index')
         if (not _po and not _pko_ctx.get('enabled')
                 and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                and h.get('bounty_collectible') in (None, 'unknown')):
-            doc.w("<div class='analyst-notes' data-street='preflop'>")
-            doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
-                  "from the HH export, so this verdict uses chip-chart logic only. "
-                  "Review manually.")
+                and _dbc_app in (None, 'potential_if_called', 'not_applicable', 'unknown')):
+            # REV5 B1/B2: gate on the typed bounty APPLICABILITY (not coverage_aggregate).
+            # potential_if_called (Hero open-shoves/re-jams) is NOT bounty-irrelevant — the
+            # callers' bounties are part of the shove EV even though nobody is committed;
+            # never say "not a decision-time factor / chip-chart only" for it.
+            from gem_decision_snapshot import contesting_count as _ds_cc
+            doc.w(f"<div class='analyst-notes' data-street='preflop' data-decision-action-index='{_dbc_aidx if _dbc_aidx is not None else ''}'>")
+            if _dbc_app == 'potential_if_called':
+                doc.w("\U0001f3af **PKO bounty math:** Bounty EV is potentially relevant "
+                      "if called, but the caller distribution, ranges and fold-equity "
+                      "model are not available, so no numerical bounty adjustment is "
+                      "applied.")
+            elif _dbc_app == 'unknown':
+                doc.w("\U0001f3af **PKO bounty math:** cover/collectibility unresolved "
+                      "from the HH export, so this verdict uses chip-chart logic only. "
+                      "Review manually.")
+            elif _ds_cc(h) <= 1:
+                doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation — "
+                      "Hero's jam took it down uncontested, so no bounty was at stake "
+                      "this hand.")
+            else:
+                doc.w("\U0001f3af **PKO bounty math:** no committed all-in opponent and "
+                      "no live caller at the decision; this verdict uses chip-chart "
+                      "logic only.")
             doc.w("</div>")
             doc.w("")
+
+        # REV6 B3/B4: a COMBINED exact+potential bounty (or an unresolved committed stack) on
+        # a hand WITHOUT a pot-odds block still gets its visible disclosure (the pot-odds
+        # block above already shows it when _po exists).
+        if (not _po and h.get('format') == 'BOUNTY'
+                and _dbc_app in ('exact_and_potential', 'exact_committed')):
+            _bapp_note_solo = _bounty_applicability_note_md(h)
+            if _bapp_note_solo:
+                doc.w(f"<div class='analyst-notes' data-street='preflop' "
+                      f"data-decision-action-index='{_dbc_aidx if _dbc_aidx is not None else ''}'>")
+                doc.w("\U0001f3af " + _bapp_note_solo)
+                doc.w("</div>")
+                doc.w("")
 
         # v8.16.3 Range Lens v1: source-safe per-street range/commentary lines,
         # appended AFTER all existing commentary (preserves it; V25 routes by
@@ -3402,12 +4095,20 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # programmatic (format was unknowable for ~499/507 linked hands).
                 _va_fmt = _html_escape(h.get('format', '') or '')
                 _va_ph = _html_escape(h.get('tournament_phase', '') or '')
-                _va_eff = h.get('eff_stack_bb') or h.get('stack_bb') or 0
+                # v8.17.1 Iter-1 corrective: decision-effective depth from the ONE
+                # canonical field (eff_stack_bb_at_decision, snapshot-derived) — NOT
+                # the flop-context eff_stack_bb that collapsed 84990829 to 0.8.
+                _va_eff = (h.get('eff_stack_bb_at_decision') or h.get('eff_stack_bb')
+                           or h.get('stack_bb') or 0)
                 _va_t = _html_escape(str(h.get('tournament', '') or ''))
                 _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
-                      f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'>")
+                      f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'"
+                      f"{_bounty_data_attrs(h)}>")
+                _pdm_b = _per_decision_bounty_meta(h)
+                if _pdm_b:
+                    doc.w(_pdm_b)
                 # Phase 4.7 C3: mh-top / mh-title wrapper (v29 vocabulary)
                 doc.w("<div class='mh-top'><div class='mh-title'>")
                 doc.w(f"<<ANCHOR:sec-app-hand-{hid_short}>>")
@@ -3599,6 +4300,99 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         doc.w("")
                     _has_notes_b = True
 
+                # v8.17.1 P1 (§9 capsule de-gate, compact/lazy path): the
+                # register-classified DECISION capsule LEAD is built for EVERY
+                # scored/evidenced hand on the compact path too (C2 parity) — not
+                # only hands with a pot-odds object. _po_b is ONE optional Math
+                # anchor. Emits only with a visible anchor OR a gradable decision;
+                # the detailed notes (range block, _po_b lines, villain notes) all
+                # render BELOW this lead (zero-drop).
+                if h:
+                    try:
+                        from gem_commentary_capsule import (
+                            decision_capsule_from_signals as _dcs_b,
+                            render_capsule_md as _rcm_b)
+                        from gem_review_trust import (
+                            classify_preflop_allin as _cpa_bl,
+                            allin_kind_label as _akl_bl,
+                            multiway_render_plan as _mwp_bl)
+                        from gem_report_draft._helpers import hand_range_evidence as _hre_bl
+                        _po_bl = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                                  or (rd.get('pot_odds_by_hand') or {}).get(hid_short) or {})
+                        # REV6 B2: route the COMPACT (XIV.B) capsule through the SAME canonical
+                        # reviewed action as XIV.A so the capsule street/required-equity grade
+                        # the graded decision (the 83526894/84295102 hands render HERE).
+                        _rdref_bl = _reviewed_ref(rd, h, hid, hid_short)
+                        _po_bl = _reconcile_po_to_reviewed(_po_bl, _rdref_bl) or {}
+                        _rev_bl = _hre_bl(h) or {}
+                        # REV7 A2/A3: capsule Decision label from the REVIEWED action kind.
+                        _capdec_bl = ''
+                        _rev_kind_bl = _po_bl.get('reviewed_action_kind')
+                        if _rev_kind_bl in _ALLIN_REVIEW_KINDS:
+                            _capdec_bl = _REV_KIND_LABEL[_rev_kind_bl]
+                        elif _rev_kind_bl is None and h.get('pf_allin'):
+                            _kc_bl = _canon_allin_kind(h, _cpa_bl(h)[0])
+                            if _kc_bl != 'not_allin':
+                                _capdec_bl = _akl_bl(_kc_bl)
+                        # REV12 C1: suppress the call-verdict + 8BB-proxy range for a forced short
+                        # all-in on the compact path too (84078253 renders here).
+                        _short_allin_bl = ((_rdref_bl or {}).get('actual_node_type') == 'first_in_short_all_in'
+                                           or (_po_bl or {}).get('reviewed_actual_node_type') == 'first_in_short_all_in')
+                        _rng_bl = ''
+                        if (not _short_allin_bl and _rev_bl.get('hero_hand')
+                                and _rev_bl.get('membership') in ('inside', 'outside')):
+                            # v8.17.1 verify: humanize the chart key (no raw id leak).
+                            _ck_raw_bl = _rev_bl.get('chart_key')
+                            _ck_bl = (_cdl(_ck_raw_bl) if _ck_raw_bl
+                                      else (_rev_bl.get('spot_label') or 'range'))
+                            _rng_bl = '%s %s %s' % (
+                                _rev_bl['hero_hand'],
+                                'inside' if _rev_bl['membership'] == 'inside' else 'outside',
+                                _ck_bl)
+                        _mwp_bp = {'suppress_hu_required_equity': False}
+                        if _po_bl:
+                            try:
+                                _mwp_bp = _mwp_bl(
+                                    n_live_opponents=max(0, (_po_bl.get('n_players_at_showdown') or 0) - 1),
+                                    players_still_to_act=_po_bl.get('players_still_to_act', 0) or 0)
+                            except Exception:
+                                pass
+                        _why_bl = ((rd.get('analyst_commentary') or {}).get(hid, {})
+                                   or {}).get('hand_strength', '')
+                        _vh_bl = '' if _short_allin_bl else (_po_bl.get('verdict_hint', '') if _po_bl else '')
+                        if _short_allin_bl and not _why_bl:
+                            _why_bl = ('Hero had less than one big blind and was forced all-in — not a meaningful '
+                                       'open-shove or call-off decision; no strategic range grade is assigned.')
+                        _cap_bl = _dcs_b(
+                            (_po_bl.get('street') if _po_bl else None)
+                                or (h.get('hero_decision_street') or '').lower() or 'preflop',
+                            decision_label=_capdec_bl,
+                            verdict_hint=_vh_bl,
+                            analyst_why=_why_bl,
+                            required_eq_pct=(None if _short_allin_bl else (_po_bl.get('required_eq_pct') if _po_bl else None)),
+                            multiway_suppressed=bool(_mwp_bp.get('suppress_hu_required_equity')),
+                            range_line=_rng_bl)
+                        if _cap_bl and (_cap_bl.get('has_anchor') or _capdec_bl):
+                            _cs_bl = _street_attr(_cap_bl.get('street'))
+                            _ds_bl = f" data-street='{_cs_bl}'" if _cs_bl else ''
+                            # v8.17.1 P5(1): same canonical verdict as every other surface.
+                            _cv_bl = ((rd.get('canonical_verdicts') or {}).get(hid)
+                                      or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
+                            _cvd_bl = f" data-canonical-verdict='{_html_escape(_cv_bl.get('verdict', '') or '')}'"
+                            # REV6 B2: the compact capsule is a visible decision block too.
+                            _dai_bl = (_rdref_bl or {}).get('hero_action_index')
+                            _dai_bl_attr = (f" data-decision-action-index='{int(_dai_bl)}'"
+                                            if _dai_bl is not None else '')
+                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_bl['register']}'{_ds_bl}{_cvd_bl}{_dai_bl_attr}>")
+                            doc.w(_rcm_b(_cap_bl))
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                            h['_pb_capsule_register'] = _cap_bl.get('register', '')
+                            h['_pb_capsule_emitted'] = True
+                    except Exception:
+                        pass
+
                 # v8.14.1 P0-2: chart-backed Range evidence block on XIV.B stubs
                 # too (same shared builder as XIV.A) so referenced preflop range
                 # decisions also carry visible evidence.
@@ -3608,8 +4402,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             hand_range_evidence as _hre_b,
                             range_evidence_md as _rem_b)
                         _rev_b = _hre_b(h)
-                        if _rev_b:
+                        # REV8 B2: same ownership gate as XIV.A — selected / earlier-labelled /
+                        # suppressed depending on whether the range describes the reviewed action.
+                        _re_mode_b, _re_label_b, _re_purpose_b = _range_evidence_ownership(
+                            _rev_b, _reviewed_ref(rd, h, hid, hid_short))
+                        if _rev_b and _re_mode_b != 'suppress':
                             doc.w("")
+                            if _re_label_b:
+                                doc.w(_re_label_b)
                             doc.w(_rem_b(_rev_b))
                     except Exception:
                         pass
@@ -3617,15 +4417,27 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # Pot odds rendering for XIV.B (same as XIV.A BUG-12 fix)
                 _po_b = (rd.get('pot_odds_by_hand') or {}).get(hid) or \
                          (rd.get('pot_odds_by_hand') or {}).get(hid_short)
+                # REV6 B2: route the compact pot-odds through the canonical reviewed action.
+                # The named hands (83526894 turn->river, 84295102 preflop->turn) render HERE;
+                # a hand with a reviewed ref but no pot-odds object still gets the canonical
+                # street/call/depth line.
+                _rdref_b = _reviewed_ref(rd, h, hid, hid_short)
+                _po_b = _reconcile_po_to_reviewed(_po_b, _rdref_b)
+                # REV10 D2: a NO-HERO-DECISION (walk) stub card attaches NO bounty/pot-odds teaching.
+                _no_dec_b = bool(_po_b.get('no_hero_decision')) if _po_b else False
                 if _po_b:
                     _po_lines_b = []
-                    _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
-                                       f"(call {_po_b.get('call_bb', '—')}BB)")
-                    # v8.16.4 DTI Blocker 2: the COMPACT path (the one most hands
-                    # actually open) now carries the SAME decision evidence as the
-                    # full card — consuming the SAME _po_b object, no recompute:
-                    # a structurally-provable all-in DECISION-KIND label, and the
-                    # multiway suppression of the heads-up required-equity line.
+                    _rev_line_b = _reviewed_decision_line_md(_po_b)
+                    if _rev_line_b:
+                        _po_lines_b.append(_rev_line_b)
+                    # REV7 A1: the call/price line renders ONLY for a CALL/FOLD decision.
+                    _price_appl_b = _po_b.get('reviewed_price_applicable')
+                    if _price_appl_b is not False:
+                        _po_lines_b.append(f"**Pot odds:** {_po_b.get('pot_odds', '—')} "
+                                           f"(call {_po_b.get('call_bb', '—')}BB)")
+                    # v8.16.4 DTI Blocker 2: the COMPACT path carries the SAME decision
+                    # evidence as the full card. REV7 A2/A3: the all-in Decision label derives
+                    # from the REVIEWED action kind, never hand-level pf_allin.
                     try:
                         from gem_review_trust import (
                             multiway_render_plan as _mwp_b,
@@ -3633,8 +4445,11 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _mw_b = _mwp_b(
                             n_live_opponents=max(0, (_po_b.get('n_players_at_showdown') or 0) - 1),
                             players_still_to_act=_po_b.get('players_still_to_act', 0) or 0)
-                        if h.get('pf_allin'):
-                            _k_b = _cpa_b(h)[0]
+                        _rev_kind_b = _po_b.get('reviewed_action_kind')
+                        if _rev_kind_b in _ALLIN_REVIEW_KINDS:
+                            _po_lines_b.append("**Decision:** " + _REV_KIND_LABEL[_rev_kind_b])
+                        elif _rev_kind_b is None and h.get('pf_allin'):
+                            _k_b = _canon_allin_kind(h, _cpa_b(h)[0])
                             if _k_b != 'not_allin':
                                 _po_lines_b.append("**Decision:** " + _akl_b(_k_b))
                     except Exception:
@@ -3642,56 +4457,39 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                                  'pot_odds_uncertain': False, 'label': ''}
                     _req_b = _po_b.get('required_eq_pct')
                     _mw_sup_b = bool(_mw_b.get('suppress_hu_required_equity'))
-                    # v8.17 Epic A §9: the VISIBLE DECISION CAPSULE on the compact
-                    # path too (C2 parity) — register-classified lead, same signals,
-                    # no recompute; detailed lines below are preserved (zero-drop).
-                    try:
-                        from gem_commentary_capsule import (
-                            decision_capsule_from_signals as _dcs_b, render_capsule_md as _rcm_b)
-                        _capdec_b = ''
-                        if h.get('pf_allin'):
-                            _kc_b = _cpa_b(h)[0]
-                            if _kc_b != 'not_allin':
-                                _capdec_b = _akl_b(_kc_b)
-                        _cap_b = _dcs_b(
-                            _po_b.get('street') or 'preflop', decision_label=_capdec_b,
-                            verdict_hint=_po_b.get('verdict_hint', ''),
-                            analyst_why=((rd.get('analyst_commentary') or {}).get(hid, {}) or {}).get('hand_strength', ''),
-                            required_eq_pct=_req_b, multiway_suppressed=_mw_sup_b)
-                        if _cap_b:
-                            _cst_b = _street_attr(_po_b.get('street'))
-                            _cds_b = f" data-street='{_cst_b}'" if _cst_b else ''
-                            doc.w(f"<div class='analyst-notes pb-capsule pb-cap-{_cap_b['register']}'{_cds_b}>")
-                            doc.w(_rcm_b(_cap_b))
-                            doc.w("</div>")
-                            doc.w("")
-                            _has_notes_b = True
-                    except Exception:
-                        pass
-                    if _req_b and not _mw_sup_b:
+                    # REV7 A1: required equity renders ONLY for a CALL/FOLD decision.
+                    if _price_appl_b is not False and _req_b and not _mw_sup_b:
                         _po_lines_b.append(f"**Required equity:** {_req_b}%")
-                    elif _mw_sup_b:
+                    elif _price_appl_b is not False and _mw_sup_b:
                         _po_lines_b.append(
                             (_mw_b.get('label') or 'Multiway all-in')
                             + " — compare your equity to the FIELD, not one villain"
                             + ("; players still to act (pot odds uncertain)"
                                if _mw_b.get('pot_odds_uncertain') else ""))
                     _eq_b = _po_b.get('hero_equity_pct')
-                    if _eq_b is not None:
+                    # REV13 C2: suppress decision-range equity on a forced underblind short all-in
+                    # (no strategic decision to grade; 84078253). This is the compact XIV.B path.
+                    if (_eq_b is not None
+                            and _po_b.get('reviewed_actual_node_type') != 'first_in_short_all_in'):
                         _po_lines_b.append(f"**Hero equity vs range:** {_eq_b:.1f}%")
                     _vh_b = _po_b.get('verdict_hint', '')
-                    if _vh_b:
+                    # REV8 B2: a call verdict only on a CALL/FOLD decision (not an open/3-bet).
+                    if _vh_b and _po_b.get('reviewed_price_applicable') is not False:
                         _po_lines_b.append(f"**Verdict:** _{_vh_b}_")
                     if _po_lines_b:
                         _po_st_b = _street_attr(_po_b.get('street'))
                         _po_ds_b = f" data-street='{_po_st_b}'" if _po_st_b else ''
-                        doc.w(f"<div class='analyst-notes'{_po_ds_b}>")
+                        # REV6 B2: compact visible decision block carries the reviewed index.
+                        _po_dai_b = _po_b.get('decision_action_index')
+                        _po_dai_b_attr = (f" data-decision-action-index='{int(_po_dai_b)}'"
+                                          if _po_dai_b is not None else '')
+                        doc.w(f"<div class='analyst-notes'{_po_ds_b}{_po_dai_b_attr}>")
                         doc.w("📊 " + " · ".join(_po_lines_b))
                         # v8.14.1 rev-3 (Blocker 5): attach the required-equity
                         # teaching line to EVERY visible Required-equity line, not
                         # only the comprehensive XIV.A block. This is the compact
                         # XIV.B path that 73281169 / 72696769 actually render on.
-                        if _req_b and not _mw_sup_b:
+                        if _price_appl_b is not False and _req_b and not _mw_sup_b:
                             doc.w("")
                             doc.w("*This is the share you need to win versus the "
                                   "betting/jamming range (including draws and worse "
@@ -3706,19 +4504,32 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         _pko_will_strip_b = bool(((rd.get('pko_research') or {})
                                                   .get('by_hand', {}).get(hid)
                                                   or h.get('pko_context') or {}).get('enabled'))
-                        _bts_b = '' if _pko_will_strip_b else _bounty_trust_strip_md(rd, h, _po_b)
+                        # REV7 A5: bounty strip + note read the bounty context AT the reviewed
+                        # action index (never hand-level), so a first-in open shows no all-in
+                        # cover/collectibility (84074364/83765091 on the compact path).
+                        _rev_dbc_b = _reviewed_bounty_ctx(h, _rdref_b)
+                        _bts_b = '' if (_pko_will_strip_b or _no_dec_b) else _bounty_trust_strip_md(rd, h, _po_b, dbc_override=_rev_dbc_b)
                         if _bts_b:
                             doc.w("")
                             doc.w(_bts_b)
+                        # REV6 B3/B4: disclose a COMBINED exact+potential bounty (or an
+                        # unresolved committed stack) on the compact path too (84990829).
+                        _bapp_note_b = '' if _no_dec_b else _bounty_applicability_note_md(h, dbc_override=_rev_dbc_b)
+                        if _bapp_note_b:
+                            doc.w("")
+                            doc.w(_bapp_note_b)
                         # v8.16.4 DTI Blocker 2/Obj 9: bounty provenance on the
                         # compact path (exact $ vs flat starting-BB estimate),
                         # reusing the same bounty fields (one source, no recompute).
+                        # REV10 D2: never on a no-Hero-decision (walk) stub card.
                         try:
                             from gem_review_trust import bounty_provenance_label as _bpl_b
                             _bb_b = ((_po_b.get('bounty') or {}).get('value_bb')
                                      or h.get('bounty_value_bb'))
                             _usd_b = _pko_bounty_usd(rd, h)
-                            if _usd_b is not None:
+                            if _no_dec_b:
+                                pass
+                            elif _usd_b is not None:
                                 doc.w("")
                                 doc.w("*" + _bpl_b('exact', value_usd=_usd_b, value_bb=_bb_b) + "*")
                             elif _bb_b:
@@ -3763,9 +4574,46 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     doc.w("")
                     _has_notes_b = True
 
+                # v8.17.1 P5(3): compact-path all-in completeness — same contract as
+                # XIV.A (complete math OR explicit no_clear_lesson naming the gap;
+                # suppressed when the capsule already states it). Stamps the register
+                # for the build-gate validator.
+                # REV8 B2: gate the compact all-in math on the REVIEWED action being an all-in
+                # confrontation (never a first-in open / 3-bet) — same rule as XIV.A.
+                _rev_kind_acnb = (_reviewed_ref(rd, h, hid, hid_short) or {}).get('hero_action_kind')
+                if h.get('pf_allin') and _rev_kind_acnb in _ALLIN_REVIEW_KINDS:
+                    try:
+                        from gem_review_trust import (
+                            classify_preflop_allin as _cpa_acb,
+                            allin_completeness_note as _acnb)
+                        _po_b_g = ((rd.get('pot_odds_by_hand') or {}).get(hid)
+                                   or (rd.get('pot_odds_by_hand') or {}).get(
+                                       hid[-8:] if len(hid) > 8 else hid))
+                        _ak_acb = _canon_allin_kind(h, _cpa_acb(h)[0])
+                        _note_acb = _acnb(_ak_acb, _po_b_g, h,
+                                          h.get('_pb_capsule_register'))
+                        if _note_acb:
+                            doc.w("<div class='analyst-notes' data-street='preflop'>")
+                            doc.w("  " + _note_acb)
+                            doc.w("</div>")
+                            doc.w("")
+                            _has_notes_b = True
+                            h['_allin_register'] = 'no_clear_lesson'
+                        elif _ak_acb not in ('not_allin', 'unknown'):
+                            h['_allin_register'] = (h.get('_pb_capsule_register')
+                                                    or 'complete')
+                    except Exception:
+                        pass
+
                 _pko_ctx_b = ((rd.get('pko_research') or {}).get('by_hand', {})
                               .get(hid) or h.get('pko_context') or {})
-                if _pko_ctx_b.get('enabled'):
+                # REV7 A5 / REV8 C1: PKO pill renders only when the reviewed decision is preflop;
+                # a not_applicable reviewed bounty suppresses the cover claim + incentive.
+                _pko_ref_b = _reviewed_ref(rd, h, hid, hid_short) or {}
+                _rev_street_pko_b = _pko_ref_b.get('street')
+                _pko_not_applicable_b = (_pko_ref_b.get('bounty_applicability') == 'not_applicable')
+                if (_pko_ctx_b.get('enabled') and _rev_street_pko_b in (None, 'preflop')
+                        and not locals().get('_no_dec_b')):
                     _pkb_rng = _pko_ctx_b.get('delta_range_pp') or [0, 0]
                     _pkb_d = (f"{_pkb_rng[0]:+.1f} to {_pkb_rng[1]:+.1f}pp"
                               if _pkb_rng[0] != _pkb_rng[1]
@@ -3807,11 +4655,16 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                           f"· {_pkb_pl} "
                           f"· Δ {_pkb_d} aggregate"
                           + (f" · {_pkb_cov}"
-                             if _pkb_cov else ""))
-                    if _pkb_render.get('strip_md'):
+                             if (_pkb_cov and not _pko_not_applicable_b) else ""))
+                    if _pko_not_applicable_b:
+                        doc.w("")
+                        doc.w("  *PKO aggregate is population research for this spot family — not "
+                              "the selected decision's bounty eligibility (no committed bounty at "
+                              "this action).*")
+                    if _pkb_render.get('strip_md') and not _pko_not_applicable_b:
                         doc.w("")
                         doc.w("  " + _pkb_render['strip_md'])
-                    if _pkb_render.get('how_changes_md'):
+                    if _pkb_render.get('how_changes_md') and not _pko_not_applicable_b:
                         doc.w("")
                         doc.w("  " + _pkb_render['how_changes_md'])
                     try:
@@ -3979,7 +4832,15 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             _text = _atom.get('evidence_text', '')
                             _sig = _atom.get('signal', '')
                             _sig_label = _SIGNAL_LABELS_RENDER.get(_sig, _sig.replace('_', ' ').title() if _sig else '')
-                            _ri = _atom.get('read_impact', '')
+                            # v8.17.1 P3a: scrub internal +N support weights from
+                            # the visible read-impact string -> plain words.
+                            import re as _re_p3a
+                            _ri = _re_p3a.sub(
+                                r'\s*\+(\d+)',
+                                lambda _m: ' (%s read)' % (
+                                    'slight' if int(_m.group(1)) <= 2 else
+                                    'moderate' if int(_m.group(1)) == 3 else 'strong'),
+                                _atom.get('read_impact', '') or '')
                             _title_attr = f' title="{_html_escape(_text)}"' if _text else ''
                             doc.w(f"<p><span class='vi-badge {_badge}'{_title_attr}>{_label}"
                                   f"{(' · ' + _sig_label) if _sig_label else ''}</span> "
@@ -3990,7 +4851,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                               "<em>Tagging evidence — not necessarily a Hero mistake.</em></p>")
                     # Exploit implications
                     if _vi_exploits_oc:
-                        doc.w(f"<div class='oc-heading' style='margin-top:8px'>Exploit Opportunity</div>")
+                        # v8.17.1 P3c: 'Exploit Opportunit*' -> 'Signals' (villain handoff §9)
+                        doc.w(f"<div class='oc-heading' style='margin-top:8px'>Signals</div>")
                     for _exp in _vi_exploits_oc:
                         _elabel = _exp.get('label', '')
                         _etext = _exp.get('recommended_exploit', '')
@@ -4058,13 +4920,33 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # v8.14.1 rev-4 (Blocker D): explicit PKO-unavailable note for a
                 # BOUNTY all-in with unresolved collectibility that got neither a
                 # pot-odds Bounty-trust strip nor a PKO pill (XIV.B parity).
+                _dbc_pko_b = h.get('decision_bounty_context') or {}
+                _dbc_app_b = _dbc_pko_b.get('bounty_applicability')
+                _dbc_aidx_b = _dbc_pko_b.get('hero_action_index')
                 if (not _po_b and not _pko_ctx_b.get('enabled')
                         and h.get('format') == 'BOUNTY' and h.get('pf_allin')
-                        and h.get('bounty_collectible') in (None, 'unknown')):
-                    doc.w("<div class='analyst-notes' data-street='preflop'>")
-                    doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
-                          "unresolved from the HH export, so this verdict uses "
-                          "chip-chart logic only. Review manually.")
+                        and _dbc_app_b in (None, 'potential_if_called', 'not_applicable', 'unknown')):
+                    # REV5 B1/B2: gate on the typed bounty APPLICABILITY — potential_if_called
+                    # (open-shove/re-jam) is never "bounty irrelevant / chip-chart only".
+                    from gem_decision_snapshot import contesting_count as _ds_cc
+                    doc.w(f"<div class='analyst-notes' data-street='preflop' data-decision-action-index='{_dbc_aidx_b if _dbc_aidx_b is not None else ''}'>")
+                    if _dbc_app_b == 'potential_if_called':
+                        doc.w("\U0001f3af **PKO bounty math:** Bounty EV is potentially "
+                              "relevant if called, but the caller distribution, ranges "
+                              "and fold-equity model are not available, so no numerical "
+                              "bounty adjustment is applied.")
+                    elif _dbc_app_b == 'unknown':
+                        doc.w("\U0001f3af **PKO bounty math:** cover/collectibility "
+                              "unresolved from the HH export, so this verdict uses "
+                              "chip-chart logic only. Review manually.")
+                    elif _ds_cc(h) <= 1:
+                        doc.w("\U0001f3af **PKO bounty math:** no bounty confrontation "
+                              "— Hero's jam took it down uncontested, so no bounty "
+                              "was at stake this hand.")
+                    else:
+                        doc.w("\U0001f3af **PKO bounty math:** no committed all-in "
+                              "opponent and no live caller at the decision; this "
+                              "verdict uses chip-chart logic only.")
                     doc.w("</div>")
                     doc.w("")
 

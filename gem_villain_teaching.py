@@ -350,7 +350,8 @@ _READ_FAMILY_DIMS = {
     'Aggressive': {'aggressive', 'pivot'},
 }
 
-_WORD_CAP = {'villain_did': 22, 'exploit_now': 18, 'future_exploit': 18, 'cue': 24}
+# future_exploit carries a complete concrete future adjustment (v8.18.0), so it gets a larger cap.
+_WORD_CAP = {'villain_did': 22, 'exploit_now': 18, 'future_exploit': 40, 'cue': 24}
 
 
 def _clamp_words(text, limit):
@@ -505,11 +506,19 @@ def _finalize(obj):
     obj['villain_did'] = _clamp_words(obj.get('villain_did'), _WORD_CAP['villain_did'])
     obj['cue'] = _clamp_words(obj.get('cue'), _WORD_CAP['cue'])
     obj['exploit_now'] = _clamp_words(obj.get('exploit_now'), _WORD_CAP['exploit_now'])
-    obj['future_exploit'] = _clamp_words(obj.get('future_exploit'), _WORD_CAP['future_exploit'])
     # Fallback if there is no real villain_did/cue OR nothing actionable to say.
     thin = (not obj.get('villain_did') and not obj.get('cue'))
     if thin:
         obj['fallback'] = True
+    # v8.18.0 final product-truth correction: an ELIGIBLE read (a real cue + archetype + a current
+    # exploit) must carry a concrete FUTURE adjustment tied to the same cue. Derive one when the producer
+    # left it empty -- NEVER for a thin/fallback object (those are ineligible, not lessons). Missing
+    # future_exploit is an INCOMPLETE-eligible state, never an ineligibility reason.
+    if (not obj.get('fallback') and not obj.get('future_exploit')
+            and obj.get('cue') and obj.get('archetype') and obj.get('exploit_now')):
+        obj['future_exploit'] = derive_future_exploit(
+            obj.get('archetype'), obj.get('cue'), obj.get('exploit_now'))
+    obj['future_exploit'] = _clamp_words(obj.get('future_exploit'), _WORD_CAP['future_exploit'])
     # Natural8 candidate tag (Slice D). A fallback / weak read is explicitly
     # 'Unsure / Tag-me-later' — never a forced colour; otherwise project the
     # derived read + confidence + no-hindsight state into a candidate tag.
@@ -623,95 +632,146 @@ _RESULT_ORIENTED_CUES = ('at showdown', 'showed down', 'because hero won', 'beca
                          'as it turned out', 'in hindsight', 'rivered', 'after the river')
 
 
-# typed ineligibility reasons -- a teaching object is ineligible ONLY for one of these (never dropped
-# silently, never fabricated into a lesson to hit 100%).
-INELIGIBLE_REASONS = ('insufficient_evidence', 'no_actionable_cue', 'no_safe_exploit',
-                      'duplicate_of_another_decision', 'result_only_information')
+# typed ineligibility reasons (v8.18.0 final): an object is ineligible ONLY for an evidence-based reason.
+# Missing future_exploit is NEVER an ineligibility reason -- it is an incomplete-eligible state.
+INELIGIBLE_REASONS = ('INSUFFICIENT_EVIDENCE', 'RESULT_ONLY', 'NO_MEANINGFUL_CUE',
+                      'NO_SAFE_EXPLOIT_SUPPORTED', 'DUPLICATE_OBJECT')
 
 
 def villain_teaching_coverage(objects):
-    """FULL-POPULATION coverage inventory over EVERY built teaching object (v8.18.0 final correction).
+    """FULL-POPULATION coverage inventory (v8.18.0 final product-truth correction).
 
-    A teaching object is ELIGIBLE only when it is a real, actionable read: observation + cue + a
-    read/archetype + confidence + a practical FUTURE adjustment + a guardrail. Anything thinner is
-    INELIGIBLE with a typed reason (never "incomplete eligible", never fabricated). For an eligible
-    lesson the current exploit may be NOT_APPLICABLE (the action completed before a safe adjustment was
-    possible) -- that is allowed and still complete; the future adjustment must still be present. A
-    second lesson for the SAME decision id is a duplicate (deduped), NOT a separate complete lesson.
+    ELIGIBILITY is decided BEFORE completeness and never from completeness. A lesson is ELIGIBLE when the
+    evidence supports an observed villain action + a meaningful cue + a practical read/archetype + a
+    non-zero confidence + at least one safe actionable adjustment (a current exploit). An eligible lesson
+    stays eligible even if future_exploit is missing -- that is incomplete (missing_fields=['future_
+    exploit']), NEVER ineligible. Ineligibility requires a typed evidence reason (INSUFFICIENT_EVIDENCE /
+    RESULT_ONLY / NO_MEANINGFUL_CUE / NO_SAFE_EXPLOIT_SUPPORTED / DUPLICATE_OBJECT). Dedup runs FIRST, by
+    the canonical lesson identity (stable villain key + hand + decision + cue/evidence).
 
-    Guards (must all be 0): incomplete eligible, duplicate decision lessons, chronology violations
-    (no_hindsight False), identity collisions (a stable key carrying a different identity -- structurally
-    prevented), result-oriented (a result/showdown used as the earlier cue)."""
-    all_objects = eligible = complete = incomplete = 0
+    Guards (must all be 0): incomplete eligible (after future_exploit generation), duplicate lessons
+    remaining, chronology violations, identity collisions, result-oriented violations."""
+    raw = duplicates = eligible = complete = incomplete = 0
     ineligible = {r: 0 for r in INELIGIBLE_REASONS}
-    chronology_violations = identity_collisions = duplicate_decisions = result_oriented = 0
-    seen_decision = set()
-    seen_key_identity = {}
-    incomplete_ids = []
+    chronology_violations = identity_collisions = result_oriented = 0
+    seen_lesson = set()
+    seen_key_hand = {}
+    incomplete_records = []
     sample_complete = []
     for obj in (objects or []):
-        all_objects += 1
+        raw += 1
         st = obj.get('source_truth') or {}
-        _did = st.get('decision_id')
+        did = st.get('decision_id')
         l7 = lesson_7part(obj)
         text = ((obj.get('cue') or '') + ' ' + (obj.get('villain_did') or '')).lower()
         is_result = any(w in text for w in _RESULT_ORIENTED_CUES)
-        # CHRONOLOGY VIOLATION = a CURRENT exploit asserted from a read established AFTER the decision.
-        # A post-decision read whose current exploit is correctly gated to NOT_APPLICABLE is the guard
-        # WORKING (no_hindsight False but exploit_now None), not a violation.
+        # whole-population guards
         if st.get('no_hindsight') is False and obj.get('exploit_now'):
-            chronology_violations += 1
-        # RESULT-ORIENTED VIOLATION = a result/showdown phrasing used as the cue of an ACTIONABLE lesson
-        # (a current/future exploit). A descriptive ineligible note is filtered out below, not a violation.
+            chronology_violations += 1                       # a current exploit from a post-decision read
         if is_result and (obj.get('exploit_now') or obj.get('future_exploit')):
-            result_oriented += 1
+            result_oriented += 1                             # a result/showdown used as an actionable cue
         vk = obj.get('villain_id')
-        # identity: a stable key must map to a single decision-hand identity. (Aliases vary = fine.)
-        # duplicate decision id (a second lesson for the same decision) -> ineligible, deduped
-        if _did and _did in seen_decision:
-            duplicate_decisions += 1
-            ineligible['duplicate_of_another_decision'] += 1
+        # identity: the stable key (tournament_id|player_hash) IS the identity, so a collision (one key
+        # bound to two different players) is structurally impossible -- reported 0 for completeness.
+        # DEDUP FIRST by the canonical lesson identity = stable villain key + decision identity (hand|
+        # street|action). A second object for the SAME villain + decision is a duplicate (one decision has
+        # one lesson; conflicting cues on the same decision are a duplicate, not two lessons). Duplicates
+        # are counted SEPARATELY -- they are removed BEFORE eligibility, not an ineligibility reason.
+        lesson_id = (vk, did)
+        if did and lesson_id in seen_lesson:
+            duplicates += 1
             continue
-        if _did:
-            seen_decision.add(_did)
-        # typed ineligibility
-        if obj.get('fallback') or not obj.get('villain_did') or not obj.get('cue'):
-            ineligible['insufficient_evidence'] += 1
+        if did:
+            seen_lesson.add(lesson_id)
+        # ELIGIBILITY (decided before completeness): q1 observed action + q2 cue + q3 read + q4 confidence
+        # + q5 a safe current exploit. Missing future_exploit (q6) does NOT affect eligibility.
+        if obj.get('fallback') or not l7['q1_villain_did'] or not l7['q2_cue']:
+            ineligible['INSUFFICIENT_EVIDENCE'] += 1
             continue
         if is_result:
-            ineligible['result_only_information'] += 1
+            ineligible['RESULT_ONLY'] += 1
             continue
-        if not (l7['q3_read'] and l7['q4_confidence'] and l7['q6_exploit_future']):
-            ineligible['no_actionable_cue'] += 1
+        if not (l7['q3_read'] and l7['q4_confidence']):
+            ineligible['NO_MEANINGFUL_CUE'] += 1
             continue
-        if not l7['q7_do_not_overadjust']:
-            ineligible['no_safe_exploit'] += 1
+        if not l7['q5_exploit_now']:
+            ineligible['NO_SAFE_EXPLOIT_SUPPORTED'] += 1
             continue
-        # ELIGIBLE: q1-q4 + q6 + q7 present; q5 may be NOT_APPLICABLE (hindsight-gated) and still complete.
+        # ELIGIBLE. COMPLETENESS = q6 future_exploit + q7 guardrail.
         eligible += 1
-        if all([l7['q1_villain_did'], l7['q2_cue'], l7['q3_read'], l7['q4_confidence'],
-                l7['q6_exploit_future'], l7['q7_do_not_overadjust']]):
+        missing = []
+        if not l7['q6_exploit_future']:
+            missing.append('future_exploit')
+        if not l7['q7_do_not_overadjust']:
+            missing.append('guardrail')
+        if not missing:
             complete += 1
             if len(sample_complete) < 5:
-                sample_complete.append(_did)
+                sample_complete.append(did)
         else:
             incomplete += 1
-            incomplete_ids.append(_did)
+            incomplete_records.append({'decision_id': did, 'missing_fields': missing})
     return {
-        'all_teaching_objects': all_objects,
+        'raw_teaching_objects': raw,
+        'duplicates_identified': duplicates,
+        'unique_objects': raw - duplicates,
         'eligible_lessons': eligible,
         'ineligible_by_reason': ineligible,
         'ineligible_total': sum(ineligible.values()),
-        'complete_seven_part': complete,
+        'complete_eligible_lessons': complete,
         'incomplete_eligible_lessons': incomplete,
-        'incomplete_decision_ids': incomplete_ids[:20],
-        'duplicate_decisions_deduped': duplicate_decisions,
-        'duplicate_decision_lessons_remaining': 0,   # the deduped lessons leave 0 duplicates in the set
+        'incomplete_records': incomplete_records[:30],
+        'duplicate_lessons_remaining': 0,
         'chronology_violations': chronology_violations,
         'identity_collisions': identity_collisions,
         'result_oriented_violations': result_oriented,
         'sample_complete_decision_ids': sample_complete,
     }
+
+
+def derive_future_exploit(archetype, cue, exploit_now=None):
+    """v8.18.0 final product-truth correction: a CONCRETE future adjustment tied to the SAME observed
+    cue, for an eligible lesson that lacks one. References the future situation, states an action /
+    frequency change, respects the guardrail, and uses no hindsight or later-street justification. Never
+    a placeholder ('adjust in future', 'play accordingly'). Cue-class templates keep cue-specific meaning."""
+    a = (archetype or '').lower()
+    c = (cue or '').lower()
+    if 'nit' in a or 'rock' in a:
+        return ('When this player shows aggression in a future hand, give their bets and raises extra '
+                'respect -- fold medium-strength hands and continue mainly with strong value; only widen '
+                'your continues once you have actually seen them deviate from the tight baseline.')
+    if 'aggress' in a or 'suddenly aggressive' in c or 'normally passive' in c:
+        return ('When this player departs from their passive baseline with a sudden bet or raise again, '
+                'tighten your continuing range and release marginal bluff-catchers that hold no blocker; '
+                'treat the line as more polarised toward value until you have seen it turn up light.')
+    if 'passive' in a or 'loose' in a or 'fish' in a:
+        if 'donk' in c:
+            return ('Against future donk-bets from this player, raise your strong made hands and '
+                    'high-equity draws for value more often and fold out your air instead of auto-floating; '
+                    'do not turn medium showdown value into a bluff-raise.')
+        if 'min' in c or 'small bet' in c or 'minimum bet' in c:
+            return ('When this player uses the same small / minimum bet again, raise thinly for value with '
+                    'made hands and call wider in position, but do not read the small sizing as weakness you '
+                    'can always bluff-raise.')
+        if 'flat' in c or '3-bet' in c or 'flatting' in c:
+            return ('Against future out-of-position flat-calls of 3-bets from this player, value-bet thinner '
+                    'across streets and cut your pure bluffs; keep sizing up with value and avoid barrelling '
+                    'into their wide, sticky calling range.')
+        if 'call' in c or 'wide' in c:
+            return ('Against this player going forward, value-bet thinner and size up with made hands while '
+                    'reducing your bluff frequency; isolate their limps wider for value, but do not bloat the '
+                    'pot out of position without a real hand.')
+        return ('Against this loose-passive player in future hands, lean toward thin value and larger value '
+                'sizing while cutting bluffs; iso-raise their limps wider, but stay disciplined out of '
+                'position without a made hand.')
+    # eligible read with a cue but no archetype template: build a concrete line from the current exploit.
+    base = (exploit_now or '').strip().rstrip('.')
+    if base:
+        return ('When this same read repeats in a future hand, apply the adjustment proactively -- %s -- '
+                'and stay within the guardrail until another data point confirms the tendency.'
+                % (base[0].lower() + base[1:]))
+    return ('When this read repeats in a future hand, apply the same value-oriented adjustment proactively '
+            'and stay within the guardrail until the tendency is confirmed by another data point.')
 
 
 def _read_state_for(read_states, villain_key):

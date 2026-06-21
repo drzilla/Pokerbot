@@ -3864,6 +3864,7 @@ _MODAL_HTML = r"""
   function _dtFmt(v,kind){
     if(kind==='money')return (v<0?'-':'')+'$'+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
     if(kind==='signed')return (v>0?'+':(v<0?'-':''))+'$'+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(kind==='signednum')return (v>0?'+':'')+v.toFixed(1);  /* non-currency signed number (BB/100, cEV/100) */
     if(kind==='pct')return (v<0?'-':'')+Math.abs(v).toFixed(1)+'%';
     return v.toFixed(1);}
   function _dtRecomputeTotals(tbl){
@@ -5583,6 +5584,7 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .data-table.dt td.dt-neg {{ color: #b91c1c; }}
   .data-table.dt td.dt-muted {{ color: var(--muted, #94a3b8); opacity: 0.6; }}
   .data-table.dt .dt-unresolved {{ color: var(--muted, #94a3b8); font-style: italic; }}
+  .data-table.dt .dt-nocash {{ color: var(--muted, #94a3b8); }}
   .data-table.dt .dt-ticket {{ font-size: 0.95em; }}
   .data-table.dt .dt-hand {{ display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }}
   .data-table.dt tfoot tr.dt-totals td {{ background: #eef4ff !important; font-weight: 700;

@@ -18,7 +18,8 @@ cells; hand_cell() routes a hand through the canonical PokerHandDisplay owner.
 import html as _html
 from dataclasses import dataclass
 
-_NUM_KINDS = ('num', 'money', 'pct', 'signed')
+# 'signednum' is a SIGNED NUMBER (no currency) -- e.g. BB/100 and cEV/100: -8.9 / +97.3, never -$8.90.
+_NUM_KINDS = ('num', 'money', 'pct', 'signed', 'signednum')
 
 
 @dataclass(frozen=True)
@@ -64,9 +65,17 @@ def fmt_pct(v, *, signed=False, decimals=1):
     return ('-' + body) if v < 0 else body
 
 
+def fmt_signednum(v, *, decimals=1):
+    """A SIGNED NUMBER -- no currency symbol (BB/100, cEV/100): +97.3 / -8.9 / -113.0. None stays None."""
+    if v is None:
+        return None
+    return ('%+.*f' % (decimals, float(v)))
+
+
 def build_cell(col, value, *, display=None, cls=''):
     """Make a typed Cell. `value` is the canonical sort key (None sorts LAST). `display` overrides the
-    auto-format. Signed kinds carry a +/- and a sign class; -100% ROI is muted (kept, de-emphasised)."""
+    auto-format. Signed kinds carry a +/- and a sign class; -100% ROI is muted (kept, de-emphasised).
+    'signednum' is a non-currency signed number (BB/100, cEV/100)."""
     sortv = value
     if display is None:
         if value is None:
@@ -75,12 +84,14 @@ def build_cell(col, value, *, display=None, cls=''):
             display = fmt_money(value, signed=False)
         elif col.kind == 'signed':
             display = fmt_money(value, signed=True)
+        elif col.kind == 'signednum':
+            display = fmt_signednum(value)
         elif col.kind == 'pct':
             display = fmt_pct(value, signed=False)
         else:
             display = _html.escape(str(value))
     extra = cls
-    if col.kind in ('signed',) and isinstance(value, (int, float)):
+    if col.kind in ('signed', 'signednum') and isinstance(value, (int, float)):
         extra += (' dt-pos' if value > 0 else (' dt-neg' if value < 0 else ''))
     # mute a total-bust -100% while RETAINING the value (Tournament Results ROI contract)
     if col.kind == 'pct' and isinstance(value, (int, float)) and abs(value + 100.0) < 0.5:

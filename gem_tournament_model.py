@@ -136,15 +136,39 @@ def _finish_state(finish, ret):
                     'sort_key': _FINISH_SENTINEL['itm_est'], 'is_in_play': False}
         return {'label': 'Pending', 'state': 'pending',
                 'sort_key': _FINISH_SENTINEL['pending'], 'is_in_play': True}
-    # settled / exact
-    if tp is not None and (itm or (ret.get('value') or 0) > 0):
-        return {'label': _top_pct_label(tp), 'state': 'exact',
+    # settled / exact -- v8.18.0 final product-truth correction: the FINISH is the place/field/Top%; a
+    # non-cash RESULT is a RETURN outcome (shown in the Return column), NEVER a substitute for a valid
+    # finish. So an event with a valid Top% always shows it here, whether or not it cashed; the 'no_cash'
+    # state only tells the Return column to read "No cash".
+    if tp is not None:
+        cashed = bool(itm or (ret.get('value') or 0) > 0)
+        return {'label': _top_pct_label(tp), 'state': 'exact' if cashed else 'no_cash',
                 'sort_key': max(0.0, min(100.0, float(tp))), 'is_in_play': False}
     if place is not None:
-        return {'label': 'No cash', 'state': 'no_cash',
+        return {'label': '#%d' % place, 'state': 'no_cash',
                 'sort_key': _FINISH_SENTINEL['no_cash'], 'is_in_play': False}
     return {'label': '—', 'state': 'unknown',
             'sort_key': _FINISH_SENTINEL['unknown'], 'is_in_play': False}
+
+
+# v8.18.0 final product-truth correction: every event receives exactly ONE typed speed value
+# (STANDARD | TURBO | HYPER | UNKNOWN), with the SOURCE recorded (explicit metadata vs a documented
+# name-pattern fallback). A scheduled GG MTT with no turbo/hyper token is STANDARD by default.
+_SPEED_TOKENS = (('hyper', 'HYPER'), ('turbo', 'TURBO'))
+
+
+def classify_speed(name, explicit_speed=None):
+    """Return (speed, speed_source). Explicit metadata wins; else a name-pattern token; else STANDARD."""
+    es = (explicit_speed or '').strip().upper()
+    if es in ('STANDARD', 'TURBO', 'HYPER'):
+        return es, 'explicit_metadata'
+    n = (name or '').lower()
+    for tok, sp in _SPEED_TOKENS:
+        if tok in n:
+            return sp, 'name_pattern:%s' % tok
+    if name:
+        return 'STANDARD', 'default_scheduled_mtt'
+    return 'UNKNOWN', 'no_source'
 
 
 def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
@@ -254,7 +278,8 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
             'prize_type': prize_type,
             'bounty_kind': bounty_kind,
             'bounty_amount': None,                 # never inferred
-            'speed': 'unknown',                    # name-token speed deferred to render phase
+            'speed': classify_speed(name, t.get('speed'))[0],
+            'speed_source': classify_speed(name, t.get('speed'))[1],
             'entry_timing': 'unknown',
             'finish': _finish,
             'return': ret,

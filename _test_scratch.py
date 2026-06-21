@@ -8933,9 +8933,10 @@ check('T-TT-R-10: bounty dollars not inferred (audit footnote present; Type show
       and ">Bounty*</td>" in _ttr_md, '')
 # v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
 # of em-dashes) when no canonical per-tournament cEV source exists.
-check('T-TT-R-11: Results DataTable shows typed finish labels; no per-event markdown cEV column; trust line states unavailable',
-      "data-label='Finish' data-sort-value='2.4'" in _ttr_md and ">Top 2.4%</td>" in _ttr_md  # exact-place typed label
-      and "data-label='Finish' data-sort-value='101'" in _ttr_md and ">Ticket</td>" in _ttr_md  # satellite seat
+check('T-TT-R-11: Results finish shows place/field + Top% (No cash is a RETURN outcome, not the finish); satellite Ticket',
+      "data-label='Finish' data-sort-value='2.4'" in _ttr_md and "Top 2.4%</td>" in _ttr_md  # sort by top%, label kept
+      and "&middot; Top 2.4%" in _ttr_md          # place/field + Top% (full finish, not the bare label)
+      and "Ticket</td>" in _ttr_md                # satellite seat finish retains place/field + Ticket
       and '| cEV/100 |' not in _ttr_md            # no markdown per-event cEV column
       and 'per-event cEV/100: unavailable' in _ttr_md, '')  # trust line still states why
 # read-only: emitter does not mutate rd (no unrelated state changes)
@@ -13205,15 +13206,53 @@ _vt_result = dict(_vt_obj_ok, cue='only known at showdown when villain showed th
                   source_truth=dict(_vt_obj_ok['source_truth'], decision_id='H3|river|7'))
 _cov_ok = _VT.villain_teaching_coverage([_vt_obj_ok])
 _cov_bad = _VT.villain_teaching_coverage([_vt_chrono, _vt_result])
-check('T-VT18-02: full-population coverage -- eligible complete; thin reads typed ineligible; chronology + result-oriented guards fire',
-      _cov_ok['all_teaching_objects'] == 1 and _cov_ok['eligible_lessons'] == 1 and _cov_ok['complete_seven_part'] == 1
+check('T-VT18-02: full-population coverage -- eligible complete; thin reads typed INSUFFICIENT_EVIDENCE; chronology + result-oriented guards fire',
+      _cov_ok['raw_teaching_objects'] == 1 and _cov_ok['eligible_lessons'] == 1 and _cov_ok['complete_eligible_lessons'] == 1
       and _cov_ok['incomplete_eligible_lessons'] == 0 and _cov_ok['chronology_violations'] == 0
       and _cov_ok['result_oriented_violations'] == 0
-      # a thin atom (no actionable cue) is INELIGIBLE with a typed reason, NOT incomplete-eligible
-      and _VT.villain_teaching_coverage([dict(_vt_obj_ok, archetype='', cue='', villain_did='x',
-            source_truth=dict(_vt_obj_ok['source_truth'], decision_id='HX|t|1'))])['ineligible_by_reason']['insufficient_evidence'] == 1
+      # a thin read (no cue) is INELIGIBLE with a typed reason, NOT incomplete-eligible
+      and _VT.villain_teaching_coverage([dict(_vt_obj_ok, fallback=True, archetype='', cue='', villain_did='',
+            source_truth=dict(_vt_obj_ok['source_truth'], decision_id='HX|t|1'))])['ineligible_by_reason']['INSUFFICIENT_EVIDENCE'] == 1
       # a post-decision read with a CURRENT exploit is a chronology violation; a result-as-cue actionable lesson is result-oriented
       and _cov_bad['chronology_violations'] == 1 and _cov_bad['result_oriented_violations'] == 1, str((_cov_ok, _cov_bad)))
+
+# T-VT18-03: ELIGIBILITY decided BEFORE completeness (v8.18.0 final correction). An eligible read (q1-q5)
+# that is MISSING future_exploit is eligible=true + complete=false + missing_fields=['future_exploit'] --
+# it is NEVER reclassified ineligible / no_actionable_cue to make a count green.
+_vt_no_fut = dict(_vt_obj_ok, future_exploit='',
+                  source_truth=dict(_vt_obj_ok['source_truth'], decision_id='HF|turn|9'))
+_cov_nf = _VT.villain_teaching_coverage([_vt_no_fut])
+check('T-VT18-03: missing future_exploit -> eligible + incomplete (missing_fields), never ineligible',
+      _cov_nf['eligible_lessons'] == 1 and _cov_nf['complete_eligible_lessons'] == 0
+      and _cov_nf['incomplete_eligible_lessons'] == 1 and _cov_nf['ineligible_total'] == 0
+      and _cov_nf['incomplete_records'][0]['missing_fields'] == ['future_exploit'], str(_cov_nf))
+
+# T-VT18-04: _finalize derives a CONCRETE, cue-tied future_exploit for an eligible read that lacks one --
+# it states an action/frequency adjustment and is never one of the forbidden placeholders.
+_vt_built = _VT._finalize(dict(_vt_obj_ok, future_exploit=None))
+_fx = (_vt_built.get('future_exploit') or '').lower()
+_FORBIDDEN_FX = ('adjust in future.', 'exploit this tendency.', 'play accordingly.', 'be careful next time.')
+check('T-VT18-04: derived future_exploit is concrete (cue-tied action verb), >=8 words, never a forbidden placeholder',
+      bool(_fx) and _fx.strip() not in _FORBIDDEN_FX and len(_fx.split()) >= 8
+      and any(w in _fx for w in ('raise', 'fold', 'value', 'call', 'widen', 'tighten', 'cut',
+                                 'size', 'trap', 'steal', 'respect', 'release', 'barrel', 'isolate')),
+      _fx)
+
+# T-VT18-05: a non-currency signed-number DataTable kind (BB/100, cEV/100) formats +97.3 / -8.9, never -$8.90.
+from gem_report_draft._datatable import build_cell as _dtbc, Column as _DTC
+_sn_neg = _dtbc(_DTC('bb100', 'BB/100', 'signednum'), -8.9)
+_sn_pos = _dtbc(_DTC('cev', 'cEV/100', 'signednum'), 97.3)
+check('T-VT18-05: signednum kind -> signed number, no currency symbol; sign class set',
+      _sn_neg['display'] == '-8.9' and '$' not in _sn_neg['display'] and 'dt-neg' in _sn_neg['cls']
+      and _sn_pos['display'] == '+97.3' and 'dt-pos' in _sn_pos['cls'], str((_sn_neg, _sn_pos)))
+
+# T-VT18-06: typed speed classifier -> exactly one of STANDARD/TURBO/HYPER with a source; name-pattern fallback.
+from gem_tournament_model import classify_speed as _csp
+check('T-VT18-06: speed classifier types every event + records the source (explicit vs name-pattern vs default)',
+      _csp('Bounty Hunters Turbo 54') == ('TURBO', 'name_pattern:turbo')
+      and _csp('Hyper Special') == ('HYPER', 'name_pattern:hyper')
+      and _csp('GGMasters Classic 25') == ('STANDARD', 'default_scheduled_mtt')
+      and _csp('Some Event', 'HYPER') == ('HYPER', 'explicit_metadata'), str(_csp('GGMasters Classic 25')))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

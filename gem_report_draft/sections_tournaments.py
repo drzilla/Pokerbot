@@ -601,8 +601,8 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _DTCol('return', 'Return', 'money', aggregate='sum'),
         _DTCol('net', 'Net', 'signed', aggregate='sum'),
         _DTCol('roi', 'ROI', 'pct'),
-        _DTCol('bb100', 'BB/100', 'signed'),
-        _DTCol('cev', 'cEV/100', 'signed'),
+        _DTCol('bb100', 'BB/100', 'signednum'),    # non-currency signed number (never -$8.90)
+        _DTCol('cev', 'cEV/100', 'signednum'),
         _DTCol('exit', 'Exit hand', 'hand', sortable=False),
     ]
     _cards_by_hid = {}
@@ -653,26 +653,42 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _fin_sort = _fin_sort if _fin_sort is not None else 999
         _exit = e.get('exit_hand')
         _exit_cards = _cards_by_hid.get(str(_exit)[-8:]) if _exit else None
-        # return: HH-only unresolved -> blank/unresolved; satellite seat -> ticket marker.
+        # v8.18.0 final product-truth correction: return -- HH-only unresolved -> unresolved; satellite
+        # seat -> ticket marker; a settled NON-CASH result reads "No cash" HERE (the finish keeps its
+        # place/Top% in the Finish column). The finish is NEVER replaced by "No cash".
         _ret_val = ret.get('value')
         _ret_exact = ret.get('exact', True)
         _tick = ret.get('ticket_value')
+        _fin_state = fin.get('state')
         if _ret_val is None or (not _ret_exact and not ret.get('cash_received') and not _tick):
             _ret_cell = _dtcell(_RES_COLS[6], None,
                                 display="<span class='dt-unresolved' title='HH-only — return not yet resolved'>unresolved</span>")
+        elif _fin_state == 'no_cash' and not _tick and not ret.get('cash_received'):
+            _ret_cell = _dtcell(_RES_COLS[6], _ret_val if _ret_val is not None else 0.0,
+                                display="<span class='dt-nocash' title='Did not cash'>No cash</span>")
         else:
             _rdisp = _esc_tt(_retv)
             if _tick:
                 _rdisp = "<span class='dt-ticket' title='Satellite seat (ticket value)'>&#127915;</span> " + _rdisp
             _ret_cell = _dtcell(_RES_COLS[6], _ret_val, display=_rdisp)
-        if fin.get('itm') and fin.get('top_percent') is not None:
+        # Avg Top% (totals row) is computed over EVERY event with a valid source Top% -- not only cashers.
+        if fin.get('top_percent') is not None:
             _top_pcts.append(float(fin['top_percent']))
+        # Finish cell: the place / field + Top% (full finish), sorted by the typed top-percent.
+        _fin_place = fin.get('place')
+        _fin_tot = fin.get('total_players')
+        _fin_tp = fin.get('top_percent')
+        if _fin_place and _fin_tot:
+            _fin_disp = '%s / %s &middot; %s' % ('{:,}'.format(_fin_place), '{:,}'.format(_fin_tot),
+                                                 _esc_tt(_fin_lbl))
+        else:
+            _fin_disp = _esc_tt(_fin_lbl)
         _dt_rows.append({
             'date': _dtcell(_RES_COLS[0], e.get('event_day') or None, display=_esc_tt(e.get('event_day') or EMDASH)),
             'tournament': _dtcell(_RES_COLS[1], name, display=_esc_tt(name)),
             'type': _dtcell(_RES_COLS[2], pt, display=_esc_tt(pt)),
             'bullets': _dtcell(_RES_COLS[3], e.get('bullets', 1)),
-            'finish': _dtcell(_RES_COLS[4], _fin_sort, display=_esc_tt(_fin_lbl)),
+            'finish': _dtcell(_RES_COLS[4], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
             'cost': _dtcell(_RES_COLS[5], e.get('cost', 0)),
             'return': _ret_cell,
             'net': _dtcell(_RES_COLS[7], e.get('net', 0)),
@@ -743,12 +759,15 @@ def _emit_tournament_tables(doc, s, rd, hands):
     _FILTER_DEFS = [('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
                     ('freezeout', 'Freezeout'), ('multibullet', 'Multi-bullet'),
                     ('multiday', 'Multi-day'), ('satellite', 'Satellite'), ('phase', 'Phase')]
+    # per-filter display labels for the typed values (the value stays the canonical typed token).
+    _FILTER_OPT_LABELS = {'speed': {'STANDARD': 'Regular', 'TURBO': 'Turbo', 'HYPER': 'Hyper', 'UNKNOWN': 'Unknown'}}
     _filters = []
     for _fk, _flabel in _FILTER_DEFS:
         _cnts = _coll_tt.Counter((r['_filters'].get(_fk) or 'unknown') for r in _dt_rows)
         if len(_cnts) <= 1:
             continue   # only a filter the data can actually distinguish
-        _opts = [{'value': v, 'label': str(v).replace('-', ' ').replace('_', ' ').title(), 'count': c}
+        _lbls = _FILTER_OPT_LABELS.get(_fk, {})
+        _opts = [{'value': v, 'label': _lbls.get(v) or str(v).replace('-', ' ').replace('_', ' ').title(), 'count': c}
                  for v, c in sorted(_cnts.items())]
         _filters.append({'key': _fk, 'label': _flabel, 'options': _opts})
     doc.w(_dtrender(_RES_COLS, _dt_rows, table_id='tt-results', totals=True, totals_label='Total',

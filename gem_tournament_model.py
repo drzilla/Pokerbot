@@ -387,13 +387,50 @@ def finish_sort_key(event):
     return ((event or {}).get('finish') or {}).get('sort_key', _FINISH_SENTINEL['unknown'])
 
 
+# RES-006 (v8.19.0): a DISJOINT phase taxonomy. The old grouper keyed on the exact-Top% finish LABEL,
+# producing one singleton "Top X%" category per event. Each event now belongs to EXACTLY ONE meaningful
+# phase; the exact Top% still shows on the event row.
+PHASE_ORDER = ('PENDING', 'DAY_2', 'TICKET', 'FINAL_TABLE', 'DEEP_RUN', 'ITM', 'NO_CASH', 'BOTTOM_50', 'UNKNOWN')
+PHASE_LABELS = {'PENDING': 'Pending', 'TICKET': 'Ticket', 'DAY_2': 'Day 2', 'FINAL_TABLE': 'Final table',
+                'DEEP_RUN': 'Deep run', 'ITM': 'ITM', 'NO_CASH': 'No cash', 'BOTTOM_50': 'Bottom 50%',
+                'UNKNOWN': 'Unknown'}
+_FINAL_TABLE_MAX = 9   # finish within the final-table seat count
+
+
+def phase_category(ev):
+    """The single canonical phase an event reached (RES-006). Disjoint -- evaluated in priority order so
+    one event maps to exactly one phase. Exact Top% stays on the event row."""
+    fin = (ev or {}).get('finish') or {}
+    ret = (ev or {}).get('return') or {}
+    if fin.get('is_in_play') or fin.get('state') == 'in_play':
+        return 'DAY_2' if fin.get('advanced_day2') else 'PENDING'
+    if fin.get('is_satellite') and (ret.get('ticket_value') or fin.get('state') == 'ticket'):
+        return 'TICKET'
+    place = fin.get('place')
+    total = fin.get('total_players')
+    tp = fin.get('top_percent')
+    if place is None or total is None:
+        return 'UNKNOWN'
+    if place <= _FINAL_TABLE_MAX:                 # explicit FT or finish within final-table size
+        return 'FINAL_TABLE'
+    if tp is not None and tp <= 5:                # resolved, not FT, deep
+        return 'DEEP_RUN'
+    if fin.get('itm'):                            # regular cash, not Deep Run / FT
+        return 'ITM'
+    if tp is not None and tp <= 50:               # resolved non-cash, top half
+        return 'NO_CASH'
+    if tp is not None and tp > 50:                # resolved non-cash, bottom half
+        return 'BOTTOM_50'
+    return 'UNKNOWN'
+
+
 _GROUP_KEY = {
     'buyin': lambda e: e.get('buyin_band'),
     'prize_type': lambda e: e.get('prize_type'),
     'speed': lambda e: e.get('speed'),
     'entry_pattern': lambda e: e.get('entry_pattern'),
     'entry_timing': lambda e: e.get('entry_timing'),
-    'phase_reached': lambda e: (e.get('finish') or {}).get('label'),
+    'phase_reached': phase_category,
     'by_day': lambda e: e.get('event_day'),
 }
 

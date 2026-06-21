@@ -13387,6 +13387,23 @@ check('T-COR-005: contiguity helper + multi-day span detection',
       and _dc(['2026-06-18', '2026-06-20']) is False
       and _dc(['2026-06-18']) is True, '')
 
+# ── v8.19.0 product-contract (RES-006 phase taxonomy) ──
+from gem_tournament_model import phase_category as _phc, PHASE_LABELS as _PHL
+def _ev_phase(**f):
+    return {'finish': f, 'return': {}}
+check('T-RES-006: disjoint phase taxonomy -- one event -> exactly one of the canonical phases',
+      _phc(_ev_phase(place=3, total_players=500, top_percent=0.6, itm=True)) == 'FINAL_TABLE'
+      and _phc(_ev_phase(place=20, total_players=1000, top_percent=2.0, itm=True)) == 'DEEP_RUN'
+      and _phc(_ev_phase(place=80, total_players=1000, top_percent=8.0, itm=True)) == 'ITM'
+      and _phc(_ev_phase(place=300, total_players=1000, top_percent=30.0, itm=False)) == 'NO_CASH'
+      and _phc(_ev_phase(place=900, total_players=1000, top_percent=90.0, itm=False)) == 'BOTTOM_50'
+      and _phc(_ev_phase(is_in_play=True)) == 'PENDING'
+      and _phc(_ev_phase(is_in_play=True, advanced_day2=True)) == 'DAY_2'
+      and _phc(_ev_phase()) == 'UNKNOWN'
+      and all(_phc(_ev_phase(place=p, total_players=1000, top_percent=t, itm=i)) in _PHL
+              for p, t, i in [(5, 1, True), (50, 4, True), (200, 18, False), (800, 80, False)]),
+      str(_phc(_ev_phase(place=900, total_players=1000, top_percent=90.0))))
+
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:
     print('FIX BEFORE PROCEEDING')

@@ -136,6 +136,9 @@ _TT_TABS = (
 _TT_CAT_LABEL = {'single': 'Single', 'multi_bullet': 'Multi-bullet',
                  'bounty': 'Bounty', 'standard': 'Standard',
                  'satellite': 'Satellite'}
+# RES-006 (v8.19.0): friendly labels for the disjoint phase taxonomy categories.
+from gem_tournament_model import PHASE_LABELS as _PHASE_LABELS  # noqa: E402
+_TT_CAT_LABEL.update(_PHASE_LABELS)
 
 
 def _tt_ordered_cats(_TM, key, groups):

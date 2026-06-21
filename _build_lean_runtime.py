@@ -38,13 +38,52 @@ def _is_excluded(arc):
     return False
 
 
+# The non-module runtime DATA files the full bundle ships (json/txt lookups the resolvers glob at
+# runtime). The lean runtime MUST carry these or report generation fails (e.g. gto_texture_archetypes.json
+# is read by analyze_session). Explicit allow-list -- used directly, and as a fallback if the canonical
+# inventory snapshot is unavailable at build time.
+_RUNTIME_DATA = (
+    'Cards_nicknames.txt', 'Poker_Ranges_Text.txt', '_gtow_situations.json',
+    'coaching_rules.json', 'gem_known_bugs.json', 'gem_schema.json',
+    'gto_texture_archetypes.json', 'gtow_reference.json', 'requirements.txt',
+    'tier_handicaps.json', 'tournament_structures.json',
+)
+
+
+def _runtime_data_files():
+    """Runtime DATA files the lean runtime needs to GENERATE a report -- exactly the set the full bundle
+    ships (non-module json/txt, minus prose + verification). Derived from the canonical inventory
+    snapshot (BB.PROJ_FALLBACK) when present, unioned with the explicit allow-list, restricted to files
+    that actually exist in the repo so a missing snapshot never ships a broken runtime."""
+    out = set()
+    snap = getattr(BB, 'PROJ_FALLBACK', None)
+    if snap and os.path.isdir(snap):
+        for f in os.listdir(snap):
+            if not (f.endswith('.json') or f.endswith('.txt')):
+                continue
+            if f in BB.PROSE or f in BB.KILL or f in BB.FLAT_DATA:
+                continue
+            if f.startswith('test_') or f.startswith('_qa_'):
+                continue
+            if f in ('GEM_Changelog.txt', 'GEM_Quick_Reference.txt'):
+                continue
+            if os.path.isfile(os.path.join(REPO, f)):
+                out.add(f)
+    for f in _RUNTIME_DATA:                           # always ship the known lookups (repo-present)
+        if os.path.isfile(os.path.join(REPO, f)):
+            out.add(f)
+    return out
+
+
 def runtime_names():
-    """The production report-generation file set (root modules + the renderer package members).
-    The runtime imports no prose, so the full changelog (135 KB) + quick reference (102 KB) are NOT
-    bundled here -- the lean package ships concise release notes instead; STEP0 instructions stay."""
+    """The production report-generation file set: root gem_*.py modules + the renderer package members +
+    the runtime DATA lookups the resolvers read at generation time. The runtime imports no prose, so the
+    full changelog (135 KB) + quick reference (102 KB) are NOT bundled here -- the lean package ships
+    concise release notes instead; STEP0 instructions stay."""
     names = set(BB._repo_runtime_modules())          # every repo gem_*.py runtime module
     names |= set(BB.PKG)                              # gem_report_draft/ members
     names |= {'SESSION_START_STEP0_package_rebuild.txt'}  # startup instructions only
+    names |= _runtime_data_files()                   # v8.18.0: ship the runtime data lookups (self-sufficient)
     names = {n for n in names
              if n not in BB.KILL and n not in BB.FLAT_DATA
              and n not in ('GEM_Changelog.txt', 'GEM_Quick_Reference.txt')   # prose, replaced by release notes

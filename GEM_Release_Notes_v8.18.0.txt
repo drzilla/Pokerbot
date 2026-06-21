@@ -1,42 +1,125 @@
-GEM v8.18.0 — Release Notes (current-state, replaces the full GEM_Changelog.txt in the runtime project)
+================================================================================
+GEM — MTT Hand-History Analyzer
+RELEASE NOTES — v8.18.0  (PRODUCTION)
+Replaces the full GEM_Changelog.txt inside the Claude-Chat runtime project.
+================================================================================
 
-CURRENT VERSION
-  v8.18.0 product-completion release candidate (built on the v8.17.1 local release).
+CURRENT VERSION : v8.18.0  (production; built on the v8.17.1 local release)
+RELEASE COMMIT  : 4af659e   (merged to main; annotated tag v8.18.0)
+RUNTIME PACKAGE : gem_lean_runtime.py  (lean Claude-Chat report-generation runtime)
 
-CURRENT BEHAVIOR
-  • Canonical Final Decision Status (gem_final_status): every hand carries exactly ONE typed status —
-    MISTAKE / CONDITIONAL / CLEARED / UNASSESSED ("Not reviewed") / UNGRADED ("No decision"). A
-    gradeable hand with no positive/negative adjudication is UNASSESSED, never CLEARED; secondary
-    reasons (suckout/flip/cooler/justified/read-dependent) never manufacture a grade. The hand card,
-    sticky top bar and hand-list popup all read the one canonical status; zero contradictions.
-  • PokerHandDisplay (gem_report_draft/_cards): one canonical card component (CardVM/HandVM,
-    render_poker_hand, the poker-hand marker, accessible labels, unknown-card handling). The header,
-    hand-list popup (fmtCardSpans) and Tournament Results exit-hand all render through it; same
-    component on desktop and mobile.
-  • Commentary Capsule: registers FACTUAL / COACHING / INSUFFICIENT_EVIDENCE; the zero-drop migration
-    ledger balances on the real report (no commentary item silently dropped).
-  • Villain Teaching: the seven-part lesson (what villain did / cue / read / confidence / safe exploit
-    now / future exploit / guardrail) with a stable identity (tournament_id|player_hash), observation
-    separated from inference, no-hindsight chronology, and a coverage inventory.
-  • Tournament Results: one typed DataTable (gem_report_draft/_datatable) — exit hand as the final
-    column via PokerHandDisplay, Top% to one decimal, muted-but-retained -100% ROI, signed Net/ROI,
-    totals row + average Top%, sticky compact filters; Details/Drivers/SRC removed.
+--------------------------------------------------------------------------------
+1. MAJOR PRODUCT CHANGES IN v8.18.0
+--------------------------------------------------------------------------------
 
-REQUIRED WORKFLOW (STEP0)
-  python /mnt/project/gem_lean_runtime.py /home/claude/gem
-  cd /home/claude/gem
-  cp /mnt/project/session_*.csv .
-  pip install phevaluator        # exact EAI / True-EV
-  python -c "import gem_report_draft, gem_analyzer; print('runtime OK')"
-  python gem_analyzer.py <SESSION_DIR> <SESSION_NAME> --player <NAME>
+Decision trust & status
+  * Canonical FIVE-state Final Decision Status on every hand (gem_final_status):
+        MISTAKE > CONDITIONAL > CLEARED > UNASSESSED ("Not reviewed") >
+        UNGRADED ("No decision").
+    Derived once and consumed everywhere — the lazy hand body, the static shell
+    and the hand-list popup all read the SAME status (0 status contradictions
+    over 844 hands). A gradeable hand with no adjudication is UNASSESSED, never
+    CLEARED; a result-only hand is UNGRADED and carries no strategic grade.
+  * REV17 action-sizing & ownership truth preserved end to end: every rendered
+    sized action equals the canonical full-history replay (3177 sized actions,
+    0 raw-sizing fallbacks; frozen Stage-F gates intact).
 
-ACTIVE KNOWN LIMITATIONS
-  • The lean runtime package excludes the verification apparatus (acceptance/ gates, _qa_* harnesses,
-    the full unit suite) — run the full release bundle to VERIFY a release.
-  • A III.3 hand may show "Cleared" beside a "Correct" nuance pill (consistent, mildly redundant).
+Commentary
+  * Commentary Capsule with VISIBLE registers — Fact / Coach / Insufficient
+    evidence (no silent "Unclear"); an insufficient-evidence capsule states the
+    actual limitation.
+  * Full-population zero-drop ledger: every source commentary item lands on a
+    named visible surface (2721 items, balances, 0 silent drops).
 
-RECENT RELEVANT CHANGES (v8.17.1 -> v8.18.0)
-  v8.17.1  REV9–REV17 real-report stabilization + canonical action sizing / row identity (frozen).
-  v8.18.0  W1-A status owner + UNASSESSED; PokerHandDisplay; DataTable + Tournament Results redesign;
-           Commentary registers + live zero-drop; Villain seven-part contract + coverage; lean runtime.
-  (Full historical changelog is retained in the engineering repo, not in the runtime project.)
+Tournament Results  (one canonical typed DataTable, one Results nav destination)
+  * Finish presentation: every event with a valid finish + entries shows
+    place / field + Top%. "No cash" is a RETURN outcome (Return column) and
+    NEVER replaces the finish.
+  * Average Top% is computed over EVERY event with a valid Top% (not only
+    cashes) = 48.1% on the June-16 session (12 events).
+  * BB/100 and cEV/100 render as non-currency signed numbers (-8.9 / +97.3),
+    never as currency.
+  * Sticky speed filters — Regular / Turbo / Hyper — with recomputing totals.
+  * Exit hand is the final column, rendered via PokerHandDisplay; Top% to one
+    decimal; -100% ROI muted but retained.
+
+Hands & villains
+  * PokerHandDisplay (gem_report_draft/_cards): one typed card/hand component
+    reused across the header, the hand-list popup and the Results exit hand;
+    the hand id is kept separate from the cards; same component desktop + mobile.
+  * Villain Teaching: explicit SEVEN-part lessons (what the villain did / cue /
+    read / confidence / current exploit / future exploit / guardrail) with a
+    stable identity (tournament_id|player_hash). ELIGIBILITY is decided
+    INDEPENDENTLY of completeness: a lesson missing only its future exploit is
+    eligible-but-incomplete, never reclassified ineligible.
+
+Packaging
+  * Lean Claude-Chat runtime (report generation only) — ~30% smaller than the
+    full source bundle. The verification/test/acceptance apparatus (acceptance/,
+    _qa_*, _test_scratch.py) ships only in the FULL release bundle.
+
+--------------------------------------------------------------------------------
+2. REQUIRED WORKFLOW (Claude Chat project)
+--------------------------------------------------------------------------------
+
+  STEP 0 (once per session — rebuild the runtime from the lean package):
+      python /mnt/project/gem_lean_runtime.py /home/claude/gem
+      cd /home/claude/gem
+      cp /mnt/project/session_*.csv .
+      pip install phevaluator        # exact EAI / True-EV
+      python -c "import gem_report_draft, gem_analyzer; print('runtime OK')"
+
+  Generate a report from a hand-history folder:
+      python gem_analyzer.py <SESSION_DIR> <SESSION_NAME> --player <NAME> --quick
+      # full analyst pass (also emits the analyst worklist):
+      python gem_analyzer.py <SESSION_DIR> <SESSION_NAME> --player <NAME>
+
+  Output: ONE static, portable HTML report (desktop + mobile read the same hand
+  data). No feature recalculates sizing / status / tournament truth / hand markup
+  independently.
+
+--------------------------------------------------------------------------------
+3. ACTIVE LIMITATIONS
+--------------------------------------------------------------------------------
+
+  * The lean runtime EXCLUDES the verification apparatus (acceptance/ gates,
+    _qa_* harnesses, the full unit suite) — run the FULL release bundle to
+    verify a release.
+  * A III.3 hand may show "Cleared" beside a "Correct" nuance pill (consistent,
+    mildly redundant).
+  * KNOWN ISSUE — Villain Teaching future-exploit wording (see section 4).
+
+--------------------------------------------------------------------------------
+4. KNOWN ISSUE — Villain Teaching future-exploit wording
+   (ACCEPTED BY THE PRODUCT OWNER AS NON-BLOCKING FOR v8.18.0)
+--------------------------------------------------------------------------------
+
+  Some generated Villain Teaching future-exploit ("Next time …") sentences may:
+    - be truncated by the future-exploit word cap; and/or
+    - use an archetype-level adjustment that is less closely aligned to the
+      specific observed cue.
+
+  Scope / impact: WORDING QUALITY ONLY. Lesson eligibility, completeness counts,
+  current-exploit guidance, villain chronology and no-hindsight protections are
+  NOT affected.
+
+  PLANNED POST-RELEASE FIX (BACKLOG ITEM #1 — the FIRST bounded bug-fix after
+  v8.18.0): raise/lift the future-exploit word cap so sentences are not
+  truncated, and tighten cue-specific alignment (prefer a cue-derived future
+  adjustment over an archetype-level template), with a regression test that
+  every eligible future-exploit is complete (untruncated) and cue-aligned.
+
+--------------------------------------------------------------------------------
+5. RECENT VERSION HISTORY
+--------------------------------------------------------------------------------
+  v8.17.1  REV9–REV17 real-report stabilization + canonical action sizing / row
+           identity (frozen Stage-F gates).
+  v8.18.0  Five-state status owner; Commentary registers + live zero-drop;
+           PokerHandDisplay; DataTable + Tournament Results (finish/Top%/BB-100/
+           speed corrections, Avg Top 48.1%); Villain seven-part teaching with
+           eligibility-before-completeness; lean runtime (~30% smaller).
+  (Full historical changelog is retained in the engineering repo, not here.)
+
+================================================================================
+End of release notes — GEM v8.18.0
+================================================================================

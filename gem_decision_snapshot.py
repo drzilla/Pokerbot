@@ -39,6 +39,13 @@ _EPS = 0.01
 
 # ── primitives ────────────────────────────────────────────────────
 
+def _f(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _hero(h):
     return h.get('hero', 'Hero')
 
@@ -81,42 +88,164 @@ def _starting_stacks(h):
 
 
 def build_forced_post_context(h, player):
-    """REV14 A: the typed ForcedPostContext for one player — separates DEAD forced posts (the ante,
-    which contributes to the pot but is NOT live betting commitment) from the LIVE blind (the SB/BB,
-    which counts toward matching a preflop wager). The ante is a 'posts' action with no post_type, so
-    it is identified as the forced-post amount BEYOND the player's positional blind. Antes/blinds are
-    preflop; postflop carries neither.
-
-    Rules (REV14 A1): the ante is dead money — it does not reduce a wager Hero must match, does not
-    count toward betting total-to, and does not count toward a raise increment. The small/big blind is
-    a live preflop commitment that counts toward matching a preflop wager."""
-    led = h.get('action_ledger') or []
-    posts = [a for a in led if a.get('player') == player and a.get('action') == 'posts']
-    total = round(sum(_added(a) for a in posts), 4)
-    pos = (_pos_of(led, player) or '').upper()
-
-    def _blind_amt(seat):
-        vals = [_added(a) for a in led if a.get('action') == 'posts'
-                and (a.get('position') or '').upper() == seat]
-        return max(vals) if vals else 0.0
-
-    if pos == 'BB':
-        live = min(_blind_amt('BB'), total)
-    elif pos == 'SB':
-        live = min(_blind_amt('SB'), total)
-    else:
-        live = 0.0
-    live = round(live, 2)
-    ante = round(max(0.0, total - live), 2)
+    """REV14 A / REV15 B: the typed ForcedPostContext for one player — separates DEAD forced posts
+    (the ante, a pot contribution that is NOT live betting commitment) from the LIVE blind (the SB/BB,
+    which counts toward matching a preflop wager). It READS the TYPED post classification from the ONE
+    owner `normalize_forced_posts` (parser-stamped `post_type` when present, else order+position — the
+    last post at the SB/BB seat is the blind, every earlier post is a dead ante). It NEVER re-infers
+    by max-amount, so a short blind BELOW the ante is still typed as the blind."""
+    typed = normalize_forced_posts(h)
+    pos = (_pos_of(h.get('action_ledger') or [], player) or '').upper()
+    ante = sb = bb = 0.0
+    for rec in typed.values():
+        if rec.get('player') != player:
+            continue
+        amt = round(_f(rec.get('amount_bb')) or 0.0, 2)
+        pt = rec.get('post_type')
+        if pt == 'small_blind':
+            sb = round(sb + amt, 2)
+        elif pt == 'big_blind':
+            bb = round(bb + amt, 2)
+        else:                                      # ante / dead_blind / unknown -> dead
+            ante = round(ante + amt, 2)
+    live = round(sb + bb, 2)
     return {
         'player': player,
         'position': pos,
         'ante_paid_bb': ante,
-        'small_blind_paid_bb': live if pos == 'SB' else 0.0,
-        'big_blind_paid_bb': live if pos == 'BB' else 0.0,
+        'small_blind_paid_bb': sb,
+        'big_blind_paid_bb': bb,
         'dead_forced_posts_bb': ante,
         'live_blind_committed_bb': live,
-        'total_forced_posts_bb': round(total, 2),
+        'total_forced_posts_bb': round(ante + live, 2),
+    }
+
+
+def normalize_forced_posts(h):
+    """REV15 B: the ONE typed forced-post classification at the ledger boundary. Stamps a post_type
+    (ante / small_blind / big_blind) onto each 'posts' event by ORDER + POSITION — NOT the
+    max-amount heuristic: a player's LAST post is their positional blind (SB->small_blind,
+    BB->big_blind); every EARLIER post is a dead ante; a non-SB/BB player's posts are all antes.
+    This handles a short blind BELOW the ante (the blind is still the last post regardless of
+    amount), which the old maximum-post heuristic mis-typed. Returns {ledger_index: {post_type,
+    amount_bb, player, position, street, inferred}}. No downstream code may re-infer post type."""
+    led = h.get('action_ledger') or []
+    by_player = {}
+    for i, a in enumerate(led):
+        if a.get('action') == 'posts':
+            by_player.setdefault(a.get('player', ''), []).append(i)
+    out = {}
+    for p, idxs in by_player.items():
+        pos = (_pos_of(led, p) or '').upper()
+        for k, i in enumerate(idxs):
+            a = led[i]
+            stamped = a.get('post_type')           # REV15 B: prefer the PARSER-stamped raw-text type
+            if stamped in ('ante', 'small_blind', 'big_blind', 'dead_blind', 'straddle'):
+                pt, inferred = stamped, False
+            else:                                  # compatibility normalizer for old cached ledgers
+                is_last = (k == len(idxs) - 1)
+                if is_last and pos == 'SB':
+                    pt = 'small_blind'
+                elif is_last and pos == 'BB':
+                    pt = 'big_blind'
+                else:
+                    pt = 'ante'
+                inferred = True
+            out[i] = {'post_type': pt,
+                      'amount_bb': round(_f(a.get('amount_bb', a.get('added_bb', 0)) or 0.0), 2),
+                      'player': p, 'position': pos, 'street': a.get('street', 'preflop'),
+                      'inferred': inferred}
+    return out
+
+
+def replay_commitments_to_action(h, idx):
+    """REV15 C: the ONE canonical commitment + stack replay up to (strictly before) the reviewed
+    action. It owns dead/live forced posts, live street commitment, the LIVE bet level (ante-clean,
+    derived from amount_bb raise increments — the standard "raise to X" the grid shows), and the
+    chips Hero physically adds. Every downstream sizing surface reads THIS, never raw added_bb.
+
+    Identities it guarantees (REV15 Part C / D / B3):
+      live_street_total_after  == live_street_committed_before + amount_added_on_action
+      pot_contribution_after    == dead_forced_paid_before     + live_street_total_after
+      stack_after_action        == stack_before_action          - amount_added_on_action
+      if became_all_in:  stack_after_action == 0  and  amount_added == stack_before_action."""
+    led = h.get('action_ledger') or []
+    hero = _hero(h)
+    starting = _starting_stacks(h)
+    if idx is None or not (0 <= idx < len(led)):
+        return {'no_action': True}
+    street = led[idx].get('street', 'preflop')
+    posts = normalize_forced_posts(h)
+    cur_level = 0.0
+    live_committed = {}            # this street, LIVE (ante excluded)
+    dead_by_player = {}            # this street DEAD forced posts (ante)
+    gross_before_total = {}        # ALL streets gross committed strictly before idx (for the stack)
+    for i, a in enumerate(led):
+        p = a.get('player', ''); act = a.get('action', ''); st = a.get('street', 'preflop')
+        amt = _f(a.get('amount_bb', 0) or 0.0)
+        if i < idx:
+            gross_before_total[p] = round(gross_before_total.get(p, 0.0) + _added(a), 2)
+        if st != street or i >= idx:
+            continue
+        if act == 'posts':
+            pt = posts.get(i, {}).get('post_type', 'ante')
+            if pt in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+                live_committed[p] = round(live_committed.get(p, 0.0) + amt, 2)
+                cur_level = max(cur_level, live_committed[p])
+            else:
+                dead_by_player[p] = round(dead_by_player.get(p, 0.0) + amt, 2)
+        elif act in ('raises', 'bets'):
+            # the LIVE bet LEVEL reached — prefer the parser's raise-to (`to_bb`, ante-clean) over the
+            # raw increment (cur + amount_bb), which can drift by the ante on real raises.
+            _to = a.get('to_bb')
+            cur_level = (round(_f(_to), 2) if (_to is not None and act == 'raises')
+                         else round(cur_level + amt, 2))
+            live_committed[p] = cur_level
+        elif act == 'calls':
+            live_committed[p] = cur_level
+
+    hero_live_before = round(live_committed.get(hero, 0.0), 2)
+    faced_live_level = round(cur_level, 2)
+    hero_street_dead = round(dead_by_player.get(hero, 0.0), 2)
+    stack_before = (round(starting.get(hero, 0.0) - gross_before_total.get(hero, 0.0), 2)
+                    if hero in starting else None)
+    evt = led[idx]
+    act = evt.get('action', '')
+    amt = _f(evt.get('amount_bb', 0) or 0.0)
+    became_all_in = bool(evt.get('is_all_in')) or (
+        stack_before is not None and _added(evt) > _EPS and (stack_before - _added(evt)) <= _EPS)
+    callable_amt = (round(min(max(0.0, faced_live_level - hero_live_before), stack_before), 2)
+                    if stack_before is not None else round(max(0.0, faced_live_level - hero_live_before), 2))
+    if became_all_in:
+        amount_added = stack_before if stack_before is not None else _added(evt)
+    elif act == 'calls':
+        amount_added = callable_amt
+    elif act in ('raises', 'bets'):
+        _to = evt.get('to_bb')
+        _new_level = (round(_f(_to), 2) if (_to is not None and act == 'raises')
+                      else round(faced_live_level + amt, 2))
+        amount_added = round(_new_level - hero_live_before, 2)
+    else:                                          # checks / folds
+        amount_added = 0.0
+    amount_added = round(amount_added, 2)
+    live_total_to = round(hero_live_before + amount_added, 2)
+    stack_after = 0.0 if became_all_in else (round(stack_before - amount_added, 2)
+                                             if stack_before is not None else None)
+    pot_contribution_after = round(hero_street_dead + live_total_to, 2)
+    return {
+        'no_action': False,
+        'street': street,
+        'dead_forced_paid_before_bb': hero_street_dead,
+        'live_street_committed_before_bb': hero_live_before,
+        'pot_contribution_before_bb': round(hero_street_dead + hero_live_before, 2),
+        'faced_live_total_to_bb': faced_live_level,
+        'amount_added_on_action_bb': amount_added,
+        'live_street_total_after_bb': live_total_to,
+        'pot_contribution_after_bb': pot_contribution_after,
+        'stack_before_action_bb': stack_before,
+        'stack_after_action_bb': stack_after,
+        'callable_amount_bb': callable_amt,
+        'became_all_in': became_all_in,
     }
 
 
@@ -279,16 +408,21 @@ def build_decision_snapshot(h, hero_action_index=None):
     level_street = max([committed_street.get(p, 0.0) for p in committed_street] or [0.0])
     hero_committed_total = round(committed_total.get(hero, 0.0), 2)
     hero_committed_street = round(committed_street.get(hero, 0.0), 2)
-    to_call = round(max(0.0, level_street - hero_committed_street), 2)
+    _gross_to_call = round(max(0.0, level_street - hero_committed_street), 2)   # legacy gross (diag)
 
-    # REV14 A: DEAD forced posts (the ante) vs LIVE betting commitment. The ante is in
-    # hero_committed_street (a gross pot contribution) but is NOT a wager Hero must match and is
-    # NOT part of his betting total-to / raise increment. `to_call` itself is unaffected because
-    # every player posts the same ante and the antes cancel; the contamination is in the per-action
-    # amount_added / total-to / all-in-residual, which the sizing contract derives from these.
+    # REV15 A/D: the price/sizing facts are ANTE-CLEAN, owned by the ONE commitment replay. The gross
+    # to_call above is ante-contaminated (the raiser's added_bb folds its ante into the raise, so the
+    # antes do NOT cancel). The CLEAN price is the LIVE faced level minus Hero's LIVE commitment.
     _hero_fp = build_forced_post_context(h, hero)
     hero_ante_paid = _hero_fp['ante_paid_bb'] if street == 'preflop' else 0.0
-    live_street_committed_before = round(max(0.0, hero_committed_street - hero_ante_paid), 2)
+    _rp = replay_commitments_to_action(h, idx)
+    if not _rp.get('no_action'):
+        live_street_committed_before = round(_rp.get('live_street_committed_before_bb') or 0.0, 2)
+        _faced_live = round(_rp.get('faced_live_total_to_bb') or 0.0, 2)
+        to_call = round(max(0.0, _faced_live - live_street_committed_before), 2)
+    else:
+        live_street_committed_before = round(max(0.0, hero_committed_street - hero_ante_paid), 2)
+        to_call = _gross_to_call
     faced_ante_paid = 0.0
     if faced_aggressor is not None and street == 'preflop':
         try:
@@ -701,32 +835,14 @@ def reviewed_action_display(h, hero_action_index, snap=None):
     snap = snap if snap is not None else build_decision_snapshot(h, idx)
     actual = evt.get('action', '')
     kind = snap.get('hero_action_kind') or actual
-    raw_added = round(_added(evt), 2) if evt else 0.0
-    callable_amt = round(snap.get('callable_amount_bb') or 0.0, 2)
-    # REV14 B/C: the displayed amount is the CANONICAL live amount — never the ante-contaminated raw
-    # ledger added. amount_added: all-in -> stack_before; call -> callable; else raw. total_to is the
-    # LIVE betting total (excludes the dead ante), so "re-jam to YBB" / "call XBB" match the grid.
-    _allin = bool(snap.get('became_all_in_on_this_action'))
-    _hero_before = round(snap.get('hero_stack_before_action_bb') or 0.0, 2)
-    _live_before = round(snap.get('live_street_committed_before_bb') or 0.0, 2)
-    _cont = snap.get('faced_voluntary_price_bb')
-    if _cont is not None:
-        _cont = round(min(_cont, _hero_before or _cont), 2)
-    if _allin:
-        added = _hero_before
-    elif kind in ('call', 'call_vs_jam', 'call_off'):
-        added = _cont if _cont is not None else raw_added
-    else:
-        added = raw_added
-    # REV14 C: the "to Y" level matches the grid — gross bet level for an aggressive action (the
-    # ante cancels for all-ins), the live level (blind + callable) for a call.
-    _gross_before = round(snap.get('hero_current_street_committed_before_bb') or 0.0, 2)
-    if kind in ('check', 'fold'):
-        total_to = round(_live_before, 2)
-    elif kind in ('call', 'call_vs_jam', 'call_off'):
-        total_to = round(_live_before + added, 2)
-    else:
-        total_to = round(_gross_before + raw_added, 2)
+    # REV15 E1: reviewed_action_display FORMATS the canonical ActionSizingContract — it does NOT
+    # independently recalculate amount_added / total-to / call amount / stack-after. The contract is
+    # the ONE owner (built from the commitment replay); this surface only chooses words.
+    _sc = build_action_sizing_contract(h, idx)
+    added = round(_sc.get('amount_added_bb') or 0.0, 2)
+    total_to = round(_sc.get('live_betting_total_to_bb') or 0.0, 2)
+    callable_amt = round((_sc.get('continue_component_bb') if _sc.get('continue_component_bb') is not None
+                          else snap.get('callable_amount_bb')) or 0.0, 2)
     facing = round(snap.get('to_call_bb') or 0.0, 2)          # raw price faced (fold/raise context)
     faced_added = snap.get('faced_action_added_bb')
     street = snap.get('street')
@@ -1033,56 +1149,28 @@ def build_action_sizing_contract(h, hero_action_index=None):
     (an aggressive action -> total_to; a call -> callable_component; a postflop lead -> amount_added)."""
     snap = build_decision_snapshot(h, hero_action_index)
     idx = snap.get('hero_action_index')
-    led = h.get('action_ledger') or []
-    evt = led[idx] if (idx is not None and 0 <= idx < len(led)) else {}
-    raw_added = round(_added(evt), 2) if evt else 0.0
     kind = snap.get('hero_action_kind')
-    became_all_in = bool(snap.get('became_all_in_on_this_action'))
     _is_call = kind in ('call', 'call_vs_jam', 'call_off')
     _is_passive = kind in ('check', 'fold') or _is_call
-    hero_before = round(snap.get('hero_stack_before_action_bb') or 0.0, 2)
-    # REV14 A/C: LIVE betting commitment EXCLUDES the dead ante (the gross street commit includes it).
-    live_committed_before = round(snap.get('live_street_committed_before_bb') or 0.0, 2)
-    dead_ante = round(snap.get('dead_forced_posts_paid_bb') or 0.0, 2)
-    # the price to MATCH the faced voluntary wager (the call/continue price), capped by Hero's stack.
+    # REV15 C/D: every sizing amount is read from the ONE canonical commitment+stack replay — NEVER
+    # the ante-contaminated raw ledger added_bb. The replay guarantees the relational identities
+    # (live_total == live_before + amount_added; pot == dead + live_total; all-in => stack_after 0).
+    rp = replay_commitments_to_action(h, idx)
+    amount_added = round(rp.get('amount_added_on_action_bb') or 0.0, 2)
+    live_total_to = round(rp.get('live_street_total_after_bb') or 0.0, 2)
+    pot_contribution_total = round(rp.get('pot_contribution_after_bb') or 0.0, 2)
+    live_committed_before = round(rp.get('live_street_committed_before_bb') or 0.0, 2)
+    dead_ante = round(rp.get('dead_forced_paid_before_bb') or 0.0, 2)
+    hero_before = round(rp.get('stack_before_action_bb') or 0.0, 2)
+    hero_after = round(rp.get('stack_after_action_bb') or 0.0, 2)
+    became_all_in = bool(rp.get('became_all_in'))
+    faced_live_total_to = round(rp.get('faced_live_total_to_bb') or 0.0, 2) if rp.get('faced_live_total_to_bb') else None
+    # the price to MATCH the faced VOLUNTARY wager (the call/continue price). Only a call/fold/raise
+    # facing a voluntary wager has one — a first-in open faces only the blind, so continue is None.
     continue_component = snap.get('faced_voluntary_price_bb')
     if continue_component is not None:
         continue_component = round(min(continue_component, hero_before or continue_component), 2)
-
-    # REV14 B/C: amount_added is the chips Hero PHYSICALLY removes from his stack on this action,
-    # derived canonically (NEVER the ante-contaminated raw ledger added_bb):
-    #   - an all-in EXHAUSTS the remaining stack  -> amount_added == hero_stack_before, after == 0;
-    #   - a literal CALL adds exactly the callable/continue price (no ante, no raise increment);
-    #   - everything else (a non-all-in bet/raise/check/fold) adds the raw live amount.
-    if became_all_in:
-        amount_added = hero_before
-    elif _is_call:
-        amount_added = continue_component if continue_component is not None else raw_added
-    else:
-        amount_added = raw_added
-    amount_added = round(amount_added, 2)
-    hero_after = 0.0 if became_all_in else round(hero_before - amount_added, 2)
-
-    # REV14 C1: the live betting TOTAL-TO (the bet LEVEL Hero reaches). For an aggressive
-    # raise/bet/open it is the bet level the grid shows as "to X" (= the gross street level, since
-    # the ante is folded into the level and cancels for an all-in: gross_before + raw_added). For a
-    # CALL it is the live level Hero matches (live_before + callable). pot_contribution INCLUDES the
-    # ante; the all-in invariant lives in amount_added/hero_after, independent of total-to.
-    _gross_before = round(snap.get('hero_current_street_committed_before_bb') or 0.0, 2)
-    if kind in ('check', 'fold'):
-        live_total_to = live_committed_before
-    elif _is_call:
-        live_total_to = round(live_committed_before + amount_added, 2)
-    else:                                          # aggressive (all-in or not): the gross bet level
-        live_total_to = round(_gross_before + raw_added, 2)
-    pot_contribution_total = round(_gross_before + amount_added, 2)
-
-    # the faced aggressor's LIVE total-to (their ante removed) — the level Hero must match.
     faced_added = snap.get('faced_action_added_bb')
-    faced_committed = snap.get('faced_aggressor_committed_before_action_bb')
-    faced_ante = round(snap.get('faced_aggressor_ante_bb') or 0.0, 2)
-    faced_live_total_to = (round((faced_committed or 0.0) + (faced_added or 0.0) - faced_ante, 2)
-                           if (faced_added is not None) else None)
 
     # REV14 C2: a CALL never has a raise increment / extra isolation; only a bet/raise does.
     if _is_passive:
@@ -1131,6 +1219,7 @@ def build_action_sizing_contract(h, hero_action_index=None):
         'hero_stack_before_bb': hero_before,
         'hero_stack_after_bb': hero_after,
         'dead_forced_posts_bb': dead_ante,
+        'live_street_committed_before_bb': live_committed_before,
         'became_all_in': became_all_in,
         'primary_display': primary_display,
         'secondary_display': secondary_display,

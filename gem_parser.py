@@ -1434,7 +1434,21 @@ def parse_one_hand(text, filename=''):
                     _al_level = max(_al_level, _al_round[_al_player])
             else:                                  # checks / folds
                 _added = 0.0
-            action_ledger.append({
+            # REV15 B: TYPED forced-post reason preserved from the RAW hand-history text at the
+            # ledger boundary — the canonical source downstream code reads (never re-inferred by
+            # amount/seat). "posts small blind" / "posts big blind" / "posts the ante".
+            _post_type = None
+            if _al_action == 'posts':
+                _pl = _al_line.lower()
+                if 'small blind' in _pl:
+                    _post_type = 'small_blind'
+                elif 'big blind' in _pl:
+                    _post_type = 'big_blind'
+                elif 'ante' in _pl:
+                    _post_type = 'ante'
+                else:
+                    _post_type = 'unknown'
+            _al_event = {
                 'street': _al_street,
                 'player': _al_player,
                 'position': _al_pos,
@@ -1443,7 +1457,10 @@ def parse_one_hand(text, filename=''):
                 'added_bb': _added,
                 'to_bb': _al_to_bb,
                 'is_all_in': _al_is_allin,
-            })
+            }
+            if _post_type is not None:
+                _al_event['post_type'] = _post_type
+            action_ledger.append(_al_event)
     hand['action_ledger'] = action_ledger
 
     # v8.17.1 Iter-1: ONE canonical decision-time snapshot owns eff_stack_bb_at_decision

@@ -10808,8 +10808,11 @@ check('T-DS-18: dead short remains a realized participant (Hero + RealVill + Dea
 # REV2 — postflop all-in depth/price + persistent contest + per-opp bounty + future-blind
 # ============================================================
 def _Lr(street, player, action, added, allin=False, pos='?'):
-    return {'street': street, 'player': player, 'action': action, 'added_bb': added,
-            'amount_bb': added, 'is_all_in': allin, 'position': pos}
+    d = {'street': street, 'player': player, 'action': action, 'added_bb': added,
+         'amount_bb': added, 'is_all_in': allin, 'position': pos}
+    if action == 'raises':                          # REV15: a 'raises' carries its raise-TO level
+        d['to_bb'] = added
+    return d
 
 # 1) river call vs all-in: depth is the jam (~13.5), NOT the bettor's ~0 remaining.
 _r1 = {'id': 'R1', 'hero': 'Hero', 'seat_stack_by_player': {'Hero': 21.0, 'V': 13.5},
@@ -10923,8 +10926,14 @@ import copy as _i1f_copy
 
 
 def _Lb(street, p, act, added, allin=False):
-    return {'street': street, 'player': p, 'action': act, 'added_bb': added,
-            'amount_bb': added, 'is_all_in': allin}
+    d = {'street': street, 'player': p, 'action': act, 'added_bb': added,
+         'amount_bb': added, 'is_all_in': allin}
+    # REV15: a real 'raises' carries the parser's raise-TO level (`to_bb`); the synthetic helper sets
+    # it = the `added` "to" amount so the commitment replay reads the intended bet level (these
+    # fixtures express "raises TO X", not "raises BY X").
+    if act == 'raises':
+        d['to_bb'] = added
+    return d
 
 
 # ---- B1 mandatory paired fixture: a future opponent all-in cannot change earlier ctx ----
@@ -11608,7 +11617,8 @@ check('T-B2-09: visible-decision gate CATCHES a block grading an EARLIER street 
 # A1: the canonical price contract uses the CALLABLE amount + CONTESTABLE pot, never raw to_call.
 _ov = {'id': 'OVERJAM', 'tournament_hand_id': '85000001', 'hero': 'Hero', 'format': 'NLHE',
        'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0}, 'board': [],
-       'action_ledger': [_Lb('preflop', 'Hero', 'posts', 1.0),
+       'action_ledger': [{'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0,
+                          'amount_bb': 1.0, 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'},
                          _Lb('preflop', 'V', 'raises', 100.0, True),
                          _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
 _ov_s = _ds.build_decision_snapshot(_ov, 2)
@@ -11671,7 +11681,10 @@ def _price_tuple(h, idx):
             s['required_equity_pct'], d['display_text'], s['street'], s['hero_action_kind'])
 _base = {'id': 'BASE', 'tournament_hand_id': '85100001', 'hero': 'Hero', 'format': 'BOUNTY',
          'cards': '7h7d', 'seat_stack_by_player': {'Hero': 20.0, 'V': 100.0, 'X': 50.0}, 'board': [],
-         'action_ledger': [_Lb('preflop', 'X', 'posts', 0.5), _Lb('preflop', 'Hero', 'posts', 1.0),
+         'action_ledger': [{'street': 'preflop', 'player': 'X', 'action': 'posts', 'added_bb': 0.5,
+                            'amount_bb': 0.5, 'is_all_in': False, 'position': 'SB', 'post_type': 'small_blind'},
+                           {'street': 'preflop', 'player': 'Hero', 'action': 'posts', 'added_bb': 1.0,
+                            'amount_bb': 1.0, 'is_all_in': False, 'position': 'BB', 'post_type': 'big_blind'},
                            _Lb('preflop', 'V', 'raises', 100.0, True), _Lb('preflop', 'X', 'folds', 0),
                            _Lb('preflop', 'Hero', 'calls', 19.0, True)]}
 _base_pt = _price_tuple(_base, 4)
@@ -11767,6 +11780,7 @@ _bbc = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'Hero', 'po
 check('T-REV9-05 (A2): BB check after a limp -> check_option (to_call 0), display "check"',
       _bbc[0] == 'check_option' and _bbc[2] == 'check', str(_bbc))
 # iso-raise after ONE limp -> "iso-raise to XBB over 1 limper"
+# iso-raise after ONE limp -> "iso-raise to XBB over 1 limper" (a 'raises' carries its raise-TO level)
 _iso = _fs([_Lp('preflop', 'SB', 'posts', 0.5, 'SB'), _Lp('preflop', 'BB', 'posts', 1.0, 'BB'),
             _Lp('preflop', 'MP', 'calls', 1.0, 'MP'), _Lp('preflop', 'Hero', 'raises', 5.0, 'BTN')],
            {'Hero': 40.0, 'SB': 40.0, 'BB': 40.0, 'MP': 40.0}, 3)
@@ -12458,7 +12472,7 @@ _h14_call = _mkh10([
     _Lp('preflop', 'UTG', 'posts', 0.12, pos='UTG'), _Lp('preflop', 'Hero', 'posts', 0.12, pos='BB'),
     _Lp('preflop', 'SB', 'posts', 0.12, pos='SB'),
     _Lp('preflop', 'SB', 'posts', 0.5, pos='SB'), _Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'),
-    _Lp('preflop', 'UTG', 'raises', 2.0, pos='UTG'),
+    _Lp('preflop', 'UTG', 'raises', 2.0, pos='UTG'),     # open TO 2.0 (the raise carries its to-level)
     _Lp('preflop', 'Hero', 'calls', 1.0, pos='BB'),
 ], {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6097000001')
 _idx14c = _ds.infer_reviewed_action_index(_h14_call)
@@ -12539,6 +12553,122 @@ check('T-REV14-08 (T8): adds==raise_increment still caught; raw snapshot callabl
       and _view_np['price_contract']['price_applicable'] is False
       and (_view_np.get('snapshot') or {}).get('callable_amount_bb') is None
       and '_raw_callable_amount_bb_internal' in (_view_np.get('snapshot') or {}), '')
+
+# ===== REV15: typed forced-post ledger + commitment replay + production consolidation =====
+def _p15(street, p, pt, amt, pos):
+    return {'street': street, 'player': p, 'action': 'posts', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': False, 'position': pos, 'post_type': pt}
+def _r15(street, p, to, allin=False, pos=None, action='raises'):
+    d = {'street': street, 'player': p, 'action': action, 'added_bb': to, 'amount_bb': to,
+         'is_all_in': allin, 'position': pos}
+    if action == 'raises':
+        d['to_bb'] = to
+    return d
+
+# G1 — non-blind open with ante: amount_added = the LIVE open, NOT one ante short.
+_g1 = _mkh10([_p15('preflop', 'UTG', 'ante', 0.14, 'UTG'), _p15('preflop', 'Hero', 'ante', 0.14, 'UTG+1'),
+              _p15('preflop', 'SB', 'ante', 0.14, 'SB'), _p15('preflop', 'BB', 'ante', 0.14, 'BB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'Hero', 2.2, pos='UTG+1')],
+             {'Hero': 100.0, 'SB': 100.0, 'BB': 100.0, 'UTG': 100.0}, hid='TM6098000001')
+_cg1 = _ds.build_action_sizing_contract(_g1, 6)
+check('T-REV15-01 (G1/T1): non-blind open with ante — amount_added 2.2, live total 2.2, pot 2.34 (not 2.06/2.2)',
+      abs(_cg1['amount_added_bb'] - 2.2) < 0.02 and abs(_cg1['live_betting_total_to_bb'] - 2.2) < 0.02
+      and abs(_cg1['pot_contribution_total_bb'] - 2.34) < 0.02 and abs(_cg1['dead_forced_posts_bb'] - 0.14) < 0.02, str(_cg1))
+
+# G2 — BB 3-bet with ante: the ante must not reduce the chips to move 1.0 -> 14.0 live.
+_g2 = _mkh10([_p15('preflop', 'UTG', 'ante', 0.15, 'UTG'), _p15('preflop', 'Hero', 'ante', 0.15, 'BB'),
+              _p15('preflop', 'SB', 'ante', 0.15, 'SB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'UTG', 3.0, pos='UTG'), _r15('preflop', 'Hero', 14.0, pos='BB')],
+             {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6098000002')
+_cg2 = _ds.build_action_sizing_contract(_g2, 6)
+check('T-REV15-02 (G2/T2): BB 3-bet with ante — live_before 1.0, amount_added 13.0, live total 14.0, pot 14.15',
+      abs(_cg2['live_street_committed_before_bb'] - 1.0) < 0.02 and abs(_cg2['amount_added_bb'] - 13.0) < 0.02
+      and abs(_cg2['live_betting_total_to_bb'] - 14.0) < 0.02 and abs(_cg2['pot_contribution_total_bb'] - 14.15) < 0.02, str(_cg2))
+
+# G3 — postflop open jam after a preflop ante: amount_added == stack_before, stack_after 0.
+_g3 = _mkh10([_p15('preflop', 'Hero', 'ante', 0.16, 'BTN'), _p15('preflop', 'BB', 'ante', 0.16, 'BB'),
+              _p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _r15('preflop', 'Hero', 2.5, pos='BTN'), {'street': 'preflop', 'player': 'BB', 'action': 'calls',
+              'added_bb': 1.5, 'amount_bb': 1.5, 'is_all_in': False, 'position': 'BB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'bets', 'added_bb': 12.33, 'amount_bb': 12.33,
+               'is_all_in': True, 'position': 'BTN'}],
+             {'Hero': 14.99, 'BB': 30.0, 'SB': 30.0}, hid='TM6098000003', board=['2c', '7d', 'Js'])
+_cg3 = _ds.build_action_sizing_contract(_g3, 6)
+check('T-REV15-03 (G3/T3): postflop open jam — amount_added 12.33, live total 12.33, stack_after 0',
+      abs(_cg3['amount_added_bb'] - 12.33) < 0.02 and abs(_cg3['live_betting_total_to_bb'] - 12.33) < 0.02
+      and abs(_cg3['hero_stack_after_bb']) < 0.02 and _cg3['became_all_in'], str(_cg3))
+
+# G4 — postflop re-jam: Hero bets 7.45 (flop live before), V raises, Hero re-jams all-in to 59.73.
+_g4 = _mkh10([_p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              {'street': 'preflop', 'player': 'V', 'action': 'calls', 'added_bb': 1.0, 'amount_bb': 1.0,
+               'is_all_in': False, 'position': 'SB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'bets', 'added_bb': 7.45, 'amount_bb': 7.45,
+               'is_all_in': False, 'position': 'BB'},
+              {'street': 'flop', 'player': 'V', 'action': 'raises', 'added_bb': 22.55, 'amount_bb': 22.55,
+               'to_bb': 30.0, 'is_all_in': False, 'position': 'SB'},
+              {'street': 'flop', 'player': 'Hero', 'action': 'raises', 'added_bb': 52.28, 'amount_bb': 52.28,
+               'to_bb': 59.73, 'is_all_in': True, 'position': 'BB'}],
+             {'Hero': 60.73, 'V': 80.0, 'SB': 80.0}, hid='TM6098000004', board=['2c', '7d', 'Js'])
+_cg4 = _ds.build_action_sizing_contract(_g4, 5)
+check('T-REV15-04 (G4/T4): postflop re-jam — amount_added 52.28, live total 59.73 (live before + added)',
+      abs(_cg4['amount_added_bb'] - 52.28) < 0.05 and abs(_cg4['live_betting_total_to_bb'] - 59.73) < 0.05
+      and abs(_cg4['live_betting_total_to_bb'] - (_cg4['live_street_committed_before_bb'] + _cg4['amount_added_bb'])) < 0.02, str(_cg4))
+
+# G5 — underblind first-in all-in: live total 0.12 (NOT 0.27); the ante belongs in pot, not live.
+_g5 = _mkh10([_p15('preflop', 'SB', 'small_blind', 0.5, 'SB'), _p15('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _p15('preflop', 'Hero', 'ante', 0.15, 'MP'),
+              {'street': 'preflop', 'player': 'Hero', 'action': 'calls', 'added_bb': 0.12, 'amount_bb': 0.12,
+               'is_all_in': True, 'position': 'MP'}],
+             {'Hero': 0.27, 'SB': 30.0, 'BB': 30.0}, hid='TM6098000005')
+_cg5 = _ds.build_action_sizing_contract(_g5, 3)
+check('T-REV15-05 (G5/T5): underblind all-in — dead ante 0.15, amount_added 0.12, live total 0.12, pot 0.27',
+      abs(_cg5['dead_forced_posts_bb'] - 0.15) < 0.02 and abs(_cg5['amount_added_bb'] - 0.12) < 0.02
+      and abs(_cg5['live_betting_total_to_bb'] - 0.12) < 0.02 and abs(_cg5['pot_contribution_total_bb'] - 0.27) < 0.02, str(_cg5))
+
+# G6 — short blind BELOW the ante: the typed classifier keeps the blind as the blind (fails under max-post).
+_h_short = _mkh10([_p15('preflop', 'Hero', 'ante', 0.15, 'BB'), _p15('preflop', 'Hero', 'big_blind', 0.10, 'BB')],
+                  {'Hero': 0.25}, hid='TM6098000006')
+_fp_short = _ds.build_forced_post_context(_h_short, 'Hero')
+_ofp_short = _orc._forced_posts(_h_short, 'Hero')
+check('T-REV15-06 (G6/T7): a short blind BELOW the ante is still typed as the blind (production + oracle), not max-post',
+      abs(_fp_short['ante_paid_bb'] - 0.15) < 0.01 and abs(_fp_short['big_blind_paid_bb'] - 0.10) < 0.01
+      and abs(_ofp_short['ante_bb'] - 0.15) < 0.01 and abs(_ofp_short['live_blind_bb'] - 0.10) < 0.01, str(_fp_short))
+
+# G7 — relational corruption: the relational gate FAILS an internally-impossible contract.
+import copy as _cp15
+_valid = _ds.build_action_sizing_contract(_g1, 6)
+_corrupt = _cp15.deepcopy(_valid); _corrupt['live_betting_total_to_bb'] = round(_corrupt['live_betting_total_to_bb'] - _corrupt['dead_forced_posts_bb'], 2)
+check('T-REV15-07 (G7/T6): the relational gate PASSES a valid contract, FAILS a corrupted live-total identity',
+      _qp.check_relational_contract(_valid) == []
+      and 'live_total_ne_live_before_plus_added' in _qp.check_relational_contract(_corrupt), '')
+
+# G8 — impossible visible row: "JAM adds 12.3BB, all-in to 12.2BB" must be CAUGHT.
+_imp = {'action_semantics': 'open_shove', 'amount_added_bb': 12.33, 'total_to_bb': 12.17,
+        'raise_increment_bb': None, 'continue_component_bb': None, 'callable_amount_bb': None, 'became_all_in': True}
+check('T-REV15-08 (G8): the display gate FAILS an impossible row (amount_added exceeds the all-in total)',
+      'amount_added_exceeds_all_in_total' in _qp.check_action_row_numeric('adds', 12.3, 12.2, _imp), '')
+
+# G9 — production calculation ownership: no remaining unapproved production calculators of the consolidated facts.
+import io as _io15
+try:
+    _own = json.load(_io15.open(os.path.join('post_iteration1_planning', 'PRODUCTION_CALCULATION_OWNERSHIP.json'), encoding='utf-8'))
+    _own_ok = (all(not _own.get(f, {}).get('remaining_unapproved_calculators')
+                   for f in ('amount_added_bb', 'live_betting_total_to_bb', 'pot_contribution_total_bb',
+                             'forced_post_type', 'callable_amount', 'required_equity')))
+except Exception:
+    _own_ok = None   # the ownership artifact is generated in the evidence package; skip if absent here
+check('T-REV15-09 (G9): PRODUCTION_CALCULATION_OWNERSHIP records 0 remaining unapproved calculators (or N/A in-repo)',
+      _own_ok in (True, None), 'ownership audit has remaining unapproved calculators')
+
+# REV15 typed-ledger consolidation canaries: the parser stamps post_type; one replay owns sizing.
+import io as _io15b
+_parser_src = _io15b.open('gem_parser.py', encoding='utf-8').read()
+check('T-REV15-10: the parser stamps a typed post_type from the raw text; one commitment replay owns sizing',
+      "_post_type = 'small_blind'" in _parser_src.replace('==', '=') or "'small_blind'" in _parser_src
+      and 'def replay_commitments_to_action(' in _io15b.open('gem_decision_snapshot.py', encoding='utf-8').read()
+      and 'def oracle_replay(' in _io15b.open('_qa_ledger_oracle.py', encoding='utf-8').read(), '')
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

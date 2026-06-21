@@ -897,6 +897,10 @@ def check_action_row_numeric(lbl, amt, tt, oz):
             fields.append('amount_label_value_mismatch')      # "adds" == raise_increment
         if tt is not None and not _row_close(tt, total):
             fields.append('all_in_to_mismatch')
+        # REV15 G8/B4: an IMPOSSIBLE row — the chips "adds X" can NEVER exceed the "all-in to Y" total
+        # ("adds 12.3BB, all-in to 12.2BB"). amount_added <= live_betting_total_to always.
+        if tt is not None and amt is not None and amt > tt + 0.06:
+            fields.append('amount_added_exceeds_all_in_total')
     elif lbl == 'raises by':
         if not _row_close(amt, raise_inc):
             fields.append('raises_by_value_not_raise_increment')
@@ -1187,6 +1191,75 @@ def gate_persisted_view_node_parity(worklist):
     return out
 
 
+def check_relational_contract(sc):
+    """REV15 B4/G7: the RELATIONAL invariants WITHIN one ActionSizingContract — a gate that validates
+    each field independently (REV14) accepts an internally-impossible contract. Returns the list of
+    violated relationships (empty == internally consistent)."""
+    f = []
+    aa = sc.get('amount_added_bb')
+    lt = sc.get('live_betting_total_to_bb')
+    lb = sc.get('live_street_committed_before_bb')
+    dead = sc.get('dead_forced_posts_bb')
+    pot = sc.get('pot_contribution_total_bb')
+    sb = sc.get('hero_stack_before_bb')
+    sa = sc.get('hero_stack_after_bb')
+    allin = bool(sc.get('became_all_in'))
+    _c = lambda a, b: (a is not None and b is not None and abs(a - b) <= 0.06)
+    if aa is not None and aa < -0.06:
+        f.append('amount_added_negative')
+    if lb is not None and aa is not None and lt is not None and not _c(lt, round(lb + aa, 2)):
+        f.append('live_total_ne_live_before_plus_added')
+    if dead is not None and lt is not None and pot is not None and not _c(pot, round(dead + lt, 2)):
+        f.append('pot_ne_dead_plus_live_total')
+    if allin:
+        if sa is not None and abs(sa) > 0.06:
+            f.append('allin_stack_after_nonzero')
+        if sb is not None and aa is not None and not _c(aa, sb):
+            f.append('allin_amount_added_ne_stack_before')
+    else:
+        if sb is not None and aa is not None and sa is not None and not _c(sa, round(sb - aa, 2)):
+            f.append('stack_after_ne_before_minus_added')
+    if aa is not None and lt is not None and aa > lt + 0.06:
+        f.append('amount_added_exceeds_live_total')
+    return f
+
+
+def gate_relational_contract(hands_idx, worklist):
+    """REV15 B4/G7: every authoritative item's ActionSizingContract must satisfy its OWN relational
+    identities (live_total == live_before + amount_added; pot == dead + live_total; all-in =>
+    stack_after 0 and amount_added == stack_before; amount_added never exceeds the live total). Emits
+    one detailed record per item."""
+    items = worklist.get('items') or {}
+    if isinstance(items, dict):
+        items = list(items.values())
+    out = {'authoritative_items_checked': 0, 'mismatches': 0, 'records': []}
+    for it in items:
+        hid = str(it.get('hand_id') or '')
+        h = hands_idx.get(hid) or hands_idx.get(hid[-8:])
+        if h is None:
+            continue
+        kind = it.get('decision_kind') or it.get('bucket')
+        ridx = _reviewed_action_index(h, kind)
+        if ridx is None:
+            continue
+        sc = ds.build_action_sizing_contract(h, ridx)
+        fields = check_relational_contract(sc)
+        out['authoritative_items_checked'] += 1
+        if fields:
+            out['mismatches'] += 1
+        out['records'].append({
+            'hand_id': hid, 'node': sc.get('actual_node_type'),
+            'amount_added_bb': sc.get('amount_added_bb'),
+            'live_street_committed_before_bb': sc.get('live_street_committed_before_bb'),
+            'live_betting_total_to_bb': sc.get('live_betting_total_to_bb'),
+            'dead_forced_posts_bb': sc.get('dead_forced_posts_bb'),
+            'pot_contribution_total_bb': sc.get('pot_contribution_total_bb'),
+            'hero_stack_after_bb': sc.get('hero_stack_after_bb'),
+            'mismatch_fields': fields,
+        })
+    return out
+
+
 def gate_visible_semantic(hands_idx, html, worklist=None):
     """REV12 Part I: full-render SEMANTIC gates over the decoded bodies + coaching payload. The
     legacy verdict/range/CVJ surfaces must agree with the canonical node; coaching ownership must
@@ -1376,6 +1449,7 @@ def main():
     g_vs = gate_visible_semantic(hands_idx, html, worklist)
     g_vn = gate_canonical_view_node_parity(hands_idx, worklist)
     g_pv = gate_persisted_view_node_parity(worklist)
+    g_rc = gate_relational_contract(hands_idx, worklist)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -1429,11 +1503,16 @@ def main():
           f"{g_pv['mismatches']} mismatch(es)")
     for mm in [r for r in g_pv['records'] if r['mismatch_fields']][:40]:
         print('   ✗', mm)
+    print(f"M. RELATIONAL CONTRACT : {g_rc['authoritative_items_checked']} authoritative items, "
+          f"{g_rc['mismatches']} mismatch(es)")
+    for mm in [r for r in g_rc['records'] if r['mismatch_fields']][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
           and not g_fr['mismatches'] and not g_or['mismatches']
           and not g_ar.get('total_mismatches', len(g_ar['mismatches']))
-          and not g_vs['violations'] and not g_vn['mismatches'] and not g_pv['mismatches'])
+          and not g_vs['violations'] and not g_vn['mismatches'] and not g_pv['mismatches']
+          and not g_rc['mismatches'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -1444,7 +1523,8 @@ def main():
                        'report_visible_decision': g_vd, 'report_full_render': g_fr,
                        'ledger_oracle': g_or, 'action_row_parity': g_ar,
                        'visible_semantic': g_vs, 'canonical_view_node_parity': g_vn,
-                       'persisted_view_node_parity': g_pv, 'pass': ok}, fh, indent=2)
+                       'persisted_view_node_parity': g_pv, 'relational_contract': g_rc,
+                       'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)
 

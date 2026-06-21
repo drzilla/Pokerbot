@@ -304,6 +304,8 @@ def main():
     gate_vn = qp.gate_canonical_view_node_parity(our_idx, real_wl)
     # REV14 H4/B8: PERSISTED view==node parity (reads the stored worklist objects, no rebuild).
     gate_pv = qp.gate_persisted_view_node_parity(real_wl)
+    # REV15 B4/G7: RELATIONAL contract identities (live_total == live_before + amount_added; etc.).
+    gate_rc = qp.gate_relational_contract(our_idx, real_wl)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -375,7 +377,10 @@ def main():
     # REV14 H4/B8: any PERSISTED view==node disagreement is a violation.
     pv_mismatches = [{'hand': r.get('hand_id'), 'why': 'persisted_view_node_parity', 'fields': r['mismatch_fields']}
                      for r in gate_pv.get('records', []) if r.get('mismatch_fields')]
-    vn_mismatches = vn_mismatches + pv_mismatches
+    # REV15 B4/G7: any relational-contract violation is a violation.
+    rc_mismatches = [{'hand': r.get('hand_id'), 'why': 'relational_contract', 'fields': r['mismatch_fields']}
+                     for r in gate_rc.get('records', []) if r.get('mismatch_fields')]
+    vn_mismatches = vn_mismatches + pv_mismatches + rc_mismatches
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
                   + direct + surface_violations + wl_a_mismatches + oracle_mismatches
                   + ar_mismatches + vs_violations + vn_mismatches)
@@ -400,6 +405,7 @@ def main():
         'action_row_mismatches': len(ar_mismatches),
         'view_node_parity_checked': gate_vn.get('authoritative_items_checked', 0),
         'persisted_view_node_parity_checked': gate_pv.get('items_with_both_objects', 0),
+        'relational_contract_checked': gate_rc.get('authoritative_items_checked', 0),
         'view_node_parity_mismatches': len(vn_mismatches),
         'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,

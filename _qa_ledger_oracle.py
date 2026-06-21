@@ -36,33 +36,130 @@ def _starting(h):
 
 
 def _forced_posts(h, player):
-    """REV14 G: INDEPENDENT poker-rule classification of a player's forced posts — the ante is DEAD
-    (a pot contribution that does NOT count toward matching a wager or a betting total-to); the SB/BB
-    is a LIVE preflop commitment. Derived from the raw ledger only, with NO production import: the
-    live blind is the player's positional blind (the largest 'posts' for the SB/BB seat); the ante is
-    every other forced post."""
+    """REV15 G: INDEPENDENT poker-rule classification of a player's forced posts. The ante is DEAD (a
+    pot contribution that does NOT count toward matching a wager or a betting total-to); the SB/BB is
+    a LIVE preflop commitment. It reads the TYPED `post_type` (preserved from the raw hand-history
+    text by the parser) when present; otherwise it classifies by ORDER + POSITION (a player's LAST
+    post at the SB/BB seat is the blind, every earlier post is a dead ante). It does NOT use the
+    production maximum-post heuristic, so a short blind BELOW the ante is still typed as the blind."""
     led = h.get('action_ledger') or []
-    posts = [a for a in led if a.get('player') == player and a.get('action') == 'posts']
-    total = round(sum(_added(a) for a in posts), 4)
     pos = ''
     for a in led:
         if a.get('player') == player and a.get('position') not in (None, '?'):
             pos = (a.get('position') or '').upper()
             break
+    posts = [(i, a) for i, a in enumerate(led)
+             if a.get('player') == player and a.get('action') == 'posts']
+    ante = sb = bb = 0.0
+    for k, (i, a) in enumerate(posts):
+        amt = round(_f(a.get('amount_bb', a.get('added_bb', 0)) or 0.0), 2)
+        stamped = a.get('post_type')
+        if stamped in ('ante', 'small_blind', 'big_blind', 'dead_blind', 'straddle'):
+            pt = stamped
+        else:                                       # ORDER+POSITION (last post at SB/BB = blind)
+            is_last = (k == len(posts) - 1)
+            pt = ('small_blind' if (is_last and pos == 'SB')
+                  else 'big_blind' if (is_last and pos == 'BB') else 'ante')
+        if pt == 'small_blind':
+            sb = round(sb + amt, 2)
+        elif pt == 'big_blind':
+            bb = round(bb + amt, 2)
+        else:
+            ante = round(ante + amt, 2)
+    return {'ante_bb': ante, 'live_blind_bb': round(sb + bb, 2),
+            'position': pos, 'total_posts_bb': round(ante + sb + bb, 2)}
 
-    def _bl(seat):
-        v = [_added(a) for a in led if a.get('action') == 'posts'
-             and (a.get('position') or '').upper() == seat]
-        return max(v) if v else 0.0
 
-    if pos == 'BB':
-        live = min(_bl('BB'), total)
-    elif pos == 'SB':
-        live = min(_bl('SB'), total)
-    else:
-        live = 0.0
-    return {'ante_bb': round(max(0.0, total - live), 2), 'live_blind_bb': round(live, 2),
-            'position': pos, 'total_posts_bb': round(total, 2)}
+def _post_types(h):
+    """REV15 G: {ledger_index: post_type} — typed from the parser's raw-text `post_type` when present,
+    else order+position (a player's LAST post at the SB/BB seat is the blind). Independent of the
+    production normalizer."""
+    led = h.get('action_ledger') or []
+    by_player = {}
+    for i, a in enumerate(led):
+        if a.get('action') == 'posts':
+            by_player.setdefault(a.get('player', ''), []).append(i)
+    out = {}
+    for p, idxs in by_player.items():
+        pos = ''
+        for a in led:
+            if a.get('player') == p and a.get('position') not in (None, '?'):
+                pos = (a.get('position') or '').upper()
+                break
+        for k, i in enumerate(idxs):
+            stamped = led[i].get('post_type')
+            if stamped in ('ante', 'small_blind', 'big_blind', 'dead_blind', 'straddle'):
+                out[i] = stamped
+            else:
+                is_last = (k == len(idxs) - 1)
+                out[i] = ('small_blind' if (is_last and pos == 'SB')
+                          else 'big_blind' if (is_last and pos == 'BB') else 'ante')
+    return out
+
+
+def oracle_replay(h, idx):
+    """REV15 G: the INDEPENDENT commitment + stack replay (poker rules) the QA gates expect from. It
+    derives the LIVE bet level from ante-clean amount_bb raise INCREMENTS + typed posts (the blind is
+    live, the ante dead) — mirroring the poker rules but importing NONE of the production replay, so a
+    bug in production's replay is caught (not echoed). Returns hero_live_before, faced_live_level and
+    the chips Hero adds for the action at idx."""
+    led = h.get('action_ledger') or []
+    hero = h.get('hero', 'Hero')
+    if idx is None or not (0 <= idx < len(led)):
+        return {}
+    street = led[idx].get('street', 'preflop')
+    ptypes = _post_types(h)
+    cur_level = 0.0
+    live_by = {}
+    dead_by = {}
+    for j, a in enumerate(led):
+        if a.get('street') != street or j >= idx:
+            continue
+        pj = a.get('player', ''); aj = a.get('action', ''); amtj = _f(a.get('amount_bb', 0) or 0.0)
+        if aj == 'posts':
+            if ptypes.get(j) in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+                live_by[pj] = round(live_by.get(pj, 0.0) + amtj, 2)
+                cur_level = max(cur_level, live_by[pj])
+            else:
+                dead_by[pj] = round(dead_by.get(pj, 0.0) + amtj, 2)
+        elif aj in ('raises', 'bets'):
+            _toj = a.get('to_bb')
+            cur_level = (round(_f(_toj), 2) if (_toj is not None and aj == 'raises')
+                         else round(cur_level + amtj, 2))
+            live_by[pj] = cur_level
+        elif aj == 'calls':
+            live_by[pj] = cur_level
+    ident = oracle_identity(h, idx)
+    stack_before = ident.get('hero_stack_before_bb')
+    became_all_in = bool(ident.get('became_all_in'))
+    hero_live_before = round(live_by.get(hero, 0.0), 2)
+    faced_live = round(cur_level, 2)
+    dead_ante = round(dead_by.get(hero, 0.0), 2)
+    sem = ident.get('action_semantics')
+    amt = _f(led[idx].get('amount_bb', 0) or 0.0)
+    callable_amt = (round(min(max(0.0, faced_live - hero_live_before),
+                              stack_before if stack_before is not None else faced_live), 2))
+    if became_all_in:
+        amount_added = round(stack_before, 2) if stack_before is not None else ident.get('amount_added_bb')
+    elif sem in ('call', 'complete'):              # a call / first-in complete adds the callable price
+        amount_added = callable_amt
+    elif sem in ('open', 'bet', 'three_bet', 'four_bet', 're_jam', 'raise', 'open_shove'):
+        # aggressive: the live chips to reach the new bet level — prefer the parser's raise-to.
+        _toh = led[idx].get('to_bb')
+        _newh = (round(_f(_toh), 2) if (_toh is not None and led[idx].get('action') == 'raises')
+                 else round(faced_live + amt, 2))
+        amount_added = round(_newh - hero_live_before, 2)
+    else:                                          # check / fold
+        amount_added = 0.0
+    amount_added = round(amount_added, 2)
+    live_total = round(hero_live_before + amount_added, 2)
+    return {'hero_live_before_bb': hero_live_before, 'faced_live_total_to_bb': faced_live,
+            'dead_ante_bb': dead_ante, 'amount_added_bb': amount_added,
+            'live_betting_total_to_bb': live_total,
+            'pot_contribution_total_bb': round(dead_ante + live_total, 2),
+            'stack_after_bb': 0.0 if became_all_in else (round(stack_before - amount_added, 2)
+                                                         if stack_before is not None else None),
+            'callable_amount_bb': callable_amt, 'became_all_in': became_all_in}
 
 
 def oracle_identity(h, idx):
@@ -221,31 +318,15 @@ def oracle_sizing(h, idx):
     became_all_in = bool(ident.get('became_all_in'))
     live_before = ident.get('live_committed_street_bb') or 0.0
     dead_ante = ident.get('dead_ante_bb') or 0.0
-    # the price to MATCH the faced voluntary wager (the callable amount), capped by Hero's stack.
-    callable_amount = (round(min(to_call, stack_before if stack_before is not None else to_call), 2)
-                       if (to_call and to_call > _EPS) else 0.0)
+    # REV15 G: the INDEPENDENT commitment replay owns amount_added / live total-to / pot / stack-after
+    # (ante-clean amount_bb increments + typed posts) — NEVER the ante-contaminated raw ledger added.
+    rp = oracle_replay(h, idx)
+    callable_amount = round(rp.get('callable_amount_bb') or 0.0, 2)
     continue_component = callable_amount if (has_faced and callable_amount > _EPS) else None
-    # REV14 G: amount_added is the chips Hero PHYSICALLY removes — an all-in exhausts the stack; a
-    # literal call adds exactly the callable price (no ante, no raise increment); else the raw live.
-    if became_all_in:
-        amount_added = round(stack_before, 2) if stack_before is not None else raw_added
-    elif sem == 'call':
-        amount_added = continue_component if continue_component is not None else raw_added
-    else:
-        amount_added = raw_added
-    hero_after = 0.0 if became_all_in else (round(stack_before - amount_added, 2)
-                                            if stack_before is not None else None)
-    # REV14 G: the live betting total-to is the bet LEVEL Hero reaches — for an aggressive action the
-    # gross street level (= grid "to X"; the ante cancels for all-ins), for a call the live level
-    # (live_before + callable). gross_before is the raw committed-street incl ante (= live + ante).
-    gross_before = round(live_before + dead_ante, 2)
-    if sem in ('check', 'fold'):
-        live_total_to = round(live_before, 2)
-    elif sem == 'call':
-        live_total_to = round(live_before + amount_added, 2)
-    else:
-        live_total_to = round(gross_before + raw_added, 2)
-    pot_contribution_total = round(gross_before + amount_added, 2)
+    amount_added = round(rp.get('amount_added_bb') or 0.0, 2)
+    live_total_to = round(rp.get('live_betting_total_to_bb') or 0.0, 2)
+    pot_contribution_total = round(rp.get('pot_contribution_total_bb') or 0.0, 2)
+    hero_after = rp.get('stack_after_bb')
     # REV14 C2/G: a call/check/fold NEVER has a raise increment; only a bet/raise does.
     if sem in ('call', 'check', 'fold'):
         raise_increment = None

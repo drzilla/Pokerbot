@@ -50,7 +50,10 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               # v8.17.1 Iter-1 (REV17): the Stage-P wiring that feeds the FROZEN acceptance gates
               # over the real report — imported by _qa_parity (gates P/Q/R) + the holdout, so it
               # must extract with the runtime or the clean-room parity/holdout breaks.
-              '_qa_stagep.py']
+              '_qa_stagep.py',
+              # v8.18.0 Wave-1A: the status-contradiction gate — imported by the suite
+              # (T-W1A-09/10), so it must extract with the runtime or the clean-room suite breaks.
+              '_qa_status_consistency.py']
 
 # Stage-A kill list — never bundled
 KILL = {

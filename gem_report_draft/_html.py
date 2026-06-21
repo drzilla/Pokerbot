@@ -721,6 +721,9 @@ def _md_inline(text):
         # leaking as literal &lt;span class='rng-hl…&gt; on ~14 hands — plus the
         # new Hero-combo bold (rng-combo-hero).
         r'rng-hl[^\'"]*|rng-combo-hero[^\'"]*|'
+        # v8.18.0 W1-A: the canonical Final Decision Status pill + its secondary-reason span are
+        # emitted into the XIV hand-title heading, so they must survive _html_escape like verdict-pill.
+        r'final-status-pill[^\'"]*|final-status-reason|'
         r'cond-pass|cond-fail|ci-tip|new-badge|verdict-pill|context-pill[^\'"]*)[\'"]'
         r'[^>]*>[^<]*</span>',
         re.IGNORECASE)
@@ -2299,12 +2302,15 @@ _MODAL_HTML = r"""
          below). Remove any pill from a previous hydrate first. */
       var oldPill=resultEl.parentNode.querySelector('.v25-top-verdict');
       if(oldPill)oldPill.remove();
-      var srcPill=mhEl.querySelector('.verdict-pill');
+      /* v8.18.0 W1-A: the sticky top bar mirrors the ONE canonical Final Decision Status pill when
+         present (so it shows the same MISTAKE/CLEARED/CONDITIONAL/UNGRADED as the card); it falls
+         back to the verdict-nuance pill for any surface that has not been migrated yet. */
+      var srcPill=mhEl.querySelector('.final-status-pill')||mhEl.querySelector('.verdict-pill');
       if(!srcPill){
         var srcH2=document.getElementById('sec-app-hand-'+hid);
         var srcArt=srcH2?(srcH2.closest('article.hand-detail-card')||srcH2.parentElement):null;
         if(!srcArt)srcArt=document.querySelector("article.hand-detail-card[data-hand-id='"+hid+"']");
-        if(srcArt)srcPill=srcArt.querySelector('.verdict-pill');
+        if(srcArt)srcPill=srcArt.querySelector('.final-status-pill')||srcArt.querySelector('.verdict-pill');
       }
       if(srcPill){
         var vClone=srcPill.cloneNode(true);
@@ -5781,6 +5787,23 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .verdict-pill[data-verdict='Correct'], .verdict-pill[data-verdict='Justified'],
   .verdict-pill[data-verdict='Standard']
     {{ background: #052e16; color: #86efac; border-color: #14532d; }}
+  /* v8.18.0 W1-A: the canonical Final Decision Status pill -- the ONE system-status surface,
+     always present (never blank), distinct from .verdict-pill (verdict nuance) and the review-queue
+     .status-pill (analyst review state). Compact, consistently styled, desktop + mobile. */
+  .final-status-pill {{ display: inline-block; font-size: 0.55em; padding: 2px 9px;
+    border-radius: 999px; font-weight: 800; vertical-align: middle; letter-spacing: 0.4px;
+    text-transform: uppercase; border: 1px solid #334155; background: #1e293b; color: #cbd5e1;
+    white-space: nowrap; }}
+  .final-status-pill.fs-mistake {{ background: #450a0a; color: #fca5a5; border-color: #7f1d1d; }}
+  .final-status-pill.fs-conditional {{ background: #422006; color: #fcd34d; border-color: #92400e; }}
+  .final-status-pill.fs-cleared {{ background: #052e16; color: #86efac; border-color: #14532d; }}
+  .final-status-pill.fs-ungraded {{ background: #1e293b; color: #94a3b8; border-color: #334155; }}
+  .final-status-reason {{ display: inline-block; margin-left: 5px; font-size: 0.52em;
+    font-weight: 700; vertical-align: middle; letter-spacing: 0.3px; text-transform: uppercase;
+    color: var(--muted, #94a3b8); }}
+  @media (max-width: 640px) {{
+    .final-status-pill {{ font-size: 0.62em; padding: 2px 8px; }}
+    .final-status-reason {{ font-size: 0.58em; margin-left: 4px; }} }}
   /* v8.12.0 PKO research layer: count cells + delta colors + coverage chip */
   .count-link {{ font-weight: 800; text-decoration: none;
     color: var(--brand2, #2563eb); border-bottom: 1px dotted var(--brand2, #2563eb);

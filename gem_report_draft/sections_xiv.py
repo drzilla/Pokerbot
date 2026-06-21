@@ -2447,9 +2447,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         _cv_art = ((rd.get('canonical_verdicts') or {}).get(hid)
                    or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
         _cvv_art = _html_escape(_cv_art.get('verdict', '') or '')
+        # v8.18.0 W1-A: the ONE canonical Final Decision Status stamped on the card root, so the
+        # static shell, the lazy body (this same article IS the lazy payload), the topbar and the
+        # contradiction gate all read an identical typed value -- never re-derived per surface.
+        _fs_art = ((_cv_art.get('final_status') or {}).get('status')) or 'UNGRADED'
         doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
               f"data-format='{_vaa_fmt}' data-phase='{_vaa_ph}' "
               f"data-canonical-verdict='{_cvv_art}' "
+              f"data-final-status='{_fs_art}' "
               f"data-eff-bb='{_vaa_eff:.1f}' data-tournament='{_vaa_t}'"
               f"{_bounty_data_attrs(h)}>")
         _pdm = _per_decision_bounty_meta(h)
@@ -2529,6 +2534,19 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _vp = "<span class='verdict-pill' data-verdict='Review'>Review</span>"
         else:
             _vp = _svp(h, verdict, app_details)
+        # v8.18.0 W1-A: the canonical Final Decision Status pill -- ALWAYS present (never blank, so a
+        # CLEARED hand visibly shows CLEARED), typed, read from the ONE owner via this hand's cv. Sits
+        # FIRST in the title as the primary system status; the verdict pill that follows is verdict
+        # NUANCE from the SAME canonical cv, so the two can never contradict.
+        try:
+            from gem_final_status import final_status_pill_html as _fsph, verdict_pill_redundant as _fsr
+            _fsp = _fsph(_cv_art.get('final_status'))
+            # the canonical status pill (+ its secondary reason) is primary; drop the verdict-nuance
+            # pill when it would merely repeat it (no doubled 'Mistake Mistake'), keep genuine nuance.
+            if _vp and _fsr(_cv_art.get('final_status'), _vp):
+                _vp = ''
+        except Exception:
+            _fsp = ''
         # v8.14.1 P0-4: for a preflop all-in the meaningful depth is the
         # EFFECTIVE stack vs the live opponent, not Hero's nominal stack. Show
         # both when they differ (e.g. SB 33.6BB jam into an 18BB BB).
@@ -2539,7 +2557,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _stack_disp = f"{pos} {stack_bb:.1f}BB"
         doc.w(f"#### Hand `{hid_short}` — {_cards_str_to_pills(cards)} "
               f"({_stack_disp}) "
-              f"· {bb_html}{_agl_str}{_fmt_pill}" + (f" {_vp}" if _vp else ""))
+              f"· {bb_html}{_agl_str}{_fmt_pill}"
+              + (f" {_fsp}" if _fsp else "") + (f" {_vp}" if _vp else ""))
         doc.w("</div>")  # close mh-title
         doc.w("<div class='mh-actions'>")
         _emit_gtow_button(doc, h, app_details, hid_short, rd=rd)
@@ -4102,8 +4121,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                            or h.get('stack_bb') or 0)
                 _va_t = _html_escape(str(h.get('tournament', '') or ''))
                 _state._FULL_CARD_IDS.add(hid_short)  # v8.16.2 Phase B: full card -> never also a XIV.C stub
+                # v8.18.0 W1-A: this appendix-card (B-)path renders most hands; read the SAME canonical
+                # verdict + Final Decision Status the data layer built (never re-derive), so every
+                # appendix card carries data-final-status and a status pill identical to the other path.
+                _cv_b = ((rd.get('canonical_verdicts') or {}).get(hid)
+                         or (rd.get('canonical_verdicts') or {}).get(hid_short) or {})
+                _cvv_b = _html_escape(_cv_b.get('verdict', '') or '')
+                _fs_b = ((_cv_b.get('final_status') or {}).get('status')) or 'UNGRADED'
                 doc.w(f"<article class='hand-detail-card' data-hand-id='{hid_short}' "
                       f"data-format='{_va_fmt}' data-phase='{_va_ph}' "
+                      f"data-canonical-verdict='{_cvv_b}' "
+                      f"data-final-status='{_fs_b}' "
                       f"data-eff-bb='{_va_eff:.1f}' data-tournament='{_va_t}'"
                       f"{_bounty_data_attrs(h)}>")
                 _pdm_b = _per_decision_bounty_meta(h)
@@ -4117,7 +4145,17 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                 # B-path: _flag not bound yet here; the pill falls back to the
                 # hand-level EAI facts (Suckout/Cooler/Flip) via empty verdict.
                 _vp_b = __import__("gem_report_draft._helpers", fromlist=["short_verdict_pill"]).short_verdict_pill(h, "", app_details)
-                doc.w(f"##### Hand `{hid_short}` — {cards_pills} ({pos} {stack_bb:.1f}BB) · {bb_html}{_agl_str}" + (f" {_vp_b}" if _vp_b else ""))
+                # v8.18.0 W1-A: canonical Final Decision Status pill (primary, never blank) from this
+                # hand's cv -- identical owner/markup to the other card path.
+                try:
+                    from gem_final_status import final_status_pill_html as _fsph_b, verdict_pill_redundant as _fsr_b
+                    _fsp_b = _fsph_b(_cv_b.get('final_status'))
+                    if _vp_b and _fsr_b(_cv_b.get('final_status'), _vp_b):
+                        _vp_b = ''
+                except Exception:
+                    _fsp_b = ''
+                doc.w(f"##### Hand `{hid_short}` — {cards_pills} ({pos} {stack_bb:.1f}BB) · {bb_html}{_agl_str}"
+                      + (f" {_fsp_b}" if _fsp_b else "") + (f" {_vp_b}" if _vp_b else ""))
                 doc.w("</div>")  # close mh-title
                 doc.w("<div class='mh-actions'>")
                 _emit_gtow_button(doc, h, app_details, hid_short, rd=rd)

@@ -629,6 +629,17 @@ def build_canonical_verdicts(rd, hands):
                        auto=auto_usable or None, outcome=outcome_dc or None))
         cv['auto_downgraded'] = bool(auto_raw and not auto_usable)
         cv['auto_downgraded_label'] = auto_raw if cv['auto_downgraded'] else ''
+        # v8.18.0 W1-A: stamp the ONE canonical Final Decision Status onto the same cv every surface
+        # reads, so the typed status (MISTAKE/CONDITIONAL/CLEARED/UNGRADED) + its separate secondary
+        # reasons are produced ONCE here and never re-derived by a renderer. Derived from this cv +
+        # the decision-snapshot gradeability contract -- never from the result alone.
+        try:
+            from gem_final_status import derive_final_status as _dfs
+            cv['final_status'] = _dfs(h, cv).to_dict()
+        except Exception:
+            cv['final_status'] = {'status': 'UNGRADED', 'label': 'No decision',
+                                  'css': 'ungraded', 'secondary': [], 'secondary_labels': [],
+                                  'rationale': 'status owner unavailable'}
         out[hid] = cv
         out[hid_short] = cv
     return out

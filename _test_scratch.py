@@ -12922,6 +12922,99 @@ _sp_canon = set((r['hand_id'], r['ledger_index']) for r in _sp17.canonical_recor
 check('T-REV17-04 (§1.1): the Stage-P source-expected key set equals the canonical record key set (raises + calls bound)',
       _sp_exp == _sp_canon and len(_sp_exp) == 2, str((_sp_exp, _sp_canon)))
 
+# ===================================================================== #
+# v8.18.0 Wave-1A: Canonical Final Decision Status (gem_final_status)    #
+# ===================================================================== #
+import gem_final_status as _F
+import _qa_status_consistency as _SC
+
+# T-W1A-01: the four-status precedence MISTAKE > CONDITIONAL > CLEARED > UNGRADED (a hand's several
+# graded decisions fold to ONE status; secondary reasons never override it).
+check('T-W1A-01: status precedence MISTAKE > CONDITIONAL > CLEARED > UNGRADED',
+      _F.combine_statuses(['CLEARED', 'MISTAKE', 'CONDITIONAL']) is _F.FinalDecisionStatus.MISTAKE
+      and _F.combine_statuses(['CLEARED', 'CONDITIONAL']) is _F.FinalDecisionStatus.CONDITIONAL
+      and _F.combine_statuses(['UNGRADED', 'CLEARED']) is _F.FinalDecisionStatus.CLEARED
+      and _F.combine_statuses([]) is _F.FinalDecisionStatus.UNGRADED, '')
+
+# T-W1A-02: the verdict classifier is authoritative on the CODED taxonomy (the bare-word marker is
+# unreliable for coded verdicts: III.2 Mistake must still be MISTAKE).
+_w1a02 = all(_F.status_from_canonical_verdict({'verdict': v, 'marker': 'cleared'}).value == exp
+             for v, exp in [('III.2 Mistake', 'MISTAKE'), ('III.1 Punt', 'MISTAKE'),
+                            ('III.4 Read-dependent', 'CONDITIONAL'), ('III.8 Pick', 'CONDITIONAL'),
+                            ('I.7 Cooler', 'CLEARED'), ('III.0 Standard', 'CLEARED'),
+                            ('III.3 Cleared', 'CLEARED'), ('III.5 Justified', 'CLEARED')])
+check('T-W1A-02: verdict-code classifier (III.1/III.2->MISTAKE, III.4/III.8->CONDITIONAL, I.7/III.0/III.3/III.5->CLEARED)',
+      _w1a02, '')
+
+# T-W1A-03: humanized marker 'mistake' -> MISTAKE; a downgraded suspected auto-mistake -> CONDITIONAL.
+check('T-W1A-03: marker mistake -> MISTAKE; auto_downgraded -> CONDITIONAL',
+      _F.status_from_canonical_verdict({'verdict': 'mistake', 'marker': 'mistake'}) is _F.FinalDecisionStatus.MISTAKE
+      and _F.status_from_canonical_verdict({'verdict': '', 'marker': 'neutral', 'auto_downgraded': True}) is _F.FinalDecisionStatus.CONDITIONAL
+      and _F.status_from_canonical_verdict({'verdict': '', 'marker': 'neutral'}) is _F.FinalDecisionStatus.CLEARED, '')
+
+# T-W1A-04: secondary reasons are SEPARATE and never change the status (a cooler loss is CLEARED+COOLER;
+# a read-dependent decision is CONDITIONAL+READ_DEPENDENT).
+_w1a04a = _F.derive_final_status({'eai_suckout': 'hero_got_sucked_out'}, {'verdict': 'I.7 Cooler', 'marker': 'cleared'}, gradeability='GRADABLE')
+_w1a04b = _F.derive_final_status({}, {'verdict': 'III.4 Read-dependent', 'marker': 'cleared'}, gradeability='GRADABLE')
+check('T-W1A-04: secondary reasons never override status (cooler->CLEARED+COOLER, read-dep->CONDITIONAL+READ_DEPENDENT)',
+      _w1a04a.status is _F.FinalDecisionStatus.CLEARED and _F.SecondaryReason.COOLER in _w1a04a.secondary_reasons
+      and _w1a04b.status is _F.FinalDecisionStatus.CONDITIONAL and _F.SecondaryReason.READ_DEPENDENT in _w1a04b.secondary_reasons, '')
+
+# T-W1A-05: a result-only / non-gradeable hand is UNGRADED even if a verdict looks like a mistake
+# (status is from decision evidence + gradeability, NEVER the result).
+check('T-W1A-05: ungradeable hand is UNGRADED even with a mistake-looking verdict (never strategically graded)',
+      _F.derive_final_status({}, {'verdict': 'III.2 Mistake', 'marker': 'mistake'}, gradeability='UNGRADED').status is _F.FinalDecisionStatus.UNGRADED, '')
+
+# T-W1A-06: no MISTAKE without a genuine mistake signal -- a cleared/justified/neutral cv is never MISTAKE.
+check('T-W1A-06: no MISTAKE without an actual graded error (cleared/justified/neutral never MISTAKE)',
+      all(_F.status_from_canonical_verdict(cv) is not _F.FinalDecisionStatus.MISTAKE
+          for cv in ({'verdict': 'III.3 Cleared', 'marker': 'cleared'}, {'verdict': 'III.5 Justified', 'marker': 'cleared'},
+                     {'verdict': '', 'marker': 'neutral'}, {'verdict': 'I.7 Cooler', 'marker': 'cleared'})), '')
+
+# T-W1A-07: typed serialization round-trips (one value shared by static shell + lazy payload).
+_w1a07 = _F.FinalStatus(_F.FinalDecisionStatus.CLEARED, (_F.SecondaryReason.COOLER,), 'r')
+check('T-W1A-07: FinalStatus to_dict/from_dict round-trip (shared static+lazy serialization)',
+      _F.FinalStatus.from_dict(_w1a07.to_dict()).status is _w1a07.status
+      and _F.FinalStatus.from_dict(_w1a07.to_dict()).secondary_reasons == _w1a07.secondary_reasons
+      and _w1a07.to_dict()['status'] == 'CLEARED' and _w1a07.to_dict()['secondary'] == ['COOLER'], '')
+
+# T-W1A-08: the status pill is the ONE HTML producer -- never blank (CLEARED shows 'Cleared', not blank),
+# carries data-final-status + the fs-* class; UNGRADED shows a non-strategic 'No decision'.
+_w1a08c = _F.final_status_pill_html({'status': 'CLEARED', 'label': 'Cleared', 'css': 'cleared', 'secondary': [], 'secondary_labels': []})
+_w1a08u = _F.final_status_pill_html({'status': 'UNGRADED', 'label': 'No decision', 'css': 'ungraded', 'secondary': [], 'secondary_labels': []})
+check('T-W1A-08: status pill never blank, carries data-final-status + fs-* class (CLEARED visible, UNGRADED non-strategic)',
+      "data-final-status='CLEARED'" in _w1a08c and 'fs-cleared' in _w1a08c and '>Cleared<' in _w1a08c
+      and "data-final-status='UNGRADED'" in _w1a08u and 'No decision' in _w1a08u, '')
+
+# T-W1A-09: the status-contradiction gate CATCHES a CLEARED-article-with-Mistake-pill contradiction and
+# PASSES a consistent card (the exact bug class the real demo report exposed + fixed).
+_w1a_bad = ("<article class='hand-detail-card' data-hand-id='9001' data-final-status='CLEARED'>"
+            "<span class='final-status-pill fs-cleared' data-final-status='CLEARED'>Cleared</span>"
+            "<span class='verdict-pill' data-verdict='Mistake'>Mistake</span></article>")
+_w1a_good = ("<article class='hand-detail-card' data-hand-id='9002' data-final-status='MISTAKE'>"
+             "<span class='final-status-pill fs-mistake' data-final-status='MISTAKE'>Mistake</span>"
+             "<span class='verdict-pill' data-verdict='Mistake'>Mistake</span></article>")
+_w1a_rb = _SC.run_status_consistency(_w1a_bad)
+_w1a_rg = _SC.run_status_consistency(_w1a_good)
+check('T-W1A-09: status-contradiction gate catches CLEARED-with-Mistake-pill and passes a consistent MISTAKE card',
+      _w1a_rb['contradictions'] >= 1 and any(v['rule'] == 'C3' for v in _w1a_rb['violations'])
+      and _w1a_rg['contradictions'] == 0 and _w1a_rg['distribution'].get('MISTAKE') == 1, str(_w1a_rb['violations']))
+
+# T-W1A-10: the gate flags a missing/empty status (C1) -- every hand must carry exactly one status.
+_w1a_empty = "<article class='hand-detail-card' data-hand-id='9003'>no status here</article>"
+check('T-W1A-10: gate flags a card with no canonical status (C1 -- exactly one status per hand)',
+      any(v['rule'] == 'C1' for v in _SC.run_status_consistency(_w1a_empty)['violations']), '')
+
+# T-W1A-11: the data layer stamps cv['final_status'] for every hand (the ONE owner; no renderer re-derives).
+_w1a_rd = {'analyst_commentary': {'TM6000000001': {'verdict': 'III.2 Mistake'}}, 'auto_verdicts': {}, 'mistakes_review': {}, 'queue_decisions': {}}
+_w1a_hands = [{'id': 'TM6000000001', 'action_ledger': [
+    {'player': 'SB', 'action': 'posts', 'street': 'preflop'}, {'player': 'Hero', 'action': 'posts', 'street': 'preflop'},
+    {'player': 'Hero', 'action': 'raises', 'street': 'preflop', 'amount_to': 3.0}], 'starting_stacks': {'Hero': 60, 'SB': 60}}]
+from gem_report_draft._helpers import build_canonical_verdicts as _w1a_bcv
+_w1a_cv = _w1a_bcv(_w1a_rd, _w1a_hands).get('TM6000000001') or {}
+check('T-W1A-11: build_canonical_verdicts stamps cv[final_status] (ONE owner) for the hand',
+      isinstance(_w1a_cv.get('final_status'), dict) and _w1a_cv['final_status'].get('status') in ('MISTAKE', 'CONDITIONAL', 'CLEARED', 'UNGRADED'), str(_w1a_cv.get('final_status')))
+
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:
     print('FIX BEFORE PROCEEDING')

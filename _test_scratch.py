@@ -8870,11 +8870,11 @@ def _render_tt(rd):
     return d.render_md()
 _ttr_md = _render_tt(_tt_rd)   # reuse the SP-1 canonical fixture
 
-check('T-TT-R-01: new section renders from build_tournament_model (Finance & Finish surface)',
+check('T-TT-R-01: new Results section renders the typed DataTable from build_tournament_model',
       'Tournament Results' in _ttr_md          # v8.16.2 Phase D: renamed from "Tournament Tables (event-level)"
-      and 'Finance & Finish' in _ttr_md        # v8.17.1 P4: canonical per-event surface (cross-check removed)
-      and "<th data-tt-sort='2'>Type</th>" in _ttr_md
-      and "<th>Exit hand</th>" in _ttr_md
+      and '#### Results' in _ttr_md            # v8.18.0: canonical Results DataTable surface
+      and "id='tt-results'" in _ttr_md and "data-datatable='1'" in _ttr_md
+      and "data-dt-col='type'" in _ttr_md and "data-dt-col='exit'" in _ttr_md
       and 'Mini Knockout Heater' in _ttr_md, '')
 # v8.17.0-rc3: unified Tournament Results is the PRIMARY Results surface -> STT
 # is now wired BEFORE S1 (the nav order derives from this list). S1 still renders
@@ -8894,7 +8894,7 @@ _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
     {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
 check('T-TT-R-03: repeated tournament names render as separate event rows',
-      _render_tt(_rep_rd).count("<td data-label='Tournament'>GGMasters Bounty</td>") == 2, '')
+      _render_tt(_rep_rd).count(">GGMasters Bounty</td>") == 2, '')
 # multi-bullet => one row with bullet count
 _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8902,9 +8902,9 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
-      _mb_md.count("<td data-label='Tournament'>Big Re-entry</td>") == 1
-      and "<td data-label='Type'>Standard*</td>" in _mb_md
-      and "<td data-label='Bullets' data-sort-value='3'>3</td>" in _mb_md, '')
+      _mb_md.count(">Big Re-entry</td>") == 1
+      and ">Standard*</td>" in _mb_md
+      and "data-label='Bullets' data-sort-value='3'" in _mb_md and ">3</td>" in _mb_md, '')
 # summary totals match canonical usd_overlay.totals
 check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
       # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
@@ -8914,8 +8914,8 @@ check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket sp
 check('T-TT-R-06: return basis "cash + ticket" stays on the trust line',
       'return basis: **cash + ticket**' in _ttr_md, '')
 # cash + ticket displayed consistently (satellite row: Cash $0 + Ticket $470 = Return $470)
-check('T-TT-R-07: per-event return is canonical in Finance & Finish (satellite cash $0 + ticket $470 = return $470)',
-      "<td data-label='Return' data-sort-value='470.0'>$470</td>" in _ttr_md, '')
+check('T-TT-R-07: per-event return is canonical (satellite cash $0 + ticket $470 = return $470, ticket marker)',
+      "data-label='Return' data-sort-value='470.0'" in _ttr_md and "$470</td>" in _ttr_md and 'dt-ticket' in _ttr_md, '')
 # unknown provenance => em dash
 _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8923,19 +8923,19 @@ _unk_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 5, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -5, 'is_sat': False}]}}
 _unk_md = _render_tt(_unk_rd)
 check('T-TT-R-08: unknown prize provenance renders an em dash (not a fabricated label)',
-      "<td data-label='Type'>—</td>" in _unk_md, _unk_md[_unk_md.find('tt-finance'):][:200])
+      "data-label='Type'" in _unk_md and ">—</td>" in _unk_md, _unk_md[_unk_md.find('tt-results'):][:200])
 # inferred prize type marked
 check('T-TT-R-09: inferred prize type marked with * + footnote present',
       'Bounty*' in _ttr_md and 'Prize type inferred from the tournament name' in _ttr_md, '')
 # bounty dollars not inferred
 check('T-TT-R-10: bounty dollars not inferred (audit footnote present; Type shows Bounty*, no fabricated $)',
       'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
-      and "<td data-label='Type'>Bounty*</td>" in _ttr_md, '')
+      and ">Bounty*</td>" in _ttr_md, '')
 # v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
 # of em-dashes) when no canonical per-tournament cEV source exists.
-check('T-TT-R-11: Finance & Finish shows typed finish labels; no per-event markdown cEV column; trust line states unavailable',
-      "<td data-label='Finish' data-sort-value='2.4'>Top 2.4%</td>" in _ttr_md  # exact-place typed label
-      and "<td data-label='Finish' data-sort-value='101'>Ticket</td>" in _ttr_md  # satellite seat
+check('T-TT-R-11: Results DataTable shows typed finish labels; no per-event markdown cEV column; trust line states unavailable',
+      "data-label='Finish' data-sort-value='2.4'" in _ttr_md and ">Top 2.4%</td>" in _ttr_md  # exact-place typed label
+      and "data-label='Finish' data-sort-value='101'" in _ttr_md and ">Ticket</td>" in _ttr_md  # satellite seat
       and '| cEV/100 |' not in _ttr_md            # no markdown per-event cEV column
       and 'per-event cEV/100: unavailable' in _ttr_md, '')  # trust line still states why
 # read-only: emitter does not mutate rd (no unrelated state changes)
@@ -8973,15 +8973,15 @@ _tr_md = _tr_doc.render_md()
 _tr_js = [j for j in _tr_doc._extra_js if j.startswith('window.tournamentEvents=')]
 _tr_payload = _json_tr.loads(_tr_js[0][len('window.tournamentEvents='):-1]) if _tr_js else []
 
-check('T-TR817-01: primary Finance & Finish sortable table emitted (id + sortable headers + Type/Finish/Cost/Exit-hand cols)',
-      "id='tt-unified-table'" in _tr_md and "data-tt-sort='0'" in _tr_md
-      and "<th data-tt-sort='2'>Type</th>" in _tr_md
-      and "<th data-tt-sort='4' data-tt-num='1'>Finish</th>" in _tr_md
-      and "<th data-tt-sort='5' data-tt-num='1'>Cost</th>" in _tr_md
-      and "<th>Exit hand</th>" in _tr_md, '')
-check('T-TR817-02: every event row has a Details drilldown affordance',
-      _tr_md.count('openTournamentDetail(') == 2
-      and "if(window.initTournamentResultsTable)" in ''.join(_tr_doc._extra_js), '')
+check('T-TR817-01: primary Results DataTable emitted (id + typed sortable headers + Type/Finish/Cost/Exit cols)',
+      "id='tt-results'" in _tr_md and "data-datatable='1'" in _tr_md
+      and "data-dt-col='type'" in _tr_md and "data-dt-sortable='1'" in _tr_md
+      and "data-dt-col='finish'" in _tr_md and "data-dt-kind='finish'" in _tr_md
+      and "data-dt-col='cost'" in _tr_md and "data-dt-col='exit'" in _tr_md, '')
+check('T-TR817-02: v8.18.0 Details/Drivers removed; DataTable init wired; exit hand is the FINAL column',
+      _tr_md.count('openTournamentDetail(') == 0
+      and "window.initDataTable('tt-results')" in ''.join(_tr_doc._extra_js)
+      and _tr_md.index("data-dt-col='exit'") > _tr_md.index("data-dt-col='roi'"), '')
 check('T-TR817-03: per-event drilldown payload is canonical (one entry per event, no recompute)',
       len(_tr_payload) == 2
       and {'event_id', 'name', 'format', 'bullets', 'finish_txt', 'return_txt',
@@ -9778,9 +9778,8 @@ check('T-P4UI-05: Tournament Performance table wires hands / BB-100 / reviewed(p
       'tt-performance' in _md_p4s and 'Tournament Performance' in _md_p4s
       and 'BB/100' in _md_p4s and 'hand-list-trigger' in _md_p4s
       and 'reviewed' in _md_p4s and 'hand-ref xref' in _md_p4s, '')
-check('T-P4UI-06: Drivers-in-view rollup lists detector-backed driver descriptions',
-      'tt-drivers-rollup' in _md_p4s and 'Drivers in view' in _md_p4s
-      and 'Stack arc' in _md_p4s, '')
+check('T-P4UI-06: v8.18.0 redundant Drivers-in-view rollup removed (driver data retained in the event payload)',
+      'tt-drivers-rollup' not in _md_p4s and 'Drivers in view' not in _md_p4s, '')
 check('T-P4UI-07: chart JS (initTtChart / ttRenderChart) + diverging-bar CSS wired in _html.py',
       'function initTtChart(' in _html_p4src and 'window.ttRenderChart=' in _html_p4src
       and '.tt-bar-track.tt-diverge' in _html_p4src, '')
@@ -9788,10 +9787,9 @@ check('T-P4UI-08 (anti): a real full-buy-in bust shows a real -100% ROI; no lite
       'unavailable (no canonical' in _md_p4s   # the one allowed diagnostic phrase (trust line)
       and 'data-source' not in _md_p4s.lower().replace('data-sort', '')
       and 'rule:' not in _md_p4s, '')
-check('T-P4UI-09: Finance & Finish is the canonical per-event surface; duplicate cross-check removed; exit-hand xref',
-      'Finance & Finish' in _md_p4s
-      and "<th data-tt-sort='2'>Type</th>" in _md_p4s
-      and "<th>Exit hand</th>" in _md_p4s
+check('T-P4UI-09: Results DataTable is the canonical per-event surface; exit-hand uses PokerHandDisplay + standard link',
+      '#### Results' in _md_p4s and "id='tt-results'" in _md_p4s
+      and "data-dt-col='type'" in _md_p4s and "data-dt-col='exit'" in _md_p4s
       and 'hand-ref xref' in _md_p4s
       and 'Per-event financial detail' not in _md_p4s, '')
 check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
@@ -9803,14 +9801,12 @@ check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered s
       and 'window.ttModel=' in _js_p4s
       and 'window.initTtFilters=' in _html_p4src
       and 'function _ttAggregate(' in _html_p4src, '')
-check('T-P4UI-11: ALL SEVEN Tournament Tables surfaces present in one render',
-      'tt-filters' in _md_p4s              # 1 filters
-      and 'tt-sticky-summary' in _md_p4s   # 2 sticky filtered summary
-      and 'tt-aggregate' in _md_p4s        # 3 grouped aggregate (all tabs)
-      and 'tt-chart' in _md_p4s            # 4 distribution chart
-      and 'tt-finance' in _md_p4s          # 5 Finance & Finish
-      and 'tt-performance' in _md_p4s      # 6 Tournament Performance
-      and 'tt-drivers-rollup' in _md_p4s,  # 7 Drivers-in-view rollup
+check('T-P4UI-11: the Tournament Results surfaces present in one render (redundant Drivers rollup retired in v8.18.0)',
+      'tt-aggregate' in _md_p4s            # grouped aggregate (all tabs)
+      and 'tt-chart' in _md_p4s            # distribution chart
+      and "id='tt-results'" in _md_p4s     # the canonical Results DataTable (per-event)
+      and 'tt-performance' in _md_p4s      # Tournament Performance (BB/100 + cEV/100)
+      and 'tt-drivers-rollup' not in _md_p4s,  # Drivers rollup REMOVED (redundant)
       '')
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
@@ -9832,7 +9828,7 @@ check('T-V-FULL-01: complete all-sections synthetic report renders (fixture gap 
       len(_full_html_vf) > 200000
       and 'S1.1a Full Result Attribution' in _full_html_vf
       and 'Tournament Results' in _full_html_vf
-      and "class='data-table tt-unified tt-finance'" in _full_html_vf
+      and "id='tt-results'" in _full_html_vf and "data-datatable='1'" in _full_html_vf
       and "class='data-table tt-aggregate'" in _full_html_vf
       and 'no canonical committed-cost financial overlay' not in _full_html_vf, '')
 
@@ -13077,6 +13073,18 @@ check('T-PHD-06: bypass guard -- _card_html/_cards_html delegate to _cards; head
       and 'render_poker_hand' in _phd_xiv
       and _PHD.card_html('7d') == _PHD.CardVM.parse('7d').render(), '')
 
+# T-PHD-07: the JS hand-row renderer (fmtCardSpans) is the ONE canonical JS card builder -- it emits
+# the SAME .poker-hand component (class + glyph + .card-<suit> + accessible label + unknown card-x) as
+# the server CardVM, and the popup row + Tournament exit-hand consume canonical serialized hand data.
+check('T-PHD-07: fmtCardSpans is the canonical JS card renderer (poker-hand component, aria-label, card-x unknown)',
+      "function fmtCardSpans(cc,size)" in _phd_html
+      and "class=\"poker-hand phd-'+" in _phd_html
+      and "role=\"img\" aria-label=" in _phd_html
+      and 'card card-\'+su' in _phd_html and 'card card-x' in _phd_html
+      # the Tournament Results exit hand routes through the canonical hand_cell (PokerHandDisplay)
+      and 'hand_cell' in open('gem_report_draft/_datatable.py', encoding='utf-8').read()
+      and 'render_poker_hand' in open('gem_report_draft/_datatable.py', encoding='utf-8').read(), '')
+
 # ===================================================================== #
 # v8.18.0 Wave-2: Commentary register vocabulary + Tournament Results    #
 # ===================================================================== #
@@ -13093,11 +13101,104 @@ check('T-CAP18-01: canonical register vocabulary FACTUAL/COACHING/INSUFFICIENT_E
       and _CC.canonical_register(register='no_clear_lesson') == 'INSUFFICIENT_EVIDENCE'
       and set(_CC.CANONICAL_REGISTERS) == {'FACTUAL', 'COACHING', 'INSUFFICIENT_EVIDENCE'}, '')
 
+# T-CAP18-02: the commentary zero-drop ledger BALANCES (inventoried == sum of destinations) and the
+# must-be-zero invariants hold -- no source item is silently dropped or left without a destination.
+import gem_commentary_migration as _CM18
+_cm_rows = [_CM18._make_row('H1', 'analyst_notes_street', street='flop', data_street='flop'),
+            _CM18._make_row('H1', 'coaching_card'),
+            _CM18._make_row('H2', 'opp_context_bottom')]
+_cm_sum = _CM18.build_migration_summary(_cm_rows)
+check('T-CAP18-02: zero-drop ledger balances (inventoried == sum destinations); silent_drops + no-destination == 0',
+      _cm_sum['balances'] is True
+      and _cm_sum['silent_drops'] == 0 and _cm_sum['source_items_without_destination'] == 0
+      and _CM18.migration_lints(_cm_sum) == []
+      and _cm_sum['source_items_inventoried'] == sum(_cm_sum[d] for d in
+          ('visible_capsule', 'more_payload', 'preserved_legacy', 'review_needed',
+           'left_untouched_out_of_scope', 'intentionally_removed')), str(_cm_sum))
+
 # T-TRES18-01: Tournament Results Top% is ALWAYS one decimal (Top 5.0% / Top 61.0%), so the column is
 # consistent and a totals row can average it.
 check('T-TRES18-01: Top% label is always one decimal (Top 5.0% / Top 61.0%)',
       _TM._top_pct_label(5.0) == 'Top 5.0%' and _TM._top_pct_label(61.0) == 'Top 61.0%'
       and _TM._top_pct_label(0.42) == 'Top 0.4%' and _TM._top_pct_label(None) is None, _TM._top_pct_label(61.0))
+
+# ===================================================================== #
+# v8.18.0 Wave-2: DataTable foundation (typed columns / sort / totals)   #
+# ===================================================================== #
+import gem_report_draft._datatable as _DT
+
+# T-DT-01: typed columns -> sort kind + align; signed/money/pct formatters; -100% ROI muted, retained.
+check('T-DT-01: typed column kinds -> sort kind + format; signed +/-, money, pct; -100% muted',
+      _DT.Column('n', 'Net', 'signed').sort_kind() == 'num' and _DT.Column('t', 'T', 'text').sort_kind() == 'text'
+      and _DT.Column('f', 'Finish', 'finish').sort_kind() == 'finish'
+      and _DT.fmt_money(120.0, signed=True) == '+$120.00' and _DT.fmt_money(-50.0) == '-$50.00'
+      and _DT.fmt_pct(45.0) == '45.0%'
+      and 'dt-muted' in _DT.build_cell(_DT.Column('r', 'ROI', 'pct'), -100.0)['cls']
+      and _DT.build_cell(_DT.Column('r', 'ROI', 'pct'), -100.0)['value'] == -100.0, '')
+
+# T-DT-02: aggregates (sum / wavg) over rows; None values ignored; null sorts last (the cell value is None).
+_dtc = [_DT.Column('cost', 'Cost', 'money', aggregate='sum'), _DT.Column('x', 'X', 'num')]
+_dtr = [{'cost': _DT.build_cell(_dtc[0], 10.0), 'x': _DT.build_cell(_dtc[1], None)},
+        {'cost': _DT.build_cell(_dtc[0], 30.0), 'x': _DT.build_cell(_dtc[1], 5)}]
+check('T-DT-02: sum aggregate ignores None; a None cell value sorts last (value is None)',
+      _DT._agg(_dtc[0], _dtr) == '$40.00'
+      and _dtr[0]['x']['value'] is None and _dtr[1]['x']['value'] == 5, '')
+
+# T-DT-03: the typed table renders the schema (data-dt-kind/sortable/agg), totals, sticky filters w/ counts.
+_dt_html = _DT.render_datatable(
+    [_DT.Column('a', 'A', 'text'), _DT.Column('n', 'Net', 'signed', aggregate='sum'),
+     _DT.Column('h', 'Exit hand', 'hand', sortable=False)],
+    [{'a': _DT.build_cell(_DT.Column('a', 'A', 'text'), 'g1'), 'n': _DT.build_cell(_DT.Column('n', 'Net', 'signed'), -5.0),
+      'h': _DT.hand_cell(_DT.Column('h', 'Exit hand', 'hand'), 'TM6084611155', ['Ah', 'Kd']), '_filters': {'speed': 'turbo'}}],
+    table_id='t1', totals=True, filters=[{'key': 'speed', 'label': 'Speed', 'options': [{'value': 'turbo', 'label': 'Turbo', 'count': 1}]}])
+check('T-DT-03: render emits typed schema + totals + sticky filters (counts) + canonical hand cell',
+      "data-dt-kind='signed'" in _dt_html and "data-dt-agg='sum'" in _dt_html and "data-dt-sortable='0'" in _dt_html
+      and 'dt-totals' in _dt_html and "data-dt-for='t1'" in _dt_html and 'dt-chip-n' in _dt_html
+      and 'poker-hand' in _dt_html and 'hand-ref xref' in _dt_html, '')
+
+# T-DT-04: the canonical hand cell keeps the hand id SEPARATE from the card display; unknown hand -> em dash.
+_hc = _DT.hand_cell(_DT.Column('h', 'Exit hand', 'hand'), 'TM6084611155', ['Ah', 'Kd'])
+check('T-DT-04: hand cell keeps id separate from cards (PokerHandDisplay + link); empty hand -> null label',
+      'poker-hand' in _hc['display'] and "data-hid='84611155'" in _hc['display'] and _hc['value'] == '84611155'
+      and _DT.hand_cell(_DT.Column('h', 'Exit hand', 'hand'), '', None)['value'] is None, '')
+
+# ===================================================================== #
+# v8.18.0 Wave-2: Villain Teaching contract + coverage inventory         #
+# ===================================================================== #
+import gem_villain_teaching as _VT
+
+# a complete, no-hindsight teaching object (the shape teaching_from_exploit builds).
+_vt_obj_ok = {
+    'villain_id': 'GG20260616-1900|abc123', 'villain_alias': 'Villain A', 'street': 'turn',
+    'villain_did': 'fast over-bet the turn after checking flop', 'cue': 'sizing tell -> polarised',
+    'archetype': 'aggressive', 'confidence': 'medium', 'evidence_count': 2,
+    'exploit_now': 'call wider vs this size', 'future_exploit': 'widen turn calls vs this villain',
+    'do_not_overadjust': 'only after another data point', 'teaching_status': 'missed_exploit',
+    'fallback': False,
+    'source_truth': {'evidence_atoms': ['a1', 'a2'], 'decision_id': 'H1|turn|5', 'no_hindsight': True}}
+
+# T-VT18-01: the explicit teaching contract separates observation from inference, carries the STABLE
+# key (tournament_id|player_hash) + the decision sequence id + supporting evidence; alias is not identity.
+_vtc = _VT.teaching_contract(_vt_obj_ok)
+check('T-VT18-01: teaching contract -> stable key + observation/inference split + sequence id + evidence',
+      _vtc['stable_villain_key'] == 'GG20260616-1900|abc123' and '|' in _vtc['stable_villain_key']
+      and _vtc['observation'] != _vtc['inference'] and _vtc['observation']
+      and _vtc['hand_decision_id'] == 'H1|turn|5' and _vtc['supporting_evidence'] == ['a1', 'a2']
+      and _vtc['guardrail'] and _vtc['current_exploit'] and _vtc['future_exploit']
+      and _vtc['villain_alias'] == 'Villain A', str(_vtc))
+
+# T-VT18-02: coverage inventory -- a complete object is a complete 7-part lesson; the must-be-zero
+# guards fire on a chronology (no_hindsight False) and a result-oriented cue.
+_vt_chrono = dict(_vt_obj_ok, source_truth=dict(_vt_obj_ok['source_truth'], decision_id='H2|turn|3', no_hindsight=False))
+_vt_result = dict(_vt_obj_ok, cue='only known at showdown when villain showed the bluff',
+                  source_truth=dict(_vt_obj_ok['source_truth'], decision_id='H3|river|7'))
+_cov_ok = _VT.villain_teaching_coverage([_vt_obj_ok])
+_cov_bad = _VT.villain_teaching_coverage([_vt_chrono, _vt_result])
+check('T-VT18-02: coverage counts complete 7-part + flags chronology + result-oriented violations',
+      _cov_ok['eligible_lessons'] == 1 and _cov_ok['complete_seven_part'] == 1
+      and _cov_ok['incomplete_lessons'] == 0 and _cov_ok['chronology_violations'] == 0
+      and _cov_ok['result_oriented_violations'] == 0
+      and _cov_bad['chronology_violations'] == 1 and _cov_bad['result_oriented_violations'] == 1, str((_cov_ok, _cov_bad)))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

@@ -590,6 +590,29 @@ def _emit_tournament_tables(doc, s, rd, hands):
     _payload = []
     _uni_rows = []          # raw-HTML rows for the primary table
     _md_rows = []           # markdown rows for the collapsed cross-check table
+    # v8.18.0 Tournament Results redesign: the canonical Results table is now a typed DataTable
+    # (gem_report_draft._datatable). One Results section; the exit hand is the FINAL column rendered
+    # with the canonical PokerHandDisplay; Details/Drivers/SRC removed; totals + sticky filters.
+    from gem_report_draft._datatable import Column as _DTCol, build_cell as _dtcell, hand_cell as _dthand, render_datatable as _dtrender
+    _RES_COLS = [
+        _DTCol('date', 'Date', 'text'),
+        _DTCol('tournament', 'Tournament', 'text'),
+        _DTCol('type', 'Type', 'text'),
+        _DTCol('bullets', 'Bullets', 'num', aggregate='sum'),
+        _DTCol('finish', 'Finish', 'finish'),
+        _DTCol('cost', 'Cost', 'money', aggregate='sum'),
+        _DTCol('return', 'Return', 'money', aggregate='sum'),
+        _DTCol('net', 'Net', 'signed', aggregate='sum'),
+        _DTCol('roi', 'ROI', 'pct'),
+        _DTCol('exit', 'Exit hand', 'hand', sortable=False),
+    ]
+    _cards_by_hid = {}
+    for _h in (hands or []):
+        _hk = str(_h.get('tournament_hand_id') or _h.get('id') or '')
+        if _hk:
+            _cards_by_hid[_hk[-8:]] = _h.get('cards') or []
+    _dt_rows = []
+    _top_pcts = []
     for e in events:
         ret = e.get('return') or {}
         prov = e.get('field_provenance') or {}
@@ -630,34 +653,43 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _fin_sort = fin.get('sort_key')
         _fin_sort = _fin_sort if _fin_sort is not None else 999
         _exit = e.get('exit_hand')
-        _exit_cell = (("<a href='#' class='hand-ref xref' data-hid='%s'>%s</a>"
-                       % (_esc_tt(str(_exit)[-8:]), _esc_tt(str(_exit)[-8:])))
-                      if _exit else EMDASH)
-        _uni_rows.append(
-            "<tr data-event-id='%s'>"
-            "<td data-label='Date' data-sort-value='%s'>%s</td>"
-            "<td data-label='Tournament'>%s</td>"
-            "<td data-label='Type'>%s</td>"
-            "<td data-label='Bullets' data-sort-value='%s'>%s</td>"
-            "<td data-label='Finish' data-sort-value='%s'>%s</td>"
-            "<td data-label='Cost' data-sort-value='%s'>%s</td>"
-            "<td data-label='Return' data-sort-value='%s'>%s</td>"
-            "<td data-label='Net' data-sort-value='%s'>%s</td>"
-            "<td data-label='ROI' data-sort-value='%s'>%s</td>"
-            "<td data-label='Exit hand'>%s</td>"
-            "<td data-label='' class='tt-details-cell'>"
-            "<a href='#' onclick=\"openTournamentDetail('%s');return false;\">Details ▸</a></td>"
-            "</tr>" % (
-                _esc_tt(_eid),
-                _esc_tt(e.get('event_day') or ''), _esc_tt(e.get('event_day') or EMDASH),
-                _esc_tt(name), _esc_tt(pt),
-                e.get('bullets', 1), e.get('bullets', 1),
-                _fin_sort, _esc_tt(_fin_lbl),
-                e.get('cost', 0), _esc_tt(_cost),
-                (ret.get('value', 0) or 0), _esc_tt(_retv),
-                (e.get('net', 0) or 0), _esc_tt(_net),
-                (e.get('roi_pct') if e.get('roi_pct') is not None else ''), _esc_tt(_roi),
-                _exit_cell, _esc_tt(_eid)))
+        _exit_cards = _cards_by_hid.get(str(_exit)[-8:]) if _exit else None
+        # return: HH-only unresolved -> blank/unresolved; satellite seat -> ticket marker.
+        _ret_val = ret.get('value')
+        _ret_exact = ret.get('exact', True)
+        _tick = ret.get('ticket_value')
+        if _ret_val is None or (not _ret_exact and not ret.get('cash_received') and not _tick):
+            _ret_cell = _dtcell(_RES_COLS[6], None,
+                                display="<span class='dt-unresolved' title='HH-only — return not yet resolved'>unresolved</span>")
+        else:
+            _rdisp = _esc_tt(_retv)
+            if _tick:
+                _rdisp = "<span class='dt-ticket' title='Satellite seat (ticket value)'>&#127915;</span> " + _rdisp
+            _ret_cell = _dtcell(_RES_COLS[6], _ret_val, display=_rdisp)
+        if fin.get('itm') and fin.get('top_percent') is not None:
+            _top_pcts.append(float(fin['top_percent']))
+        _dt_rows.append({
+            'date': _dtcell(_RES_COLS[0], e.get('event_day') or None, display=_esc_tt(e.get('event_day') or EMDASH)),
+            'tournament': _dtcell(_RES_COLS[1], name, display=_esc_tt(name)),
+            'type': _dtcell(_RES_COLS[2], pt, display=_esc_tt(pt)),
+            'bullets': _dtcell(_RES_COLS[3], e.get('bullets', 1)),
+            'finish': _dtcell(_RES_COLS[4], _fin_sort, display=_esc_tt(_fin_lbl)),
+            'cost': _dtcell(_RES_COLS[5], e.get('cost', 0)),
+            'return': _ret_cell,
+            'net': _dtcell(_RES_COLS[7], e.get('net', 0)),
+            'roi': _dtcell(_RES_COLS[8], e.get('roi_pct')),
+            'exit': _dthand(_RES_COLS[9], _exit, _exit_cards, size='compact'),
+            '_filters': {
+                'entry_time': (e.get('entry_timing') or 'unknown'),
+                'speed': (e.get('speed') or 'unknown'),
+                'bounty': ('bounty' if e.get('prize_type') == 'bounty' else 'non-bounty'),
+                'freezeout': ('freezeout' if (e.get('entry_pattern') or '') in ('freezeout', 'single', '') else 'reentry'),
+                'multibullet': ('multi' if (e.get('bullets', 1) or 1) > 1 else 'single'),
+                'multiday': ('multiday' if fin.get('advanced_day2') else 'single-day'),
+                'satellite': ('satellite' if fin.get('is_satellite') else 'standard'),
+                'phase': (status_label or 'unknown'),
+            },
+        })
 
         # --- per-event drilldown payload (canonical only; no recompute) ---
         _rb = []
@@ -697,37 +729,35 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'hand_ids': _hids_by_tid.get(tid, [])[:60],
         })
 
-    # v8.17.1 P4 surface 5: Finance & Finish — the canonical per-event financial +
-    # typed-finish surface (the split of the former unified table; the duplicate
-    # markdown cross-check below it is removed). Sortable (Finish sorts on the typed
-    # domain sort_key: exact Top% best, then Ticket/Day 2/Est. ITM/Pending/No cash;
-    # blanks last). Keeps the per-event Details drilldown. id retained so the
-    # existing sort JS (initTournamentResultsTable/_ttSort) binds unchanged.
-    doc.w('#### Finance & Finish')
+    # v8.18.0 Tournament Results redesign — the canonical typed DataTable Results surface. Exit hand is
+    # the FINAL column rendered with PokerHandDisplay; Details/Drivers/SRC removed; totals row + average
+    # Top%; sticky compact filters with counts. The legacy _ttSort path is retired for this table (it now
+    # carries data-datatable=1 + initDataTable; no second table engine drives it).
+    doc.w('#### Results')
     doc.w('')
-    _uhdr = (
-        "<th data-tt-sort='0'>Date</th>"
-        "<th data-tt-sort='1'>Tournament</th>"
-        "<th data-tt-sort='2'>Type</th>"
-        "<th data-tt-sort='3' data-tt-num='1'>Bullets</th>"
-        "<th data-tt-sort='4' data-tt-num='1'>Finish</th>"
-        "<th data-tt-sort='5' data-tt-num='1'>Cost</th>"
-        "<th data-tt-sort='6' data-tt-num='1'>Return</th>"
-        "<th data-tt-sort='7' data-tt-num='1'>Net</th>"
-        "<th data-tt-sort='8' data-tt-num='1'>ROI</th>"
-        "<th>Exit hand</th>"
-        "<th>Details</th>")
-    doc.w("<div class='table-shell' data-mobile-mode='scroll' "
-          "style='--mobile-table-min-width:920px'><div class='table-scroll'>"
-          "<table class='data-table tt-unified tt-finance' id='tt-unified-table'>"
-          "<thead><tr>" + _uhdr + "</tr></thead><tbody>"
-          + ''.join(_uni_rows) + "</tbody></table></div></div>")
+    _avg_top = ('Avg Top %.1f%%' % (sum(_top_pcts) / len(_top_pcts))) if _top_pcts else EMDASH
+    import collections as _coll_tt
+    _FILTER_DEFS = [('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
+                    ('freezeout', 'Freezeout'), ('multibullet', 'Multi-bullet'),
+                    ('multiday', 'Multi-day'), ('satellite', 'Satellite'), ('phase', 'Phase')]
+    _filters = []
+    for _fk, _flabel in _FILTER_DEFS:
+        _cnts = _coll_tt.Counter((r['_filters'].get(_fk) or 'unknown') for r in _dt_rows)
+        if len(_cnts) <= 1:
+            continue   # only a filter the data can actually distinguish
+        _opts = [{'value': v, 'label': str(v).replace('-', ' ').replace('_', ' ').title(), 'count': c}
+                 for v, c in sorted(_cnts.items())]
+        _filters.append({'key': _fk, 'label': _flabel, 'options': _opts})
+    doc.w(_dtrender(_RES_COLS, _dt_rows, table_id='tt-results', totals=True, totals_label='Total',
+                    totals_override={'finish': _avg_top}, filters=_filters, classes='tt-finance'))
     doc.w('')
+    try:
+        doc._extra_js.append("if(window.initDataTable)window.initDataTable('tt-results');")
+    except Exception:
+        pass
 
-    # ---- v8.17.1 P4 surface 6: Tournament Performance (separate detail table) ----
+    # ---- Tournament Performance (BB/100 + cEV/100 detail, same Results section) ----
     _emit_performance(doc, events, _hids_by_tid)
-    # ---- v8.17.1 P4 surface 7: Drivers-in-view rollup ----
-    _emit_drivers_rollup(doc, events)
 
     try:
         doc._extra_js.append('window.tournamentEvents=%s;'

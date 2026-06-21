@@ -39,13 +39,15 @@ def _is_excluded(arc):
 
 
 def runtime_names():
-    """The production report-generation file set (root modules + the renderer package members)."""
+    """The production report-generation file set (root modules + the renderer package members).
+    The runtime imports no prose, so the full changelog (135 KB) + quick reference (102 KB) are NOT
+    bundled here -- the lean package ships concise release notes instead; STEP0 instructions stay."""
     names = set(BB._repo_runtime_modules())          # every repo gem_*.py runtime module
     names |= set(BB.PKG)                              # gem_report_draft/ members
-    names |= set(BB.BUNDLE_ALSO)                      # changelog/quick-ref/STEP0 (changelog replaced below)
+    names |= {'SESSION_START_STEP0_package_rebuild.txt'}  # startup instructions only
     names = {n for n in names
              if n not in BB.KILL and n not in BB.FLAT_DATA
-             and (n not in BB.PROSE or n in BB.BUNDLE_ALSO)
+             and n not in ('GEM_Changelog.txt', 'GEM_Quick_Reference.txt')   # prose, replaced by release notes
              and not n.startswith('_qa_') and n != '_test_scratch.py'}
     return names
 

@@ -904,14 +904,25 @@ _MODAL_HTML = r"""
   /* v8.12.8: compact 'AhKd' → card spans (same markup as _card_html).
      Hand-list popups read window.handIndex first — lazy articles are empty
      shells until inflated, so DOM scraping alone left columns blank. */
-  function fmtCardSpans(cc){
-    var sym={s:'♠',h:'♥',d:'♦',c:'♣'},out=[];
-    cc=String(cc||'');
+  /* v8.18.0 PokerHandDisplay: the ONE canonical JS card renderer (mirrors gem_report_draft._cards
+     CardVM/render_poker_hand). JS-created hand rows (the hand-list popup) render the canonical
+     serialized hand string from window.handIndex through here -- no consumer builds suit spans
+     independently, and the markup (class + glyph + accessible label + .poker-hand wrapper) matches
+     the server-rendered component, with unknown/partial cards handled the same way. */
+  function fmtCardSpans(cc,size){
+    var SUIT={s:['♠','spades'],h:['♥','hearts'],d:['♦','diamonds'],c:['♣','clubs']};
+    var RANK={A:'Ace',K:'King',Q:'Queen',J:'Jack',T:'Ten','9':'Nine','8':'Eight','7':'Seven',
+              '6':'Six','5':'Five','4':'Four','3':'Three','2':'Two'};
+    cc=String(cc||'');var pills=[],labels=[];
     for(var i=0;i+1<cc.length;i+=2){
-      var r=cc[i].toUpperCase(),su=cc[i+1].toLowerCase();
-      out.push('<span class="card card-'+su+'">'+r+(sym[su]||su)+'</span>');
+      var r=cc[i].toUpperCase(),su=cc[i+1].toLowerCase(),m=SUIT[su];
+      if(!m||!RANK[r]){pills.push('<span class="card card-x" aria-label="unknown card">??</span>');continue;}
+      pills.push('<span class="card card-'+su+'" aria-hidden="true">'+r+m[0]+'</span>');
+      labels.push(RANK[r]+' of '+m[1]);
     }
-    return out.join(' ');
+    if(!pills.length)return '';
+    return '<span class="poker-hand phd-'+(size||'compact')+'" role="img" aria-label="'+
+           labels.join(', ')+'">'+pills.join(' ')+'</span>';
   }
   /* ---- v29 heading-sibling walker ---- */
   function handSiblingNodes(target){
@@ -3845,6 +3856,66 @@ _MODAL_HTML = r"""
       th.addEventListener('click',function(){_ttSort(tbl,th);});});
   }
   window.initTournamentResultsTable=initTournamentResultsTable;
+  /* v8.18.0 DataTable foundation: ONE typed table engine (kind-aware sort with stable null-last +
+     signed numerics, filter chips, totals recompute over visible rows, aria-sort, sticky). Reads the
+     typed schema off the <thead> data-dt-* attributes; Tournament Results consumes it (the legacy
+     _ttSort is retired for that table -- no second engine). */
+  function _dtNum(s){if(s==null||s==='')return null;var n=parseFloat(String(s).replace(/[^0-9.\-]/g,''));return isNaN(n)?null:n;}
+  function _dtFmt(v,kind){
+    if(kind==='money')return (v<0?'-':'')+'$'+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(kind==='signed')return (v>0?'+':(v<0?'-':''))+'$'+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(kind==='pct')return (v<0?'-':'')+Math.abs(v).toFixed(1)+'%';
+    return v.toFixed(1);}
+  function _dtRecomputeTotals(tbl){
+    var foot=tbl.querySelector('tfoot');if(!foot)return;
+    var ths=Array.prototype.slice.call(tbl.querySelectorAll('thead th'));
+    var rows=Array.prototype.slice.call(tbl.querySelectorAll('tbody tr')).filter(function(r){return r.style.display!=='none';});
+    ths.forEach(function(th,ci){
+      var agg=th.getAttribute('data-dt-agg');if(!agg)return;
+      var key=th.getAttribute('data-dt-col');var cell=foot.querySelector('[data-dt-total="'+key+'"]');if(!cell)return;
+      var nums=rows.map(function(r){return r.children[ci]?_dtNum(r.children[ci].getAttribute('data-sort-value')):null;}).filter(function(n){return n!=null;});
+      if(!nums.length){cell.textContent='—';return;}
+      var v=nums.reduce(function(a,b){return a+b;},0);if(agg!=='sum')v=v/nums.length;
+      cell.textContent=_dtFmt(v,th.getAttribute('data-dt-kind'));});}
+  function _dtSort(tbl,th){
+    var kind=th.getAttribute('data-dt-kind')||'text';
+    var ci=Array.prototype.indexOf.call(th.parentNode.children,th);
+    var asc=th.getAttribute('aria-sort')!=='ascending';
+    var body=tbl.querySelector('tbody');var rows=Array.prototype.slice.call(body.querySelectorAll('tr'));
+    Array.prototype.forEach.call(tbl.querySelectorAll('thead th'),function(t){t.setAttribute('aria-sort','none');t.classList.remove('dt-sorted');});
+    th.setAttribute('aria-sort',asc?'ascending':'descending');th.classList.add('dt-sorted');
+    rows.sort(function(a,b){
+      var ca=a.children[ci],cb=b.children[ci];
+      var xa=ca?(ca.getAttribute('data-sort-value')!=null?ca.getAttribute('data-sort-value'):ca.textContent):'';
+      var xb=cb?(cb.getAttribute('data-sort-value')!=null?cb.getAttribute('data-sort-value'):cb.textContent):'';
+      var cmp;
+      if(['num','money','signed','pct','finish'].indexOf(kind)>=0){var na=_dtNum(xa),nb=_dtNum(xb);
+        if(na==null&&nb==null)cmp=0;else if(na==null)cmp=1;else if(nb==null)cmp=-1;else cmp=na-nb;}  /* nulls LAST */
+      else cmp=String(xa).trim().localeCompare(String(xb).trim());
+      return asc?cmp:-cmp;});
+    rows.forEach(function(r){body.appendChild(r);});}
+  function _dtApplyFilters(tbl,state){
+    Array.prototype.forEach.call(tbl.querySelectorAll('tbody tr'),function(r){
+      var show=true;for(var key in state){if(!state[key].length)continue;
+        if(state[key].indexOf(r.getAttribute('data-filter-'+key))<0){show=false;break;}}
+      r.style.display=show?'':'none';});
+    _dtRecomputeTotals(tbl);}
+  function initDataTable(tableId){
+    var tbl=document.getElementById(tableId);if(!tbl||tbl._dtWired)return;tbl._dtWired=true;
+    Array.prototype.forEach.call(tbl.querySelectorAll('thead th[data-dt-sortable="1"]'),function(th){
+      th.style.cursor='pointer';th.tabIndex=0;
+      th.addEventListener('click',function(){_dtSort(tbl,th);});
+      th.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();_dtSort(tbl,th);}});});
+    var filters=document.querySelector('.dt-filters[data-dt-for="'+tableId+'"]');var state={};
+    if(filters){Array.prototype.forEach.call(filters.querySelectorAll('.dt-chip'),function(chip){
+      chip.setAttribute('aria-pressed','false');
+      chip.addEventListener('click',function(){
+        var key=chip.getAttribute('data-dt-filter'),val=chip.getAttribute('data-dt-value');
+        state[key]=state[key]||[];var i=state[key].indexOf(val);
+        if(i<0){state[key].push(val);chip.classList.add('dt-chip-on');chip.setAttribute('aria-pressed','true');}
+        else{state[key].splice(i,1);chip.classList.remove('dt-chip-on');chip.setAttribute('aria-pressed','false');}
+        _dtApplyFilters(tbl,state);});});}}
+  window.initDataTable=initDataTable;
   function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
   // v8.17.1 P4: distribution chart — re-renders from the precomputed window.ttChart
   // dataset (every tab x metric) so tab/metric changes use canonical numbers.
@@ -5501,6 +5572,35 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .data-table td {{ border: 0 !important; border-bottom: 1px solid #eef2f7 !important;
     background: #fff !important; padding: 0.45em 0.7em; vertical-align: top; }}
   .data-table tr:nth-child(even) td {{ background: #fbfdff !important; }}
+  /* v8.18.0 DataTable foundation: typed cells, sortable headers (aria-sort), sticky filters, totals. */
+  .data-table.dt th[data-dt-sortable='1'] {{ cursor: pointer; user-select: none; }}
+  .data-table.dt th[data-dt-sortable='1']::after {{ content: ' \\2195'; opacity: 0.35; font-size: 0.85em; }}
+  .data-table.dt th.dt-sorted[aria-sort='ascending']::after {{ content: ' \\25B2'; opacity: 0.9; }}
+  .data-table.dt th.dt-sorted[aria-sort='descending']::after {{ content: ' \\25BC'; opacity: 0.9; }}
+  .data-table.dt td.dt-right, .data-table.dt th.dt-right {{ text-align: right; }}
+  .data-table.dt td.dt-center, .data-table.dt th.dt-center {{ text-align: center; }}
+  .data-table.dt td.dt-pos {{ color: #15803d; }}
+  .data-table.dt td.dt-neg {{ color: #b91c1c; }}
+  .data-table.dt td.dt-muted {{ color: var(--muted, #94a3b8); opacity: 0.6; }}
+  .data-table.dt .dt-unresolved {{ color: var(--muted, #94a3b8); font-style: italic; }}
+  .data-table.dt .dt-ticket {{ font-size: 0.95em; }}
+  .data-table.dt .dt-hand {{ display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }}
+  .data-table.dt tfoot tr.dt-totals td {{ background: #eef4ff !important; font-weight: 700;
+    border-top: 2px solid var(--line) !important; position: sticky; bottom: 0; }}
+  .data-table.dt tfoot td.dt-totals-label {{ text-transform: uppercase; letter-spacing: 0.4px; font-size: 0.85em; }}
+  .dt-filters {{ display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 6px 2px 10px;
+    position: sticky; top: 0; z-index: 3; background: var(--bg, #fff); }}
+  .dt-filter-group {{ display: inline-flex; align-items: center; gap: 4px; }}
+  .dt-filter-label {{ font-size: 0.72em; font-weight: 700; color: var(--muted, #64748b);
+    text-transform: uppercase; letter-spacing: 0.4px; margin-right: 2px; }}
+  .dt-chip {{ font: inherit; font-size: 0.78em; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line, #cbd5e1); background: #f8fafc; color: #334155; }}
+  .dt-chip:hover {{ background: #eef2ff; }}
+  .dt-chip.dt-chip-on {{ background: #2563eb; color: #fff; border-color: #1d4ed8; }}
+  .dt-chip-n {{ opacity: 0.65; font-weight: 700; margin-left: 2px; }}
+  @media (max-width: 640px) {{
+    .dt-filters {{ gap: 6px 10px; }} .dt-chip {{ font-size: 0.74em; padding: 2px 7px; }}
+    .dt-filter-label {{ font-size: 0.66em; }} }}
   /* Phase 4.7 C3: mh-* hand card vocabulary (v29) */
   .mh-top {{ display: flex; align-items: flex-start; justify-content: space-between;
     gap: 12px; flex-wrap: wrap; }}

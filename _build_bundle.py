@@ -24,7 +24,8 @@ PKG = ['__init__.py', '_state.py', '_helpers.py', '_html.py', '_hand_grid.py',
        'sections_financial.py', 'sections_mistakes.py', 'sections_iv_xii.py',
        'sections_xiii.py', 'sections_xiv.py', 'sections_issue_explorer.py',
        'sections_tournaments.py',   # v8.15: additive Tournament Tables section
-       '_cards.py']                 # v8.18.0: canonical PokerHandDisplay component
+       '_cards.py',                 # v8.18.0: canonical PokerHandDisplay component
+       '_datatable.py']             # v8.18.0: bounded typed DataTable foundation
 
 # v8.17.0-rc3 (audit B6): the QA acceptance/decoder harnesses must extract WITH
 # the runtime so the README self-verify commands (e.g. `python

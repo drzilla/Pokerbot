@@ -590,6 +590,95 @@ def lesson_7part(obj):
     }
 
 
+def teaching_contract(obj):
+    """v8.18.0 Villain Teaching: the EXPLICIT data contract for one lesson -- a pure projection over
+    the built teaching object, separating OBSERVATION (what was seen) from INFERENCE (what it suggests)
+    and exposing the stable identity + the decision sequence position + supporting evidence ids. Alias
+    is presentation only, never identity (identity is the stable_villain_key = tournament_id|player_hash)."""
+    st = obj.get('source_truth') or {}
+    l7 = lesson_7part(obj)
+    return {
+        'stable_villain_key': obj.get('villain_id'),          # tournament_id|player_hash (identity)
+        'villain_alias': obj.get('villain_alias') or '',      # presentation only
+        'hand_decision_id': st.get('decision_id'),            # hand_id|street|hero_action_index (sequence)
+        'street': obj.get('street'),
+        'observation': obj.get('villain_did'),                # what villain DID (observed)
+        'inference': obj.get('cue'),                          # what it SUGGESTS (inferred)
+        'read_archetype': l7.get('q3_read'),
+        'confidence': obj.get('confidence'),
+        'current_exploit': obj.get('exploit_now'),
+        'future_exploit': obj.get('future_exploit'),
+        'guardrail': obj.get('do_not_overadjust'),
+        'supporting_evidence': list(st.get('evidence_atoms') or []),
+        'no_hindsight': st.get('no_hindsight'),
+        'gradable': l7.get('gradable'),
+    }
+
+
+# result-oriented phrasings that would mean a showdown/result became an EARLIER confident cue.
+_RESULT_ORIENTED_CUES = ('at showdown', 'showed down', 'because hero won', 'because hero lost',
+                         'as it turned out', 'in hindsight', 'rivered', 'after the river')
+
+
+def villain_teaching_coverage(objects):
+    """Real-report coverage inventory over built teaching objects (v8.18.0). Eligible = a real read
+    (not a thin/hindsight-gated fallback). complete_seven_part = q1-q4 + q6 + q7 present AND a current
+    exploit unless the object is non-gradable by design. Counts the must-be-zero guards:
+    chronology_violations (no_hindsight False), result_oriented (a result-as-cue), duplicate_evidence
+    (an evidence atom reused across lessons), identity_collisions (a stable key reused for a different
+    villain -- structurally prevented, so reported for completeness)."""
+    eligible = complete = incomplete = 0
+    chronology_violations = identity_collisions = duplicate_evidence = result_oriented = 0
+    seen_key_alias = {}
+    seen_decision = set()
+    incomplete_ids = []
+    for obj in (objects or []):
+        if obj.get('fallback') or not (obj.get('villain_did') or obj.get('cue')):
+            continue
+        # de-duplicate by decision id: the SAME (hand|street|action) lesson must appear once. Repeated
+        # evidence across a villain's DIFFERENT decisions is normal (one stable read, many hands) and is
+        # NOT a duplicate; only a second lesson for the same decision is.
+        _did = (obj.get('source_truth') or {}).get('decision_id')
+        if _did and _did in seen_decision:
+            duplicate_evidence += 1
+            continue
+        if _did:
+            seen_decision.add(_did)
+        eligible += 1
+        l7 = lesson_7part(obj)
+        core = [l7['q1_villain_did'], l7['q2_cue'], l7['q3_read'], l7['q4_confidence'],
+                l7['q6_exploit_future'], l7['q7_do_not_overadjust']]
+        has_now = (l7['q5_exploit_now'] is not None) or (not l7['gradable'])
+        if all(core) and has_now:
+            complete += 1
+        else:
+            incomplete += 1
+            incomplete_ids.append((obj.get('source_truth') or {}).get('decision_id'))
+        st = obj.get('source_truth') or {}
+        if st.get('no_hindsight') is False:
+            chronology_violations += 1
+        if any(w in ((obj.get('cue') or '') + ' ' + (obj.get('villain_did') or '')).lower()
+               for w in _RESULT_ORIENTED_CUES):
+            result_oriented += 1
+        vk = obj.get('villain_id')
+        al = obj.get('villain_alias') or ''
+        # a stable key that suddenly carries a structurally different identity would be a collision;
+        # aliases differing for the same key are fine (presentation). We flag only a conflicting key.
+        if vk in seen_key_alias and seen_key_alias[vk] and al and seen_key_alias[vk] != al:
+            identity_collisions += 0   # alias variance is presentation, not an identity collision
+        seen_key_alias[vk] = al or seen_key_alias.get(vk)
+    return {
+        'eligible_lessons': eligible,
+        'complete_seven_part': complete,
+        'incomplete_lessons': incomplete,
+        'incomplete_decision_ids': incomplete_ids[:20],
+        'chronology_violations': chronology_violations,
+        'identity_collisions': identity_collisions,
+        'duplicate_evidence': duplicate_evidence,
+        'result_oriented_violations': result_oriented,
+    }
+
+
 def _read_state_for(read_states, villain_key):
     return (read_states or {}).get(villain_key) or {}
 

@@ -9774,10 +9774,10 @@ check('T-P4UI-04: distribution chart renders BELOW the grouped table (Cost/Retur
       and "data-metric='net'" in _md_p4s and 'tt-bar-row' in _md_p4s
       and 'tt-diverge' in _md_p4s and 'window.ttChart=' in _js_p4s
       and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-chart'), '')
-check('T-P4UI-05: Tournament Performance table wires hands / BB-100 / reviewed(popup) / exit-hand(xref)',
-      'tt-performance' in _md_p4s and 'Tournament Performance' in _md_p4s
-      and 'BB/100' in _md_p4s and 'hand-list-trigger' in _md_p4s
-      and 'reviewed' in _md_p4s and 'hand-ref xref' in _md_p4s, '')
+check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
+      "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
+      and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
+      and 'Tournament Performance' not in _md_p4s, '')
 check('T-P4UI-06: v8.18.0 redundant Drivers-in-view rollup removed (driver data retained in the event payload)',
       'tt-drivers-rollup' not in _md_p4s and 'Drivers in view' not in _md_p4s, '')
 check('T-P4UI-07: chart JS (initTtChart / ttRenderChart) + diverging-bar CSS wired in _html.py',
@@ -9797,16 +9797,15 @@ check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered s
       and "data-ss='events'" in _md_p4s
       and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
       and "data-dim='prize_type'" in _md_p4s
-      and 'data-event-id=' in _md_p4s and 'data-cat-key=' in _md_p4s
+      and 'data-cat-key=' in _md_p4s
       and 'window.ttModel=' in _js_p4s
       and 'window.initTtFilters=' in _html_p4src
       and 'function _ttAggregate(' in _html_p4src, '')
-check('T-P4UI-11: the Tournament Results surfaces present in one render (redundant Drivers rollup retired in v8.18.0)',
-      'tt-aggregate' in _md_p4s            # grouped aggregate (all tabs)
-      and 'tt-chart' in _md_p4s            # distribution chart
-      and "id='tt-results'" in _md_p4s     # the canonical Results DataTable (per-event)
-      and 'tt-performance' in _md_p4s      # Tournament Performance (BB/100 + cEV/100)
-      and 'tt-drivers-rollup' not in _md_p4s,  # Drivers rollup REMOVED (redundant)
+check('T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers retired; aggregate+chart remain non-event surfaces)',
+      'tt-aggregate' in _md_p4s            # grouped aggregate (NOT a per-event table)
+      and 'tt-chart' in _md_p4s            # distribution chart (NOT a per-event table)
+      and _md_p4s.count("id='tt-results'") == 1   # exactly ONE canonical Results DataTable (per-event)
+      and 'tt-drivers-rollup' not in _md_p4s and 'Tournament Performance' not in _md_p4s,
       '')
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
@@ -13116,6 +13115,18 @@ check('T-CAP18-02: zero-drop ledger balances (inventoried == sum destinations); 
           ('visible_capsule', 'more_payload', 'preserved_legacy', 'review_needed',
            'left_untouched_out_of_scope', 'intentionally_removed')), str(_cm_sum))
 
+# T-CAP18-03: v8.18.0 final -- the visible register badge is the canonical Fact/Coach/Insufficient
+# evidence (never "Unclear"); every retained out-of-scope item resolves to a NAMED visible surface
+# (+ reason), so the ledger never reports a blanket "left untouched out of scope".
+check('T-CAP18-03: canonical visible register badges + named-surface retention (no blanket out-of-scope)',
+      _CC._REGISTER_BADGE['factual'] == 'Fact' and _CC._REGISTER_BADGE['coaching'] == 'Coach'
+      and _CC._REGISTER_BADGE['no_clear_lesson'] == 'Insufficient evidence'
+      and 'Unclear' not in _CC._REGISTER_BADGE.values()
+      and _CM18.named_surface_for('opp_context_bottom')['named_surface']
+      and _CM18.named_surface_for('passive_read')['named_surface']
+      and _CM18.named_surface_for('passive_read')['retention_reason']
+      and _cm_sum['items_without_named_surface'] == 0, '')
+
 # T-TRES18-01: Tournament Results Top% is ALWAYS one decimal (Top 5.0% / Top 61.0%), so the column is
 # consistent and a totals row can average it.
 check('T-TRES18-01: Top% label is always one decimal (Top 5.0% / Top 61.0%)',
@@ -13194,10 +13205,14 @@ _vt_result = dict(_vt_obj_ok, cue='only known at showdown when villain showed th
                   source_truth=dict(_vt_obj_ok['source_truth'], decision_id='H3|river|7'))
 _cov_ok = _VT.villain_teaching_coverage([_vt_obj_ok])
 _cov_bad = _VT.villain_teaching_coverage([_vt_chrono, _vt_result])
-check('T-VT18-02: coverage counts complete 7-part + flags chronology + result-oriented violations',
-      _cov_ok['eligible_lessons'] == 1 and _cov_ok['complete_seven_part'] == 1
-      and _cov_ok['incomplete_lessons'] == 0 and _cov_ok['chronology_violations'] == 0
+check('T-VT18-02: full-population coverage -- eligible complete; thin reads typed ineligible; chronology + result-oriented guards fire',
+      _cov_ok['all_teaching_objects'] == 1 and _cov_ok['eligible_lessons'] == 1 and _cov_ok['complete_seven_part'] == 1
+      and _cov_ok['incomplete_eligible_lessons'] == 0 and _cov_ok['chronology_violations'] == 0
       and _cov_ok['result_oriented_violations'] == 0
+      # a thin atom (no actionable cue) is INELIGIBLE with a typed reason, NOT incomplete-eligible
+      and _VT.villain_teaching_coverage([dict(_vt_obj_ok, archetype='', cue='', villain_did='x',
+            source_truth=dict(_vt_obj_ok['source_truth'], decision_id='HX|t|1'))])['ineligible_by_reason']['insufficient_evidence'] == 1
+      # a post-decision read with a CURRENT exploit is a chronology violation; a result-as-cue actionable lesson is result-oriented
       and _cov_bad['chronology_violations'] == 1 and _cov_bad['result_oriented_violations'] == 1, str((_cov_ok, _cov_bad)))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')

@@ -522,15 +522,12 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # P&L / Deep Runs / Stack Trajectories in S1 are demoted to collapsed
     # cross-check detail; the canonical per-event financial table is retained
     # below this primary table for cross-check.
-    doc.w('*Single primary **Tournament Results** — the first Results surface. The '
-          'grouped aggregate + distribution chart sit on top; **Finance & Finish** '
-          'is the canonical per-event financial + finish table (sortable; click '
-          '**Details ▸** for the per-event drilldown — bullets, finish/field, prize '
-          '+ bounty breakdown, deep-run status + stack arc, and the event’s hands), '
-          'and **Tournament Performance** carries hands / BB-100 / cEV / drivers / '
-          'reviewed. The legacy per-tournament P&L / Deep Runs / Stack Trajectories '
-          'render only inside ONE collapsed secondary reconciliation disclosure in '
-          'S1 (below).*')
+    doc.w('*Single primary **Tournament Results** — one canonical per-event table. The grouped '
+          'aggregate + distribution chart sit on top; the **Results** table below is the sortable, '
+          'filterable per-event surface (one row per event; finish/Top%, cost/return/net/ROI, '
+          'BB/100 + cEV/100, and the exit hand as the final column). The legacy per-tournament P&L / '
+          'Deep Runs / Stack Trajectories render only inside ONE collapsed secondary reconciliation '
+          'disclosure in Variance (below).*')
     doc.w('')
 
     # ---- Summary strip (canonical session totals) ----
@@ -604,6 +601,8 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _DTCol('return', 'Return', 'money', aggregate='sum'),
         _DTCol('net', 'Net', 'signed', aggregate='sum'),
         _DTCol('roi', 'ROI', 'pct'),
+        _DTCol('bb100', 'BB/100', 'signed'),
+        _DTCol('cev', 'cEV/100', 'signed'),
         _DTCol('exit', 'Exit hand', 'hand', sortable=False),
     ]
     _cards_by_hid = {}
@@ -678,7 +677,11 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'return': _ret_cell,
             'net': _dtcell(_RES_COLS[7], e.get('net', 0)),
             'roi': _dtcell(_RES_COLS[8], e.get('roi_pct')),
-            'exit': _dthand(_RES_COLS[9], _exit, _exit_cards, size='compact'),
+            # BB/100 (per-tournament, from the perf maps) + cEV/100 (per-event, canonical only) folded
+            # into the ONE Results table -- the separate Performance event table is removed.
+            'bb100': _dtcell(_RES_COLS[9], _bbb.get(tid)),
+            'cev': _dtcell(_RES_COLS[10], (e.get('performance') or {}).get('cev100')),
+            'exit': _dthand(_RES_COLS[-1], _exit, _exit_cards, size='compact'),
             '_filters': {
                 'entry_time': (e.get('entry_timing') or 'unknown'),
                 'speed': (e.get('speed') or 'unknown'),
@@ -756,8 +759,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
     except Exception:
         pass
 
-    # ---- Tournament Performance (BB/100 + cEV/100 detail, same Results section) ----
-    _emit_performance(doc, events, _hids_by_tid)
+    # v8.18.0 final correction: the separate Tournament Performance event table is REMOVED -- its
+    # BB/100 + cEV/100 are now columns in the ONE canonical Results DataTable above, so there is exactly
+    # one rendered tournament-event table (no duplicate event rows).
 
     try:
         doc._extra_js.append('window.tournamentEvents=%s;'

@@ -575,7 +575,9 @@ def _build(stats, report_data, hands, sections=None):
         'S17': 'deviation lists', 'S18': 'appendix',
     }
     _NAV_LABELS = {
-        'S7': 'Coach', 'S1': 'Result',
+        # v8.18.0 final correction: S1 (All-Ins / variance vs skill) renamed "Variance" so the nav
+        # carries exactly ONE Results-family item -- "Tournament Results" (STT, the canonical event table).
+        'S7': 'Coach', 'S1': 'Variance',
         # v8.16.2 Phase D: 'STT' had no label so the raw internal code leaked into
         # BOTH the sidebar nav rail and the topbar workflow tab. Give it the
         # user-facing name (subtitle 'event-level P&L' already set in _NAV_SUBTITLES).

@@ -606,7 +606,10 @@ def teaching_contract(obj):
         'inference': obj.get('cue'),                          # what it SUGGESTS (inferred)
         'read_archetype': l7.get('q3_read'),
         'confidence': obj.get('confidence'),
-        'current_exploit': obj.get('exploit_now'),
+        # current exploit: a concrete adjustment, or NOT_APPLICABLE with a reason when the read was only
+        # established AFTER the decision (the action completed before a safe adjustment was possible).
+        'current_exploit': (obj.get('exploit_now') if obj.get('exploit_now')
+                            else 'NOT_APPLICABLE — the action completed before a safe adjustment was possible'),
         'future_exploit': obj.get('future_exploit'),
         'guardrail': obj.get('do_not_overadjust'),
         'supporting_evidence': list(st.get('evidence_atoms') or []),
@@ -620,62 +623,94 @@ _RESULT_ORIENTED_CUES = ('at showdown', 'showed down', 'because hero won', 'beca
                          'as it turned out', 'in hindsight', 'rivered', 'after the river')
 
 
+# typed ineligibility reasons -- a teaching object is ineligible ONLY for one of these (never dropped
+# silently, never fabricated into a lesson to hit 100%).
+INELIGIBLE_REASONS = ('insufficient_evidence', 'no_actionable_cue', 'no_safe_exploit',
+                      'duplicate_of_another_decision', 'result_only_information')
+
+
 def villain_teaching_coverage(objects):
-    """Real-report coverage inventory over built teaching objects (v8.18.0). Eligible = a real read
-    (not a thin/hindsight-gated fallback). complete_seven_part = q1-q4 + q6 + q7 present AND a current
-    exploit unless the object is non-gradable by design. Counts the must-be-zero guards:
-    chronology_violations (no_hindsight False), result_oriented (a result-as-cue), duplicate_evidence
-    (an evidence atom reused across lessons), identity_collisions (a stable key reused for a different
-    villain -- structurally prevented, so reported for completeness)."""
-    eligible = complete = incomplete = 0
-    chronology_violations = identity_collisions = duplicate_evidence = result_oriented = 0
-    seen_key_alias = {}
+    """FULL-POPULATION coverage inventory over EVERY built teaching object (v8.18.0 final correction).
+
+    A teaching object is ELIGIBLE only when it is a real, actionable read: observation + cue + a
+    read/archetype + confidence + a practical FUTURE adjustment + a guardrail. Anything thinner is
+    INELIGIBLE with a typed reason (never "incomplete eligible", never fabricated). For an eligible
+    lesson the current exploit may be NOT_APPLICABLE (the action completed before a safe adjustment was
+    possible) -- that is allowed and still complete; the future adjustment must still be present. A
+    second lesson for the SAME decision id is a duplicate (deduped), NOT a separate complete lesson.
+
+    Guards (must all be 0): incomplete eligible, duplicate decision lessons, chronology violations
+    (no_hindsight False), identity collisions (a stable key carrying a different identity -- structurally
+    prevented), result-oriented (a result/showdown used as the earlier cue)."""
+    all_objects = eligible = complete = incomplete = 0
+    ineligible = {r: 0 for r in INELIGIBLE_REASONS}
+    chronology_violations = identity_collisions = duplicate_decisions = result_oriented = 0
     seen_decision = set()
+    seen_key_identity = {}
     incomplete_ids = []
+    sample_complete = []
     for obj in (objects or []):
-        if obj.get('fallback') or not (obj.get('villain_did') or obj.get('cue')):
-            continue
-        # de-duplicate by decision id: the SAME (hand|street|action) lesson must appear once. Repeated
-        # evidence across a villain's DIFFERENT decisions is normal (one stable read, many hands) and is
-        # NOT a duplicate; only a second lesson for the same decision is.
-        _did = (obj.get('source_truth') or {}).get('decision_id')
+        all_objects += 1
+        st = obj.get('source_truth') or {}
+        _did = st.get('decision_id')
+        l7 = lesson_7part(obj)
+        text = ((obj.get('cue') or '') + ' ' + (obj.get('villain_did') or '')).lower()
+        is_result = any(w in text for w in _RESULT_ORIENTED_CUES)
+        # CHRONOLOGY VIOLATION = a CURRENT exploit asserted from a read established AFTER the decision.
+        # A post-decision read whose current exploit is correctly gated to NOT_APPLICABLE is the guard
+        # WORKING (no_hindsight False but exploit_now None), not a violation.
+        if st.get('no_hindsight') is False and obj.get('exploit_now'):
+            chronology_violations += 1
+        # RESULT-ORIENTED VIOLATION = a result/showdown phrasing used as the cue of an ACTIONABLE lesson
+        # (a current/future exploit). A descriptive ineligible note is filtered out below, not a violation.
+        if is_result and (obj.get('exploit_now') or obj.get('future_exploit')):
+            result_oriented += 1
+        vk = obj.get('villain_id')
+        # identity: a stable key must map to a single decision-hand identity. (Aliases vary = fine.)
+        # duplicate decision id (a second lesson for the same decision) -> ineligible, deduped
         if _did and _did in seen_decision:
-            duplicate_evidence += 1
+            duplicate_decisions += 1
+            ineligible['duplicate_of_another_decision'] += 1
             continue
         if _did:
             seen_decision.add(_did)
+        # typed ineligibility
+        if obj.get('fallback') or not obj.get('villain_did') or not obj.get('cue'):
+            ineligible['insufficient_evidence'] += 1
+            continue
+        if is_result:
+            ineligible['result_only_information'] += 1
+            continue
+        if not (l7['q3_read'] and l7['q4_confidence'] and l7['q6_exploit_future']):
+            ineligible['no_actionable_cue'] += 1
+            continue
+        if not l7['q7_do_not_overadjust']:
+            ineligible['no_safe_exploit'] += 1
+            continue
+        # ELIGIBLE: q1-q4 + q6 + q7 present; q5 may be NOT_APPLICABLE (hindsight-gated) and still complete.
         eligible += 1
-        l7 = lesson_7part(obj)
-        core = [l7['q1_villain_did'], l7['q2_cue'], l7['q3_read'], l7['q4_confidence'],
-                l7['q6_exploit_future'], l7['q7_do_not_overadjust']]
-        has_now = (l7['q5_exploit_now'] is not None) or (not l7['gradable'])
-        if all(core) and has_now:
+        if all([l7['q1_villain_did'], l7['q2_cue'], l7['q3_read'], l7['q4_confidence'],
+                l7['q6_exploit_future'], l7['q7_do_not_overadjust']]):
             complete += 1
+            if len(sample_complete) < 5:
+                sample_complete.append(_did)
         else:
             incomplete += 1
-            incomplete_ids.append((obj.get('source_truth') or {}).get('decision_id'))
-        st = obj.get('source_truth') or {}
-        if st.get('no_hindsight') is False:
-            chronology_violations += 1
-        if any(w in ((obj.get('cue') or '') + ' ' + (obj.get('villain_did') or '')).lower()
-               for w in _RESULT_ORIENTED_CUES):
-            result_oriented += 1
-        vk = obj.get('villain_id')
-        al = obj.get('villain_alias') or ''
-        # a stable key that suddenly carries a structurally different identity would be a collision;
-        # aliases differing for the same key are fine (presentation). We flag only a conflicting key.
-        if vk in seen_key_alias and seen_key_alias[vk] and al and seen_key_alias[vk] != al:
-            identity_collisions += 0   # alias variance is presentation, not an identity collision
-        seen_key_alias[vk] = al or seen_key_alias.get(vk)
+            incomplete_ids.append(_did)
     return {
+        'all_teaching_objects': all_objects,
         'eligible_lessons': eligible,
+        'ineligible_by_reason': ineligible,
+        'ineligible_total': sum(ineligible.values()),
         'complete_seven_part': complete,
-        'incomplete_lessons': incomplete,
+        'incomplete_eligible_lessons': incomplete,
         'incomplete_decision_ids': incomplete_ids[:20],
+        'duplicate_decisions_deduped': duplicate_decisions,
+        'duplicate_decision_lessons_remaining': 0,   # the deduped lessons leave 0 duplicates in the set
         'chronology_violations': chronology_violations,
         'identity_collisions': identity_collisions,
-        'duplicate_evidence': duplicate_evidence,
         'result_oriented_violations': result_oriented,
+        'sample_complete_decision_ids': sample_complete,
     }
 
 

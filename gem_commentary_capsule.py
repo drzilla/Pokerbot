@@ -142,8 +142,11 @@ def build_capsule(street, roles, *, register, evidence_tier):
     }
 
 
+# v8.18.0 final correction: the VISIBLE register badge now uses the canonical contract vocabulary
+# (FACTUAL/COACHING/INSUFFICIENT_EVIDENCE) with concise user-facing labels -- never the old generic
+# "Unclear"/"Read". INSUFFICIENT_EVIDENCE must be accompanied by the specific limitation in the body.
 _REGISTER_BADGE = {
-    'factual': 'Read', 'coaching': 'Coach', 'no_clear_lesson': 'Unclear',
+    'factual': 'Fact', 'coaching': 'Coach', 'no_clear_lesson': 'Insufficient evidence',
 }
 
 # verdict words that mean a scored coaching spot vs a neutral/correct factual one.

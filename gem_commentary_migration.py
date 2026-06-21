@@ -116,11 +116,30 @@ _STATUS = {
     'source_raw': 'preserved_legacy',
     # bare markdown that bypasses .analyst-notes routing -> surfaced for review
     'analyst_fallback_bare': 'review_needed',
-    # explicitly out of the Commentary cell -> untouched (firewall)
+    # explicitly out of the Commentary cell -> INTENTIONALLY RETAINED IN ANOTHER NAMED VISIBLE SURFACE
+    # (a firewall, not a drop). v8.18.0 final correction: each carries a NAMED surface + reason below,
+    # so the zero-drop ledger never reports a blanket "left untouched out of scope".
     'mh_verdict': 'leave_untouched_out_of_scope',
     'opp_context_bottom': 'leave_untouched_out_of_scope',
     'passive_read': 'leave_untouched_out_of_scope',
 }
+
+# v8.18.0 final correction: the NAMED visible surface (+ reason) each retained-out-of-scope source type
+# lives in. Resolves the contract requirement that no item is left in a blanket "out of scope" bucket.
+_NAMED_SURFACE = {
+    'mh_verdict': ('hand-detail verdict pill / top bar',
+                   'the decision verdict is its own canonical surface; duplicating it in the capsule would fight the status owner'),
+    'opp_context_bottom': ('hand-detail opponent-context section',
+                           'whole-hand opponent context belongs at hand level, not on a single street capsule'),
+    'passive_read': ('villain passive-read evidence (villain-context surface)',
+                     'a passive observation is villain evidence, surfaced in the villain-context surface, not a Hero coaching capsule'),
+}
+
+
+def named_surface_for(source_type):
+    """The named visible surface + retention reason for an intentionally-retained source (never blank)."""
+    surf, reason = _NAMED_SURFACE.get(source_type, ('existing visible location', 'retained in place'))
+    return {'named_surface': surf, 'retention_reason': reason}
 
 # sources whose street binding comes from a data-street attr the router parses
 _STREET_ROUTED = ('analyst_notes_street', 'range_lens')
@@ -453,6 +472,22 @@ def build_migration_summary(rows, lazy_parity_mismatch=0):
 
     types = sorted({r['source_type'] for r in rows})
 
+    # v8.18.0 final correction: break the "retained out of scope" bucket into NAMED visible surfaces
+    # (+ reason) so the ledger never reports a blanket result. Every retained item resolves to a surface.
+    named = {}
+    for r in rows:
+        if r.get('migration_status') == 'leave_untouched_out_of_scope':
+            ns = named_surface_for(r['source_type'])
+            key = ns['named_surface']
+            ent = named.setdefault(key, {'count': 0, 'reason': ns['retention_reason'], 'source_types': set()})
+            ent['count'] += 1
+            ent['source_types'].add(r['source_type'])
+    retained_named = [{'named_surface': k, 'count': v['count'], 'reason': v['reason'],
+                       'source_types': sorted(v['source_types'])} for k, v in sorted(named.items())]
+    items_without_named_surface = sum(1 for r in rows
+                                      if r.get('migration_status') == 'leave_untouched_out_of_scope'
+                                      and not named_surface_for(r['source_type'])['named_surface'])
+
     return {
         'source_items_inventoried': inventoried,
         'source_types_found': types,
@@ -460,6 +495,9 @@ def build_migration_summary(rows, lazy_parity_mismatch=0):
         'more_payload': counts['more_payload'],
         'preserved_legacy': counts['preserved_legacy'],
         'review_needed': counts['review_needed'],
+        'retained_in_named_surface': counts['leave_untouched_out_of_scope'],
+        'retained_named_surfaces': retained_named,
+        'items_without_named_surface': items_without_named_surface,
         'left_untouched_out_of_scope': counts['leave_untouched_out_of_scope'],
         'intentionally_removed': counts['intentionally_removed'],
         'balances': inventoried == bucket_sum,

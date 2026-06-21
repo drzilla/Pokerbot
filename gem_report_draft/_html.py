@@ -41,7 +41,7 @@ class Doc:
     # the user's desired tab/nav names. Keyed by anchor (e.g., 'sec-7').
     _HEADING_OVERRIDE = {
         'sec-0': 'Summary',
-        'sec-7': 'Coach', 'sec-1': 'Result', 'sec-6': 'KPIs',
+        'sec-7': 'Coach', 'sec-1': 'Variance', 'sec-6': 'KPIs',
         'sec-2': 'Top hands', 'sec-3': 'Leaks', 'sec-4': 'Tourney type',
         'sec-8': 'Preflop', 'sec-9': 'Postflop SRP',
         'sec-10': 'Postflop 3BP/4BP', 'sec-11': 'Mechanics',
@@ -5438,7 +5438,7 @@ def _topbar_html(kpis, nav_sections=None):
     # Phase 4.8: tab labels aligned with user's desired naming.
     # S16 (Glossary) restored.
     _TAB_SHORT = {
-        'S7': 'Coach', 'S1': 'Result', 'S6': 'KPIs',
+        'S7': 'Coach', 'S1': 'Variance', 'S6': 'KPIs',
         'S2': 'Top hands', 'S3': 'Leaks', 'S4': 'Tourney type',
         'S8': 'Preflop', 'S9': 'Postflop SRP', 'S10': 'Postflop 3BP/4BP',
         'S11': 'Mechanics', 'S13': 'Aggression', 'S5': 'Action Items',

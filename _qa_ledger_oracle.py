@@ -97,12 +97,62 @@ def _post_types(h):
     return out
 
 
+def oracle_full_replay(h):
+    """REV16 §11: the INDEPENDENT full-history physical-chip replay (poker rules). It computes each
+    action's physical chips from the LIVE LEVEL it reaches (typed posts + ante-clean to_bb / call
+    levels), with the dead ante reducing the stack but NOT live commitment — a SEPARATE implementation
+    importing NONE of production's replay, so a production prior-stack bug is caught, not echoed. The
+    raw added_bb is never summed for the stack. Returns {ledger_idx: {stack_before_bb, physical_bb}}."""
+    led = h.get('action_ledger') or []
+    ptypes = _post_types(h)
+    stack = {p: _f(v) for p, v in _starting(h).items()}
+    out = {}
+    cur_street = None
+    live = {}
+    level = 0.0
+    for i, a in enumerate(led):
+        p = a.get('player', ''); act = a.get('action', ''); st = a.get('street', 'preflop')
+        if st != cur_street:
+            cur_street = st; live = {}; level = 0.0
+        amt = _f(a.get('amount_bb', 0) or 0.0)
+        lb = round(live.get(p, 0.0), 2)
+        sb = stack.get(p)
+        physical = 0.0
+        ai = bool(a.get('is_all_in'))
+        if act == 'posts':
+            physical = round(amt, 2)
+            if ptypes.get(i) in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
+                live[p] = round(lb + physical, 2); level = max(level, live[p])
+            # else dead ante: reduces stack only
+        elif act in ('raises', 'bets'):
+            _to = a.get('to_bb')
+            target = (round(_f(_to), 2) if (act == 'raises' and _to is not None) else round(level + amt, 2))
+            if sb is not None and (ai or (target - lb) >= sb - 0.01):
+                physical = round(sb, 2)
+            else:
+                physical = round(target - lb, 2)
+            live[p] = round(lb + physical, 2); level = max(level, live[p])
+        elif act == 'calls':
+            need = round(max(0.0, level - lb), 2)
+            if sb is not None and (ai or need >= sb - 0.01):
+                physical = round(sb, 2)
+            else:
+                physical = round(need, 2)
+            live[p] = round(lb + physical, 2)
+        out[i] = {'stack_before_bb': (round(sb, 2) if sb is not None else None),
+                  'physical_bb': round(physical, 2)}
+        if sb is not None:
+            stack[p] = round(sb - physical, 2)
+    return out
+
+
 def oracle_replay(h, idx):
-    """REV15 G: the INDEPENDENT commitment + stack replay (poker rules) the QA gates expect from. It
-    derives the LIVE bet level from ante-clean amount_bb raise INCREMENTS + typed posts (the blind is
-    live, the ante dead) — mirroring the poker rules but importing NONE of the production replay, so a
-    bug in production's replay is caught (not echoed). Returns hero_live_before, faced_live_level and
-    the chips Hero adds for the action at idx."""
+    """REV15 G / REV16 §11: the INDEPENDENT commitment + stack replay (poker rules) the QA gates expect
+    from. It derives the LIVE bet level from ante-clean amount_bb raise INCREMENTS + typed posts (the
+    blind is live, the ante dead) and the stack-before from its OWN full-history physical replay
+    (oracle_full_replay — never raw added_bb) — importing NONE of the production replay, so a bug in
+    production's prior-stack arithmetic is caught (not echoed). Returns hero_live_before, faced_live
+    and the chips Hero adds for the action at idx."""
     led = h.get('action_ledger') or []
     hero = h.get('hero', 'Hero')
     if idx is None or not (0 <= idx < len(led)):
@@ -130,7 +180,12 @@ def oracle_replay(h, idx):
         elif aj == 'calls':
             live_by[pj] = cur_level
     ident = oracle_identity(h, idx)
-    stack_before = ident.get('hero_stack_before_bb')
+    # REV16 §11/B4: the stack-before is from the INDEPENDENT full-history physical replay (never the
+    # raw-added identity path the production bug shared) — so the oracle closes to the chip flow.
+    _ofr = oracle_full_replay(h)
+    stack_before = _ofr.get(idx, {}).get('stack_before_bb')
+    if stack_before is None:
+        stack_before = ident.get('hero_stack_before_bb')
     became_all_in = bool(ident.get('became_all_in'))
     hero_live_before = round(live_by.get(hero, 0.0), 2)
     faced_live = round(cur_level, 2)

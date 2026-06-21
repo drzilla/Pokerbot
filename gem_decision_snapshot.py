@@ -158,80 +158,178 @@ def normalize_forced_posts(h):
     return out
 
 
-def replay_commitments_to_action(h, idx):
-    """REV15 C: the ONE canonical commitment + stack replay up to (strictly before) the reviewed
-    action. It owns dead/live forced posts, live street commitment, the LIVE bet level (ante-clean,
-    derived from amount_bb raise increments — the standard "raise to X" the grid shows), and the
-    chips Hero physically adds. Every downstream sizing surface reads THIS, never raw added_bb.
+def replay_full_history(h):
+    """REV16 §2-§4: the ONE full-history, all-player physical-chip replay. It processes EVERY action
+    in order and, for EVERY player, derives the physical chips that leave the stack — NEVER the raw
+    ledger `added_bb` (which the parser folds the ante into: short by the ante for aggressive/all-in,
+    over by it for calls). Each action's physical amount is computed from the LIVE LEVEL it reaches:
 
-    Identities it guarantees (REV15 Part C / D / B3):
-      live_street_total_after  == live_street_committed_before + amount_added_on_action
-      pot_contribution_after    == dead_forced_paid_before     + live_street_total_after
-      stack_after_action        == stack_before_action          - amount_added_on_action
-      if became_all_in:  stack_after_action == 0  and  amount_added == stack_before_action."""
+      * post ante   -> physical = the ante (DEAD: reduces stack + pot, NOT live commitment)
+      * post blind  -> physical = the blind (LIVE preflop commitment)
+      * raise/bet   -> reaches live level `to_bb` (clean); physical = to_bb - own live-before (capped)
+      * call        -> physical = faced live level - own live-before (capped by stack)
+      * all-in      -> physical = stack_before (exhausts); the live level reached = live-before + stack
+      * check/fold  -> 0
+
+    Stack tracking uses TOTAL physical (dead antes INCLUDED); live tracking uses live only. At each
+    street close the lone top live committer is refunded the uncalled excess (over the 2nd-highest).
+
+    Returns a list[len(ledger)] of per-action canonical records. Every later fact (the decision
+    snapshot, the ActionSizingContract, Hero AND villain grid rows, the worklist, pot-odds) consumes
+    THIS — no surface may re-derive owned sizing from raw added_bb. Permanent invariants (REV16 §8):
+      stack_after  == stack_before - physical_amount_added + uncalled_return
+      live_after    == live_before  + physical_added_to_live
+      covering call (caller 0 live this street) physical == bettor live_total_to
+      if became_all_in: physical_amount_added == stack_before and stack_after == 0."""
     led = h.get('action_ledger') or []
-    hero = _hero(h)
-    starting = _starting_stacks(h)
-    if idx is None or not (0 <= idx < len(led)):
-        return {'no_action': True}
-    street = led[idx].get('street', 'preflop')
     posts = normalize_forced_posts(h)
-    cur_level = 0.0
-    live_committed = {}            # this street, LIVE (ante excluded)
-    dead_by_player = {}            # this street DEAD forced posts (ante)
-    gross_before_total = {}        # ALL streets gross committed strictly before idx (for the stack)
+    stack = {p: _f(v) for p, v in _starting_stacks(h).items()}
+    total_contrib = {}                       # cumulative dead+live into the pot, per player
+    out = [None] * len(led)
+    cur_street = None
+    live = {}                                # this street: player -> live committed
+    level = 0.0                              # this street: current live level faced
+    street_idxs = []                         # action indices in the current street
+
+    def _close_street(idxs):
+        if not idxs or not live:
+            return
+        commits = sorted(live.values(), reverse=True)
+        top = commits[0]
+        if top <= _EPS:
+            return
+        second = commits[1] if len(commits) > 1 else 0.0
+        tops = [p for p, v in live.items() if abs(v - top) <= _EPS]
+        if len(tops) == 1 and (top - second) > _EPS:
+            tp = tops[0]
+            ret = round(top - second, 2)
+            stack[tp] = round(stack.get(tp, 0.0) + ret, 2)
+            total_contrib[tp] = round(total_contrib.get(tp, 0.0) - ret, 2)
+            for j in reversed(idxs):
+                r = out[j]
+                if r is not None and r['player'] == tp and r['physical_amount_added_bb'] > _EPS:
+                    r['uncalled_return_bb'] = ret
+                    if r['stack_after_bb'] is not None:
+                        r['stack_after_bb'] = round(r['stack_after_bb'] + ret, 2)
+                    r['total_contribution_after_bb'] = round(r['total_contribution_after_bb'] - ret, 2)
+                    break
+
     for i, a in enumerate(led):
         p = a.get('player', ''); act = a.get('action', ''); st = a.get('street', 'preflop')
+        if st != cur_street:
+            _close_street(street_idxs)
+            cur_street = st; live = {}; level = 0.0; street_idxs = []
         amt = _f(a.get('amount_bb', 0) or 0.0)
-        if i < idx:
-            gross_before_total[p] = round(gross_before_total.get(p, 0.0) + _added(a), 2)
-        if st != street or i >= idx:
-            continue
+        lb = round(live.get(p, 0.0), 2)
+        faced = round(level, 2)                          # the live level this player faces
+        sb = stack.get(p)
+        tc_before = round(total_contrib.get(p, 0.0), 2)
+        physical = 0.0; became = bool(a.get('is_all_in'))
+        is_dead = False; callable_comp = 0.0; raise_inc = None; pt = None
         if act == 'posts':
             pt = posts.get(i, {}).get('post_type', 'ante')
+            physical = round(amt, 2)
             if pt in ('small_blind', 'big_blind', 'dead_blind', 'straddle'):
-                live_committed[p] = round(live_committed.get(p, 0.0) + amt, 2)
-                cur_level = max(cur_level, live_committed[p])
+                live[p] = round(lb + physical, 2)
             else:
-                dead_by_player[p] = round(dead_by_player.get(p, 0.0) + amt, 2)
+                is_dead = True                           # ante: stack + pot, never live
         elif act in ('raises', 'bets'):
-            # the LIVE bet LEVEL reached — prefer the parser's raise-to (`to_bb`, ante-clean) over the
-            # raw increment (cur + amount_bb), which can drift by the ante on real raises.
             _to = a.get('to_bb')
-            cur_level = (round(_f(_to), 2) if (_to is not None and act == 'raises')
-                         else round(cur_level + amt, 2))
-            live_committed[p] = cur_level
+            target = (round(_f(_to), 2) if (act == 'raises' and _to is not None)
+                      else round(faced + amt, 2))         # bet: faced(0 first postflop) + size
+            callable_comp = round(max(0.0, faced - lb), 2)
+            # the all-in FLAG exhausts the stack exactly (the level-derived target can undershoot the
+            # recorded stack by a rounding tick) — trust it; otherwise reach the target.
+            if sb is not None and (became or (target - lb) >= sb - _EPS):
+                physical = round(sb, 2); became = True
+            else:
+                physical = round(target - lb, 2)
+            live[p] = round(lb + physical, 2)
+            raise_inc = round(max(0.0, physical - callable_comp), 2)
         elif act == 'calls':
-            live_committed[p] = cur_level
+            callable_comp = round(max(0.0, faced - lb), 2)
+            if sb is not None and (became or callable_comp >= sb - _EPS):
+                physical = round(sb, 2); became = True
+            else:
+                physical = round(callable_comp, 2)
+            live[p] = round(lb + physical, 2)
+        # checks / folds: physical 0
+        sa = (round(sb - physical, 2) if sb is not None else None)
+        if sb is not None:
+            stack[p] = sa                            # the physical chips LEAVE the stack (dead ante incl)
+        total_contrib[p] = round(tc_before + physical, 2)
+        if not is_dead:
+            level = max(level, round(live.get(p, lb), 2))
+        out[i] = {
+            'idx': i, 'player': p, 'street': st, 'action': act, 'post_type': pt,
+            'is_dead_forced': is_dead,
+            'physical_amount_added_bb': round(physical, 2),
+            'live_commitment_before_bb': lb,
+            'live_commitment_after_bb': (lb if is_dead else round(live.get(p, lb), 2)),
+            'faced_live_level_bb': faced,
+            'total_contribution_before_bb': tc_before,
+            'total_contribution_after_bb': round(total_contrib.get(p, 0.0), 2),
+            'stack_before_bb': (round(sb, 2) if sb is not None else None),
+            'stack_after_bb': sa,
+            'callable_component_bb': round(callable_comp, 2),
+            'raise_increment_bb': raise_inc,
+            'uncalled_return_bb': 0.0,
+            'became_all_in': became,
+        }
+        street_idxs.append(i)
+    _close_street(street_idxs)
+    return out
 
-    hero_live_before = round(live_committed.get(hero, 0.0), 2)
-    faced_live_level = round(cur_level, 2)
-    hero_street_dead = round(dead_by_player.get(hero, 0.0), 2)
-    stack_before = (round(starting.get(hero, 0.0) - gross_before_total.get(hero, 0.0), 2)
-                    if hero in starting else None)
-    evt = led[idx]
-    act = evt.get('action', '')
-    amt = _f(evt.get('amount_bb', 0) or 0.0)
-    became_all_in = bool(evt.get('is_all_in')) or (
-        stack_before is not None and _added(evt) > _EPS and (stack_before - _added(evt)) <= _EPS)
-    callable_amt = (round(min(max(0.0, faced_live_level - hero_live_before), stack_before), 2)
-                    if stack_before is not None else round(max(0.0, faced_live_level - hero_live_before), 2))
-    if became_all_in:
-        amount_added = stack_before if stack_before is not None else _added(evt)
-    elif act == 'calls':
-        amount_added = callable_amt
-    elif act in ('raises', 'bets'):
-        _to = evt.get('to_bb')
-        _new_level = (round(_f(_to), 2) if (_to is not None and act == 'raises')
-                      else round(faced_live_level + amt, 2))
-        amount_added = round(_new_level - hero_live_before, 2)
-    else:                                          # checks / folds
-        amount_added = 0.0
-    amount_added = round(amount_added, 2)
-    live_total_to = round(hero_live_before + amount_added, 2)
-    stack_after = 0.0 if became_all_in else (round(stack_before - amount_added, 2)
-                                             if stack_before is not None else None)
-    pot_contribution_after = round(hero_street_dead + live_total_to, 2)
+
+def canonical_action_replay(h, idx):
+    """REV16: the per-action canonical replay record for ANY player action (Hero or villain) — the
+    ONE source every action row consumes. Memoized per ledger identity within a render pass."""
+    if idx is None:
+        return None
+    cache = h.get('_rev16_replay_cache')
+    led = h.get('action_ledger') or []
+    if not (isinstance(cache, tuple) and cache[0] is led):
+        cache = (led, replay_full_history(h))
+        try:
+            h['_rev16_replay_cache'] = cache
+        except Exception:
+            pass
+    full = cache[1]
+    return full[idx] if 0 <= idx < len(full) else None
+
+
+def replay_commitments_to_action(h, idx):
+    """REV16: Hero's reviewed-action view of the full-history replay (§4 — reads the already-replayed
+    prior state; NEVER sums raw added_bb). Guarantees, for the selected Hero action:
+      stack_before_action == starting_stack - cumulative prior PHYSICAL (dead antes incl) + returns
+      live_street_total_after == live_street_committed_before + amount_added
+      pot_contribution_after  == dead_forced_paid_before     + live_street_total_after
+      if became_all_in:  stack_after == 0  and  amount_added == stack_before."""
+    led = h.get('action_ledger') or []
+    if idx is None or not (0 <= idx < len(led)):
+        return {'no_action': True}
+    rec = canonical_action_replay(h, idx)
+    if rec is None:
+        return {'no_action': True}
+    hero = _hero(h)
+    street = rec['street']
+    full = h.get('_rev16_replay_cache', (None, []))[1]
+    hero_street_dead = round(sum(r['physical_amount_added_bb'] for r in full
+                                 if r and r['player'] == hero and r['street'] == street
+                                 and r['is_dead_forced'] and r['idx'] < idx), 2)
+    hero_live_before = rec['live_commitment_before_bb']
+    faced_live_level = rec['faced_live_level_bb']
+    amount_added = rec['physical_amount_added_bb']
+    live_total_to = rec['live_commitment_after_bb']
+    stack_before = rec['stack_before_bb']
+    became_all_in = rec['became_all_in']
+    # DECISION-time stack_after: at the reviewed action an all-in exhausts the stack (==0). The
+    # full-history record's stack_after carries any later uncalled REFUND (for chip conservation);
+    # that refund is a post-action result, exposed separately as uncalled_return_bb, not a decision fact.
+    stack_after = (0.0 if became_all_in
+                   else (round(stack_before - amount_added, 2) if stack_before is not None else None))
+    callable_amt = (round(min(rec['callable_component_bb'], stack_before), 2)
+                    if stack_before is not None else rec['callable_component_bb'])
     return {
         'no_action': False,
         'street': street,
@@ -241,10 +339,11 @@ def replay_commitments_to_action(h, idx):
         'faced_live_total_to_bb': faced_live_level,
         'amount_added_on_action_bb': amount_added,
         'live_street_total_after_bb': live_total_to,
-        'pot_contribution_after_bb': pot_contribution_after,
+        'pot_contribution_after_bb': round(hero_street_dead + live_total_to, 2),
         'stack_before_action_bb': stack_before,
         'stack_after_action_bb': stack_after,
         'callable_amount_bb': callable_amt,
+        'uncalled_return_bb': rec['uncalled_return_bb'],
         'became_all_in': became_all_in,
     }
 
@@ -423,6 +522,16 @@ def build_decision_snapshot(h, hero_action_index=None):
     else:
         live_street_committed_before = round(max(0.0, hero_committed_street - hero_ante_paid), 2)
         to_call = _gross_to_call
+    # REV16 B5: stack-before-the-action has ONE owner — the full-history replay. The raw
+    # `remaining_before` (starting - committed_total via _added) is ante-contaminated (the parser
+    # folds the ante into each delta), so it disagreed with the replay (84601619: 40.78 vs 40.63).
+    # Consume the canonical value so callable / stack_before / depth all close to the physical chips.
+    if not _rp.get('no_action') and _rp.get('stack_before_action_bb') is not None:
+        hero_remaining = round(_rp['stack_before_action_bb'], 2)
+        if not use_remaining:
+            hero_eff_basis = round(start_of_street(hero), 2)   # preflop: full start-of-street stack
+        else:
+            hero_eff_basis = hero_remaining                    # postflop: canonical chips behind
     faced_ante_paid = 0.0
     if faced_aggressor is not None and street == 'preflop':
         try:

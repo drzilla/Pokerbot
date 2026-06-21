@@ -306,6 +306,11 @@ def main():
     gate_pv = qp.gate_persisted_view_node_parity(real_wl)
     # REV15 B4/G7: RELATIONAL contract identities (live_total == live_before + amount_added; etc.).
     gate_rc = qp.gate_relational_contract(our_idx, real_wl)
+    # REV16 §12: full-history physical replay over EVERY action (stack conservation, covering-call
+    # parity, all-in residual, oracle agreement) + every rendered grid row sized from the canonical
+    # replay (0 raw fallbacks).
+    gate_far = qp.gate_full_action_replay(our_idx)
+    gate_apr = qp.gate_all_player_renderer_parity(our_idx, html)
 
     # REV10 E1: per-surface ACTIVATION counts over the generated holdout bodies. A claimed
     # consumer must be genuinely activated (count > 0) — an absent block can no longer pass by
@@ -381,6 +386,12 @@ def main():
     rc_mismatches = [{'hand': r.get('hand_id'), 'why': 'relational_contract', 'fields': r['mismatch_fields']}
                      for r in gate_rc.get('records', []) if r.get('mismatch_fields')]
     vn_mismatches = vn_mismatches + pv_mismatches + rc_mismatches
+    # REV16 §12: full-history chip-flow conservation + all-player renderer parity over the holdout.
+    far_mismatches = [{'hand': r.get('hand'), 'why': 'full_action_replay_' + r.get('why', ''),
+                       'detail': r} for r in gate_far.get('records', [])]
+    apr_mismatches = [{'hand': r.get('hand'), 'why': 'renderer_parity_raw_fallback', 'detail': r}
+                      for r in gate_apr.get('records', [])]
+    vn_mismatches = vn_mismatches + far_mismatches + apr_mismatches
     violations = (list(gate_vd.get('mismatches', [])) + list(gate_fr.get('mismatches', []))
                   + direct + surface_violations + wl_a_mismatches + oracle_mismatches
                   + ar_mismatches + vs_violations + vn_mismatches)
@@ -406,6 +417,10 @@ def main():
         'view_node_parity_checked': gate_vn.get('authoritative_items_checked', 0),
         'persisted_view_node_parity_checked': gate_pv.get('items_with_both_objects', 0),
         'relational_contract_checked': gate_rc.get('authoritative_items_checked', 0),
+        'full_action_replay_actions': gate_far.get('actions_replayed', 0),
+        'full_action_replay_violations': gate_far.get('total_violations', 0),
+        'renderer_parity_rows_checked': gate_apr.get('rows_checked', 0),
+        'renderer_parity_raw_fallbacks': gate_apr.get('fallback_activations', 0),
         'view_node_parity_mismatches': len(vn_mismatches),
         'visible_semantic_violations': len(vs_violations),
         'coaching_cards_built': n_coaching_cards,

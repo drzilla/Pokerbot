@@ -341,7 +341,7 @@ def _build_seat_info_from_hand(hand_dict):
     for _pos_k, _stk_v in (hand_dict.get('seat_stacks_bb_all', {}) or {}).items():
         if _pos_k not in _stack_by_pos and _stk_v:
             _stack_by_pos[_pos_k] = _stk_v
-    for a in hand_dict.get('action_ledger', []):
+    for _li, a in enumerate(hand_dict.get('action_ledger', [])):
         st = a.get('street', 'preflop')
         if st in result['actions']:
             _player = a.get('player', '')
@@ -357,6 +357,9 @@ def _build_seat_info_from_hand(hand_dict):
                 'all_in': a.get('is_all_in', False),
                 'is_hero': _player == hero,
                 'stack_bb': round(_stk, 1),
+                # REV16 §6: the ledger index lets the grid read the ONE full-history per-action
+                # canonical replay (physical chips / live level) for EVERY player row, Hero + villain.
+                'ledger_index': _li,
             })
     return result
 

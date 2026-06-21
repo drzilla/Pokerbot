@@ -20,7 +20,7 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("d54b7023e72eb6480aeb3f2ce4345715c00ac3eb9f6b3c66f9940160178c5116", 753838, "v8.17.1 Iter-1 REV15: + T-REV15-01..10 (typed forced posts, commitment replay, non-blind open + 3-bet + jam + re-jam + underblind correct, short-blind-below-ante typed, relational gate, impossible-row gate, ownership audit)"),
+    "_test_scratch.py": ("d54305e0d9350f9254c9f6784221ca4a5c162abf7c77721f0321d3eb66be7fb6", 770390, "v8.17.1 Iter-1 REV16: + T-REV16-01..14 (full-history physical replay: non-blind open / 3-bet / postflop jam after open|3bet|raise+call / re-jam / call-all-in / partial blind / covering-call parity / prior-commit caller / short caller cap / uncalled return / ownership-missing-fails / renderer raw-fallback-fails)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("a2dd265c3283d48a35d596fd42cf0619f6f8da6214843ca9a85b0c02aa56743e", 66908, "v8.17.1 Iter-1 REV10 A1/B8: exported decision_node is serialize_reviewed_decision_node (canonical ReviewedDecisionView) + reviewed_decision_view; legacy builder retired to a stack-less fallback"),
@@ -34,14 +34,14 @@ MANIFEST = {
     "gem_gtow.py": ("680aa0c462e2cf2799c4946d7bdc898a6cb24dc11459ab10e4048cfe066d77a7", 32085, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
     "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),
     "gem_leak_watchlist.py": ("4d0b4c199374ab5604bd79b82ca727949b003186b05687a96f116ba632f168f0", 19406, "v8.12.4: aim clamp + thin-sample downgrade + bluff synthesis"),
-    "gem_decision_snapshot.py": ("42173c896cbe23d757a7ec9ea10005080a41eb8e72630966f1365fa080d5d9d8", 109961, "v8.17.1 Iter-1 REV15 B/C/D: normalize_forced_posts (typed, reads parser post_type) + replay_commitments_to_action (ONE commitment+stack replay, ante-clean amount_bb increments) — the ONE owner of amount_added/live total-to/pot/stack/to_call; the snapshot to_call + the contract + reviewed_action_display read it"),
+    "gem_decision_snapshot.py": ("ae4cf18324257ee86628942070c0ad1edaad2ee4ee8ec2674bce7be1fa3ad116", 115972, "v8.17.1 Iter-1 REV16: replay_full_history (ONE full-history all-player physical-chip replay; physical from the live level not raw added_bb; dead ante reduces stack not live; uncalled returns) + canonical_action_replay; snapshot hero_remaining/stack_before/callable CONSUME the replay (no co-producer)"),
     "gem_parser.py": ("4fb17638c705548134b29914de088c79f8aca89966f0a627c30e5bd0da86e111", 105776, "v8.17.1 Iter-1 REV15 B: the ledger preserves a TYPED post_type (ante / small_blind / big_blind) from the raw hand-history text at the parser boundary — the canonical source downstream code reads (never re-inferred by amount/seat)"),
     "gem_pko_research.py": ("8bd0168633f0df7b6680fcf31a404611bead67789ed71b20c5ec9b78a46009cd", 55374, "v8.17 B6/B7: how_pko_changes_decision() + pko_trust_render exposes how_changes_md + reconciled facts"),
     "gem_pot_odds.py": ("3bde4518f4306256bc2067d30d9758c003ea16fc4466b0b5868319de2e678bc1", 49955, "v8.17.1 P5: decision-time pot odds (eval at the decision node)"),
     "gem_tournament_model.py": ("a52c75bf3b3ccc43b3e1852020918bc3114dcc2ec4c2af51f1cdc5d1626fd629", 21818, "v8.17.1 P4: event performance(hands/bb100) + reviewed + exit_hand fields for Tournament Tables v3"),
     "gem_quality.py": ("4d8b8074d6c7b7ab067c10cabe053ac837ca78cf8f1d686e60e6fbd176790bc5", 31386, "v8.12.4: all-zeros learnings carry section detail"),
-    "gem_report_data.py": ("e5a891a0d0ebdf91edba7ca9f48bfd56e1423583e7f95af17bcfbc83cf2cd1da", 224254, "v8.14.3 Issue 1: top-level financials canonicalised from parsed USD overlay (+total_ticket_value)"),
-    "gem_report_draft/_hand_grid.py": ("f8baf43b5eef8ae8134ac3dbbf9340496e0e755f16769407cfce53b9b21a507e", 92141, "v8.17.1 Iter-1 REV14 D3: the grid consumes the canonical callable price + required equity for a Hero call (never a raw amount_bb / running-pot recompute), so grid==capsule; all-in 'adds X' from amount_added"),
+    "gem_report_data.py": ("34d039eba960edca21ed753d80ac94ea5b7eb6bb5e75d830de19c72cdb83d9ae", 224507, "v8.17.1 Iter-1 REV16 §6: each appendix grid action carries its ledger_index so EVERY row (Hero + villain) reads the ONE full-history canonical replay"),
+    "gem_report_draft/_hand_grid.py": ("d7999d7d1c48d6e9ba4024f3ceb55666303b7173f44339ed2ed1ac6f031e8f25", 93548, "v8.17.1 Iter-1 REV16 §6/§8.5: EVERY grid row (Hero + villain) sources its size from canonical_action_replay (physical chips / live level); ONE _jam_headline (adds physical / all-in to level) for all players; raw-sizing fallback counted (0)"),
     "gem_report_draft/_helpers.py": ("108c329886f9531db53fdf3aebb5f96499d2cdf37790c447fb87ee827abdae8a", 70777, "v8.17.1 P5: build_canonical_verdicts (active_queue>analyst>auto[usable]>neutral Review)"),
     "gem_report_draft/_html.py": ("e867d5ef46431171f37843b6437a92999f7c1dad0dc555ffdea9df20deea1784", 421826, "v8.17.1 Iter-1 REV12 B3/B4: _renderCoachingCard renders the visible ownership label (Earlier context / Population research / Whole-hand lesson)"),
     "gem_report_draft/_state.py": ("c05440f911443532cdc76be5bce06918f90841c453fc4cd80ebe6c10e53c73c4", 4551, "v8.16.2 Phase B: _FULL_CARD_IDS dedup registry"),
@@ -191,8 +191,8 @@ CANARIES = [
      "'3-bet to'",
      "v8.8.6: preflop 3-bet label"),
     ("gem_report_draft/_hand_grid.py",
-     "_raise_to = _current_bet + amt",
-     "v8.8.6: raise-to computation formula"),
+     "_raise_to = _vr_level_after if _vr_level_after is not None else (_current_bet + amt)",
+     "v8.8.6 / REV16 §8.3: raise-to level from the canonical replay (raw current_bet+amt only as fallback)"),
 
     # v8.8.6 verdict chip canaries
     ("gem_report_draft/_html.py",
@@ -1512,8 +1512,8 @@ CANARIES = [
      "v8.17.1 Iter-1 REV13 A4: the ActionSizingContract travels ON the canonical view + serialized node"),
     ('gem_decision_snapshot.py', 'def decision_grade_eligibility(',
      "v8.17.1 Iter-1 REV13 C3: the contract that a forced short all-in / walk is UNGRADED (FinalDecisionStatus NOT implemented)"),
-    ('gem_report_draft/_hand_grid.py', "f'⚡ JAM adds {_aa:.1f}BB, all-in to {_tt:.1f}BB'",
-     "v8.17.1 Iter-1 REV13 A1: the grid 'adds' value is amount_added_bb (never the raise increment); total_to is the all-in"),
+    ('gem_report_draft/_hand_grid.py', "f'⚡ JAM adds {_phys:.1f}BB, all-in to {_lvl:.1f}BB'",
+     "v8.17.1 Iter-1 REV13/REV16 §8.5: the grid 'adds' value is the canonical physical, 'all-in to' the canonical level (one _jam_headline, every player)"),
     ('gem_report_draft/_hand_grid.py', 'not _is_short_allin_ann',
      "v8.17.1 Iter-1 REV13 C1: no 👍/marker on a forced underblind short all-in"),
     ('gem_report_draft/sections_xiv.py', "!= 'first_in_short_all_in'",
@@ -1533,8 +1533,8 @@ CANARIES = [
      "v8.17.1 Iter-1 REV14 A: the typed ForcedPostContext — ante is DEAD, the SB/BB is LIVE commitment"),
     ('gem_decision_snapshot.py', "'live_street_committed_before_bb': live_street_committed_before",
      "v8.17.1 Iter-1 REV14 A2: the snapshot exposes LIVE street commitment (ante excluded) separately from the gross"),
-    ('gem_decision_snapshot.py', "amount_added = stack_before if stack_before is not None else _added(evt)",
-     "v8.17.1 Iter-1 REV14/15 B/C: an all-in's amount_added EXHAUSTS the stack (stack_after=0) — owned by the replay"),
+    ('gem_decision_snapshot.py', "stack_after = (0.0 if became_all_in",
+     "v8.17.1 Iter-1 REV16 B/C: the reviewed-action view reports the decision-time exhaustion (all-in -> stack_after 0), uncalled refund separate"),
     ('gem_report_draft/_hand_grid.py', "_call_amt = _cg['callable_amount_bb']",
      "v8.17.1 Iter-1 REV14 D3: the grid call price is the canonical callable, never the raw ledger amount"),
     ('gem_report_draft/_hand_grid.py', "_req_eq = _cg['required_equity_pct']",
@@ -1566,11 +1566,39 @@ CANARIES = [
      "v8.17.1 Iter-1 REV15 G8/B4: an impossible row (adds X > all-in to Y) is rejected"),
     ('_test_scratch.py', 'T-REV15-01',
      "v8.17.1 Iter-1 REV15: typed-post / commitment-replay / relational / impossible-row / ownership failure injection"),
+    # ── REV16: full-history physical-chip replay (every action, every player) ──
+    ('gem_decision_snapshot.py', 'def replay_full_history(',
+     "v8.17.1 Iter-1 REV16 §2-§4: the ONE full-history all-player physical-chip replay"),
+    ('gem_decision_snapshot.py', 'def canonical_action_replay(',
+     "v8.17.1 Iter-1 REV16 §6: the per-action canonical replay accessor every grid row consumes"),
+    ('gem_decision_snapshot.py', "stack[p] = sa",
+     "v8.17.1 Iter-1 REV16 §4: the physical chips LEAVE the stack each action (dead ante included)"),
+    ('gem_decision_snapshot.py', "hero_remaining = round(_rp['stack_before_action_bb'], 2)",
+     "v8.17.1 Iter-1 REV16 B5: stack_before has ONE owner — the snapshot CONSUMES the replay value"),
+    ('gem_report_data.py', "'ledger_index': _li",
+     "v8.17.1 Iter-1 REV16 §6: each grid action carries its ledger index for the canonical replay"),
+    ('gem_report_draft/_hand_grid.py', 'def _jam_headline(',
+     "v8.17.1 Iter-1 REV16 §8.5: the ONE all-in headline (adds physical / all-in to level) for every player"),
+    ('gem_report_draft/_hand_grid.py', '_vr = _canon_replay(a.get(',
+     "v8.17.1 Iter-1 REV16 §6: every row sources its size from the canonical full-history replay"),
+    ('_qa_parity.py', 'def gate_full_action_replay(',
+     "v8.17.1 Iter-1 REV16 §12: full-history chip-flow conservation over ALL hands"),
+    ('_qa_parity.py', 'def gate_all_player_renderer_parity(',
+     "v8.17.1 Iter-1 REV16 §8.5: every rendered row (Hero + villain) shows the canonical replay size"),
+    ('_qa_ledger_oracle.py', 'def oracle_full_replay(',
+     "v8.17.1 Iter-1 REV16 §11: the INDEPENDENT full-history replay — closes to the raw chip flow"),
+    ('_test_scratch.py', 'T-REV16-01',
+     "v8.17.1 Iter-1 REV16: full-history replay / covering-call / uncalled-return / ownership / renderer-fallback failure injection"),
 ]
 
 # Anti-canaries: strings that must NOT appear (old bug patterns).
 # If found, the fix has regressed.
 ANTI_CANARIES = [
+    # REV16 §1/§4: the b1ae76e prior-stack bug — summing raw added_bb for the stack drops one ante
+    # per prior aggressive action. The full-history replay derives the stack from physical chips, so
+    # the gross_before_total raw-sum path must never return.
+    ("gem_decision_snapshot.py", "gross_before_total[p] = round(gross_before_total.get(p, 0.0) + _added(a), 2)",
+     "v8.17.1 Iter-1 REV16: the raw-added_bb prior-stack summation (the b1ae76e contamination) reappeared"),
     # v8.12.0 D1: the old wrong-node SB defend charts must stay quarantined.
     # A live (non-prefixed) chart line starting with SBD_ would re-enable the
     # broken _sb_missed_gated recommendations. Quarantined lines carry the

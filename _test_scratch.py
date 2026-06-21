@@ -1587,15 +1587,18 @@ check('T88d: preflop 5-bet to label',
       "'5-bet to'" in _t87_code,
       '_hand_grid.py missing 5-bet to label')
 
-# T89: raise-to computation
-check('T89: _raise_to = _current_bet + amt formula',
-      '_raise_to = _current_bet + amt' in _t87_code,
-      '_hand_grid.py missing raise-to computation')
+# T89: raise-to computation (REV16 §8.3/§8.5: the raise-to LEVEL is sourced from the canonical
+# full-history replay, with the raw current_bet+increment retained only as the no-replay fallback).
+check('T89: raise-to level sourced from the canonical replay (raw current_bet+amt only as fallback)',
+      '_vr_level_after if _vr_level_after is not None else (_current_bet + amt)' in _t87_code,
+      '_hand_grid.py missing canonical raise-to computation')
 
-# T90: JAM display unchanged (still uses amt, not _raise_to)
-check('T90: JAM display still uses amt (not raise_to)',
-      'JAM {amt:.1f}BB' in _t87_code,
-      'JAM display was changed — spec says keep as-is')
+# T90: REV16 §8.5 — the all-in JAM headline is the ONE canonical _jam_headline (physical "adds" +
+# canonical "all-in to" level) for EVERY player, not the raw amount_bb.
+check('T90: all-in JAM headline uses the canonical _jam_headline (adds physical / all-in to level)',
+      'def _jam_headline(' in _t87_code and '_jam = _jam_headline(amt,' in _t87_code
+      and 'JAM {amt:.1f}BB' not in _t87_code,
+      'JAM display must use the canonical _jam_headline')
 
 # T91: postflop raise uses "Raise to"
 check('T91: postflop raise label is Raise to',
@@ -2696,7 +2699,7 @@ with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == 'f8baf43b5eef8ae8134ac3dbbf9340496e0e755f16769407cfce53b9b21a507e',
+      _hg_hash == 'd7999d7d1c48d6e9ba4024f3ceb55666303b7173f44339ed2ed1ac6f031e8f25',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
@@ -12045,7 +12048,7 @@ check('T-REV10-03 (D1): a walk (Hero never acts) -> no_hero_decision node, no pr
 
 # --- fold price = callable, never raw; canonical depth >= callable (B2/B3) ---
 _h_oj = _mkh10([_Lp('preflop', 'Hero', 'posts', 1.0, pos='BB'), _Lp('preflop', 'V', 'raises', 98.5, True, pos='BTN'),
-                _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'V': 100.0})
+                _Lp('preflop', 'Hero', 'folds', 0, pos='BB')], {'Hero': 38.88, 'V': 98.5})
 _s_oj = _ds.build_decision_snapshot(_h_oj, 2)
 _d_oj = _ds.reviewed_action_display(_h_oj, 2, _s_oj)['display_text']
 check('T-REV10-04 (B2): a fold facing an overjam shows the CALLABLE amount + raw separately, never raw as the price',
@@ -12669,6 +12672,203 @@ check('T-REV15-10: the parser stamps a typed post_type from the raw text; one co
       "_post_type = 'small_blind'" in _parser_src.replace('==', '=') or "'small_blind'" in _parser_src
       and 'def replay_commitments_to_action(' in _io15b.open('gem_decision_snapshot.py', encoding='utf-8').read()
       and 'def oracle_replay(' in _io15b.open('_qa_ledger_oracle.py', encoding='utf-8').read(), '')
+
+# ===== REV16: full-history physical-chip replay (every action, every player) =====
+# Fixtures mirror the REAL parser: an aggressive action's added_bb is the LEVEL minus the actor's
+# ante (ante-contaminated, short of the physical), while to_bb is the clean level. Summing added_bb
+# for the stack (the b1ae76e bug) drops one ante per prior aggressive action; the full-history replay
+# derives physical from the LEVELS, so these assertions hold ONLY under REV16.
+def _pp16(street, p, pt, amt, pos):
+    return {'street': street, 'player': p, 'action': 'posts', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': False, 'position': pos, 'post_type': pt}
+def _rk16(street, p, to, ante=0.0, allin=False, pos=None, action='raises'):
+    return {'street': street, 'player': p, 'action': action, 'added_bb': round(to - ante, 2),
+            'amount_bb': round(to - ante, 2), 'to_bb': to, 'is_all_in': allin, 'position': pos}
+def _ck16(street, p, amt, allin=False, pos=None):
+    return {'street': street, 'player': p, 'action': 'calls', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': allin, 'position': pos}
+def _bk16(street, p, amt, allin=False, pos=None):
+    return {'street': street, 'player': p, 'action': 'bets', 'added_bb': amt, 'amount_bb': amt,
+            'is_all_in': allin, 'position': pos}
+def _naive_stack_before(h, idx):
+    """The b1ae76e prior-stack path: starting - sum(raw added_bb of prior actions by Hero)."""
+    led = h['action_ledger']; hero = h.get('hero', 'Hero'); start = h['seat_stack_by_player'].get(hero, 0.0)
+    return round(start - sum((a.get('added_bb') or a.get('amount_bb') or 0.0)
+                             for a in led[:idx] if a.get('player') == hero), 2)
+
+# T1 — non-blind open with ante (the open's physical is the full live open, not one ante short)
+_t1 = _mkh10([_pp16('preflop', 'UTG', 'ante', 0.14, 'UTG'), _pp16('preflop', 'Hero', 'ante', 0.14, 'CO'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.2, ante=0.14, pos='CO')],
+             {'Hero': 100.0, 'SB': 100.0, 'BB': 100.0, 'UTG': 100.0}, hid='TM6160000001')
+_c1 = _ds.build_action_sizing_contract(_t1, 4)
+check('T-REV16-01 (T1): non-blind open with ante — physical 2.2, live total 2.2, pot 2.34 (naive added_bb would drop the ante)',
+      abs(_c1['amount_added_bb'] - 2.2) < 0.03 and abs(_c1['live_betting_total_to_bb'] - 2.2) < 0.03
+      and abs(_c1['pot_contribution_total_bb'] - 2.34) < 0.03, str(_c1))
+
+# T2 — BB 3-bet with ante
+_t2 = _mkh10([_pp16('preflop', 'UTG', 'ante', 0.15, 'UTG'), _pp16('preflop', 'Hero', 'ante', 0.15, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'UTG', 3.0, ante=0.15, pos='UTG'), _rk16('preflop', 'Hero', 14.0, ante=0.15, pos='BB')],
+             {'Hero': 100.0, 'SB': 100.0, 'UTG': 100.0}, hid='TM6160000002')
+_c2 = _ds.build_action_sizing_contract(_t2, 5)
+check('T-REV16-02 (T2): BB 3-bet with ante — live before 1.0, physical 13.0, live total 14.0, pot 14.15',
+      abs(_c2['live_street_committed_before_bb'] - 1.0) < 0.03 and abs(_c2['amount_added_bb'] - 13.0) < 0.03
+      and abs(_c2['live_betting_total_to_bb'] - 14.0) < 0.03 and abs(_c2['pot_contribution_total_bb'] - 14.15) < 0.03, str(_c2))
+
+# T3 — prior open then postflop open jam: stack_before must deduct the dead ante (the REV15 bug)
+_t3 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.16, 'BTN'), _pp16('preflop', 'BB', 'ante', 0.16, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.5, ante=0.16, pos='BTN'), _ck16('preflop', 'BB', 1.5, pos='BB'),
+              _bk16('flop', 'Hero', 12.34, allin=True, pos='BTN')],
+             {'Hero': 14.99, 'BB': 30.0, 'SB': 30.0}, hid='TM6160000003', board=['2c', '7d', 'Js'])
+_c3 = _ds.build_action_sizing_contract(_t3, 6)
+_rp3 = _ds.replay_commitments_to_action(_t3, 6)
+check('T-REV16-03 (T3): prior open then postflop open jam — stack_before 12.33 (=start-ante-open), physical 12.33, after 0; naive path over-states by the ante',
+      abs(_rp3['stack_before_action_bb'] - 12.33) < 0.03 and abs(_c3['amount_added_bb'] - 12.33) < 0.03
+      and abs(_c3['hero_stack_after_bb']) < 0.03 and abs(_naive_stack_before(_t3, 6) - 12.33) > 0.1, str(_rp3))
+
+# T4 — prior 3-bet then postflop open jam
+_t4 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.2, 'BTN'), _pp16('preflop', 'BB', 'ante', 0.2, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'BB', 3.0, ante=0.2, pos='BB'), _rk16('preflop', 'Hero', 9.0, ante=0.2, pos='BTN'),
+              _ck16('preflop', 'BB', 6.0, pos='BB'), _bk16('flop', 'BB', 5.0, pos='BB'),
+              _rk16('flop', 'Hero', 30.8, allin=True, pos='BTN')],
+             {'Hero': 39.8, 'BB': 60.0, 'SB': 60.0}, hid='TM6160000004', board=['2c', '7d', 'Js'])
+_rp4 = _ds.replay_commitments_to_action(_t4, 8)
+# Hero: ante .2 + 3bet 9.0 = 9.2 -> flop stack 30.6; Hero re-jams all-in over BB's 5.0 bet (Hero flop
+# live before = 0) -> physical 30.6, live level = 30.6, and the naive added_bb path over-states by the ante.
+check('T-REV16-04 (T4): prior 3-bet then postflop jam — stack_before 30.6 (=start-ante-3bet), physical 30.6 == stack_before, all-in; naive path over-states',
+      abs(_rp4['stack_before_action_bb'] - 30.6) < 0.05 and abs(_rp4['amount_added_on_action_bb'] - 30.6) < 0.05
+      and _rp4['became_all_in'] and abs(_naive_stack_before(_t4, 8) - 30.6) > 0.1, str(_rp4))
+
+# T5 — prior raise + call then postflop jam (multiway preflop, Hero in position)
+_t5 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.1, 'CO'), _pp16('preflop', 'BB', 'ante', 0.1, 'BB'),
+              _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _rk16('preflop', 'Hero', 2.3, ante=0.1, pos='CO'), _ck16('preflop', 'BB', 1.3, pos='BB'),
+              _ck16('preflop', 'SB', 1.8, pos='SB'), _bk16('flop', 'SB', 3.0, pos='SB'),
+              _ck16('flop', 'BB', 3.0, pos='BB'), _bk16('flop', 'Hero', 25.6, allin=True, pos='CO')],
+             {'Hero': 27.9, 'BB': 40.0, 'SB': 40.0}, hid='TM6160000005', board=['2c', '7d', 'Js'])
+_rp5 = _ds.replay_commitments_to_action(_t5, 9)
+# Hero ante .1 + open 2.3 = 2.4 -> flop stack 25.5; flop jam raising over the 3.0 bet -> physical 25.5
+check('T-REV16-05 (T5): prior raise+calls then postflop jam — stack_before 25.5, physical 25.5, all-in, level 28.5',
+      abs(_rp5['stack_before_action_bb'] - 25.5) < 0.06 and abs(_rp5['amount_added_on_action_bb'] - 25.5) < 0.06
+      and _rp5['became_all_in'], str(_rp5))
+
+# T6 — postflop bet then re-jam (Hero bets, villain raises, Hero re-jams over his own bet)
+_t6 = _mkh16 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'Hero', 'big_blind', 1.0, 'BB'),
+              _ck16('preflop', 'V', 1.0, pos='SB'),
+              _bk16('flop', 'Hero', 7.45, pos='BB'), _rk16('flop', 'V', 30.0, pos='SB'),
+              _rk16('flop', 'Hero', 59.73, allin=True, pos='BB')],
+             {'Hero': 60.73, 'V': 80.0, 'SB': 80.0}, hid='TM6160000006', board=['2c', '7d', 'Js'])
+_rp6 = _ds.replay_commitments_to_action(_t6, 5)
+check('T-REV16-06 (T6): postflop bet then re-jam — live before 7.45, physical 52.28, live total 59.73 (= live_before + physical)',
+      abs(_rp6['live_street_committed_before_bb'] - 7.45) < 0.05 and abs(_rp6['amount_added_on_action_bb'] - 52.28) < 0.05
+      and abs(_rp6['live_street_total_after_bb'] - 59.73) < 0.05, str(_rp6))
+
+# T7 — preflop call-all-in after a prior open (84601619 shape): callable + stack from the replay
+_t7 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.15, 'LJ'), _pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'),
+              _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'), _rk16('preflop', 'Hero', 2.2, ante=0.15, pos='LJ'),
+              _rk16('preflop', 'V', 73.6, allin=True, pos='BTN'), _ck16('preflop', 'Hero', 40.63, allin=True, pos='LJ')],
+             {'Hero': 42.98, 'V': 73.75, 'SB': 60.0, 'BB': 60.0}, hid='TM6160000007')
+_c7 = _ds.build_action_sizing_contract(_t7, 5)
+_s7 = _ds.build_decision_snapshot(_t7, 5)
+check('T-REV16-07 (T7): preflop call-all-in after a prior open — stack_before/physical 40.63 (not 40.78), callable 40.63',
+      abs(_c7['hero_stack_before_bb'] - 40.63) < 0.05 and abs(_c7['amount_added_bb'] - 40.63) < 0.05
+      and abs(_s7['callable_amount_bb'] - 40.63) < 0.05 and abs(_naive_stack_before(_t7, 5) - 40.63) > 0.1, str(_c7))
+
+# T8 — partial blind BELOW the ante is still typed as the blind (negative fixture for max-post)
+_t8 = _mkh10([_pp16('preflop', 'Hero', 'ante', 0.15, 'BB'), _pp16('preflop', 'Hero', 'big_blind', 0.10, 'BB')],
+             {'Hero': 0.25}, hid='TM6160000008')
+_fp8 = _ds.build_forced_post_context(_t8, 'Hero')
+check('T-REV16-08 (T8): a partial blind below the ante is typed as the blind (ante 0.15 dead, blind 0.10 live)',
+      abs(_fp8['ante_paid_bb'] - 0.15) < 0.01 and abs(_fp8['big_blind_paid_bb'] - 0.10) < 0.01, str(_fp8))
+
+# T9 — covering-caller parity: a covering caller with 0 live this street matches the bettor's all-in
+_t9 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+              _bk16('flop', 'Hero', 18.1, allin=True, pos='BTN'), _ck16('flop', 'V', 18.1, pos='SB')],
+             {'Hero': 18.1, 'V': 40.0, 'SB': 40.0}, hid='TM6160000009', board=['5c', '7s', '9h'])
+_f9 = _ds.replay_full_history(_t9)
+check('T-REV16-09 (T9): a covering caller (0 live this street) calls EXACTLY the bettor all-in (18.1 == 18.1)',
+      abs(_f9[2]['physical_amount_added_bb'] - _f9[3]['physical_amount_added_bb']) < 0.03
+      and abs(_f9[3]['physical_amount_added_bb'] - 18.1) < 0.03, str((_f9[2]['physical_amount_added_bb'], _f9[3]['physical_amount_added_bb'])))
+
+# T10 — caller WITH prior street commitment: physical = level - own live before
+_t10 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 5.0, pos='BTN'), _rk16('flop', 'V', 15.0, pos='SB'),
+               _ck16('flop', 'Hero', 10.0, pos='BTN')],
+              {'Hero': 60.0, 'V': 60.0, 'SB': 60.0}, hid='TM6160000010', board=['5c', '7s', '9h'])
+_f10 = _ds.replay_full_history(_t10)
+check('T-REV16-10 (T10): a caller with prior live commitment adds level - own live before (15 - 5 = 10)',
+      abs(_f10[4]['physical_amount_added_bb'] - 10.0) < 0.03 and abs(_f10[4]['live_commitment_after_bb'] - 15.0) < 0.03, str(_f10[4]))
+
+# T11 — short caller cap: a caller shorter than the bet calls only its stack (all-in)
+_t11 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 30.0, allin=True, pos='BTN'), _ck16('flop', 'V', 12.0, allin=True, pos='SB')],
+              {'Hero': 30.0, 'V': 12.0, 'SB': 40.0}, hid='TM6160000011', board=['5c', '7s', '9h'])
+_f11 = _ds.replay_full_history(_t11)
+check('T-REV16-11 (T11): a short caller calls only its stack (12, all-in), and Hero is refunded the uncalled 18',
+      abs(_f11[3]['physical_amount_added_bb'] - 12.0) < 0.03 and _f11[3]['became_all_in']
+      and abs(_f11[2]['uncalled_return_bb'] - 18.0) < 0.06, str((_f11[3]['physical_amount_added_bb'], _f11[2]['uncalled_return_bb'])))
+
+# T12 — uncalled return: a bet everyone folds to is fully refunded (stack conservation)
+_t12 = _mkh10([_pp16('preflop', 'SB', 'small_blind', 0.5, 'SB'), _pp16('preflop', 'BB', 'big_blind', 1.0, 'BB'),
+               _bk16('flop', 'Hero', 8.0, pos='BTN'), {'street': 'flop', 'player': 'V', 'action': 'folds',
+               'added_bb': 0, 'amount_bb': 0, 'is_all_in': False, 'position': 'SB'}],
+              {'Hero': 40.0, 'V': 40.0, 'SB': 40.0}, hid='TM6160000012', board=['5c', '7s', '9h'])
+_f12 = _ds.replay_full_history(_t12)
+check('T-REV16-12 (T12): an uncalled bet is refunded — bettor stack_after == stack_before (8 returned), conservation holds',
+      abs(_f12[2]['uncalled_return_bb'] - 8.0) < 0.06 and abs((_f12[2]['stack_after_bb']) - _f12[2]['stack_before_bb']) < 0.06, str(_f12[2]))
+
+# T13 — the ownership artifact: missing / unreadable / field-absent / unclassified producer = FAIL.
+# The classifier is proven on SYNTHETIC docs (strict everywhere, incl. the minimal clean-room bundle);
+# the REAL artifact lives with the planning evidence and is asserted 'ok' when that dir is present.
+import io as _io16, json as _json16
+_OWN_REQUIRED = ('physical_amount_added', 'stack_before', 'all_in_state', 'forced_post_type', 'callable_amount')
+def _own_status_doc(d):
+    if d is None: return 'unreadable'
+    acc = d.get('acceptance') or {}
+    if acc.get('stack_before_active_production_owners') != 1: return 'stack_before_not_one'
+    if acc.get('all_in_state_active_production_owners') != 1: return 'all_in_not_one'
+    for f in _OWN_REQUIRED:
+        rec = d.get(f)
+        if not isinstance(rec, dict) or 'remaining_active_producers' not in rec: return 'field_absent:' + f
+        if rec['remaining_active_producers']: return 'unclassified_producer:' + f
+    return 'ok'
+def _own_status_path(path):
+    try:
+        return _own_status_doc(_json16.load(_io16.open(path, encoding='utf-8')))
+    except Exception:
+        return 'unreadable'
+_good_doc = {'acceptance': {'stack_before_active_production_owners': 1, 'all_in_state_active_production_owners': 1}}
+for _f in _OWN_REQUIRED:
+    _good_doc[_f] = {'canonical_owner': 'x', 'remaining_active_producers': []}
+_doc_absent_field = {k: v for k, v in _good_doc.items() if k != 'stack_before'}
+_doc_unclassified = _json16.loads(_json16.dumps(_good_doc)); _doc_unclassified['stack_before']['remaining_active_producers'] = ['legacy_calc']
+_doc_two_owners = _json16.loads(_json16.dumps(_good_doc)); _doc_two_owners['acceptance']['stack_before_active_production_owners'] = 2
+_own_path = os.path.join(os.path.dirname(__file__), 'post_iteration1_planning', 'PRODUCTION_CALCULATION_OWNERSHIP.json')
+_real_status = _own_status_path(_own_path)
+check('T-REV16-13 (T13): the ownership classifier FAILS missing/unreadable/absent-field/unclassified/two-owners and PASSES a clean audit',
+      _own_status_doc(_good_doc) == 'ok' and _own_status_path(_own_path + '.NOPE') == 'unreadable'
+      and _own_status_doc(_doc_absent_field).startswith('field_absent')
+      and _own_status_doc(_doc_unclassified).startswith('unclassified_producer')
+      and _own_status_doc(_doc_two_owners) == 'stack_before_not_one'
+      and _real_status in ('ok', 'unreadable'),   # 'ok' in the repo; 'unreadable' (absent) in the minimal bundle
+      'classifier or real-artifact status: ' + _real_status)
+
+# T14 — renderer-parity gate CATCHES a raw-sizing fallback (an action whose canonical value is absent)
+import _qa_parity as _qp16
+# _t9's real all-in is 18.1; this injected body renders 99.9 (a raw-sizing fallback) -> must be caught.
+_t14_bodies = {'TM6160000009': '<span class="grid-action act-allin">BTN ⚡ JAM all-in 99.9BB</span>'
+                               '<span class="grid-action act-call">SB Call 88.8BB</span>'}
+_t14_idx = {'TM6160000009': _t9, '60000009': _t9}
+_g14 = _qp16.gate_all_player_renderer_parity(_t14_idx, None, bodies=_t14_bodies)
+# the same body with the CORRECT canonical sizes (18.1) must NOT raise a violation
+_t14_ok = {'TM6160000009': '<span class="grid-action act-allin">BTN ⚡ JAM all-in 18.1BB</span>'
+                          '<span class="grid-action act-call">SB Call 18.1BB</span>'}
+_g14_ok = _qp16.gate_all_player_renderer_parity(_t14_idx, None, bodies=_t14_ok)
+check('T-REV16-14 (T14): the renderer-parity gate FAILS a non-canonical (raw-fallback) size, PASSES the canonical one',
+      _g14['parity_violations'] >= 1 and _g14_ok['parity_violations'] == 0, str((_g14['parity_violations'], _g14_ok['parity_violations'])))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

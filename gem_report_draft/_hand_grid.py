@@ -591,6 +591,28 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
     except Exception:
         pass
 
+    # REV16 §6/§8.5: the ONE full-history per-action canonical replay, read by EVERY action row
+    # (Hero AND villain) for its displayed physical size + live level — never raw added_bb. A row
+    # whose ledger index cannot be resolved counts as a raw-sizing fallback (gated to 0 on real data).
+    _grid_fallback = [0]
+
+    def _canon_replay(_lidx):
+        if _lidx is None:
+            return None
+        try:
+            from gem_decision_snapshot import canonical_action_replay as _car
+            return _car(h, _lidx)
+        except Exception:
+            return None
+
+    def _jam_headline(_phys, _lvl):
+        """REV16 §8.5: the ONE all-in headline for EVERY player — the chips committed this action
+        (`adds`) and the live level reached (`all-in to`), both canonical. A first-in jam (no prior
+        live chips this street) collapses to a single 'all-in {level}'."""
+        if _lvl is not None and abs(_lvl - _phys) > 0.05:
+            return f'⚡ JAM adds {_phys:.1f}BB, all-in to {_lvl:.1f}BB'
+        return f'⚡ JAM all-in {_phys:.1f}BB'
+
     # ── Seat-stack fallback lookup (v8.4.2) ──
     _seat_stacks = {}
     for _pos, _stk_val in (h.get('seat_stacks_bb_all', {}) or {}).items():
@@ -873,10 +895,23 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             p = a.get('position', '?')
             _pname = a.get('player', a.get('name', ''))
             stk = _grid_stack(a)
-            amt = a.get('amount_bb', 0) or 0
             act = a.get('action', '')
             allin = a.get('all_in', False)
             is_h = a.get('is_hero', False)
+            # REV16 §6/§8.5: source EVERY displayed size from the one full-history canonical replay —
+            # `amt` is the physical chips the player adds; `_raise_to` is the live level reached. The
+            # raw ledger amount_bb is NOT used for any displayed sizing (the parser folds the ante into
+            # it). On real data the replay always resolves; a miss falls back to raw and is counted.
+            _vr = _canon_replay(a.get('ledger_index'))
+            _raw_amt = a.get('amount_bb', 0) or 0
+            if _vr is not None:
+                amt = _vr['physical_amount_added_bb']
+                _vr_level_after = _vr['live_commitment_after_bb']
+            else:
+                if act in ('calls', 'bets', 'raises'):
+                    _grid_fallback[0] += 1
+                amt = _raw_amt
+                _vr_level_after = None
 
             pot_pct_html = ''
             if act == 'folds':
@@ -926,18 +961,21 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             elif act == 'bets':
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(
-                        amt, actions[i + 1:],
-                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
-                                      if (is_h and street == 'preflop') else None))
+                    # REV16 §8.5: the effective (matched) size is the canonical physical minus the
+                    # canonical uncalled return — no raw look-ahead arithmetic.
+                    _uret = (_vr['uncalled_return_bb'] if _vr else 0.0)
+                    _eff_amt = round(amt - _uret, 2)
+                    _was_capped = _uret > 0.05
+                    _lvl = _vr_level_after if _vr_level_after is not None else amt
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
+                    _jam = _jam_headline(amt, _lvl)
                     if _was_capped:
-                        text = (f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB '
+                        text = (f'{_ps(p, stk, _pname)} {_jam} '
                                 f'<span class="pot-pct">(eff {_eff_amt:.1f}BB'
                                 f'{", " + pp if pp else ""})</span>')
                     else:
-                        text = f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB{pp_html}'
+                        text = f'{_ps(p, stk, _pname)} {_jam}{pp_html}'
                 else:
                     cls = 'act-bet'
                     pp = _pot_pct_for_bet(street, amt, running_pot)
@@ -954,21 +992,23 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
                                             + _bt_add)
             elif act == 'raises':
                 _raise_count += 1
-                _raise_to = _current_bet + amt
+                # REV16 §8.3/§8.5: the raise-TO level comes from the canonical replay (the live level
+                # the action reaches), not raw current_bet + increment.
+                _raise_to = _vr_level_after if _vr_level_after is not None else (_current_bet + amt)
                 if allin:
                     cls = 'act-allin'
-                    _eff_amt, _was_capped = _effective_amt(
-                        amt, actions[i + 1:],
-                        hero_eff_cap=(h.get('eff_stack_bb_at_decision')
-                                      if (is_h and street == 'preflop') else None))
+                    _uret = (_vr['uncalled_return_bb'] if _vr else 0.0)
+                    _eff_amt = round(amt - _uret, 2)
+                    _was_capped = _uret > 0.05
                     pp = _pot_pct_for_bet(street, _eff_amt, running_pot)
                     pp_html = f'<span class="pot-pct">({pp})</span>' if pp else ''
+                    _jam = _jam_headline(amt, _raise_to)
                     if _was_capped:
-                        text = (f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB '
+                        text = (f'{_ps(p, stk, _pname)} {_jam} '
                                 f'<span class="pot-pct">(eff {_eff_amt:.1f}BB'
                                 f'{", " + pp if pp else ""})</span>')
                     else:
-                        text = f'{_ps(p, stk, _pname)} ⚡ JAM {amt:.1f}BB{pp_html}'
+                        text = f'{_ps(p, stk, _pname)} {_jam}{pp_html}'
                 else:
                     cls = 'act-raise'
                     if street == 'preflop':
@@ -1001,22 +1041,10 @@ def _render_hand_grid_table(doc, h, app_details, board, notes, action_to_note_nu
             else:
                 cls = ''; text = f'{_ps(p, stk, _pname)} {act} {amt:.1f}BB'
 
-            # REV13 A1/A2: a Hero all-in raise/bet displays its sizing from the canonical
-            # ActionSizingContract — NEVER the grid's raw amount_bb (which for a re-jam/open-shove
-            # is the raise INCREMENT, not the chips Hero adds). "adds X" must equal amount_added_bb
-            # (REV12 mislabelled the raise increment 12.7BB as "adds"); "all-in to Y" equals
-            # total_to_bb. When Hero commits his whole all-in with no prior street chips, a single
-            # "all-in YBB" (added == total) — never a spurious "adds".
-            if is_h and cls == 'act-allin' and '⚡ JAM' in text:
-                _cgz = _canon_by_street_occ.get((street, hero_action_idx_on_street))
-                if (_cgz and _cgz.get('amount_added_bb') is not None
-                        and _cgz.get('total_to_bb') is not None):
-                    _aa = _cgz['amount_added_bb']; _tt = _cgz['total_to_bb']
-                    if abs(_tt - _aa) > 0.05:
-                        _new_jam = f'⚡ JAM adds {_aa:.1f}BB, all-in to {_tt:.1f}BB'
-                    else:
-                        _new_jam = f'⚡ JAM all-in {_tt:.1f}BB'
-                    text = text.replace(f'⚡ JAM {amt:.1f}BB', _new_jam, 1)
+            # REV16 §8.5: Hero AND villain all-in rows now share the ONE canonical _jam_headline
+            # (REV13's Hero-only ActionSizingContract override is subsumed — `amt` is the canonical
+            # physical and `_raise_to`/`_lvl` the canonical level, so every player's "adds X / all-in
+            # to Y" is sourced from the same full-history replay).
 
             # Hero annotation
             # B54/B57 (v7.55):

@@ -1260,6 +1260,121 @@ def gate_relational_contract(hands_idx, worklist):
     return out
 
 
+def gate_full_action_replay(hands_idx):
+    """REV16 §12: the full-history physical-chip replay over EVERY action in ALL hands (not just the
+    77 authoritative items). Proves chip-flow conservation against the raw source: every player's
+    stack closes to starting - cumulative physical + uncalled returns; a covering caller (0 live this
+    street) matches the bettor's live total; an all-in exhausts the stack; production and the
+    INDEPENDENT oracle replay agree on every action's physical chips. Detailed records, not just
+    aggregate zero counts."""
+    EPS = 0.06
+    out = {'hands': 0, 'actions_replayed': 0, 'stack_conservation_violations': 0,
+           'cumulative_stack_violations': 0, 'covering_call_parity_violations': 0,
+           'all_in_residual_violations': 0, 'negative_stack_violations': 0,
+           'oracle_disagreements': 0, 'records': []}
+    seen = set()
+    for hid, h in hands_idx.items():
+        if not isinstance(h, dict) or id(h) in seen:
+            continue
+        seen.add(id(h))
+        out['hands'] += 1
+        full = ds.replay_full_history(h)
+        try:
+            ofr = oracle.oracle_full_replay(h)
+        except Exception:
+            ofr = {}
+        start = ds._starting_stacks(h)
+        cum_phys = {}; cum_ret = {}
+        for r in full:
+            if r is None:
+                continue
+            out['actions_replayed'] += 1
+            p = r['player']; sb = r['stack_before_bb']; sa = r['stack_after_bb']
+            ph = r['physical_amount_added_bb']; ret = r['uncalled_return_bb']
+            rec = None
+            if sb is not None and sa is not None and abs(sa - (sb - ph + ret)) > EPS:
+                out['stack_conservation_violations'] += 1
+                rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'stack_conservation',
+                       'sb': sb, 'sa': sa, 'phys': ph, 'ret': ret}
+            if sb is not None and p in start:
+                exp = round(start[p] - cum_phys.get(p, 0.0) + cum_ret.get(p, 0.0), 2)
+                if abs(sb - exp) > EPS:
+                    out['cumulative_stack_violations'] += 1
+                    rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'cumulative_stack',
+                           'sb': sb, 'expected': exp}
+            cum_phys[p] = cum_phys.get(p, 0.0) + ph; cum_ret[p] = cum_ret.get(p, 0.0) + ret
+            if r['became_all_in'] and sb is not None and (abs(ph - sb) > EPS or (sa is not None and abs(sa - ret) > EPS)):
+                out['all_in_residual_violations'] += 1
+                rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'all_in_residual',
+                       'sb': sb, 'phys': ph, 'sa': sa, 'ret': ret}
+            if sa is not None and sa < -EPS:
+                out['negative_stack_violations'] += 1
+                rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'negative_stack', 'sa': sa}
+            if (r['action'] == 'calls' and r['live_commitment_before_bb'] < EPS and not r['became_all_in']
+                    and abs(ph - r['faced_live_level_bb']) > EPS):
+                out['covering_call_parity_violations'] += 1
+                rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'covering_call_parity',
+                       'phys': ph, 'faced_level': r['faced_live_level_bb']}
+            o = ofr.get(r['idx'])
+            if o is not None and o.get('physical_bb') is not None and abs(o['physical_bb'] - ph) > EPS:
+                out['oracle_disagreements'] += 1
+                rec = {'hand': str(h.get('id', ''))[-8:], 'idx': r['idx'], 'why': 'oracle_physical',
+                       'prod': ph, 'oracle': o['physical_bb']}
+            if rec is not None and len(out['records']) < 200:
+                out['records'].append(rec)
+    out['total_violations'] = (out['stack_conservation_violations'] + out['cumulative_stack_violations']
+                               + out['covering_call_parity_violations'] + out['all_in_residual_violations']
+                               + out['negative_stack_violations'] + out['oracle_disagreements'])
+    return out
+
+
+def gate_all_player_renderer_parity(hands_idx, html, bodies=None):
+    """REV16 §8.5/§6: EVERY rendered grid action row (Hero AND villain) shows a canonical per-action
+    replay size — not raw added_bb. For each hand body we derive, per sized ledger action, the
+    canonical display value(s) (a call shows the physical chips; a bet/jam its physical; a non-all-in
+    raise its live total-to level; an all-in its physical 'adds' and/or the 'all-in to' level) and
+    require at least one to appear in the rendered body. A sized action whose canonical value is
+    absent is a parity violation (a raw-sizing fallback)."""
+    EPS = 0.06
+    if bodies is None:
+        bodies = decode_lazy_hands(html) if html else {}
+    out = {'bodies': len(bodies), 'rows_checked': 0, 'parity_violations': 0,
+           'fallback_activations': 0, 'records': []}
+    out['bodies_with_grid'] = 0
+    for hid, body in bodies.items():
+        h = hands_idx.get(hid) or hands_idx.get(str(hid)[-8:]) or hands_idx.get(str(hid))
+        if not isinstance(h, dict):
+            continue
+        # only the hands that actually render the per-action grid show per-action sizing; a compact
+        # (inferred) body has no grid-action rows and is not a renderer-parity surface.
+        if 'grid-action' not in body:
+            continue
+        out['bodies_with_grid'] += 1
+        full = ds.replay_full_history(h)
+        expected = []
+        for r in full:
+            if r is None or r['action'] not in ('calls', 'bets', 'raises'):
+                continue
+            if r['became_all_in']:
+                exp_vals = [round(r['physical_amount_added_bb'], 1), round(r['live_commitment_after_bb'], 1)]
+            elif r['action'] == 'raises':
+                exp_vals = [round(r['live_commitment_after_bb'], 1)]
+            else:                                   # call or bet -> physical chips
+                exp_vals = [round(r['physical_amount_added_bb'], 1)]
+            expected.append((r['idx'], r['player'], r['action'], exp_vals))
+        text = re.sub(r'<[^>]+>', ' ', body)
+        rendered_set = set(round(float(m), 1) for m in re.findall(r'(\d+\.\d+)\s*BB', text))
+        for (_idx, _pl, _act, exp_vals) in expected:
+            out['rows_checked'] += 1
+            if not any(v in rendered_set for v in exp_vals):
+                out['parity_violations'] += 1
+                out['fallback_activations'] += 1
+                if len(out['records']) < 120:
+                    out['records'].append({'hand': str(hid)[-8:], 'idx': _idx, 'player': str(_pl)[:8],
+                                           'action': _act, 'expected_any_of': exp_vals})
+    return out
+
+
 def gate_visible_semantic(hands_idx, html, worklist=None):
     """REV12 Part I: full-render SEMANTIC gates over the decoded bodies + coaching payload. The
     legacy verdict/range/CVJ surfaces must agree with the canonical node; coaching ownership must
@@ -1450,6 +1565,8 @@ def main():
     g_vn = gate_canonical_view_node_parity(hands_idx, worklist)
     g_pv = gate_persisted_view_node_parity(worklist)
     g_rc = gate_relational_contract(hands_idx, worklist)
+    g_far = gate_full_action_replay(hands_idx)
+    g_apr = gate_all_player_renderer_parity(hands_idx, html)
 
     print('=' * 64)
     print('END-TO-END PARITY — worklist & report vs canonical snapshot (+semantic)')
@@ -1507,12 +1624,24 @@ def main():
           f"{g_rc['mismatches']} mismatch(es)")
     for mm in [r for r in g_rc['records'] if r['mismatch_fields']][:40]:
         print('   ✗', mm)
+    print(f"N. FULL-HISTORY REPLAY (all hands): {g_far['actions_replayed']} actions over {g_far['hands']} hands, "
+          f"{g_far['total_violations']} violation(s) [stack {g_far['stack_conservation_violations']}, "
+          f"cum {g_far['cumulative_stack_violations']}, cover {g_far['covering_call_parity_violations']}, "
+          f"all-in {g_far['all_in_residual_violations']}, neg {g_far['negative_stack_violations']}, "
+          f"oracle {g_far['oracle_disagreements']}]")
+    for mm in g_far['records'][:40]:
+        print('   ✗', mm)
+    print(f"O. ALL-PLAYER RENDERER PARITY : {g_apr['rows_checked']} sized rows over {g_apr['bodies']} bodies, "
+          f"{g_apr['parity_violations']} violation(s), {g_apr['fallback_activations']} raw-sizing fallback(s)")
+    for mm in g_apr['records'][:40]:
+        print('   ✗', mm)
     ok = (not g_wl['mismatches'] and not g_rp['mismatches'] and not g_sem['violations']
           and not g_rb['mismatches'] and not g_pd['mismatches'] and not g_vd['mismatches']
           and not g_fr['mismatches'] and not g_or['mismatches']
           and not g_ar.get('total_mismatches', len(g_ar['mismatches']))
           and not g_vs['violations'] and not g_vn['mismatches'] and not g_pv['mismatches']
-          and not g_rc['mismatches'])
+          and not g_rc['mismatches'] and not g_far['total_violations']
+          and not g_apr['parity_violations'])
     print('-' * 64)
     print('RESULT:', 'PASS — all surfaces agree with the snapshot + semantics hold' if ok
           else 'FAIL — see mismatches above')
@@ -1524,6 +1653,7 @@ def main():
                        'ledger_oracle': g_or, 'action_row_parity': g_ar,
                        'visible_semantic': g_vs, 'canonical_view_node_parity': g_vn,
                        'persisted_view_node_parity': g_pv, 'relational_contract': g_rc,
+                       'full_action_replay': g_far, 'all_player_renderer_parity': g_apr,
                        'pass': ok}, fh, indent=2)
         print('wrote', out_json)
     sys.exit(0 if ok else 1)

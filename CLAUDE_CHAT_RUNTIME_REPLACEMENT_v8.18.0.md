@@ -24,7 +24,7 @@ session CSVs are RETAINED throughout.
 
 | File | Notes |
 |------|-------|
-| `gem_lean_runtime.py` | The v8.18.0 lean report-generation runtime (self-extracting; 82 files; 1.69 MB). |
+| `gem_lean_runtime.py` | The v8.18.0 lean report-generation runtime (self-extracting; **93 files; 1.80 MB**). Bundles the runtime data lookups (texture/GTOW/ranges/schema/etc.), so it is self-sufficient — no separate data files to upload. |
 | `GEM_Release_Notes_v8.18.0.txt` | Current-state release notes (replaces the changelog). |
 
 ## RETAIN (leave in the project, unchanged)
@@ -67,14 +67,14 @@ Capacity limit (calibrated from the observed **current = 97%**): **3,449,130 byt
 | Scenario | Contents | Total bytes | Projected capacity |
 |----------|----------|-------------|--------------------|
 | **Before (current)** | full bundle + flat prose + session CSVs | 3,345,656 | **97.0%** |
-| **Required upload** | lean runtime + permanent prose (config/ref/STEP0/notes) + session CSVs | **2,305,067** | **66.8%** |
-| **Conservative** | required + all optional reference prose | **2,487,368** | **72.1%** |
+| **Required upload** | lean runtime (incl. bundled data) + permanent prose (config/ref/STEP0/notes) + session CSVs | **2,418,034** | **70.1%** |
+| **Conservative** | required + all optional reference prose | **2,600,335** | **75.4%** |
 
-- Lean runtime `gem_lean_runtime.py`: **1,689,911 bytes** (largest single item).
+- Lean runtime `gem_lean_runtime.py`: **1,802,753 bytes** (largest single item; includes the runtime data lookups, so they are not separate uploads).
 - Retained session CSVs: **592,971 bytes**.
 - Permanent prose (config + reference + STEP0 + release notes): **22,185 bytes**.
 - Optional reference prose (if all kept): **182,301 bytes**.
 
-**Result: the proposed package fits safely within the project limit** — 66.8%
-required, 72.1% even if every optional reference is kept (both well under 100%).
-This frees ~30 points of capacity versus the current 97%.
+**Result: the proposed package fits safely within the project limit** — 70.1%
+required, 75.4% even if every optional reference is kept (both well under 100%).
+This frees ~27 points of capacity versus the current 97%.

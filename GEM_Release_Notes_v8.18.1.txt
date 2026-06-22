@@ -1,0 +1,103 @@
+================================================================================
+GEM — MTT Hand-History Analyzer
+RELEASE NOTES — v8.18.1  (HOTFIX — Villain Teaching future-exploit quality)
+Replaces GEM_Release_Notes_v8.18.0.txt inside the Claude-Chat runtime project.
+================================================================================
+
+CURRENT VERSION : v8.18.1  (bug-fix hotfix on the v8.18.0 production release)
+RELEASE TYPE    : Bounded bug-fix iteration (backlog item #1 from v8.18.0)
+RUNTIME PACKAGE : gem_lean_runtime.py  (lean Claude-Chat report-generation runtime)
+
+--------------------------------------------------------------------------------
+1. WHAT THIS HOTFIX FIXES  (Villain Teaching "Next time …" future exploits)
+--------------------------------------------------------------------------------
+
+v8.18.0 shipped two accepted, non-blocking Villain Teaching defects. v8.18.1 fixes
+both:
+
+  (a) TRUNCATION — some future exploits were cut off mid-thought by a 40-word
+      clamp on the canonical text. The clamp is REMOVED; the canonical future
+      exploit is now stored as a COMPLETE sentence and the renderer shortens for
+      display only (the full sentence is in the DOM, the title tooltip, and the
+      accessibility layer). No ellipsis hides canonical content.
+
+  (b) CUE MISMATCH — some future exploits were chosen from the broad villain
+      ARCHETYPE rather than the specific observed cue, so they could teach a
+      different tendency than the one observed. Generation is now CUE-FIRST:
+        1. the specific cue family / line pattern (the structured signal wins;
+           the cue text is the word-boundary-matched fallback),
+        2. the current exploit and its action domain,
+        3. the villain archetype ONLY as a last-resort fallback modifier.
+      A donk-bet lesson now teaches how to play against the same donk-bet; a
+      wide-calling lesson teaches isolating/value-betting; an over-bluffing line
+      teaches widening call-downs — never a swapped tendency.
+
+  Every eligible future exploit now carries typed provenance:
+      cue_family · current_exploit_domain · future_exploit_source · alignment_reason
+  future_exploit_source ∈ { CUE_TEMPLATE, CURRENT_EXPLOIT_TRANSFORM,
+                            ARCHETYPE_FALLBACK, MANUAL_EXISTING }.
+
+--------------------------------------------------------------------------------
+2. WHAT IS UNCHANGED (frozen accepted behavior)
+--------------------------------------------------------------------------------
+  * Lesson ELIGIBILITY is still decided independently of completeness.
+  * Full-population audit unchanged: 222 raw / 4 duplicates / 218 unique /
+    142 eligible / 76 insufficient-evidence / 142 complete eligible /
+    0 incomplete eligible / 0 duplicates remaining.
+  * 0 chronology violations, 0 identity collisions, 0 result-oriented/hindsight.
+  * current_exploit, observation/inference separation, stable villain identity,
+    and the seven-part lesson structure are unchanged.
+  * REV17 action sizing & ownership, canonical five-state status, Commentary
+    Capsule + zero-drop, the one Results table + filters, PokerHandDisplay and
+    the DataTable are all unchanged.
+
+--------------------------------------------------------------------------------
+3. INDEPENDENT QUALITY GATE (new)
+--------------------------------------------------------------------------------
+  _qa_v8181_future_exploit_quality.py inspects the actual teaching payload and
+  rendered report and asserts, for every eligible unique lesson: sentence
+  completeness (terminal punctuation, no truncation marker / dangling clause /
+  generic placeholder), cue alignment (addresses the same cue family, compatible
+  action domain, no contradiction with the current exploit, no hindsight), and
+  provenance. It runs seven mutation tests (remove last words; swap a donk future
+  for an underbluffed-river future; swap wide-calling for sudden-aggression;
+  generic placeholder; remove punctuation; null future; later-street/result
+  justification) — each must be detected. The package builder ABORTS if any
+  predicate is false.
+
+--------------------------------------------------------------------------------
+4. REQUIRED WORKFLOW (Claude Chat project) — unchanged
+--------------------------------------------------------------------------------
+  STEP 0 (once per session):
+      python /mnt/project/gem_lean_runtime.py /home/claude/gem
+      cd /home/claude/gem
+      cp /mnt/project/session_*.csv .
+      pip install phevaluator
+      python -c "import gem_report_draft, gem_analyzer; print('runtime OK')"
+
+  Generate a report:
+      python gem_analyzer.py <SESSION_DIR> <SESSION_NAME> --player <NAME> --quick
+      python gem_analyzer.py <SESSION_DIR> <SESSION_NAME> --player <NAME>   # full + worklist
+
+--------------------------------------------------------------------------------
+5. ACTIVE LIMITATIONS
+--------------------------------------------------------------------------------
+  * The lean runtime EXCLUDES the verification apparatus (acceptance/ gates,
+    _qa_* harnesses, the full unit suite) — run the FULL release bundle to verify.
+  * A III.3 hand may show "Cleared" beside a "Correct" nuance pill (consistent,
+    mildly redundant).
+  * The v8.18.0 Villain Teaching future-exploit issue is RESOLVED in v8.18.1.
+
+--------------------------------------------------------------------------------
+6. VERSION HISTORY
+--------------------------------------------------------------------------------
+  v8.18.0  Five-state status; Commentary registers + zero-drop; PokerHandDisplay;
+           DataTable + Tournament Results (finish/Top%/BB-100/speed); Villain
+           seven-part teaching with eligibility-before-completeness; lean runtime.
+  v8.18.1  Villain Teaching future-exploits: cue-first generation + complete
+           (untruncated) canonical sentences + typed provenance + an independent
+           quality verifier with mutation tests. (backlog item #1 — RESOLVED)
+
+================================================================================
+End of release notes — GEM v8.18.1
+================================================================================

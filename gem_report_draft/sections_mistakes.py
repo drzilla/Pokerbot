@@ -1161,8 +1161,12 @@ def _emit_iii_clinical_picks(doc, s, rd, hands):
             # too loose) + Missed (folded a chart defend). Counts stay the
             # clickable control (no separate "Hands" column). Review kept — it is
             # the dominant PKO bucket and must keep its own clickable count.
-            doc.w("| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed | "
-                  "Review | Drill cue |")
+            # v8.19.0 Chapter E (PHF-005): unambiguous headers so the reader can tell
+            # Hero's behaviour from a confirmed Classic mistake from an ungraded PKO
+            # candidate. Actual->Hero rate, Wrong->Too wide vs Classic, Missed->Missed
+            # vs Classic, Review->PKO combo review (the _t() cell keys are unchanged).
+            doc.w("| Opportunity | PKO Δ | Seen | Hero rate | Too wide vs Classic | "
+                  "Missed vs Classic | PKO combo review | Drill cue |")
             doc.w("|---|---|---|---|---|---|---|---|")
             for _r in _trows:
                 _rng = _r.get('delta_range_pp', [0, 0])
@@ -1199,6 +1203,15 @@ def _emit_iii_clinical_picks(doc, s, rd, hands):
                   "recorded (3 buckets); the remaining baselines are queued "
                   "for the B151 extraction micro-pass — those rows stay in "
                   "absolute pp.*")
+            doc.w("")
+            # v8.19.0 Chapter E (PHF-005): aggregate node research is NOT a hand-level
+            # verdict. "Too wide / Missed vs Classic" are graded against the Classic
+            # baseline; "PKO combo review" are ungraded candidates only.
+            doc.w("*\"Too wide / Missed vs Classic\" are graded against the Classic "
+                  "baseline. \"PKO combo review\" lists **ungraded** candidates — an "
+                  "aggregate node looking under-defended does **not** prove any specific "
+                  "bottom combo (e.g. 32o) should continue; that combo may still be a "
+                  "correct fold.*")
             doc.w("")
         else:
             doc.w("*No PKO-sensitive BB defense spots this session.*")

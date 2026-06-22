@@ -1242,12 +1242,42 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
                           key=lambda kv: (-kv[1]['priority'], kv[0])):
         buckets[it['bucket']].append(hid)
 
+    # RC3 (v8.19) provenance: a graded hand is excluded from the live `items`, but its AUTHORITATIVE
+    # reviewed-decision kind must survive review-exclusion (only a count was kept). Without it, any
+    # downstream consumer that asks "what action was reviewed here?" (parity Gate G, completeness)
+    # has to RE-INFER the kind and can pick a different action than the one the worklist authored —
+    # e.g. inferring 'first_in_open' for a hand the worklist reviewed as 'call_vs_jam'. Retain the
+    # canonical (kind, index, street) for every reviewed candidate so the reviewed kind is queryable.
+    reviewed_decisions = {}
+    for hid in reviewed:
+        c = ctx_by_id.get(hid)
+        hand = hands_by_id.get(hid)
+        if c is None or hand is None:
+            continue
+        try:
+            from gem_decision_snapshot import build_reviewed_decision_ref as _ds_rdr_rv
+            kind = _decision_kind(c, devs_by_hand.get(hid))
+            _ridx_rv = _reviewed_action_index(hand, kind)
+            _ref_rv = _ds_rdr_rv(hand, _ridx_rv, kind, 'worklist_reviewed_action')
+            reviewed_decisions[hid] = {
+                'hand_id': hid,
+                'decision_kind': kind,
+                'hero_action_index': _ref_rv.get('hero_action_index'),
+                'hero_action_kind': _ref_rv.get('hero_action_kind'),
+                'street': _ref_rv.get('street'),
+                'selection_source': 'worklist_reviewed_action',
+                'selection_confidence': _ref_rv.get('selection_confidence'),
+            }
+        except Exception:
+            continue
+
     return {
         'schema': SCHEMA,
         'session': date_compact,
         'runtime': runtime,
         'generated_counts': {b: len(v) for b, v in buckets.items()},
         'reviewed_excluded': len(reviewed),
+        'reviewed_decisions': reviewed_decisions,   # RC3: authoritative kind survives exclusion
         'buckets': buckets,
         'items': items,
     }

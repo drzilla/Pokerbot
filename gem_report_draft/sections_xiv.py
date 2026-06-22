@@ -2871,6 +2871,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # Heuristic: if cmt has a 'street' field, use it; else attach to the
         # street where Hero made the last meaningful (non-fold) action.
         analyst_street = (cmt.get('street') or '').lower()
+        # RC3 P1-1: an analyst entry with a NON-EMPTY but INVALID street ('review', 'showdown',
+        # 'all', …) previously fell through to `per_street[analyst_street]` and KeyError-crashed the
+        # entire render. Treat any value outside the canonical 4 streets as empty so the fallback
+        # chain below recomputes a real street (validate-and-fallback, not setdefault).
+        if analyst_street not in ('', 'preflop', 'flop', 'turn', 'river'):
+            analyst_street = ''
         # v8.12.3 (Ron QA, hand 59114187): a note quoting the FULL runout
         # (e.g. **6-2-7-T-7**) must not land on an earlier street where those
         # cards have not been seen yet — route it to the last street Hero
@@ -2917,7 +2923,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         analyst_street = st
                         break
                 if analyst_street: break
-        if not analyst_street:
+        # RC3 P1-1: guarantee a canonical street key before per_street[analyst_street] is indexed.
+        if analyst_street not in ('preflop', 'flop', 'turn', 'river'):
             analyst_street = 'preflop'
 
         # Compose the analyst-notes block once — we'll attach it under the
@@ -3719,8 +3726,18 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             # REV8 B2: the EV-of-call / call verdict applies ONLY to a CALL/FOLD decision
             # facing a wager. A first-in open / 3-bet / bet (price not applicable) must never
             # show a 'call +EV vs shown' verdict (83765091).
+            # COR-002 (v8.18.1): in an unsupported multiway / covering re-jam spot (3+ live at the all-in)
+            # the EV-of-call + verdict were computed against ONE villain's range and ignore the covering
+            # re-jam, so they are NOT authoritative. Fail safe: render a typed limitation instead of a
+            # contradicting "+EV vs range" number (the full field-equity model lands in v8.19.0).
+            _mw_unsupported = ((_po.get('n_players_at_showdown') or 2) >= 3)
             if _ev is not None and _po.get('reviewed_price_applicable') is not False:
-                _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
+                if _mw_unsupported:
+                    _po_lines.append("**EV of call:** not shown \u2014 _multiway / covering re-jam: the "
+                                     "single-villain price is not authoritative; compare equity to the "
+                                     "field (manual / v8.19 multiway review)_")
+                else:
+                    _po_lines.append(f"**EV of call:** {_ev:+.1f}BB \u2014 _{_vh}_")
             # v8.16.4 DTI: OPTIONAL root/downstream attribution render support on
             # the XIV.A full card too. Renders ONLY when a producer stamped
             # h['attribution_roles'] = {street: role}; absent -> unchanged.

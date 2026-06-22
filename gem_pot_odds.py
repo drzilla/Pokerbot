@@ -825,10 +825,13 @@ def compute_hand_pot_odds(hand, raw_hh):
     ev_call_bounty_bb = None
     verdict_hint = 'range unavailable — do not grade on result'
 
-    # Use whichever equity is available: range first, then shown-hand fallback
-    _eq_for_verdict = range_equity if range_equity is not None else (
-        realized_equity if realized_equity is not None else None)
-    _eq_source = 'vs range' if range_equity is not None else 'vs shown'
+    # ANA-005 (v8.19.0): the strategic verdict + EV-of-call use DECISION-TIME RANGE equity ONLY. The
+    # result-derived exact-vs-shown equity (realized_equity) is reference/display only -- it carries an
+    # explicit "Do NOT use for decision grading" note and must NEVER drive a +EV/-EV verdict or the
+    # authoritative EV. When range equity is unavailable the spot is simply not gradeable on the result
+    # (verdict_hint stays "range unavailable — do not grade on result"; ev_call_bb stays None).
+    _eq_for_verdict = range_equity
+    _eq_source = 'vs range'
     if _eq_for_verdict is not None:
         # v8.12.8 QA3: EV must also price the winnable pot only
         _pot_for_ev = main_pot_bb if main_pot_bb else ctx['total_pot_bb']

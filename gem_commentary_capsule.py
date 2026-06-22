@@ -116,12 +116,29 @@ def evidence_tier_ok(tier, text):
     return not any(v in t for v in _EXACT_VERBS)
 
 
-def build_capsule(street, roles, *, register, evidence_tier):
+# v8.19.0 Chapter F (COM-002): typed insufficient-evidence reasons. An INSUFFICIENT_EVIDENCE
+# capsule must say WHY the evidence is insufficient, not a generic "evidence is thin".
+INSUFFICIENT_REASONS = ('result_only', 'non_gradeable_spot', 'unprovable_node_type',
+                        'insufficient_evidence_for_grade', 'evidence_threshold_not_met')
+_INSUFFICIENT_REASON_COPY = {
+    'result_only': 'result-derived only — the outcome is known but the decision is not gradeable '
+                   'from decision-time information',
+    'non_gradeable_spot': 'not a gradeable spot — no legal decision to score here',
+    'unprovable_node_type': 'unprovable node type — no chart / price authority applies at this decision',
+    'insufficient_evidence_for_grade': 'evidence present but below the bar to grade — check the price '
+                                       'and the opponent range before scoring',
+    'evidence_threshold_not_met': 'no decision-time evidence anchor (price / range / exploit) was '
+                                  'available to grade this spot',
+}
+
+
+def build_capsule(street, roles, *, register, evidence_tier, reason=None):
     """Assemble the smallest useful prioritized capsule. `roles` is a dict keyed by
     CAPSULE_ROLES; blank/missing roles are dropped (no empty capsules, §2). Returns
-    {street, register, evidence_tier, roles, order, has_anchor, md} or None when there
-    is no non-blank role to show. A scored register (factual/coaching) keeps a visible
-    evidence anchor among Math/Range/Exploit; no_clear_lesson states what is missing."""
+    {street, register, evidence_tier, roles, order, has_anchor, md, insufficient_reason}
+    or None when there is no non-blank role to show. A scored register (factual/coaching)
+    keeps a visible evidence anchor among Math/Range/Exploit; an INSUFFICIENT_EVIDENCE
+    capsule carries a TYPED reason (COM-002) stating exactly what is missing."""
     roles = roles or {}
     present = [(r, str(roles[r]).strip()) for r in CAPSULE_ROLES
                if r in roles and not is_blank(roles.get(r))]
@@ -138,6 +155,7 @@ def build_capsule(street, roles, *, register, evidence_tier):
         'roles': [r for r, _ in present],
         'order': [r for r in CAPSULE_ROLES if r in dict(present)],
         'has_anchor': has_anchor,
+        'insufficient_reason': reason if register == 'no_clear_lesson' else None,
         'md': md,
     }
 
@@ -182,12 +200,21 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
         verdict_class = 'correct'
     else:
         verdict_class = ''
+    # COR-002 (v8.18.1) fail-safe: in an UNSUPPORTED multiway / covering re-jam spot the price-based
+    # "+EV vs range" verdict was derived from a single villain's range (e.g. the short CO jam) and
+    # ignores the covering re-jam, so it must NEVER assert a coaching-correct verdict. Drop the
+    # price-derived classification; the capsule becomes a neutral FACTUAL/insufficient note instead of
+    # contradicting the canonical decision status.
+    if multiway_suppressed:
+        verdict_class = ''
     register = classify_register(verdict_class=verdict_class, gradeable=gradeable,
                                  result_only=result_only)
     roles = {}
     if decision_label:
         roles['Decision'] = decision_label
-    if vh and not vh_is_result:
+    # COR-002: suppress the price-based "+EV vs range" verdict when the multiway composition is
+    # unsupported -- it is not a reliable verdict and would contradict the canonical decision status.
+    if vh and not vh_is_result and not multiway_suppressed:
         roles['Verdict'] = vh
     # Why: prefer the PKO how-changes driver, else the analyst why (never a result hint).
     drv = (pko_how_changes or '').replace('How the bounty changes it: ', '').strip()
@@ -202,7 +229,8 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
     if exploit_line:
         roles['Exploit'] = exploit_line
     if caveat_line or multiway_suppressed:
-        roles['Caveat'] = caveat_line or 'multiway — compare equity to the field, not one villain'
+        roles['Caveat'] = caveat_line or ('multiway / covering re-jam — the single-villain price is not '
+                                          'authoritative here; compare equity to the field, not one jam')
     if consequence_line:
         roles['Consequence'] = consequence_line
     # Anchor-aware fallback: an ungraded but evidenced decision (decision + price/range
@@ -215,11 +243,25 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
             and _has_anchor and decision_label and not _unprovable:
         register = 'factual'
     # no_clear_lesson must not carry a scored verdict (hard rule §9)
+    _reason = None
     if register == 'no_clear_lesson':
         roles.pop('Verdict', None)
-        roles.setdefault('Caveat', 'evidence is thin here — check the price and the '
-                         'opponent range before grading')
-    return build_capsule(street, roles, register=register, evidence_tier=evidence_tier)
+        # COM-002 (v8.19.0): attach a TYPED reason WHY evidence is insufficient and use it as
+        # the visible Caveat instead of a generic "evidence is thin".
+        if result_only:
+            _reason = 'result_only'
+        elif not gradeable:
+            _reason = 'non_gradeable_spot'
+        elif _unprovable:
+            _reason = 'unprovable_node_type'
+        elif _has_anchor:
+            _reason = 'insufficient_evidence_for_grade'
+        else:
+            _reason = 'evidence_threshold_not_met'
+        # keep a more-specific existing caveat (e.g. the multiway COR-002 note); else show the typed one.
+        roles.setdefault('Caveat', _INSUFFICIENT_REASON_COPY[_reason])
+    return build_capsule(street, roles, register=register, evidence_tier=evidence_tier,
+                         reason=_reason)
 
 
 def render_capsule_md(capsule):

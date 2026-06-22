@@ -961,15 +961,13 @@ def _parse_game_summaries_usd(hh_dir, hands):
 # HELPER: Load trend data from session history
 # ============================================================
 def _load_trend_data(csv_path, n=5):
-    """Load last n sessions from session_history CSV for trend tracking."""
+    """Load last n sessions from session_history CSV for trend tracking.
+    COR-001: rows are TYPE-COERCED at this load boundary (numeric columns -> float/int/None), so trend
+    renderers never numeric-format a raw csv string (the production crash)."""
     if not csv_path or not os.path.exists(csv_path):
         return []
-    import csv
-    rows = []
-    with open(csv_path, encoding='utf-8', errors='replace') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            rows.append(row)
+    from gem_csv_types import read_typed_csv
+    rows = read_typed_csv(csv_path)
     # Return last n rows (most recent sessions)
     return rows[-n:] if len(rows) >= n else rows
 
@@ -1061,6 +1059,46 @@ _SIGNIFICANT_LOSS_BUCKETS = ('biggest_loss_screen', 'postflop_loss_screen',
                              'coolers', 'bust_audit')
 
 
+def _is_non_nlh_candidate(_c):
+    """A candidate is unsupported non-NLH when its game_type is not NLH, or it carries 4+ hole
+    cards (Omaha/PLO). Used as a defensive per-candidate fallback when rd['_non_nlh_ids'] is absent."""
+    if not isinstance(_c, dict):
+        return False
+    if (_c.get('game_type') or 'NLH') != 'NLH':
+        return True
+    _cards = _c.get('cards') or []
+    return isinstance(_cards, (list, tuple)) and len(_cards) >= 4
+
+
+def canonical_required_review_ids(candidates, auto_resolved_ids=None, non_nlh_ids=None):
+    """v8.19.0 RC3 (P2-1): the ONE canonical required-review population, shared verbatim by the
+    analyst COVERAGE GATE (gem_analyzer __main__) and the COMPLETENESS owner
+    (compute_report_completeness). A hand requires analyst review iff it is a candidate in a
+    _COMPLETENESS_NEED_BUCKETS bucket and is neither chart-match auto-resolved nor an unsupported
+    non-NLH hand. Two deliberate identity rules so the gate's "Full coverage" message provably
+    implies the completeness layer has NO unreviewed required hand:
+      - SUPPRESS-noise candidates are KEPT (a suggested SUPPRESS is the auto-classifier's hint, not
+        an analyst waiver; every flagged candidate is reviewable until the analyst rules on it).
+      - The blindspot-audit sample is a SEPARATE coverage signal, never folded into this set.
+    Returns {'need': set, 'need_bucket': {id: bucket}, 'non_nlh': set} (non_nlh includes the
+    per-candidate game_type/4-card fallback so both callers exclude the same hands)."""
+    _auto = set(auto_resolved_ids or [])
+    _non_nlh = set(non_nlh_ids or [])
+    for _bk in set(_COMPLETENESS_NEED_BUCKETS) | set(_CRITICAL_NEED_BUCKETS) | set(_SIGNIFICANT_LOSS_BUCKETS):
+        for _c in (candidates.get(_bk, []) or []):
+            _cid = _c.get('id') if isinstance(_c, dict) else None
+            if _cid and _is_non_nlh_candidate(_c):
+                _non_nlh.add(_cid)
+    _need, _need_bucket = set(), {}
+    for _bk in _COMPLETENESS_NEED_BUCKETS:
+        for _c in (candidates.get(_bk, []) or []):
+            _cid = _c.get('id') if isinstance(_c, dict) else None
+            if _cid and _cid not in _auto and _cid not in _non_nlh:
+                _need.add(_cid)
+                _need_bucket.setdefault(_cid, _bk)
+    return {'need': _need, 'need_bucket': _need_bucket, 'non_nlh': _non_nlh}
+
+
 def compute_report_completeness(rd, candidates=None):
     """v8.12.10 (pipeline trust contract): classify the report as
     AUTO_ONLY / ANALYST_PARTIAL / ANALYST_COMPLETE and stamp the counts the
@@ -1076,24 +1114,26 @@ def compute_report_completeness(rd, candidates=None):
 
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
+        # RC3 P0-1 / P2-1: the completeness owner and the coverage gate share ONE canonical
+        # required-review population (canonical_required_review_ids) so a "Full coverage" message
+        # provably implies completeness has no unreviewed required hand. It excludes auto-resolved
+        # and unsupported non-NLH hands (the latter via rd['_non_nlh_ids'] PLUS a per-candidate
+        # game_type/4-card fallback), keeps SUPPRESS-noise candidates, and never folds in blindspot.
+        _canon = canonical_required_review_ids(candidates, _auto, rd.get('_non_nlh_ids'))
+        _non_nlh = _canon['non_nlh']
+        rd['_non_nlh_ids'] = sorted(_non_nlh)   # persist the resolved set for --quick
 
         def _ids_for(_buckets):
             _s = set()
             for _bk in _buckets:
                 for _c in candidates.get(_bk, []) or []:
                     _cid = _c.get('id') if isinstance(_c, dict) else None
-                    if _cid and _cid not in _auto:
+                    if _cid and _cid not in _auto and _cid not in _non_nlh:
                         _s.add(_cid)
             return _s
 
-        need = set()
-        need_bucket = {}                       # id -> bucket, persisted for --quick
-        for _bk in _COMPLETENESS_NEED_BUCKETS:
-            for _c in candidates.get(_bk, []) or []:
-                _cid = _c.get('id') if isinstance(_c, dict) else None
-                if _cid and _cid not in _auto:
-                    need.add(_cid)
-                    need_bucket.setdefault(_cid, _bk)
+        need = _canon['need']
+        need_bucket = _canon['need_bucket']    # id -> bucket, persisted for --quick
         rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
         rd['_candidate_need_bucket'] = need_bucket
         # v8.13.1 P0: critical-coverage + significant-loss sets (persist for --quick)
@@ -1102,10 +1142,13 @@ def compute_report_completeness(rd, candidates=None):
         rd['_critical_need_ids'] = sorted(critical_need)
         rd['_significant_loss_ids'] = sorted(significant_loss)
     else:
-        need = set(rd.get('_candidate_need_ids', []) or [])
+        # RC3 P0-1: the --quick path subtracts the persisted non-NLH set too (idempotent if the
+        # cached sets were already filtered, but guarantees consistency across full/--quick).
+        _non_nlh = set(rd.get('_non_nlh_ids') or [])
+        need = set(rd.get('_candidate_need_ids', []) or []) - _non_nlh
         need_bucket = rd.get('_candidate_need_bucket', {}) or {}
-        critical_need = set(rd.get('_critical_need_ids', []) or [])
-        significant_loss = set(rd.get('_significant_loss_ids', []) or [])
+        critical_need = set(rd.get('_critical_need_ids', []) or []) - _non_nlh
+        significant_loss = set(rd.get('_significant_loss_ids', []) or []) - _non_nlh
 
     awaiting = sorted(need - reviewed_ids)
     # v8.12.12 Obj-D: per-bucket breakdown of what is still awaiting review, so
@@ -1123,6 +1166,32 @@ def compute_report_completeness(rd, candidates=None):
     sig_total = len(significant_loss)
     sig_reviewed = len(significant_loss & reviewed_ids)
 
+    # v8.19.0 Chapter B (PHF-001): one canonical ReviewCoverageVM. The visible numerator in
+    # "X reviewed of N candidates" MUST be the INTERSECTION (reviewed AND a worklist candidate),
+    # NEVER all analyst entries — `reviewed_hands` (all) stays for the CLI / manifest / run
+    # verdict count; the banner now reads `reviewed_in_candidates`. System-priority coverage
+    # stays distinct from Ron's personal review marks (a JS-only concept, not derived here).
+    reviewed_in_candidates = need & reviewed_ids
+    reviewed_critical = critical_need & reviewed_ids
+    if critical_unreviewed:
+        coverage_state = 'PARTIAL'           # required critical coverage incomplete
+    elif awaiting:
+        coverage_state = 'BOUNDED_COMPLETE'  # all critical done; lower-priority candidates remain
+    else:
+        coverage_state = 'COMPLETE'
+    review_coverage_vm = {
+        'analyst_reviewed_all_ids': sorted(reviewed_ids),
+        'worklist_candidate_ids': sorted(need),
+        'critical_ids': sorted(critical_need),
+        'reviewed_worklist_ids': sorted(reviewed_in_candidates),
+        'unreviewed_worklist_ids': sorted(need - reviewed_ids),
+        'reviewed_critical_ids': sorted(reviewed_critical),
+        'unreviewed_critical_ids': critical_unreviewed,
+        'bucket_ids': {bk: sorted(i for i in need if need_bucket.get(i) == bk)
+                       for bk in sorted(set(need_bucket.values()))},
+        'coverage_state': coverage_state,
+    }
+
     if not reviewed_ids:
         state = 'AUTO_ONLY'
     elif awaiting or critical_unreviewed:
@@ -1130,18 +1199,28 @@ def compute_report_completeness(rd, candidates=None):
     else:
         state = 'ANALYST_COMPLETE'
 
-    # Visible, quantified coverage line (single source — MD + HTML agree).
+    # Visible, quantified coverage line (single source — MD + HTML agree). Numerators are the
+    # INTERSECTION sets (PHF-001) so "of N" never uses the all-analyst count.
     if critical_unreviewed:
-        coverage_line = (f'Analyst coverage incomplete: {len(critical_unreviewed)} '
-                         f'critical hands unreviewed — not final.')
+        coverage_line = (f'Analyst coverage PARTIAL: {len(critical_unreviewed)} of '
+                         f'{len(critical_need)} critical hands unreviewed — not final · '
+                         f'worklist {len(reviewed_in_candidates)} of {len(need)} reviewed '
+                         f'({len(need - reviewed_ids)} remain).')
     else:
-        coverage_line = (f'Analyst coverage: {len(reviewed_ids)} reviewed · '
-                         f'{sig_reviewed}/{sig_total} significant-loss hands '
-                         f'reviewed · 0 critical unreviewed')
+        coverage_line = (f'Analyst coverage {coverage_state}: reviewed {len(reviewed_ids)} '
+                         f'hands overall · worklist {len(reviewed_in_candidates)} of '
+                         f'{len(need)} reviewed · critical {len(reviewed_critical)} of '
+                         f'{len(critical_need)} · {sig_reviewed}/{sig_total} significant-loss.')
 
     rc = {
         'state': state,
         'reviewed_hands': len(reviewed_ids),
+        # v8.19.0 Chapter B (PHF-001): intersection numerators + canonical coverage VM.
+        'reviewed_in_candidates': len(reviewed_in_candidates),
+        'reviewed_critical': len(reviewed_critical),
+        'critical_total': len(critical_need),
+        'coverage_state': coverage_state,
+        'review_coverage_vm': review_coverage_vm,
         'candidate_need': len(need),
         'awaiting_candidates': len(awaiting),
         'awaiting_markers': len(awaiting),

@@ -73,7 +73,8 @@ def _reached_flop_h(h):
     return n >= 3 or bool(h.get('went_to_sd'))
 
 
-def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_BB):
+def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_BB,
+                       strict=True):
     """v8.13.1 P1 (analyst-coverage trust): force critical-loss hands into the
     review set. Pure + testable — returns id lists, no rendering / no candidate
     context. Two coverage screens (NOT mistake detectors):
@@ -92,13 +93,29 @@ def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_
     """
     hands_by_id = {h.get('id'): h for h in (hands or [])}
     seen, biggest, postflop = set(), [], []
+    # v8.19.0 Chapter G (ANA-001): fail loud, do not silent-skip. A tournament with NO
+    # biggest_loss_id is legitimately absent; but a NAMED biggest_loss_id that is missing
+    # from hands or is not a net loss is a payload/schema mismatch — collect and (strict)
+    # raise with the named id + reason so count == payload == rendered can never silently drift.
+    _violations = []
     for _tid, _traj in (stats.get('stack_trajectories', {}) or {}).items():
         blid = (_traj or {}).get('biggest_loss_id')
+        if not blid or blid in seen:
+            continue                              # absent / already screened -> fine
         h = hands_by_id.get(blid)
-        if not blid or blid in seen or not h or (h.get('net_bb') or 0) >= 0:
+        if h is None:
+            _violations.append("%s (tournament %s): named biggest_loss_id missing from hands"
+                               % (blid, _tid))
+            continue
+        if (h.get('net_bb') or 0) >= 0:
+            _violations.append("%s (tournament %s): named biggest_loss_id is not a net loss "
+                               "(net_bb=%s)" % (blid, _tid, h.get('net_bb')))
             continue
         seen.add(blid)
         biggest.append(blid)
+    if _violations and strict:
+        raise ValueError("ANA-001 SCHEMA: biggest_loss_screen payload mismatch — "
+                         + "; ".join(_violations))
     for h in (hands or []):
         hid = h.get('id')
         if not hid or hid in seen or h.get('pf_allin'):
@@ -109,7 +126,8 @@ def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_
             continue
         seen.add(hid)
         postflop.append(hid)
-    return {'biggest_loss_screen': biggest, 'postflop_loss_screen': postflop}
+    return {'biggest_loss_screen': biggest, 'postflop_loss_screen': postflop,
+            'biggest_loss_violations': _violations}
 
 
 def build_and_write(stats, hands, report_data, pname_file, session_dir,
@@ -151,6 +169,15 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         'postflop_loss_screen': [],
     }
     hands_by_id = {h.get('id'): h for h in hands}
+    # RC3 P0-2: compute the canonical loss screens EARLY — before auto-resolution AND before the
+    # analyst_candidates_*.json contract is written. Previously build_loss_screens ran ~230 lines
+    # AFTER the file write, so the persisted biggest_loss_screen / postflop_loss_screen buckets
+    # always shipped EMPTY, and the session's largest losses could be auto-resolved out of review.
+    # Computing the mandatory-loss id set here lets us (a) populate the persisted buckets and
+    # (b) NEVER auto-resolve a mandatory biggest/postflop loss.
+    _loss_screens = build_loss_screens(stats, hands)
+    _mandatory_loss_ids = (set(_loss_screens['biggest_loss_screen'])
+                           | set(_loss_screens['postflop_loss_screen']))
     # Build EAI lookup BEFORE _hand_ctx (hero_realized_eq_at_allin needs it)
     _eai_by_id_pf = {}
     for _e in (stats.get('eai', {}).get('hands', []) or []):
@@ -581,6 +608,13 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         print(f"  cooler auto-resolve: {_cooler_n} cooler-detector hands "
               f"tagged (excluded from coverage gate)")
 
+    # RC3 P0-2: a mandatory biggest/postflop loss must NEVER be auto-resolved out of review,
+    # regardless of which detector tagged it — restore any that an auto-resolver swept up.
+    _swept = _auto_resolved_ids & _mandatory_loss_ids
+    if _swept:
+        _auto_resolved_ids -= _mandatory_loss_ids
+        print(f"  RC3 P0-2: restored {len(_swept)} mandatory loss hand(s) from auto-resolve "
+              f"(biggest/postflop loss must be reviewed)")
     report_data['auto_resolved_ids'] = sorted(_auto_resolved_ids)
     # Expose per-hand auto-verdict labels for the renderer
     _auto_labels = {}
@@ -2133,6 +2167,25 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
           f"{_n_needs_analyst} need analyst, "
           f"{len(candidates.get('blindspot_sample', []))} blindspot")
 
+    # RC3 P0-2: populate the loss-screen buckets from the EARLY-computed _loss_screens BEFORE the
+    # analyst_candidates file is written (these were previously populated ~230 lines too late, so the
+    # persisted contract shipped them empty). Each screened hand must be cleared/classified.
+    for _blid in _loss_screens['biggest_loss_screen']:
+        _bctx = _hand_ctx(_blid)
+        _bctx['screen_reason'] = 'Per-tournament biggest loss; must clear or classify.'
+        candidates['biggest_loss_screen'].append(_bctx)
+    for _plid in _loss_screens['postflop_loss_screen']:
+        _pctx = _hand_ctx(_plid)
+        _net_pl = (hands_by_id.get(_plid, {}) or {}).get('net_bb', 0) or 0
+        _pctx['screen_reason'] = (
+            f'Postflop loss {_net_pl:.0f}BB (<= {POSTFLOP_LOSS_SCREEN_BB:.0f}BB); '
+            'must clear or classify.')
+        candidates['postflop_loss_screen'].append(_pctx)
+    report_data['loss_screen_counts'] = {
+        'biggest_loss_screen': len(candidates['biggest_loss_screen']),
+        'postflop_loss_screen': len(candidates['postflop_loss_screen']),
+    }
+
     with open(cand_path, 'w', encoding='utf-8') as f:
         json.dump(candidates, f, indent=2, default=str, ensure_ascii=False)
 
@@ -2364,22 +2417,9 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
     # ── v8.13.1 P1: coverage screens (biggest-loss + postflop-loss). These are
     #    COVERAGE rules, not mistake detectors — each screened hand must be
     #    cleared or classified by the analyst, and gates ANALYST_COMPLETE.
-    _screens = build_loss_screens(stats, hands)
-    for _blid in _screens['biggest_loss_screen']:
-        _bctx = _hand_ctx(_blid)
-        _bctx['screen_reason'] = 'Per-tournament biggest loss; must clear or classify.'
-        candidates['biggest_loss_screen'].append(_bctx)
-    for _plid in _screens['postflop_loss_screen']:
-        _pctx = _hand_ctx(_plid)
-        _net_pl = (hands_by_id.get(_plid, {}) or {}).get('net_bb', 0) or 0
-        _pctx['screen_reason'] = (
-            f'Postflop loss {_net_pl:.0f}BB (<= {POSTFLOP_LOSS_SCREEN_BB:.0f}BB); '
-            'must clear or classify.')
-        candidates['postflop_loss_screen'].append(_pctx)
-    report_data['loss_screen_counts'] = {
-        'biggest_loss_screen': len(candidates['biggest_loss_screen']),
-        'postflop_loss_screen': len(candidates['postflop_loss_screen']),
-    }
+    # RC3 P0-2: the loss-screen population MOVED to before the analyst_candidates write above
+    # (it previously ran here, ~250 lines after the file was already serialized, so the persisted
+    # buckets shipped empty). _loss_screens is computed once near the top of build_and_write.
 
     # v7.60: surface the read-dependent screener output to the renderer so
     # the flagged calls are visible in III.4 this session (awaiting analyst

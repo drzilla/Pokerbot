@@ -5274,10 +5274,10 @@ check('T-PKOE-10: PKO pill wires pko_trust_render with pot-odds threshold facts 
       and "_pk_render.get('strip_md')" in _xiv_src_e
       and 'required_eq_bounty_pct' in _xiv_src_e, '')
 _sm_src_e = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-PKOE-11: PKO opportunity table renamed (Opportunity/Wrong/Missed), clickable counts, no Hands column',
-      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_src_e
-      and 'Review | Drill cue |' in _sm_src_e and '| Spot | PKO' not in _sm_src_e
-      and '_rcc(' in _sm_src_e, '')
+check('T-PKOE-11: PKO table v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review), clickable counts, no Hands column',
+      '| Opportunity | PKO Δ | Seen | Hero rate | Too wide vs Classic |' in _sm_src_e
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_src_e
+      and '| Spot | PKO' not in _sm_src_e and '_rcc(' in _sm_src_e, '')
 _fin_src_e = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
 check('T-PKOE-12: dense cEV/BB-100 units carry a concise body gloss',
       'cEV/100 = chip-EV per 100 hands' in _fin_src_e
@@ -5335,10 +5335,10 @@ from gem_analyst_worklist import build_analyst_worklist as _bwl141
 from gem_analyst_villain import write_worksheet as _wws141
 from gem_report_draft.tldr import build_review_queue as _brq141
 # #5 metadata: single runtime-version source of truth, wired into worklist + villain.
-check('T-H141-01: RUNTIME_VERSION SoT is v8.17.1 and feeds worklist + villain defaults',
-      _gv141.RUNTIME_VERSION == 'v8.17.1'
-      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.17.1'
-      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.17.1', '')
+check('T-H141-01: RUNTIME_VERSION SoT is v8.19.0 and feeds worklist + villain defaults',
+      _gv141.RUNTIME_VERSION == 'v8.19.0'
+      and _insp141.signature(_bwl141).parameters['runtime'].default == 'v8.19.0'
+      and _insp141.signature(_wws141).parameters['pipeline_version'].default == 'v8.19.0', '')
 _ana141 = open('gem_analyzer.py', encoding='utf-8').read()
 check('T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)',
       "fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION" in _ana141
@@ -5529,7 +5529,7 @@ check('T-H141-27: financial settlement-date label is in the REAL results-attribu
 check('T-H141-28: all-auto-clear queue reframes the urgent "open first" title + count',
       'Auto-cleared sample · optional review' in _tldr141
       and 'data-all-auto-clear' in _tldr141 and '_all_auto' in _tldr141
-      and "auto-cleared · '" in _h141b_html, '')
+      and "(all auto-cleared)" in _h141b_html, '')
 
 # B3: call-jam chart check reconciled like push — pre-review heuristic + depth caveat,
 # never a bare hard "Loose call" that contradicts the concrete pot-odds verdict.
@@ -5803,10 +5803,11 @@ check('T-RE-13: --quick rewrites gem_report_data + persists _gto_written_ids',
       'Report data updated (quick re-render)' in _ana_re
       and "_gto_written_ids" in _grd_re and "_gto_written_ids" in _ana_re, '')
 
-# T-RE-14: P0-7 — review-state collapse CSS override + 'marked by you' copy
-check('T-RE-14: reviewed-list [hidden] !important override + "marked by you" copy',
+# T-RE-14: P0-7 — review-state collapse CSS override + R-B explicit "You reviewed" (system-vs-Ron) copy
+check('T-RE-14: reviewed-list [hidden] !important override + R-B "You reviewed" separation copy',
       '#rq-reviewed[hidden], #rq-reviewed-list[hidden]' in _html_re
-      and 'marked by you' in _html_re and 'marked by you' in _tldr_re, '')
+      and 'You reviewed ' in _html_re and 'You reviewed 0' in _tldr_re
+      and 'System priorities:' in _html_re and 'System priorities:' in _tldr_re, '')
 
 # T-RE-15: coverage tags are always one of exact/proxy/closest/none (no silent 'exact' on alias)
 if _RE_OK:
@@ -5975,9 +5976,9 @@ check('T-V8120B-4: teaching rows aggregate by research bucket',
       and len({r['bucket'] for r in _agg_b['teaching_rows']})
       == len(_agg_b['teaching_rows']), '')
 _sm_812b = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-V8120B-5: S4.2 is the compact layout (v8.14.0 Slice E rev-2: Opportunity/Wrong/Missed)',
-      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_812b
-      and 'Review | Drill cue |' in _sm_812b, '')
+check('T-V8120B-5: S4.2 compact layout, v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review)',
+      '| Opportunity | PKO Δ | Seen | Hero rate | Too wide vs Classic |' in _sm_812b
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_812b, '')
 _sx_812b = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-V8120B-6: pill no longer embeds a span (md would escape it)',
       "pko-cov-chip'>" not in _sx_812b, '')
@@ -6576,10 +6577,13 @@ check('T-1225-LAZY-2: ensureAll yields to the event loop (chunked)',
 
 # --- v8.12.6 pins (Chat session 2026-06-11 findings) ---
 _ga_1226 = open('gem_analyzer.py', encoding='utf-8').read()
-check('T-1226-NAME-1: __main__ PLO-quarantine writes to stats, not s',
+_ans_end_1226 = _ga_1226.index('def sanity_check(')  # analyze_session ends just before this def
+check('T-1226-NAME-1: __main__ PLO-quarantine writes to stats, not s (analyze_session may stamp s[_non_nlh_ids])',
       "stats['_non_nlh_ids'] = _non_nlh_ids_main" in _ga_1226
+      # RC3 P0-1: analyze_session legitimately stamps s['_non_nlh_ids'] (serialized for --quick);
+      # the NameError guard only forbids it AFTER analyze_session (where the var is `stats`, not `s`).
       and not __import__('re').search(
-          r"(?<![A-Za-z_])s\['_non_nlh_ids'\]", _ga_1226),
+          r"(?<![A-Za-z_])s\['_non_nlh_ids'\]", _ga_1226[_ans_end_1226:]),
       'NameError crashed fresh __main__ runs')
 _sx_1226 = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-1226-WPOT-1: pot claims accepted against ANY street window',
@@ -7869,11 +7873,15 @@ _REQ = {'villain_id', 'villain_alias', 'street', 'villain_did', 'cue', 'archetyp
 _o = _vt.teaching_from_exploit(_vt_exp(), _vt_rs(), _vt_sticky)
 check('T-VT-01: teaching object has full contract incl source_truth{atoms,decision_id,no_hindsight}',
       _REQ <= set(_o) and {'evidence_atoms', 'decision_id', 'no_hindsight'} <= set(_o['source_truth']), '')
-check('T-VT-02: villain-fact fields copied verbatim from stamped exploit (no invention)',
+check('T-VT-02: villain FACTS copied verbatim (no invention); future exploit is a COMPLETE cue-aligned projection',
       _o['villain_did'] == 'Called river with second pair after Hero double-barreled.'
       and _o['cue'].startswith('Villain is sticky/station')
       and _o['exploit_now'] == 'Do not bluff this player multi-street. Value-bet thinner instead.'
-      and _o['future_exploit'] == 'Check back rivers; value-bet thinner.', '')
+      # v8.18.1: future_exploit is a teaching projection (not a copied fact) -- the terse recommendation
+      # is regenerated cue-first into a COMPLETE, cue-aligned sentence (here: CALLING_STATION).
+      and _vt.future_exploit_complete(_o['future_exploit'])[0]
+      and _o.get('cue_family') == 'CALLING_STATION'
+      and _vt.cue_alignment(_o.get('cue_family'), _o['future_exploit'])[0], str(_o.get('future_exploit')))
 _thin = _vt.teaching_from_exploit(_vt_exp(evidence_text='', suggests=''),
                                   {_vt_vk: {'n_evidence': 1, 'evidence_hand_ids': ['H_now']}}, {_vt_vk: []})
 check('T-VT-03: thin read -> fixed fallback line, no exploit_now',
@@ -8312,9 +8320,10 @@ _vs3_graded = _vt.teaching_from_exploit(
               'confidence': 'high', 'n_evidence': 9, 'evidence_hand_ids': ['P1', 'P2', 'P3']}},
     {_vt_vk: [{'dimension': 'tight'} for _ in range(9)]})
 _l7 = _vs3_graded['lesson_7part']
-check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason',
+check('T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason (+ v8.18.1 provenance)',
       {'q1_villain_did', 'q2_cue', 'q3_read', 'q4_confidence', 'q5_exploit_now',
-       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} == set(_l7), str(_l7))
+       'q6_exploit_future', 'q7_do_not_overadjust', 'gradable', 'non_gradable_reason'} <= set(_l7)
+      and {'cue_family', 'future_exploit_source', 'alignment_reason'} <= set(_l7), str(_l7))
 check('T-VS3-04b: graded trusted exploit -> gradable True, q5/q6/q7 present, reason empty',
       _l7['gradable'] is True and _l7['q5_exploit_now'] and _l7['q6_exploit_future']
       and _l7['q7_do_not_overadjust'] and _l7['non_gradable_reason'] == '', str(_l7))
@@ -8893,8 +8902,8 @@ _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False},
     {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
-check('T-TT-R-03: repeated tournament names render as separate event rows',
-      _render_tt(_rep_rd).count(">GGMasters Bounty</td>") == 2, '')
+check('T-TT-R-03: repeated tournament names render as separate event rows (RES-001 bold name)',
+      _render_tt(_rep_rd).count(">GGMasters Bounty</strong>") == 2, '')
 # multi-bullet => one row with bullet count
 _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8902,9 +8911,19 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
-      _mb_md.count(">Big Re-entry</td>") == 1
+      _mb_md.count(">Big Re-entry</strong>") == 1
       and ">Standard*</td>" in _mb_md
       and "data-label='Bullets' data-sort-value='3'" in _mb_md and ">3</td>" in _mb_md, '')
+# v8.19.0 Chapter A: RES-001 bold name + RES-005 grouped totals + RES-009 coverage inventory
+_a_md = _render_tt(_rep_rd)
+check('T-A-001 (RES-001): tournament name renders bold (tt-tname)', "tt-tname'>" in _a_md)
+check('T-A-005 (RES-005): grouped table carries a totals tfoot row (tt-totals)',
+      'tt-totals' in _a_md and '<tfoot>' in _a_md)
+check('T-A-009 (RES-009): explicit coverage inventory (HH-backed / summary-only / resolved)',
+      'tt-coverage-inventory' in _a_md and 'HH-backed' in _a_md)
+_tt_src_a = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-A-007 (RES-007): Entries (count) is distinct from Entry timing in the filter dims',
+      "('entry_pattern', 'Entries')" in _tt_src_a and "('entry_timing', 'Entry timing')" in _tt_src_a)
 # summary totals match canonical usd_overlay.totals
 check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
       # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
@@ -10359,10 +10378,11 @@ check('T-PKO817-11: openHandListPopup short-circuits a single id to openHand (di
       'v8.17 B8: a count of exactly ONE opens the hand directly' in _html817
       and 'if(hids.length===1){' in _html817 and 'openHand(_only);return true;' in _html817, '')
 _sm817 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-PKO817-12: S4 PKO aggregate has Opportunity/Actual/Wrong/Missed, clickable counts, no Hands col in that table, directional⚠',
+check('T-PKO817-12: S4 PKO aggregate v8.19.0 headers + clickable counts (data keys unchanged), no Hands col, directional⚠',
       '| Opportunity | PKO ' in _sm817 and "_t('Actual')" in _sm817 and "_t('Too wide')" in _sm817
       and "_t('Missed')" in _sm817 and 'render_count_cell as _rcc' in _sm817
-      and 'Missed | "\n                  "Review | Drill cue |' in _sm817
+      and 'Seen | Hero rate | Too wide vs Classic |' in _sm817
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm817
       and '+= " ⚠"' in _sm817, 'S4 aggregate contract')
 
 print('\n--- v8.17 Epic A (capsule layer): registers / tiers / capsule / content lints ---')
@@ -13253,6 +13273,472 @@ check('T-VT18-06: speed classifier types every event + records the source (expli
       and _csp('Hyper Special') == ('HYPER', 'name_pattern:hyper')
       and _csp('GGMasters Classic 25') == ('STANDARD', 'default_scheduled_mtt')
       and _csp('Some Event', 'HYPER') == ('HYPER', 'explicit_metadata'), str(_csp('GGMasters Classic 25')))
+
+# ── v8.18.1 Villain Teaching future-exploit quality hotfix ──
+import gem_villain_teaching as _VTQ
+
+# T-VT181-01: cue-FIRST classification -- the structured atom signal picks the cue family (never archetype
+# first); cue text is the fallback. The two production cue-mismatch examples are now correctly aligned.
+check('T-VT181-01: classify_cue_family is cue-first (signal -> family; text fallback)',
+      _VTQ.classify_cue_family(signal='multiway_donk') == 'LARGE_DONK'
+      and _VTQ.classify_cue_family(signal='limp_call') == 'WIDE_PREFLOP_CALL'
+      and _VTQ.classify_cue_family(signal='passive_aggro_pivot') == 'PASSIVE_THEN_RAISE'
+      and _VTQ.classify_cue_family(cue='Player calls too wide preflop with a loose range') == 'WIDE_PREFLOP_CALL'
+      and _VTQ.classify_cue_family(cue='River aggression is underbluffed and value-heavy') == 'UNDERBLUFFED_RIVER',
+      str(_VTQ.classify_cue_family(signal='multiway_donk')))
+
+# T-VT181-02: word-boundary keyword match -- a short token ('nit') must NOT match inside 'opportunity'
+# (the real production bug), but plurals/gerunds still match ('overfold' in 'overfolds').
+check('T-VT181-02: cue keyword match is word-bounded (no nit-in-opportunity), inflections still match',
+      _VTQ.classify_cue_family(cue='Thin value bet opportunity missed; villain calls down too light') == 'CALLING_STATION'
+      and _VTQ._kw_match('overfold', 'villain overfolds the blinds too often') is True
+      and _VTQ._kw_match('nit', 'a thin value opportunity') is False
+      and _VTQ._kw_match('nit', 'a nitty rock in the blinds') is True, '')
+
+# T-VT181-03: the canonical future exploit is a COMPLETE sentence (no word-slice truncation); the
+# 40-word clamp is gone, so a long cue-aligned sentence keeps its terminal punctuation.
+_vt181_donk = {'signal': 'multiway_donk', 'cue': 'Loose-passive donk-bets into the field with weak hands and draws',
+               'archetype': 'Loose Passive', 'confidence': 'medium', 'exploit_now': 'Raise donk-bets for value',
+               'villain_did': 'Donk-led the flop into three players', 'do_not_overadjust': 'small sample',
+               'source_truth': {'no_hindsight': True}, 'fallback': False}
+_vt181_b = _VTQ._finalize(dict(_vt181_donk))
+check('T-VT181-03: future_exploit stored COMPLETE (cue-first LARGE_DONK), 40-word clamp removed',
+      _vt181_b['cue_family'] == 'LARGE_DONK' and _vt181_b['future_exploit_source'] == 'CUE_TEMPLATE'
+      and _VTQ.future_exploit_complete(_vt181_b['future_exploit'])[0]
+      and _VTQ.cue_alignment('LARGE_DONK', _vt181_b['future_exploit'])[0]
+      and 'future_exploit' not in _VTQ._WORD_CAP             # the semantic word clamp is gone
+      and len(_vt181_b['future_exploit'].split()) >= 25
+      and _vt181_b['future_exploit'].rstrip()[-1] in '.!?', _vt181_b.get('future_exploit'))
+
+# T-VT181-04: provenance present on every generated lesson (cue_family + domain + source + reason).
+check('T-VT181-04: future-exploit provenance present (cue_family/current_exploit_domain/source/reason)',
+      _vt181_b.get('cue_family') and _vt181_b.get('current_exploit_domain')
+      and _vt181_b.get('future_exploit_source') in ('CUE_TEMPLATE', 'CURRENT_EXPLOIT_TRANSFORM',
+                                                    'ARCHETYPE_FALLBACK', 'MANUAL_EXISTING')
+      and _vt181_b.get('alignment_reason'), str(_vt181_b.get('future_exploit_source')))
+
+# T-VT181-05: cue-mismatch is impossible -- a donk-bet lesson never gets a sudden-aggression future, and
+# a wide-calling lesson never gets a fold-bluff-catcher future (the two reported defects).
+check('T-VT181-05: cue alignment rejects a swapped future, accepts the matching one',
+      _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['LARGE_DONK'])[0] is True
+      and _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['PASSIVE_THEN_RAISE'])[0] is False
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['WIDE_PREFLOP_CALL'])[0] is True
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['UNDERBLUFFED_RIVER'])[0] is False, '')
+
+# T-VT181-06: the seven required mutation classes each flip a quality check to FAIL.
+_g181 = _VTQ._FUTURE_TEMPLATE['LARGE_DONK']
+check('T-VT181-06: all seven mutation classes are detected (completeness + alignment + hindsight)',
+      _VTQ.future_exploit_complete(' '.join(_g181.split()[:-5]))[0] is False        # 1 remove last words
+      and _VTQ.cue_alignment('LARGE_DONK', _VTQ._FUTURE_TEMPLATE['UNDERBLUFFED_RIVER'])[0] is False  # 2 swap donk<-river
+      and _VTQ.cue_alignment('WIDE_PREFLOP_CALL', _VTQ._FUTURE_TEMPLATE['PASSIVE_THEN_RAISE'])[0] is False  # 3 swap
+      and _VTQ.future_exploit_complete('Play accordingly.')[0] is False             # 4 generic placeholder
+      and _VTQ.future_exploit_complete(_g181.rstrip('.'))[0] is False               # 5 remove punctuation
+      and _VTQ.future_exploit_complete(None)[0] is False                            # 6 null future
+      and _VTQ.cue_alignment('LARGE_DONK', _g181[:-1] + ' because hero won at showdown.')[0] is False, '')  # 7 hindsight
+
+# T-VT181-07: a missing future_exploit is still an INCOMPLETE-eligible state (eligibility unchanged); the
+# generator never invents a future for a thin/fallback object.
+_vt181_thin = _VTQ._finalize({'villain_did': '', 'cue': '', 'archetype': '', 'fallback': True,
+                              'source_truth': {'no_hindsight': True}})
+check('T-VT181-07: thin/fallback object gets NO future exploit + NO provenance (eligibility untouched)',
+      not _vt181_thin.get('future_exploit') and not _vt181_thin.get('cue_family'), '')
+
+# ── v8.18.1 production-correctness closure (COR-001/004/005) ──
+import gem_csv_types as _CT
+
+# T-COR-001: ONE typed CSV load boundary -- numeric strings (incl. comma/$/%) coerce to typed numbers;
+# empty/missing/non-numeric -> None (or 0.0 for a domain-zero field); text columns stay text.
+check('T-COR-001: typed CSV coercion handles 49.5/"1,234.50"/49/""/missing/non-numeric Top_Leak',
+      _CT.coerce_numeric('49.5') == 49.5 and _CT.coerce_numeric('1,234.50') == 1234.5
+      and _CT.coerce_numeric('49') == 49 and isinstance(_CT.coerce_numeric('49'), int)
+      and _CT.coerce_numeric(49.5) == 49.5 and _CT.coerce_numeric('') is None
+      and _CT.coerce_numeric(None) is None and _CT.coerce_numeric('Aggression') is None
+      and _CT.coerce_numeric('-100.0') == -100.0 and _CT.coerce_numeric('$25') == 25, '')
+_ct_rows, _ct_nf = _CT.coerce_csv_rows(
+    [{'Top_Leak': 'Aggression', 'BB_per_100': '1,234.50', 'Net_USD': '-5.00', 'Mistakes_per_100': ''},
+     {'Top_Leak': 'Passive', 'BB_per_100': '5.0', 'Net_USD': '0', 'Mistakes_per_100': '2'}],
+    zero_default={'Mistakes_per_100'})
+check('T-COR-001b: numeric columns coerced, text Top_Leak preserved, empty domain-zero -> 0.0',
+      _ct_rows[0]['BB_per_100'] == 1234.5 and _ct_rows[0]['Net_USD'] == -5.0
+      and _ct_rows[0]['Top_Leak'] == 'Aggression' and 'Top_Leak' not in _ct_nf
+      and _ct_rows[0]['Mistakes_per_100'] == 0.0, str(_ct_rows[0]))
+
+# T-COR-004: a grouped aggregate with NO canonical cEV must return None (-> em dash), never +0.0;
+# a group with real cEV is hand-weighted correctly.
+from gem_tournament_model import aggregate_group as _agg
+def _ev(hands, cev=None, bb=None):
+    return {'bullets': 1, 'cost': 10, 'return': {'value': 0, 'exact': True}, 'net': -10,
+            'finish': {'itm': False, 'top_percent': 60}, 'roi_pct': -100,
+            'performance': {'hands': hands, 'cev100': cev, 'bb100': bb}}
+_agg_nocev = _agg([_ev(50, cev=None, bb=-3.0), _ev(30, cev=None, bb=2.0)])
+_agg_cev = _agg([_ev(50, cev=10.0, bb=None), _ev(50, cev=-2.0, bb=None)])
+check('T-COR-004: unavailable grouped cEV is None (em dash), not 0.0; available cEV hand-weighted',
+      _agg_nocev['cev100'] is None and _agg_nocev['cev100_availability'] == 'unavailable'
+      and _agg_nocev['bb100'] is not None
+      and _agg_cev['cev100'] == 4.0 and _agg_cev['cev100_availability'] == 'exact'
+      and _agg_cev['bb100'] is None, str((_agg_nocev['cev100'], _agg_cev['cev100'])))
+
+# T-COR-002: in an UNSUPPORTED multiway / covering re-jam, the decision capsule must NOT assert
+# "call +EV vs range" or the single-villain required-equity Math (it would contradict the canonical
+# MISTAKE status). The heads-up path is unchanged (no over-suppression).
+from gem_commentary_capsule import decision_capsule_from_signals as _dcs, render_capsule_md as _rcm2
+_cor2_mw = _dcs('preflop', decision_label='Call vs jam', verdict_hint='call +EV vs range',
+                required_eq_pct=49.6, multiway_suppressed=True,
+                range_line='KTo outside the call-a-CO-jam 20BB range')
+_cor2_hu = _dcs('preflop', decision_label='Call vs jam', verdict_hint='call +EV vs range',
+                required_eq_pct=49.6, multiway_suppressed=False, range_line='inside')
+_cor2_md = _rcm2(_cor2_mw).lower() if _cor2_mw else ''
+_cor2_hu_md = _rcm2(_cor2_hu).lower() if _cor2_hu else ''
+check('T-COR-002: multiway-unsupported capsule drops +EV verdict + 49.6% Math; HU path keeps them',
+      _cor2_mw is not None and '+ev' not in _cor2_md and 'need 49.6' not in _cor2_md
+      and _cor2_mw.get('register') != 'coaching'
+      and _cor2_hu is not None and '+ev' in _cor2_hu_md, _cor2_md[:140])
+
+# T-COR-005: canonical SessionCoverage span derives from the actual hand TIMESTAMP dates (hand_ts_date),
+# so a session whose files all share one start date but whose hands span days shows the multi-day span.
+from gem_analyzer import _dates_contiguous as _dc
+check('T-COR-005: contiguity helper + multi-day span detection',
+      _dc(['2026-06-18', '2026-06-19', '2026-06-20']) is True
+      and _dc(['2026-06-18', '2026-06-20']) is False
+      and _dc(['2026-06-18']) is True, '')
+
+# ── v8.19.0 Chapter D: legal c-bet opportunity ownership (PHF-004) ──
+from gem_analyzer import cbet_opportunity_exclusion as _cbo, is_legal_cbet_opportunity as _ilco
+def _cbet_hand(**kw):
+    base = {'pfr': True, 'board': ['Ah', 'Td', '6c'], 'spr': 3.0, 'pf_allin': False,
+            'flop_allin': False, 'action_ledger': []}
+    base.update(kw); return base
+check('T-D-001: a normal PFR flop spot is a legal c-bet opportunity',
+      _ilco(_cbet_hand()) and _cbo(_cbet_hand()) is None)
+check('T-D-002: Hero terminal preflop all-in -> HERO_ALL_IN_NO_DECISION (90177176-class)',
+      _cbo(_cbet_hand(pf_allin=True)) == 'HERO_ALL_IN_NO_DECISION'
+      and not _ilco(_cbet_hand(pf_allin=True)))
+check('T-D-003: flop jammed (betting closed) -> BETTING_CLOSED_FLOP',
+      _cbo(_cbet_hand(flop_allin=True)) == 'BETTING_CLOSED_FLOP')
+check('T-D-004: no chips behind / SPR<=0 -> NO_ACTIONABLE_CHIPS',
+      _cbo(_cbet_hand(spr=0)) == 'NO_ACTIONABLE_CHIPS')
+check('T-D-005: never reached a flop -> NO_FLOP',
+      _cbo(_cbet_hand(board=['Ah', 'Td'])) == 'NO_FLOP')
+check('T-D-006: preflop all-in in ledger with no hero postflop action -> excluded',
+      not _ilco(_cbet_hand(action_ledger=[{'street': 'preflop', 'allin': True}])))
+# v8.19.0 Chapter D FULL AUDIT: generalized street-aware owner + per-family structural mutations
+from gem_analyzer import (postflop_opportunity_exclusion as _poe, is_legal_postflop_opportunity as _ilpo,
+                          preflop_opportunity_exclusion as _pre)
+def _street_hand(n, **kw):
+    base = {'pfr': True, 'board': [1, 2, 3, 4, 5][:n], 'spr': 3.0, 'pf_allin': False,
+            'flop_allin': False, 'action_ledger': []}
+    base.update(kw); return base
+check('T-D-AUDIT-turn: turn-street gate needs board>=4 (probe / delayed-cbet family mutation)',
+      _poe(_street_hand(3), 'turn') == 'NO_STREET' and _ilpo(_street_hand(4), 'turn'))
+check('T-D-AUDIT-river: river-street gate needs board>=5 (river-value family mutation)',
+      _poe(_street_hand(4), 'river') == 'NO_STREET' and _ilpo(_street_hand(5), 'river'))
+check('T-D-AUDIT-allin: a flop-jammed turn/river spot is BETTING_CLOSED_FLOP across families',
+      _poe(_street_hand(5, flop_allin=True), 'turn') == 'BETTING_CLOSED_FLOP'
+      and _poe(_street_hand(5, flop_allin=True), 'river') == 'BETTING_CLOSED_FLOP')
+check('T-D-AUDIT-spr: SPR<=0 (effective all-in / runout) is NO_ACTIONABLE_CHIPS on every street',
+      _poe(_street_hand(4, spr=0), 'turn') == 'NO_ACTIONABLE_CHIPS'
+      and _poe(_street_hand(5, spr=-1), 'river') == 'NO_ACTIONABLE_CHIPS')
+check('T-D-AUDIT-terminal: Hero terminal preflop all-in excluded from every postflop family',
+      _poe(_street_hand(5, pf_allin=True), 'turn') == 'HERO_ALL_IN_NO_DECISION'
+      and _poe(_street_hand(5, pf_allin=True), 'river') == 'HERO_ALL_IN_NO_DECISION')
+check('T-D-AUDIT-preflop: preflop families gate terminal-allin but NOT a valid jam-3bet (family equiv)',
+      _pre(_street_hand(0, pf_allin=True, action_ledger=[{'street': 'preflop', 'allin': True}]))
+          == 'HERO_ALL_IN_NO_DECISION'
+      and _pre(_street_hand(0)) is None)
+
+# ── v8.19.0 Chapter E: PKO presentation (PHF-005) ──
+_sm_e19 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-E-001: PKO BB Defense uses unambiguous v8.19.0 headers (no bare Actual/Wrong/Review)',
+      'Hero rate | Too wide vs Classic |' in _sm_e19
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_e19)
+check('T-E-002: aggregate is not a combo verdict — 32o-class guard copy present',
+      'PKO combo review' in _sm_e19 and 'ungraded' in _sm_e19
+      and 'does **not** prove' in _sm_e19 and '32o' in _sm_e19)
+
+# ── v8.19.0 Chapter I: input manifest + reproducibility ──
+from gem_input_manifest import build_input_manifest as _bim
+_im_hands = [{'id': 'TM1', 'tournament_id': 'T1', 'hand_ts_date': '2026-06-18', 'game_type': 'NLH', 'format': 'BOUNTY'},
+             {'id': 'TM2', 'tournament_id': 'T1', 'hand_ts_date': '2026-06-19', 'game_type': 'NLH', 'format': 'BOUNTY'}]
+_im_tours = [{'tournament_id': 'T1', 'name': 'A', 'return': 10.0},
+             {'tournament_id': 'T2', 'name': 'B', 'return': None}]
+_im_stats = {'volume': {'hands': 2}, 'session_coverage': {'dates': ['2026-06-18', '2026-06-19']}}
+_im = _bim(None, _im_hands, _im_tours, _im_stats, generated_at='fp123')
+check('T-I-001: coverage classifies HH-backed vs summary-only vs financially-resolved events',
+      _im['coverage']['events_discovered'] == 2 and _im['coverage']['hh_backed_events'] == 1
+      and _im['coverage']['summary_only_events'] == 1
+      and _im['coverage']['financially_resolved_events'] == 1
+      and _im['coverage']['unresolved_events'] == 1)
+check('T-I-002: reproducibility invariants hold (hand_count==volume, date_range==coverage)',
+      _im['reproducibility']['hand_count_matches_volume'] is True
+      and _im['reproducibility']['date_range_matches_coverage'] is True
+      and _im['parsed_hands']['count'] == 2 and _im['parsed_hands']['date_range'] == ['2026-06-18', '2026-06-19'])
+_im2 = _bim(None, _im_hands, _im_tours, _im_stats, generated_at='fp123')
+check('T-I-003: same inputs + config reproduce the same manifest (deterministic)', _im == _im2)
+
+# ── v8.19.0 Chapter F: typed insufficient-evidence reasons (COM-002) ──
+from gem_commentary_capsule import decision_capsule_from_signals as _dcs, INSUFFICIENT_REASONS as _IR
+_f_ro = _dcs('flop', decision_label='Call', result_only=True)
+_f_ng = _dcs('flop', decision_label='Call', gradeable=False)
+_f_th = _dcs('flop', decision_label='Call')  # no verdict, no anchor, gradeable
+check('T-F-001 (COM-002): a result-only insufficient capsule carries reason="result_only"',
+      _f_ro and _f_ro.get('insufficient_reason') == 'result_only'
+      and 'result-derived only' in _f_ro['md'])
+check('T-F-002 (COM-002): a non-gradeable spot carries reason="non_gradeable_spot"',
+      _f_ng and _f_ng.get('insufficient_reason') == 'non_gradeable_spot')
+check('T-F-003 (COM-002): an un-anchored gradeable spot carries reason="evidence_threshold_not_met"',
+      _f_th and _f_th.get('insufficient_reason') == 'evidence_threshold_not_met')
+check('T-F-004 (COM-002): every insufficient reason is a typed member of INSUFFICIENT_REASONS',
+      all(c.get('insufficient_reason') in _IR for c in (_f_ro, _f_ng, _f_th) if c
+          and c.get('register') == 'no_clear_lesson'))
+# R-F (Chapter F): raw villain evidence behind a closed-by-default disclosure; teaching leads
+_html_rf = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-F-RF-1: raw villain evidence (q1) is wrapped in a closed <details> disclosure',
+      "<details class=\"v25-teach-evid-disc\"><summary>Raw evidence</summary>" in _html_rf
+      and ".v25-teach-evid-disc" in _html_rf)
+check('T-F-RF-2: teaching clusters lead — the Read head is emitted BEFORE the raw-evidence disclosure',
+      _html_rf.index("v25-teach-head") < _html_rf.index("v25-teach-evid-disc"))
+
+# ── v8.19.0 Chapter G: biggest-loss reconciliation (ANA-001/002) ──
+from gem_coverage_builder import build_loss_screens as _bls
+# ANA-002 structural fixture: TM6089787923 is a tournament's named biggest loss (-25BB) AND
+# there is a deeper postflop loss (-40BB). The known regression hand must be SELECTED through
+# the structural screen — not only via analyst-file injection.
+_g_hands = [{'id': 'TM6089787923', 'net_bb': -25.0, 'pf_allin': False, 'board': ['Ah', 'Td', '6c'],
+             'street_reached': 'river'},
+            {'id': 'TM_DEEP40', 'net_bb': -40.0, 'pf_allin': False, 'board': ['Ah', 'Td', '6c', '2s'],
+             'street_reached': 'turn'}]
+_g_stats = {'stack_trajectories': {'T_BL': {'biggest_loss_id': 'TM6089787923'}}}
+_g_screens = _bls(_g_stats, _g_hands)
+check('T-G-001 (ANA-002): the known regression hand TM6089787923 is selected via the structural biggest-loss screen',
+      'TM6089787923' in _g_screens['biggest_loss_screen']
+      and _g_screens['biggest_loss_violations'] == [])
+try:
+    _bls({'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_WIN'}}},
+         [{'id': 'TM_WIN', 'net_bb': 5.0}])
+    _g002 = False
+except ValueError as _e:
+    _g002 = 'ANA-001 SCHEMA' in str(_e) and 'TM_WIN' in str(_e)
+check('T-G-002 (ANA-001): a named biggest_loss_id with net>=0 FAILS LOUD (not silent-skip)', _g002)
+try:
+    _bls({'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_GHOST'}}}, [])
+    _g003 = False
+except ValueError as _e:
+    _g003 = 'missing from hands' in str(_e) and 'TM_GHOST' in str(_e)
+check('T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD', _g003)
+check('T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)',
+      _bls({'stack_trajectories': {'T1': {'biggest_loss_id': None}}}, [])['biggest_loss_violations'] == [])
+# RC3 P0-1: the completeness owner excludes unsupported non-NLH (PLO) hands (no PARTIAL pin)
+from gem_report_data import compute_report_completeness as _crc_p01
+_plo_c = {'bust_audit': [{'id': 'TMPLO', 'game_type': 'PLO', 'cards': ['Ah', 'Kh', 'Qd', 'Jc']},
+                         {'id': 'TMNLH', 'game_type': 'NLH', 'cards': ['Ah', 'Kh']}]}
+_rc_plo_a = _crc_p01({'analyst_commentary': {}, 'auto_resolved_ids': [], '_non_nlh_ids': ['TMPLO']}, dict(_plo_c))
+_rc_plo_b = _crc_p01({'analyst_commentary': {}, 'auto_resolved_ids': []}, dict(_plo_c))   # fallback only
+check('T-RC3-P01a: a non-NLH hand (via _non_nlh_ids) is excluded from critical/need (NLH retained)',
+      'TMPLO' not in set((_rc_plo_a.get('review_coverage_vm') or {}).get('critical_ids') or [])
+      and 'TMNLH' in set((_rc_plo_a.get('review_coverage_vm') or {}).get('critical_ids') or []))
+check('T-RC3-P01b: a non-NLH hand is excluded by the per-candidate fallback (4-card / non-NLH game_type)',
+      'TMPLO' not in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or [])
+      and 'TMNLH' in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or []))
+
+# RC3 P0-5: the analyst worklist retains reviewed-decision provenance (authoritative kind survives
+# review-exclusion) and Gate G consumes it + scopes price/range checks to authoritative containers.
+_awl_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check("T-RC3-P05a: worklist emits 'reviewed_decisions' (authoritative kind survives exclusion)",
+      "'reviewed_decisions': reviewed_decisions" in _awl_src
+      and "reviewed_decisions[hid]" in _awl_src)
+_qap_src = open('_qa_parity.py', encoding='utf-8').read()
+check("T-RC3-P05b: Gate G consumes reviewed_decisions + scopes checks 1-3 past inferred containers",
+      "worklist.get('reviewed_decisions')" in _qap_src
+      and "body_auth" in _qap_src
+      and "'Inferred decision context' not in seg" in _qap_src)
+_demo_body = ("data-decision-action-index='11'> open to 2.2BB, AQo "
+              "data-decision-action-index='21'> Pot-Odds: Inferred decision context: flop, call. Pot odds: 1.9:1")
+_segs_p05 = __import__('re').split(r"(?=data-decision-action-index=)", _demo_body)
+_body_auth_p05 = ''.join(s for s in _segs_p05 if 'Inferred decision context' not in s)
+check('T-RC3-P05c: scoping strips the inferred container, keeps the authoritative one',
+      'Pot odds:' not in _body_auth_p05 and 'open to 2.2BB' in _body_auth_p05)
+
+# RC3 P2-1: the coverage gate and the completeness owner consume ONE canonical required-review owner.
+from gem_report_data import (canonical_required_review_ids as _crri_t,
+                             compute_report_completeness as _crc_p21)
+_cand_p21 = {'mistakes': [{'id': 'M1'}, {'id': 'M2'}],
+             'bust_audit': [{'id': 'B1'},
+                            {'id': 'PLO1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']}],
+             'biggest_loss_screen': [{'id': 'M1'}]}   # M1 appears in two buckets
+_canon_p21 = _crri_t(_cand_p21, auto_resolved_ids=['M2'], non_nlh_ids=[])
+check('T-RC3-P21a: canonical owner = candidate need minus auto minus non-NLH (suppress kept, blindspot excluded)',
+      _canon_p21['need'] == {'M1', 'B1'} and 'M2' not in _canon_p21['need']
+      and 'PLO1' not in _canon_p21['need'] and 'PLO1' in _canon_p21['non_nlh'])
+_rd_p21 = {'analyst_commentary': {}, 'auto_resolved_ids': ['M2']}
+_crc_p21(_rd_p21, candidates=dict(_cand_p21))
+check('T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)',
+      set(_rd_p21['_candidate_need_ids']) == _canon_p21['need'])
+_ga_p21 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set)',
+      'canonical_required_review_ids as _canon_rri' in _ga_p21
+      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
+      and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
+
+# RC3 COND-3a: deterministic mixed NLH/PLO finality + quarantine regression (real corpus is NLH-only,
+# so this is the ONLY guard against a future refactor silently reintroducing a PLO leak).
+from gem_report_data import compute_report_completeness as _crc_plo
+from gem_analyzer import _filter_non_nlh_from_candidate_buckets as _fnn_plo
+
+
+def _mix_cands():
+    return {
+        'mistakes': [{'id': 'H1', 'game_type': 'NLH', 'cards': ['Ah', 'Kd']},
+                     {'id': 'P1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']}],
+        'coolers': [{'id': 'H2', 'game_type': 'NLH', 'cards': ['Qh', 'Qd']},
+                    {'id': 'P2', 'cards': ['2h', '3d', '4s', '5c']}],   # no game_type -> 4-card fallback
+        'biggest_loss_screen': [{'id': 'P1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']},
+                                {'id': 'H1', 'game_type': 'NLH', 'cards': ['Ah', 'Kd']}],
+    }
+
+
+_PLO = {'P1', 'P2'}
+# (a) QUARANTINE — PLO never enters any required-review / finality surface
+_rd_plo = {'analyst_commentary': {}}
+_rc_plo = _crc_plo(_rd_plo, candidates=_mix_cands())
+_vm_plo = _rc_plo['review_coverage_vm']
+check('T-RC3-PLOa: PLO quarantined from non_nlh + need + critical + significant sets',
+      set(_rd_plo['_non_nlh_ids']) == _PLO
+      and not (_PLO & set(_rd_plo['_candidate_need_ids']))
+      and not (_PLO & set(_rd_plo['_critical_need_ids']))
+      and not (_PLO & set(_rd_plo['_significant_loss_ids'])))
+check('T-RC3-PLOb: PLO quarantined from the coverage VM + rc awaiting/critical-unreviewed',
+      not (_PLO & set(_vm_plo['worklist_candidate_ids']))
+      and not (_PLO & set(_vm_plo['critical_ids']))
+      and not (_PLO & set(_vm_plo['unreviewed_worklist_ids']))
+      and not (_PLO & set(_rc_plo['awaiting_ids']))
+      and not (_PLO & set(_rc_plo['critical_unreviewed_ids'])))
+# (b) NLH FINALIZES — the NLH hands are the entire need set; grading them reaches ANALYST_COMPLETE
+check('T-RC3-PLOc: the NLH hands are the entire need set (PLO does not pin PARTIAL)',
+      set(_rd_plo['_candidate_need_ids']) == {'H1', 'H2'})
+_rc_plo2 = _crc_plo({'analyst_commentary': {'H1': {'verdict': 'x'}, 'H2': {'verdict': 'x'}}},
+                    candidates=_mix_cands())
+check('T-RC3-PLOd: NLH graded -> ANALYST_COMPLETE / COMPLETE, 0 awaiting, 0 critical-unreviewed',
+      _rc_plo2['state'] == 'ANALYST_COMPLETE' and _rc_plo2['coverage_state'] == 'COMPLETE'
+      and _rc_plo2['awaiting_candidates'] == 0 and _rc_plo2['critical_unreviewed'] == 0)
+# (c) BUCKET FILTER strips PLO from candidate buckets + punts (count updated)
+_sbuf = {'mistakes': [{'id': 'H1'}, {'id': 'P1'}], 'coolers': [{'id': 'P2'}, {'id': 'H2'}],
+         'punts': {'hands': [{'id': 'P1'}, {'id': 'H3'}], 'count': 2}}
+_fnn_plo(_sbuf, {'P1', 'P2'})
+check('T-RC3-PLOe: _filter_non_nlh_from_candidate_buckets strips PLO from buckets + punts',
+      [x['id'] for x in _sbuf['mistakes']] == ['H1'] and [x['id'] for x in _sbuf['coolers']] == ['H2']
+      and [p['id'] for p in _sbuf['punts']['hands']] == ['H3'] and _sbuf['punts']['count'] == 1)
+# (d) --quick path subtracts a planted stale PLO id from the cached sets
+_rc_plo_q = _crc_plo({'analyst_commentary': {}, '_non_nlh_ids': ['P9'],
+                      '_candidate_need_ids': ['H1', 'P9'], '_critical_need_ids': ['H1', 'P9'],
+                      '_significant_loss_ids': ['P9'], '_candidate_need_bucket': {'H1': 'mistakes'}},
+                     candidates=None)
+check('T-RC3-PLOf: --quick subtracts cached PLO id from need/critical/awaiting',
+      'P9' not in set(_rc_plo_q['review_coverage_vm']['worklist_candidate_ids'])
+      and 'P9' not in set(_rc_plo_q['awaiting_ids'])
+      and 'P9' not in set(_rc_plo_q['review_coverage_vm']['critical_ids']))
+# (e) canonical invariant: _non_nlh_ids from ALL hands (not the already-NLH-filtered list) — guards the
+#     line-2190 shadow that keeps the all-in finality (EAI) builder NLH-only.
+_ga_plo = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-RC3-PLOg: _non_nlh_ids computed from ALL hands + stamped (never the NLH-filtered list)',
+      "_non_nlh_ids = {h.get('id') for h in all_hands" in _ga_plo
+      and "s['_non_nlh_ids'] = sorted(_non_nlh_ids)" in _ga_plo
+      and "hands = [h for h in all_hands if h.get('game_type', 'NLH') == 'NLH']" in _ga_plo)
+
+# RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
+_cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
+_w_idx = _cov_src.index("with open(cand_path, 'w'")
+_pop_idx = _cov_src.index("candidates['biggest_loss_screen'].append")
+_early_idx = _cov_src.index('_loss_screens = build_loss_screens(stats, hands)')
+check('T-RC3-P02a: biggest/postflop loss buckets are populated BEFORE the analyst_candidates file is written',
+      _early_idx < _w_idx and _pop_idx < _w_idx)
+check('T-RC3-P02b: a mandatory biggest/postflop loss is never auto-resolved (guard present)',
+      '_mandatory_loss_ids' in _cov_src
+      and '_auto_resolved_ids -= _mandatory_loss_ids' in _cov_src)
+# RC3 P1-1: an invalid analyst street must not KeyError the render
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-RC3-P11: invalid analyst street is validated to a canonical street (no KeyError crash)',
+      "if analyst_street not in ('', 'preflop', 'flop', 'turn', 'river'):" in _xiv_src
+      and "if analyst_street not in ('preflop', 'flop', 'turn', 'river'):" in _xiv_src)
+
+# R-G: popup id payloads must be deduped (count == unique payload == rendered list)
+from gem_report_draft._helpers import _register_hids_for_appendix as _rhfa
+check('T-G-005 (R-G): hand-list popup ids are deduped order-preserving (no duplicate ID)',
+      _rhfa(['TM1', 'TM2', 'TM1', 'TM3', 'TM2']) == ['TM1', 'TM2', 'TM3'])
+
+# ── v8.19.0 Chapter B: review coverage + priority queue (PHF-001) ──
+from gem_report_data import compute_report_completeness as _crc
+_rc_b = _crc({'analyst_commentary': {**{f'TMH{i}': {} for i in range(9)},
+                                     **{f'TMX{i}': {} for i in range(5)}},
+              'auto_resolved_ids': []},
+             {'iii4_screening': [{'id': f'TMH{i}'} for i in range(9)]
+                                + [{'id': f'TMC{i}'} for i in range(44)]})
+check('T-B-001: PHF-001 numerator is the INTERSECTION (9 of 53), not all analyst entries (14)',
+      _rc_b['reviewed_hands'] == 14 and _rc_b['reviewed_in_candidates'] == 9
+      and _rc_b['candidate_need'] == 53)
+check('T-B-002: coverage_state = BOUNDED_COMPLETE when all critical done but non-critical remain',
+      _rc_b['coverage_state'] == 'BOUNDED_COMPLETE'
+      and _rc_b['review_coverage_vm']['coverage_state'] == 'BOUNDED_COMPLETE'
+      and 'not final' not in _rc_b['coverage_line'])
+_rc_crit = _crc({'analyst_commentary': {}, 'auto_resolved_ids': []},
+                {'mistakes': [{'id': 'TMM1'}, {'id': 'TMM2'}]})
+check('T-B-003: unreviewed critical -> PARTIAL + "not final"',
+      _rc_crit['coverage_state'] == 'PARTIAL' and 'not final' in _rc_crit['coverage_line'])
+from gem_report_draft.tldr import build_review_queue as _brq
+_q_b = _brq({'mistakes': []},
+            {'canonical_verdicts': {'TMMIS': {'verdict': 'III.2 Mistake', 'title': 'bad'},
+                                    'TMCON': {'verdict': 'III.4 Read-dependent'},
+                                    'TMCLR': {'verdict': 'III.5 Justified'}}},
+            {}, {'TMMIS': {'net_bb': -20, 'cards': ['Ah', 'Kh']},
+                 'TMCON': {'net_bb': -5, 'cards': ['2c', '3d']}})
+_qids = {it['id'] for it in _q_b}
+check('T-B-004: every canonical MISTAKE + CONDITIONAL enters the queue; CLEARED does not',
+      'TMMIS' in _qids and 'TMCON' in _qids and 'TMCLR' not in _qids)
+# R-B (PHF-001) mutation: changing Ron's review state must NOT mutate the system-priority population.
+_cv_b = {'canonical_verdicts': {'TMM': {'verdict': 'III.2 Mistake'}, 'TMC': {'verdict': 'III.4 Read-dependent'}}}
+_q_base = _brq({'mistakes': []}, dict(_cv_b), {}, {})
+_cv_b2 = dict(_cv_b); _cv_b2['user_review_store'] = {'TMM': 'agree', 'TMC': 'debate'}; _cv_b2['reviewed_by_user'] = ['TMM']
+_q_mut = _brq({'mistakes': []}, _cv_b2, {}, {})
+check('T-B-005 (R-B): the system-priority queue is INVARIANT to Ron review state (mutation)',
+      {it['id'] for it in _q_base} == {it['id'] for it in _q_mut} and len(_q_base) >= 2
+      and 'TMM' in {it['id'] for it in _q_mut})
+
+# ── v8.19.0 Chapter C: Range Lens VM + provenance (PHF-002/003) ──
+import gem_ranges as _GR
+check('T-C-001: source_quality enum maps coverage exact/closest/none',
+      _GR.range_source_quality('exact') == 'EXACT'
+      and _GR.range_source_quality('closest') == 'NEAREST_DEPTH'
+      and _GR.range_source_quality('none') == 'NONE'
+      and _GR.range_source_quality(None) == 'NONE')
+_RNG_EXPR = 'pairs 22+; suited A2s+, K2s+; offsuit A2o+, K9o+, Q9o+'
+check('T-C-002: matching_class finds the ONE class token containing Hero (A6o -> A2o+)',
+      _GR.matching_class_token(_RNG_EXPR, 'A6o') == 'A2o+')
+check('T-C-003: KTo is OUTSIDE a range with K9o+ but not KTo? (K9o+ DOES contain KTo) — Q8o outside',
+      _GR.matching_class_token('offsuit A2o+, K9o+', 'Q8o') is None)
+check('T-C-004: A6o exact-combo bolding never matches A6s / A6o+ (no broad substring)',
+      _GR._bold_combo_in_expr('A6s, A6o+', 'A6o') == 'A6s, A6o+'  # no exact A6o token -> no-op
+      and "rng-combo-hero" in _GR._bold_combo_in_expr('A2o, A6o, A8o', 'A6o'))
+_hl = _GR.highlight_range_expression(_RNG_EXPR, 'inside', 'closest', role='open', hero_combo='A6o')
+check('T-C-005: lens emphasises exactly the matching class (rng-class-match on A2o+) + exposes matching_class',
+      _hl.get('matching_class') == 'A2o+'
+      and "rng-class-match'>A2o+</strong>" in _hl['html']
+      and _hl['html'].count('rng-class-match') == 1)
+
+# ── v8.19.0 product-contract (RES-006 phase taxonomy) ──
+from gem_tournament_model import phase_category as _phc, PHASE_LABELS as _PHL
+def _ev_phase(**f):
+    return {'finish': f, 'return': {}}
+check('T-RES-006: disjoint phase taxonomy -- one event -> exactly one of the canonical phases',
+      _phc(_ev_phase(place=3, total_players=500, top_percent=0.6, itm=True)) == 'FINAL_TABLE'
+      and _phc(_ev_phase(place=20, total_players=1000, top_percent=2.0, itm=True)) == 'DEEP_RUN'
+      and _phc(_ev_phase(place=80, total_players=1000, top_percent=8.0, itm=True)) == 'ITM'
+      and _phc(_ev_phase(place=300, total_players=1000, top_percent=30.0, itm=False)) == 'NO_CASH'
+      and _phc(_ev_phase(place=900, total_players=1000, top_percent=90.0, itm=False)) == 'BOTTOM_50'
+      and _phc(_ev_phase(is_in_play=True)) == 'PENDING'
+      and _phc(_ev_phase(is_in_play=True, advanced_day2=True)) == 'DAY_2'
+      and _phc(_ev_phase()) == 'UNKNOWN'
+      and all(_phc(_ev_phase(place=p, total_players=1000, top_percent=t, itm=i)) in _PHL
+              for p, t, i in [(5, 1, True), (50, 4, True), (200, 18, False), (800, 80, False)]),
+      str(_phc(_ev_phase(place=900, total_players=1000, top_percent=90.0))))
 
 print(f'RESULTS: {PASS} passed, {FAIL} failed out of {PASS + FAIL}')
 if FAIL:

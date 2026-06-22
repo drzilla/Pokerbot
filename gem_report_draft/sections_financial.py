@@ -652,7 +652,9 @@ def _emit_section_i(doc, s, rd, hands):
             # B-V10: ALL category counts are hand-list popups
             _cat_cell = cat.title()
             _st_key = street_label.lower()
-            _cat_ids = _ai_ids.get(_st_key, {}).get(cat, [])[:30]
+            # R-G (v8.19.0): dedupe the popup IDs (order-preserving) so a hand never appears twice
+            # in the all-in category popup — count == unique payload == rendered list.
+            _cat_ids = list(dict.fromkeys(_ai_ids.get(_st_key, {}).get(cat, [])))[:30]
             if _cat_ids and n > 0:
                 _cat_str = ','.join(_cat_ids)
                 _count_cell = (f'<a class="hand-list-trigger" href="#" '
@@ -2106,7 +2108,9 @@ def _emit_sub_top_pnl_lines(doc, s, rd, hands):
             _best = ln.get('top3_best', [])
             _worst = ln.get('top3_worst', [])
             _drill_ids = (_worst[:10] + _best[:10]) if _net_val < 0 else (_best[:10] + _worst[:10])
-            _drill_ids = [h for h in _drill_ids if h][:20]
+            # R-G (v8.19.0): a hand can sit in BOTH top-best and top-worst of a thin line — dedupe
+            # (order-preserving) so the Net-BB popup never lists it twice (count == unique payload).
+            _drill_ids = list(dict.fromkeys(h for h in _drill_ids if h))[:20]
             if _drill_ids:
                 _hids_str = ','.join(_drill_ids)
                 _line_name = ln.get('line', '—').replace('_', ' ')

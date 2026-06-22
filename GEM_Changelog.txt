@@ -1,3 +1,41 @@
+v8.19.0 (2026-06-23) -- PRODUCT CLOSURE & TRUST BASELINE
+================================================================================
+Closes the v8.19 product-contract + analyst-core work behind one trust baseline.
+Product logic was approved at commit a61e588 (independent GPT audit: PASS); this
+release stamps the runtime version and finalizes the package. No detector,
+denominator, opportunity-family, coverage, analyst, or UI behavior was changed at
+finalization -- only the version stamp + release metadata.
+
+TRUST / CORRECTNESS
+  - ONE canonical required-review owner (gem_report_data.canonical_required_review_ids)
+    shared by the analyst coverage gate AND the completeness layer, so a "Full
+    coverage" message provably implies no unreviewed required hand. SUPPRESS-noise
+    candidates stay in the shared set; the blindspot audit is reported separately.
+  - The analyst worklist RETAINS reviewed-decision provenance (reviewed_decisions)
+    past reviewed-hand exclusion, so a reviewed action's kind is never re-inferred.
+  - Non-NLH (PLO/Omaha) hands are quarantined from every required-review and
+    finality surface; NLH hands finalize normally.
+  - Biggest-loss / postflop-loss screens are populated BEFORE the analyst-candidate
+    contract is written and are never auto-resolved (fixes the empty-producer bug).
+  - An invalid analyst street falls back safely instead of crashing the render.
+  - The runtime imports without phevaluator (postflop equity bucketing degrades
+    loud); the declared dependency installs from requirements.txt.
+
+USER-FACING
+  - A report reaches ANALYST_COMPLETE when every critical-need hand is graded; the
+    coverage line and the report state agree.
+  - A --quick re-render of a cached session shows no stale "awaiting analyst" labels.
+
+KNOWN NON-BLOCKING DEBT
+  - Missed-steal false-positive review (registered for v8.20).
+
+DEFERRED TO v8.20
+  - The preflop/exploit UNIVERSAL eligibility-owner (steals, squeezes, 3-bets,
+    4-bets, exploit): routing these through the existing terminal-all-in predicate
+    would wrongly exclude valid voluntary open-jams / 3-bet jams / 4-bet jams. The
+    correct owner is a forced/involuntary-all-in predicate. Not redesigned in v8.19.
+
+================================================================================
 v8.17.1 (2026-06-17) -- REAL-REPORT STABILIZATION (completes the v8.17.0 epics)
 ================================================================================
 v8.17.0 shipped the four Decision-Coach epics, but a pass over a real V2 report

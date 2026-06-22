@@ -18,7 +18,7 @@ import base64, io, os, zipfile, hashlib, datetime
 import _build_bundle as BB
 
 REPO = BB.REPO
-LEAN_VERSION = 'v8.18.0-lean'
+LEAN_VERSION = 'v8.19.0-lean'
 
 # Excluded from the lean runtime (present in the full release bundle):
 #   - every QA harness (_qa_*.py) -- verification, not report generation
@@ -104,16 +104,24 @@ def build():
                 z.writestr(arc, f.read())
             chosen.append(arc)
         # concise current-state release notes REPLACE the full changelog inside the lean package.
-        notes = ("GEM v8.18.0 -- lean Chat runtime (report generation only).\n"
-                 "Canonical owners: gem_final_status (Final Decision Status), gem_report_draft/_cards\n"
-                 "(PokerHandDisplay), gem_commentary_capsule (registers + capsule), gem_tournament_model\n"
-                 "(typed tournament events). Verification apparatus (acceptance/, _qa_*, _test_scratch)\n"
-                 "is NOT in this package -- run the full release bundle to verify a release.\n"
+        notes = ("GEM v8.19.0 -- lean Chat runtime (report generation only). Product Closure & Trust Baseline.\n"
+                 "Trust/correctness: ONE canonical required-review owner shared by the coverage gate and the\n"
+                 "completeness layer (gem_report_data.canonical_required_review_ids); the analyst worklist\n"
+                 "RETAINS reviewed-decision provenance past reviewed-hand exclusion; non-NLH (PLO/Omaha) hands\n"
+                 "are quarantined from every required-review + finality surface; biggest-loss screens are\n"
+                 "populated before the candidate contract is written and never auto-resolved; an invalid\n"
+                 "analyst street falls back safely instead of crashing the render; the runtime imports without\n"
+                 "phevaluator (postflop equity bucketing degrades loud). Carried-forward canonical owners:\n"
+                 "gem_final_status, gem_report_draft/_cards (PokerHandDisplay), gem_commentary_capsule,\n"
+                 "gem_tournament_model, gem_villain_teaching. DEFERRED to v8.20: the preflop/exploit universal\n"
+                 "eligibility-owner (steals/squeezes/3-bets/4-bets/exploit).\n"
+                 "Verification apparatus (acceptance/, _qa_*, _test_scratch) is NOT in this package -- run\n"
+                 "the full release bundle to verify a release.\n"
                  "STEP0: python /mnt/project/gem_lean_runtime.py /home/claude/gem && cd /home/claude/gem\n"
                  "  && cp /mnt/project/session_*.csv . && python -c \"import gem_report_draft, gem_analyzer;"
                  " print('runtime OK')\"\n")
-        z.writestr('RELEASE_NOTES_v8.18.0.txt', notes.encode())
-        chosen.append('RELEASE_NOTES_v8.18.0.txt')
+        z.writestr('RELEASE_NOTES_v8.19.0.txt', notes.encode())
+        chosen.append('RELEASE_NOTES_v8.19.0.txt')
     raw = buf.getvalue()
     b64 = base64.b64encode(raw).decode()
     lines = '\n'.join(b64[i:i + 76] for i in range(0, len(b64), 76))

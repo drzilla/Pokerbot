@@ -387,13 +387,50 @@ def finish_sort_key(event):
     return ((event or {}).get('finish') or {}).get('sort_key', _FINISH_SENTINEL['unknown'])
 
 
+# RES-006 (v8.19.0): a DISJOINT phase taxonomy. The old grouper keyed on the exact-Top% finish LABEL,
+# producing one singleton "Top X%" category per event. Each event now belongs to EXACTLY ONE meaningful
+# phase; the exact Top% still shows on the event row.
+PHASE_ORDER = ('PENDING', 'DAY_2', 'TICKET', 'FINAL_TABLE', 'DEEP_RUN', 'ITM', 'NO_CASH', 'BOTTOM_50', 'UNKNOWN')
+PHASE_LABELS = {'PENDING': 'Pending', 'TICKET': 'Ticket', 'DAY_2': 'Day 2', 'FINAL_TABLE': 'Final table',
+                'DEEP_RUN': 'Deep run', 'ITM': 'ITM', 'NO_CASH': 'No cash', 'BOTTOM_50': 'Bottom 50%',
+                'UNKNOWN': 'Unknown'}
+_FINAL_TABLE_MAX = 9   # finish within the final-table seat count
+
+
+def phase_category(ev):
+    """The single canonical phase an event reached (RES-006). Disjoint -- evaluated in priority order so
+    one event maps to exactly one phase. Exact Top% stays on the event row."""
+    fin = (ev or {}).get('finish') or {}
+    ret = (ev or {}).get('return') or {}
+    if fin.get('is_in_play') or fin.get('state') == 'in_play':
+        return 'DAY_2' if fin.get('advanced_day2') else 'PENDING'
+    if fin.get('is_satellite') and (ret.get('ticket_value') or fin.get('state') == 'ticket'):
+        return 'TICKET'
+    place = fin.get('place')
+    total = fin.get('total_players')
+    tp = fin.get('top_percent')
+    if place is None or total is None:
+        return 'UNKNOWN'
+    if place <= _FINAL_TABLE_MAX:                 # explicit FT or finish within final-table size
+        return 'FINAL_TABLE'
+    if tp is not None and tp <= 5:                # resolved, not FT, deep
+        return 'DEEP_RUN'
+    if fin.get('itm'):                            # regular cash, not Deep Run / FT
+        return 'ITM'
+    if tp is not None and tp <= 50:               # resolved non-cash, top half
+        return 'NO_CASH'
+    if tp is not None and tp > 50:                # resolved non-cash, bottom half
+        return 'BOTTOM_50'
+    return 'UNKNOWN'
+
+
 _GROUP_KEY = {
     'buyin': lambda e: e.get('buyin_band'),
     'prize_type': lambda e: e.get('prize_type'),
     'speed': lambda e: e.get('speed'),
     'entry_pattern': lambda e: e.get('entry_pattern'),
     'entry_timing': lambda e: e.get('entry_timing'),
-    'phase_reached': lambda e: (e.get('finish') or {}).get('label'),
+    'phase_reached': phase_category,
     'by_day': lambda e: e.get('event_day'),
 }
 
@@ -433,7 +470,12 @@ def aggregate_group(events):
     def _share(pred):
         return (round(sum(1 for e in settled if pred(e)) / n_settled * 100, 1)
                 if n_settled else None)
+    # COR-004 (v8.18.1): a hand-weighted metric must be weighted over ONLY the events that actually
+    # carry it, and must be None (rendered as an em dash, never +0.0) when NO event in the group has a
+    # canonical value. Using the shared hand denominator turned "no cEV anywhere" into a real-looking
+    # +0.0. Each metric carries typed availability for the renderer.
     hw_bb = hw_cev = hw_den = 0.0
+    hw_bb_den = hw_cev_den = 0.0
     for e in evs:
         perf = e.get('performance') or {}
         hnd = float(perf.get('hands') or 0)
@@ -442,8 +484,10 @@ def aggregate_group(events):
         hw_den += hnd
         if perf.get('bb100') is not None:
             hw_bb += float(perf['bb100']) * hnd
+            hw_bb_den += hnd
         if perf.get('cev100') is not None:
             hw_cev += float(perf['cev100']) * hnd
+            hw_cev_den += hnd
     return {
         'events': len(evs),
         'bullets': sum(int(e.get('bullets') or 1) for e in evs),
@@ -459,8 +503,10 @@ def aggregate_group(events):
         'top5_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 5),
         'top1_pct': _share(lambda e: ((e.get('finish') or {}).get('top_percent') or 999) <= 1),
         'n_settled': n_settled,
-        'bb100': round(hw_bb / hw_den, 1) if hw_den else None,
-        'cev100': round(hw_cev / hw_den, 1) if hw_den else None,
+        'bb100': round(hw_bb / hw_bb_den, 1) if hw_bb_den else None,
+        'bb100_availability': 'exact' if hw_bb_den else 'unavailable',
+        'cev100': round(hw_cev / hw_cev_den, 1) if hw_cev_den else None,
+        'cev100_availability': 'exact' if hw_cev_den else 'unavailable',
         'hands': int(hw_den),
     }
 

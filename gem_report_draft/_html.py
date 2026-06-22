@@ -197,7 +197,22 @@ class Doc:
         # pending anchor to the next <<H...>> token so the id sits on the
         # heading itself.
         pending_anchor = None
+        # R-G (v8.19.0): ONE universal dedupe of every data-hids attribute at final assembly, so no
+        # popup payload repeats a hand id whichever emitter built it (count == unique payload).
+        import re as _re_dh
+        _DH_PAT = _re_dh.compile(r'data-hids="([^"]*)"')
+
+        def _dh_dedupe(_m):
+            _out = []
+            for _x in _m.group(1).split(','):
+                _x = _x.strip()
+                if _x and _x not in _out:
+                    _out.append(_x)
+            return 'data-hids="' + ','.join(_out) + '"'
+
         for line in self.lines:
+            if 'data-hids="' in line:
+                line = _DH_PAT.sub(_dh_dedupe, line)
             if line.startswith("<<TOC>>"):
                 body_lines.append('<nav class="toc" id="sec-toc"><h2>📑 Table of Contents</h2><ul>')
                 for anchor, header, summary, level in self.toc:
@@ -1067,16 +1082,19 @@ _MODAL_HTML = r"""
       if(_thin){
         _tp.push('<div class="v25-teach-weak">'+_esc(_L.q1_villain_did||'')+'</div>');
       } else {
-        if(_L.q1_villain_did){_tp.push('<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div>');}
+        /* R-F (Chapter F): TEACHING CLUSTERS lead (Read -> Cue -> Exploit -> guard). The raw villain
+           evidence (q1) is moved BEHIND a closed-by-default disclosure below, never the headline. */
         var _head='Read: '+_esc(_L.q3_read||'');
         if(_L.q4_confidence){_head+=' <span class="v25-teach-confchip">'+_esc(_L.q4_confidence)+'</span>';}
         _tp.push('<div class="v25-teach-head">'+_head+'</div>');
         if(_L.q2_cue){_tp.push('<div class="v25-teach-cue">Cue: '+_esc(_L.q2_cue)+'</div>');}
         if(_L.q5_exploit_now){_tp.push('<div class="v25-teach-now">Exploit now: '+_esc(_L.q5_exploit_now)+'</div>');}
-        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
+        if(_L.q6_exploit_future){_tp.push('<div class="v25-teach-future" title="'+_esc(_L.q6_exploit_future)+'">Next time: '+_esc(_L.q6_exploit_future)+'</div>');}
         if(_L.q7_do_not_overadjust){_tp.push('<div class="v25-teach-guard">Don’t over-adjust: '+_esc(_L.q7_do_not_overadjust)+'</div>');}
         if(_t.icm_guardrail){_tp.push('<div class="v25-teach-icm">ICM caution: '+_esc(_t.icm_guardrail)+'</div>');}
         if(_t.pko&&_t.pko.cover_label){_tp.push('<div class="v25-teach-pko">Bounty: '+_esc(_t.pko.cover_label)+'</div>');}
+        if(_L.q1_villain_did){_tp.push('<details class="v25-teach-evid-disc"><summary>Raw evidence</summary>'
+          +'<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div></details>');}
       }
       var _tag=_t.tag_suggestion;
       if(_tag&&_tag.label){
@@ -2023,7 +2041,13 @@ _MODAL_HTML = r"""
       var follow=reviewed.filter(function(x){return FOLLOWUP[x.st];}).length;
       var cEl=document.getElementById('rq-count');
       if(cEl){var _allAuto=r.getAttribute('data-all-auto-clear')==='1';
-        cEl.textContent='Your review: '+(_allAuto?(open.length+' auto-cleared · '):(open.length+' open · '))+reviewed.length+' marked by you';}
+        /* R-B (PHF-001): SYSTEM priority count is open+reviewed and is INVARIANT to Ron's review
+           (reviewing moves a hand open->reviewed but never changes the system population). Ron's
+           review count is shown separately so the two ownerships are never conflated. */
+        var _sysN=open.length+reviewed.length;
+        cEl.textContent=_allAuto
+          ? ('System priorities: '+_sysN+' (all auto-cleared) · You reviewed '+reviewed.length)
+          : ('System priorities: '+_sysN+' · '+open.length+' to open · You reviewed '+reviewed.length);}
       var sa=document.getElementById('rq-showall');
       if(sa){if(open.length>topn){sa.hidden=false;sa.textContent=showAll?('Show top '+topn):('Show all '+open.length);}else{sa.hidden=true;}}
       var fn=document.getElementById('rq-foot-note');
@@ -2891,6 +2915,9 @@ _MODAL_HTML = r"""
   function openHandListPopup(title,hids){
     if(!hids||!hids.length)return false;
     hids=hids.map(normalizeHandId);
+    /* R-G (v8.19.0): universal dedupe (order-preserving) so NO popup ever lists a hand twice,
+       whichever emitter built data-hids — the rendered list count == unique payload. */
+    hids=hids.filter(function(h,i){return hids.indexOf(h)===i;});
     /* v8.17 B8: a count of exactly ONE opens the hand directly (one click),
        not a one-row popup. Falls through to the list popup when the single
        hand is not openable, so the availability reason still shows. */
@@ -3896,11 +3923,18 @@ _MODAL_HTML = r"""
       return asc?cmp:-cmp;});
     rows.forEach(function(r){body.appendChild(r);});}
   function _dtApplyFilters(tbl,state){
+    var anyFilter=false;for(var _k in state){if(state[_k]&&state[_k].length){anyFilter=true;break;}}
+    var vis={};
     Array.prototype.forEach.call(tbl.querySelectorAll('tbody tr'),function(r){
       var show=true;for(var key in state){if(!state[key].length)continue;
         if(state[key].indexOf(r.getAttribute('data-filter-'+key))<0){show=false;break;}}
-      r.style.display=show?'':'none';});
-    _dtRecomputeTotals(tbl);}
+      r.style.display=show?'':'none';
+      if(show){var eid=r.getAttribute('data-event-id');if(eid){vis[eid]=1;}}});  /* ttModel.id == full event_id */
+    _dtRecomputeTotals(tbl);
+    /* RES-007: drive the sticky summary + grouped + chart from the SAME filtered Results set
+       (the DataTable filter is the one canonical state); no filter -> restore their own view. */
+    if(tbl.id==='tt-results'&&window.ttApplyFiltersForIds){
+      window.ttApplyFiltersForIds(anyFilter?vis:null);}}
   function initDataTable(tableId){
     var tbl=document.getElementById(tableId);if(!tbl||tbl._dtWired)return;tbl._dtWired=true;
     Array.prototype.forEach.call(tbl.querySelectorAll('thead th[data-dt-sortable="1"]'),function(th){
@@ -3908,6 +3942,11 @@ _MODAL_HTML = r"""
       th.addEventListener('click',function(){_dtSort(tbl,th);});
       th.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();_dtSort(tbl,th);}});});
     var filters=document.querySelector('.dt-filters[data-dt-for="'+tableId+'"]');var state={};
+    /* RES-007 (v8.19.0): the canonical Results-table filter state, persisted to sessionStorage so a
+       reload/reopen restores the same selection and re-drives the table rows + the totals row. */
+    var DT_SKEY='dt-filter-state-'+tableId;
+    function _dtSave(){try{sessionStorage.setItem(DT_SKEY,JSON.stringify(state));}catch(e){}}
+    function _dtLoad(){try{var s=sessionStorage.getItem(DT_SKEY);var o=s?JSON.parse(s):null;return (o&&typeof o==='object')?o:null;}catch(e){return null;}}
     if(filters){Array.prototype.forEach.call(filters.querySelectorAll('.dt-chip'),function(chip){
       chip.setAttribute('aria-pressed','false');
       chip.addEventListener('click',function(){
@@ -3915,7 +3954,19 @@ _MODAL_HTML = r"""
         state[key]=state[key]||[];var i=state[key].indexOf(val);
         if(i<0){state[key].push(val);chip.classList.add('dt-chip-on');chip.setAttribute('aria-pressed','true');}
         else{state[key].splice(i,1);chip.classList.remove('dt-chip-on');chip.setAttribute('aria-pressed','false');}
-        _dtApplyFilters(tbl,state);});});}}
+        _dtSave();_dtApplyFilters(tbl,state);});});
+      var _dtsv=_dtLoad();
+      if(_dtsv){state=_dtsv;
+        Array.prototype.forEach.call(filters.querySelectorAll('.dt-chip'),function(chip){
+          var key=chip.getAttribute('data-dt-filter'),val=chip.getAttribute('data-dt-value');
+          var on=!!(state[key]&&state[key].indexOf(val)>=0);
+          chip.classList.toggle('dt-chip-on',on);chip.setAttribute('aria-pressed',on?'true':'false');});
+        _dtApplyFilters(tbl,state);}}
+    /* RES-007: expose a re-apply hook so the init bootstrap can re-run the (restored) filter AFTER
+       initTtFilters has defined the bridge + run its own render — otherwise an init-order race lets
+       the grouped/chart reset to unfiltered on reload. */
+    window._dtReapply=window._dtReapply||{};
+    window._dtReapply[tableId]=function(){if(Object.keys(state).length)_dtApplyFilters(tbl,state);};}
   window.initDataTable=initDataTable;
   function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
   // v8.17.1 P4: distribution chart — re-renders from the precomputed window.ttChart
@@ -3998,6 +4049,11 @@ _MODAL_HTML = r"""
     var sticky=document.querySelector('[data-tt-sticky]');
     var filters=document.querySelector('[data-tt-filters]');
     var state={};
+    /* RES-007 (v8.19.0): ONE canonical filter state, persisted to sessionStorage so a reload /
+       reopen restores the same selection and re-drives table + chart + totals + grouped views. */
+    var TT_SKEY='tt-filter-state-v1';
+    function saveState(){try{sessionStorage.setItem(TT_SKEY,JSON.stringify(state));}catch(e){}}
+    function loadState(){try{var s=sessionStorage.getItem(TT_SKEY);var o=s?JSON.parse(s):null;return (o&&typeof o==='object')?o:null;}catch(e){return null;}}
     function filtered(){return model.filter(function(e){
       for(var dim in state){if(state[dim]&&state[dim].length&&state[dim].indexOf(String(e[dim]))<0)return false;}return true;});}
     function setC(b,t){if(b)b.textContent=t;}
@@ -4043,16 +4099,32 @@ _MODAL_HTML = r"""
       var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
       if(clr)clr.hidden=!any;}
     window.ttApplyFilters=render;
+    /* RES-007 (v8.19.0): ONE canonical filter state. The Results-table (DataTable) filter is the
+       single driver — when it changes, the sticky summary, grouped aggregate and distribution chart
+       re-render from the SAME visible event set (keyed by ttModel id). Passing null restores the
+       grouped/chart filter's own state. */
+    window.ttApplyFiltersForIds=function(idset){
+      var evs=(idset==null)?filtered():model.filter(function(e){return idset[String(e.id)];});
+      renderSticky(evs);renderGrouped(evs);renderChart(evs);
+    };
     if(filters){
       Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
           state[dim]=state[dim]||[];var i=state[dim].indexOf(val);
           if(i<0){state[dim].push(val);b.classList.add('active');}else{state[dim].splice(i,1);b.classList.remove('active');}
-          render();});});
+          saveState();render();});});
       var clr=filters.querySelector('[data-tt-clear]');
-      if(clr)clr.addEventListener('click',function(){state={};
+      if(clr)clr.addEventListener('click',function(){state={};saveState();
         Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
         render();});}
+    /* RES-007: restore the saved filter state on load and re-mark the chips, THEN render so the
+       table, chart, totals and grouped views all reflect the restored selection (reload-safe). */
+    var _saved=loadState();
+    if(_saved){state=_saved;
+      if(filters)Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+        var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
+        if(state[dim]&&state[dim].indexOf(val)>=0)b.classList.add('active');else b.classList.remove('active');});}
+    render();
   };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
@@ -4105,9 +4177,27 @@ _MODAL_HTML = r"""
     var c=document.getElementById('ttd-modal-close');if(c)c.addEventListener('click',closeTournamentDetail);
     var m=document.getElementById('tournament-detail-modal');
     if(m){var bd=m.querySelector('.modal-backdrop');if(bd)bd.addEventListener('click',closeTournamentDetail);}
+    var esc=function(ev){if(ev.key==='Escape')closeTournamentDetail();};document.addEventListener('keydown',esc);
   })();
+  /* RES-008 (v8.19.0): wire the multi-bullet drilldown. Every Results event row opens the canonical
+     tournament-detail modal (which already shows the per-bullet breakdown + the event's hands). The
+     row is keyboard-focusable and Enter/Space activates it; clicks on inner links/buttons are ignored. */
+  function wireResultsDrilldown(){
+    var t=document.getElementById('tt-results');if(!t)return;
+    Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+      if(r.getAttribute('data-ttd-wired'))return;r.setAttribute('data-ttd-wired','1');
+      r.classList.add('tt-row-drill');r.setAttribute('tabindex','0');r.setAttribute('role','button');
+      var nm=(r.querySelector('.tt-tname')||{}).textContent||'event';
+      r.setAttribute('aria-label','Open details for '+nm);r.setAttribute('title','Open event details');
+      function go(ev){var tg=ev.target;if(tg&&tg.closest&&tg.closest('a,button'))return;
+        openTournamentDetail(r.getAttribute('data-event-id'));}
+      r.addEventListener('click',go);
+      r.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();go(ev);}});
+    });
+  }
+  window.wireResultsDrilldown=wireResultsDrilldown;
   /* The payload is set via _extra_js; if it loaded before this script, wire now. */
-  if(window.tournamentEvents)initTournamentResultsTable();
+  if(window.tournamentEvents){initTournamentResultsTable();wireResultsDrilldown();}
 
   /* v8.8.4: dimension-to-read support mapping for evidence partition */
   var READ_SUPPORT_DIMS={
@@ -6000,6 +6090,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   html.dark .tt-rollup-evt {{ color: #93c5fd; }}
   html.dark .tt-chart-metrics .tt-metric {{ background: #16181d; color: #94a3b8;
     border-color: #2a2f3a; }}
+  /* RES-008 (v8.19.0): multi-bullet drilldown affordance on Results event rows */
+  .tt-row-drill {{ cursor: pointer; }}
+  .tt-row-drill:hover {{ background: rgba(37,99,235,0.06); }}
+  .tt-row-drill:focus-visible {{ outline: 2px solid #2563eb; outline-offset: -2px; }}
+  html.dark .tt-row-drill:hover {{ background: rgba(96,165,250,0.10); }}
   /* v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered summary */
   .tt-sticky-summary {{ position: sticky; top: 0; z-index: 20; display: flex;
     flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 7px 12px;
@@ -6478,11 +6573,14 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   /* ── v8.14.0 Slice C: Compact Hand Review Queue ── */
   .rq-card {{ padding: 0; overflow: hidden; }}
   .rq-head {{ display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }}
+    gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; flex-wrap: wrap; }}
   .rq-title {{ font-weight: 950; color: var(--brand, #1e3a8a); font-size: 15px; }}
   .rq-sub {{ margin-top: 2px; font-size: 12px; color: #64748b; }}
+  /* R-B (v8.19.0): the explicit "System priorities …" copy is longer — allow it to wrap on
+     narrow viewports instead of overflowing (flex-wrap head + normal wrap text). */
   .rq-count {{ border-radius: 999px; border: 1px solid #facc15; background: #fffbeb;
-    color: #92400e; font-weight: 900; font-size: 12px; padding: 5px 9px; white-space: nowrap; }}
+    color: #92400e; font-weight: 900; font-size: 12px; padding: 5px 9px;
+    white-space: normal; overflow-wrap: anywhere; max-width: 100%; }}
   .rq-priority {{ display: flex; gap: 5px; align-items: center; overflow-x: auto;
     padding: 8px 14px; border-bottom: 1px solid #eef2f7; background: #fffdf4; }}
   .rq-priority-label {{ font-size: 11px; font-weight: 950; color: #92400e; white-space: nowrap; }}
@@ -6786,9 +6884,16 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
   /* v8.17.0-rc3 (Villain Step-3 visible delivery): compact lesson_7part rows */
   .v25-teach-evid {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  /* R-F: raw villain evidence disclosure (closed by default; teaching leads) */
+  .v25-teach-evid-disc {{ margin-top: 4px; font-size: 11px; }}
+  .v25-teach-evid-disc > summary {{ cursor: pointer; color: #64748b; font-size: 10.5px;
+    list-style: revert; }}
+  .v25-teach-evid-disc[open] > summary {{ color: #475569; }}
   .v25-teach-cue {{ color: #334155; margin: 1px 0; }}
   .v25-teach-now {{ color: #0f766e; font-weight: 600; margin-top: 2px; }}
-  .v25-teach-future {{ color: #475569; margin-top: 1px; }}
+  /* v8.18.1: the full canonical future-exploit sentence is shown (never truncated); it wraps on
+     narrow/mobile and the complete text is also in the title tooltip + accessibility layer. */
+  .v25-teach-future {{ color: #475569; margin-top: 1px; white-space: normal; overflow-wrap: anywhere; }}
   .v25-teach-icm {{ color: #92400e; margin-top: 1px; font-size: 11px; }}
   .v25-teach-confchip {{ display: inline-block; font-size: 10px; font-weight: 600;
     color: #475569; background: #e2e8f0; border-radius: 999px; padding: 0 6px;

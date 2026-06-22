@@ -171,7 +171,11 @@ def render_datatable(columns, rows, *, table_id, totals=True, totals_label='Tota
                               _html.escape(str((r.get('_filters') or {}).get(f['key'], ''))))
                               for f in filters)
             frow = ' ' + fattrs
-        body.append('<tr%s>%s</tr>' % (frow, ''.join(tds)))
+        # RES-008 (v8.19.0): carry the canonical event id on the row so the drilldown can open the
+        # matching tournament-detail modal (keyed to window.tournamentEvents[].event_id).
+        _rid = r.get('_row_id')
+        rid_attr = (" data-event-id='%s'" % _html.escape(str(_rid))) if _rid else ''
+        body.append('<tr%s%s>%s</tr>' % (rid_attr, frow, ''.join(tds)))
     foot = ''
     if totals:
         tds = []

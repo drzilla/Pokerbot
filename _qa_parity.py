@@ -637,7 +637,13 @@ def gate_report_full_render(hands_idx, html, worklist=None):
     if worklist:
         _items = worklist.get('items') or {}
         _items = list(_items.values()) if isinstance(_items, dict) else _items
-        for _it in _items:
+        # RC3 (v8.19): a graded hand leaves the live `items` but its authoritative reviewed kind is
+        # retained in `reviewed_decisions`. Consume BOTH so the reviewed kind is resolved from the
+        # worklist's own authoritative selection — never re-inferred (which can pick a different,
+        # contradictory action, e.g. 'first_in_open' for a hand reviewed as 'call_vs_jam').
+        _rev = worklist.get('reviewed_decisions') or {}
+        _rev = list(_rev.values()) if isinstance(_rev, dict) else _rev
+        for _it in list(_items) + list(_rev):
             _hid = str(_it.get('hand_id') or '')
             if _hid and _it.get('decision_kind'):
                 wl_kind[_hid] = _it['decision_kind']
@@ -667,19 +673,30 @@ def gate_report_full_render(hands_idx, html, worklist=None):
             d.update(kw)
             out['mismatches'].append(d)
 
+        # RC3 (v8.19): a hand article may contain SEVERAL decision containers — the AUTHORITATIVE
+        # reviewed decision plus other hero decisions the renderer surfaces as secondary context.
+        # Checks 1-3 concern the SELECTED/reviewed action's own consumers; a container the renderer
+        # explicitly labels 'Inferred decision context' is a DIFFERENT, non-authoritative decision
+        # whose context-appropriate math (e.g. pot odds for a later flop call) must not be charged
+        # against the reviewed kind. Evaluate those checks with self-disclosed inferred containers
+        # removed (containers are delimited by their data-decision-action-index attribute). The
+        # all-in math (gate B), bounty (D/E) and reviewed-line (F) gates still validate every block.
+        _segs = re.split(r"(?=data-decision-action-index=)", body)
+        body_auth = ''.join(seg for seg in _segs if 'Inferred decision context' not in seg)
+
         # 1) a non-price decision (first-in / open / bet / check) must not show a call price
         if price_appl is False:
-            if 'Pot odds:' in body:
+            if 'Pot odds:' in body_auth:
                 viol('nonprice_action_shows_pot_odds', kind=kind, facing=facing)
-            if 'Required equity:' in body:
+            if 'Required equity:' in body_auth:
                 viol('nonprice_action_shows_required_equity', kind=kind, facing=facing)
-            if 'EV of call:' in body or '**Verdict:** _' in body:
+            if 'EV of call:' in body_auth or '**Verdict:** _' in body_auth:
                 viol('nonprice_action_shows_call_verdict', kind=kind)
         # 2) a NON-all-in reviewed action must not show all-in (call-vs-jam) math as selected
-        if kind not in _ALLIN and re.search(r'All-in math|call-vs-jam math|the complete call-vs-jam', body):
+        if kind not in _ALLIN and re.search(r'All-in math|call-vs-jam math|the complete call-vs-jam', body_auth):
             viol('non_allin_action_shows_allin_math', kind=kind)
         # 3) an AGGRESSIVE preflop reviewed action must not show a 'call a jam' range as selected
-        if kind in _AGGR and re.search(r'call a (UTG|MP|HJ|CO|BTN|SB|LJ)', body):
+        if kind in _AGGR and re.search(r'call a (UTG|MP|HJ|CO|BTN|SB|LJ)', body_auth):
             viol('aggressive_action_shows_call_jam_range', kind=kind)
         # 4) a POSTFLOP reviewed action that shows a preflop range block must label it as
         #    earlier context (never present it as the selected decision's range evidence)

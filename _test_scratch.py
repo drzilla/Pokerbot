@@ -13787,6 +13787,15 @@ check('T-W1A1-BUG1-02: the footer stamps the RUNTIME version, never the renderer
       and '{RUNTIME_VERSION} · report schema' in _ivx_src_b1
       and '**Renderer:** {VERSION}' not in _ivx_src_b1)
 
+# v8.20 W1A.2 V820-QA-013: realized hand net must never be labelled 'EV' — the Confirmed-Mistakes
+# tables show h['net_bb'] under a 'Hand net' column; 'EV' is reserved for a canonical calculation record.
+_smv_q13 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2-QA013-01: Confirmed-Mistakes tables label realized net as "Hand net", never "EV"',
+      '| Hand Reference | Cards | Type | Hand net | Source |' in _smv_q13
+      and '| Hand Reference | Cards | What went wrong | Hand net | Source |' in _smv_q13
+      and '| Hand Reference | Cards | Type | EV | Source |' not in _smv_q13
+      and '| Hand Reference | Cards | What went wrong | EV | Source |' not in _smv_q13)
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

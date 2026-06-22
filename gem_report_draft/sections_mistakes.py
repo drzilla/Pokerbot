@@ -445,7 +445,9 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
         doc.w("✅ No punts confirmed (auto-detector findings overridden by "
               "analyst, no analyst punt verdicts).")
     else:
-        _m1_hdr = "| Hand Reference | Cards | Type | EV | Source |"
+        # v8.20 W1A.2 V820-QA-013: the value is the hand's REALIZED net (h['net_bb']), not a canonical
+        # decision-EV. Label it 'Hand net'; 'EV' is reserved for a persisted calculation record.
+        _m1_hdr = "| Hand Reference | Cards | Type | Hand net | Source |"
         _m1_sep = "|---|---|---|---|---|"
         _m1_rows = []
         for hid in iii1_ids:
@@ -597,7 +599,8 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
         doc.w("👍 No confirmed mistakes this session.")
         doc.w("")
     else:
-        _m2_hdr = "| Hand Reference | Cards | What went wrong | EV | Source |"
+        # v8.20 W1A.2 V820-QA-013: realized hand net, not a canonical decision-EV (see _m1_hdr).
+        _m2_hdr = "| Hand Reference | Cards | What went wrong | Hand net | Source |"
         _m2_sep = "|---|---|---|---|---|"
         _m2_rows = []
         for m in _cm_clear:

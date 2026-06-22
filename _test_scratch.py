@@ -13700,6 +13700,52 @@ check('T-W1A-ML-10: reenrich updates classifications from live analyst verdicts 
       _ml_pop['PF1']['final_classification'] == _ml.COOLER and _ml_pop['PF2']['final_classification'] == _ml.JUSTIFIED
       and _ml_pop['PF1']['analyst_status'] == 'reviewed')
 
+# v8.20 W1A T2: bet-sizing detector v1 — wraps the production flop-c-bet sizing engine
+# (stats['texture_gto_findings']) into bounded high-confidence AGGREGATE leak signals; no new sizing
+# math, no per-hand mistake reclassification. Tests: TP / justified / insufficient / small / deep-band
+# / aggregate-doesn't-regrade / judged-guard / production-wiring.
+import gem_sizing_detector as _sd
+_sd_tp = {'ace_high_coordinated': {'ip': {
+    'sample_size_label': 'sufficient', 'sizing_judged_n': 5, 'sizing_compliance_pct': 40.0,
+    'sizing_hands': [{'id': 'H1', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'},
+                     {'id': 'H2', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'},
+                     {'id': 'H3', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'}],
+    'verdict': 'deviation', 'target_freq_pct': [90, 99]}}}
+_o_tp = _sd.build_sizing_leak_signals(_sd_tp)
+check('T-W1A-SD-01: true positive — a sufficient bucket with <60% sizing compliance emits ONE high-confidence signal',
+      len(_o_tp['signals']) == 1 and _o_tp['signals'][0]['family'] == 'flop_cbet_sizing'
+      and _o_tp['signals'][0]['confidence'] == 'high')
+check('T-W1A-SD-02: full provenance — aggregate signal_type + contributing hands + reference + trigger',
+      _o_tp['signals'][0]['signal_type'] == 'aggregate_leak'
+      and set(_o_tp['signals'][0]['contributing_hands']) == {'H1', 'H2', 'H3'}
+      and _o_tp['signals'][0]['evidence']['reference_sizings_pct']
+      and 'off-reference' in _o_tp['signals'][0]['trigger'])
+_sd_ok = {'ace_high_coordinated': {'ip': dict(_sd_tp['ace_high_coordinated']['ip'], sizing_compliance_pct=80.0)}}
+check('T-W1A-SD-03: justified — a compliant (>=60%) sufficient bucket emits NO signal',
+      len(_sd.build_sizing_leak_signals(_sd_ok)['signals']) == 0
+      and _sd.build_sizing_leak_signals(_sd_ok)['excluded_counts']['compliant'] == 1)
+_sd_thin = {'low_two_tone': {'ip': {'sample_size_label': 'thin', 'sizing_judged_n': 2, 'sizing_compliance_pct': 0.0,
+            'sizing_hands': [{'id': 'T1', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'}]}}}
+check('T-W1A-SD-04: insufficient — a thin-sample bucket emits NO signal (excluded, never silently graded)',
+      len(_sd.build_sizing_leak_signals(_sd_thin)['signals']) == 0
+      and _sd.build_sizing_leak_signals(_sd_thin)['excluded_counts']['thin_sample'] == 1)
+_sd_small = {'monotone': {'ip': {'sample_size_label': 'small', 'sizing_judged_n': 1, 'sizing_compliance_pct': 0.0,
+             'sizing_hands': [{'id': 'S1', 'sizing_pct': 33, 'within': False, 'depth_band': '8-15BB'}]}}}
+check('T-W1A-SD-05: small-sample bucket excluded (deep-vs-short: short-stack thin samples never fire)',
+      _sd.build_sizing_leak_signals(_sd_small)['excluded_counts']['small_sample'] == 1)
+check('T-W1A-SD-06: deep-band signal carries the depth band + a depth-derived reference band',
+      _o_tp['signals'][0]['evidence']['depth_band'] == '40-999BB'
+      and _o_tp['signals'][0]['evidence']['tolerance_pp'] == 10)
+check('T-W1A-SD-07: an aggregate sizing leak does NOT grade its contributing hands (no per-hand verdict)',
+      all('verdict' not in str(h).lower() for h in _o_tp['signals'][0]['contributing_hands'])
+      and 'does not grade' in _o_tp['signals'][0]['requires_analyst_review'])
+_sd_few = {'ace_high_coordinated': {'ip': dict(_sd_tp['ace_high_coordinated']['ip'], sizing_judged_n=2)}}
+check('T-W1A-SD-08: a sufficient bucket with too few judged c-bets (<3) is excluded (thin sizing sample)',
+      len(_sd.build_sizing_leak_signals(_sd_few)['signals']) == 0)
+_cb_src_sd = open('gem_coverage_builder.py', encoding='utf-8').read()
+check('T-W1A-SD-09: production-connected — coverage_builder stamps report_data[sizing_leak_signals]',
+      "report_data['sizing_leak_signals']" in _cb_src_sd and 'build_sizing_leak_signals' in _cb_src_sd)
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

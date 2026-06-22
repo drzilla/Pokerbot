@@ -261,6 +261,7 @@ def _build(stats, report_data, hands, sections=None):
         ('S9',  _emit_section_v),              # Postflop SRP
         ('S10', _emit_section_vi),             # Postflop 3BP/4BP
         ('S11', _emit_section_vii),            # Mechanics — facing bets, sizing, stack depth, river, bet-fold, steal, bet/check, archetype
+        ('SSL', _emit_sizing_lines),           # v8.20 W1A: Sizing & Line Patterns — production sizing-leak signals
         ('S13', _emit_iii_cleared_justified),  # Aggression — AF, CR freq, CR made, drills, 3-bet sizing, bluff all streets
         ('S12', _emit_section_ix),             # Progress — tracker + learnings
         ('S14', _emit_section_x),              # QA
@@ -570,7 +571,7 @@ def _build(stats, report_data, hands, sections=None):
         'SIE': 'tiered issues & coverage',
         'S3': 'legacy leak details', 'S4': 'bounty / PKO',
         'S8': 'preflop engine', 'S9': 'postflop SRP',
-        'S10': '3BP & 4BP', 'S11': 'macro postflop',
+        'S10': '3BP & 4BP', 'S11': 'macro postflop', 'SSL': 'bet-size & line patterns',
         'S13': 'aggression profile', 'S5': 'action card & GTO',
         'S12': 'leak persistence', 'S14': 'bug tracker',
         'S15': 'stat reference', 'S16': 'terminology & symbols',
@@ -587,7 +588,7 @@ def _build(stats, report_data, hands, sections=None):
         'S6': 'KPIs', 'S2': 'Top hands',
         'SIE': 'Issue Explorer', 'S3': 'Leaks (Legacy)', 'S4': 'Tourney type',
         'S8': 'Preflop', 'S9': 'Postflop SRP',
-        'S10': 'Postflop 3BP/4BP', 'S11': 'Mechanics',
+        'S10': 'Postflop 3BP/4BP', 'S11': 'Mechanics', 'SSL': 'Sizing & Lines',
         'S13': 'Aggression', 'S5': 'Action Items',
         'S12': 'Progress', 'S14': 'QA',
         'S15': 'Raw Stats', 'S16': 'Glossary',
@@ -646,6 +647,47 @@ def _compute_table_size_breakdown(hands):
 # ============================================================
 # HEADER + TL;DR + LEGEND
 # ============================================================
+
+def _emit_sizing_lines(doc, s, rd, hands):
+    """v8.20 W1A Track 3 — the visible Sizing & Line Patterns surface. Renders the production
+    bet-sizing detector's AGGREGATE leak signals (rd['sizing_leak_signals']) with human-readable
+    pattern labels (never internal codes), confidence, actual-vs-reference sizing, what/why/adjustment,
+    and clickable example hands (reuses render_count_cell: 1 hand opens directly, N opens the hand
+    list). The empty state explains no high-confidence repeated pattern was found — never implies
+    perfect play."""
+    from gem_report_draft._helpers import render_count_cell as _rcc
+    sigs = rd.get('sizing_leak_signals') or []
+    excl = rd.get('sizing_leak_excluded') or {}
+    doc.w("## Sizing & Line Patterns")
+    if not sigs:
+        _n_excl = sum(v for v in excl.values() if isinstance(v, (int, float)))
+        doc.w("<div style='margin:8px 0;padding:10px 14px;border:1px solid #e5e7eb;border-radius:12px;"
+              "background:#f9fafb;color:#6b7280'>No high-confidence repeated sizing or line pattern was "
+              "found this session. This does <strong>not</strong> imply perfect play — "
+              f"{_n_excl} board class(es) had too thin a sample to judge and were set aside.</div>")
+        return
+    doc.w("*Repeated bet-sizing patterns surfaced this session. Each is an AGGREGATE pattern across a "
+          "whole board class — not a per-hand verdict; the example hands are evidence, not graded "
+          "mistakes.*")
+    for sig in sigs:
+        ev = sig.get('evidence') or {}
+        _ch = sig.get('contributing_hands') or []
+        _ex = _rcc(len(_ch), _ch, sig.get('pattern_label') or 'Example hands')
+        _conf = sig.get('confidence', 'high')
+        doc.w(
+            "<div style='margin:10px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;"
+            "background:#fff'>"
+            f"<div style='font-weight:700;color:#111827'>{sig.get('pattern_label', 'Sizing pattern')}"
+            "<span style='margin-left:8px;padding:2px 8px;border-radius:10px;background:#eef2ff;"
+            f"color:#3730a3;font-size:.78em;font-weight:700'>{_conf} confidence · aggregate</span></div>"
+            f"<div style='margin-top:4px;color:#374151'><strong>What:</strong> {sig.get('what_happened', '')}</div>"
+            f"<div style='color:#374151'><strong>Why it matters:</strong> {sig.get('why_it_matters', '')}</div>"
+            f"<div style='color:#374151'><strong>Adjustment:</strong> {sig.get('adjustment', '')}</div>"
+            "<div style='margin-top:4px;color:#6b7280;font-size:.92em'>Sizing compliance "
+            f"{ev.get('sizing_compliance_pct', '?')}% on {ev.get('judged_c_bets', '?')} sized c-bets · "
+            f"example hands: {_ex}</div>"
+            "</div>")
+
 
 def _emit_header(doc, s, rd):
     vol = s.get('volume', {})

@@ -2198,6 +2198,13 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         blindspot_ids=_blind_ids, stack_trajectories=stats.get('stack_trajectories'))
     report_data['material_loss_population'] = _mpop
     report_data['material_loss_summary'] = _mloss.material_loss_summary(_mpop)
+    # v8.20 W1A Track 2: production-connected bet-sizing detector v1 — WRAPS the existing flop-c-bet
+    # sizing engine (stats['texture_gto_findings']) into bounded high-confidence AGGREGATE sizing-leak
+    # signals (no new sizing math; no per-hand mistake reclassification). Stamped for the report surface.
+    import gem_sizing_detector as _sizedet
+    _sz = _sizedet.build_sizing_leak_signals(stats.get('texture_gto_findings') or {})
+    report_data['sizing_leak_signals'] = _sz['signals']
+    report_data['sizing_leak_excluded'] = _sz['excluded_counts']
 
     with open(cand_path, 'w', encoding='utf-8') as f:
         json.dump(candidates, f, indent=2, default=str, ensure_ascii=False)

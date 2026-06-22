@@ -339,6 +339,29 @@ def build_review_queue(s, rd, analyst, hands_by_id):
         if isinstance(c, dict):
             _add(c.get('id', ''), 'marginal', 'Read-dependent call.')
 
+    # 6. v8.19.0 Chapter B (PHF-001): EVERY canonical MISTAKE and CONDITIONAL hand must be in
+    # the opening queue (unless typed-excluded) — independent of whether an analyst III.x marker
+    # or a detector flag also fired. This is the union item the empty V5 queue was missing: a
+    # report can carry canonical MISTAKE/CONDITIONAL statuses while "Hands to open first" shows
+    # none. _add() dedupes, so hands already queued above are untouched.
+    try:
+        from gem_final_status import (status_from_canonical_verdict as _sfcv,
+                                      FinalDecisionStatus as _FDS)
+        for hid, cv in _cvmap.items():
+            if not str(hid).startswith('TM') or not isinstance(cv, dict):
+                continue
+            if cv.get('typed_excluded') or cv.get('excluded'):
+                continue                                  # typed exclusion respected
+            _st = _sfcv(cv)
+            if _st == _FDS.MISTAKE:
+                _add(hid, 'analyst_mistake',
+                     (cv.get('title') or cv.get('reason') or 'Canonical mistake — review first.'))
+            elif _st == _FDS.CONDITIONAL:
+                _add(hid, 'marginal',
+                     (cv.get('title') or cv.get('reason') or 'Conditional / read-dependent.'))
+    except Exception:
+        pass
+
     # v8.16.4 DTI Blocker 1: route the flat candidates through the canonical
     # bounded + aggregated queue model BEFORE ordering. Repeated leak families
     # collapse to ONE row (count + drilldown ids); detector-health (auto_clear)
@@ -690,9 +713,12 @@ def _emit_opening_dashboard(doc, s, rd):
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px "
               "solid #bfdbfe;border-radius:12px;background:#eff6ff;"
               "color:#1e40af'>"
-              f"ℹ️ Analyst coverage — PARTIAL: {_rc.get('reviewed_hands', '?')} "
-              f"hand(s) reviewed of {_rc.get('candidate_need', '?')} worklist "
-              f"candidate(s); {_rc.get('awaiting_candidates', '?')} still "
+              # v8.19.0 Chapter B (PHF-001): numerator is the INTERSECTION (reviewed AND a
+              # candidate), not all analyst verdicts — those are shown separately as "overall".
+              f"ℹ️ Analyst coverage — PARTIAL: {_rc.get('reviewed_in_candidates', '?')} "
+              f"of {_rc.get('candidate_need', '?')} worklist candidate(s) reviewed "
+              f"({_rc.get('reviewed_hands', '?')} analyst verdict(s) overall); "
+              f"{_rc.get('awaiting_candidates', '?')} still "
               "awaiting review"
               f"{_awaiting_buckets_phrase(_rc)}. Verdict sections are "
               "partially complete."

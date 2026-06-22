@@ -118,6 +118,39 @@ def hand_in_range(hand_class, range_str):
     return hc in expanded
 
 
+# ── v8.19.0 Chapter C (PHF-002/003): canonical RangeLensVM provenance helpers ──
+_RANGE_SOURCE_QUALITY = {'exact': 'EXACT', 'closest': 'NEAREST_DEPTH',
+                         'proxy': 'CONSTRUCTED', 'constructed': 'CONSTRUCTED',
+                         'none': 'NONE', None: 'NONE'}
+
+
+def range_source_quality(coverage):
+    """Map the internal coverage token to the RangeLensVM source-quality enum so the
+    reader can tell an exact-depth chart from a nearest-depth / constructed / no source."""
+    return _RANGE_SOURCE_QUALITY.get(coverage, 'CONSTRUCTED')
+
+
+def matching_class_token(expr, hero_class):
+    """The SINGLE class token in a serialized range expression that contains Hero's
+    class (e.g. 'A6o' -> 'A2o+'), or None if no token contains it (Hero is OUTSIDE).
+
+    PHF-002: this is how the renderer emphasises ONLY the matching class instead of the
+    whole expression — it never does a broad substring replace on the final HTML string.
+    """
+    if not expr or not hero_class:
+        return None
+    import re as _re
+    hc = str(hero_class).strip()
+    for raw in _re.split(r'[;,]', str(expr)):
+        tok = _re.sub(r'<[^>]+>', '', raw).strip()             # drop any inline html
+        tok = _re.sub(r'^(pairs|suited|offsuit)\s+', '', tok, flags=_re.I).strip()
+        if not tok:
+            continue
+        if hand_in_range(hc, tok):
+            return tok
+    return None
+
+
 def range_boundary(range_str):
     """Return the weakest hands in a range (the boundary).
 
@@ -324,6 +357,9 @@ def build_range_evidence(role, pos, cards, hero_stack_bb, eff_stack_bb,
                     'coverage': 'closest', 'hero_hand': hc2,
                     'membership': 'unknown', 'boundary': False,
                     'top_examples': [], 'boundary_examples': '',
+                    'source_quality': 'NEAREST_DEPTH',
+                    'decision_depth_bb': round(depth_bb, 1),
+                    'reference_depth_bb': float(_d),
                     'note': (f'at {depth_bb:.0f}BB the calling range is wider '
                              f'than the shallowest ({_d}BB) chart — use pot-odds '
                              f'/ equity, not chart membership')}
@@ -346,11 +382,16 @@ def build_range_evidence(role, pos, cards, hero_stack_bb, eff_stack_bb,
                 'depth_basis': depth_basis, 'chart_key': None,
                 'coverage': 'none', 'hero_hand': hc, 'membership': 'unknown',
                 'boundary': False, 'top_examples': [], 'boundary_examples': '',
+                'source_quality': 'NONE', 'decision_depth_bb': round(depth_bb, 1),
+                'reference_depth_bb': None,
                 'note': 'no charted range at this depth/position'}
     chart_dict = ranges.get(chart_key, {})
     inside = hc in chart_dict
     _bnd_str = range_boundary(', '.join(chart_dict.keys()))
     _bnd_set = set(x.strip() for x in _bnd_str.split(',') if x.strip())
+    import re as _re_d
+    _refm = _re_d.search(r'(\d+)\s*BB', chart_key or '', _re_d.I)
+    _ref_depth = float(_refm.group(1)) if _refm else None
     return {
         'role': role, 'spot_label': spot_label, 'position': pos,
         'facing': facing, 'depth_bb': round(depth_bb, 1),
@@ -360,6 +401,10 @@ def build_range_evidence(role, pos, cards, hero_stack_bb, eff_stack_bb,
         'boundary': bool(inside and hc in _bnd_set),
         'top_examples': _range_top_examples(chart_dict),
         'boundary_examples': _bnd_str,
+        # v8.19.0 Chapter C (PHF-002/003): RangeLensVM provenance fields.
+        'source_quality': range_source_quality(coverage),
+        'decision_depth_bb': round(depth_bb, 1),
+        'reference_depth_bb': _ref_depth,
         'note': '',
     }
 
@@ -1153,8 +1198,16 @@ def highlight_range_expression(expr, membership, coverage, role=None,
     tip = ' · '.join(tip_bits)
     css = 'rng-hl rng-hl-%s' % color
     combo = str(hero_combo).strip() if hero_combo else ''
-    shown = _bold_combo_in_expr(expr, combo) if combo else expr
-    combo_in_expr = bool(combo) and shown != expr
+    # v8.19.0 Chapter C (PHF-002): emphasise ONLY the matching class token (e.g. A2o+ for
+    # Hero A6o) so the reader sees which single class is Hero-relevant — not every listed
+    # class. Token-exact (uses hand_in_range over split tokens), never a broad html replace.
+    match_class = matching_class_token(expr, combo) if combo else None
+    combo_in_expr = bool(combo) and (_bold_combo_in_expr(expr, combo) != expr)
+    expr2 = expr
+    if match_class and match_class != combo and match_class in expr:
+        expr2 = expr.replace(match_class,
+                             "<strong class='rng-class-match'>%s</strong>" % match_class, 1)
+    shown = _bold_combo_in_expr(expr2, combo) if combo else expr2
     combo_appended = bool(combo) and not combo_in_expr
     inner = shown
     if combo_appended:
@@ -1166,7 +1219,8 @@ def highlight_range_expression(expr, membership, coverage, role=None,
     html = "<span class='%s' title='%s'>%s</span>" % (css, tip, inner)
     return {'color': color, 'css_class': css, 'html': html, 'node_label': node,
             'combo_highlighted': bool(combo),
-            'combo_in_expr': combo_in_expr, 'combo_appended': combo_appended}
+            'combo_in_expr': combo_in_expr, 'combo_appended': combo_appended,
+            'matching_class': match_class}
 
 
 def outside_open_negative_ok(role, source_authoritative, table_caveat_handled,

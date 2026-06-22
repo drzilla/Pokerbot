@@ -1994,6 +1994,38 @@ def _is_preflop_terminal_allin(h):
     return False
 
 
+def cbet_opportunity_exclusion(h):
+    """v8.19.0 Chapter D (PHF-004): typed reason a flop c-bet opportunity is NOT legal,
+    or None if Hero genuinely had a flop continuation-bet DECISION.
+
+    A 'missed c-bet' is only meaningful when a c-bet was actually possible. These structural
+    exclusions are the ONE owner so the same eligible set drives the denominator, the miss
+    list, the popup IDs, the leak verdict, the queue candidate and Commentary — no surface
+    counts an impossible opportunity.
+
+      NO_FLOP                  -> never reached a flop
+      HERO_ALL_IN_NO_DECISION  -> Hero all-in (shoved or called a jam) before any postflop action
+      BETTING_CLOSED_FLOP      -> someone jammed on the flop; no clean c-bet decision existed
+      NO_ACTIONABLE_CHIPS      -> SPR<=0, effective all-in / automatic runout (no chips behind)
+    Initiative (wrong aggressor) and texture validity stay with the caller.
+    """
+    if len(h.get('board') or []) < 3:
+        return 'NO_FLOP'
+    if _is_preflop_terminal_allin(h):
+        return 'HERO_ALL_IN_NO_DECISION'
+    if h.get('flop_allin'):
+        return 'BETTING_CLOSED_FLOP'
+    _spr = h.get('spr')
+    if _spr is not None and _spr <= 0:
+        return 'NO_ACTIONABLE_CHIPS'
+    return None
+
+
+def is_legal_cbet_opportunity(h):
+    """True iff Hero had a legal flop c-bet decision (see cbet_opportunity_exclusion)."""
+    return cbet_opportunity_exclusion(h) is None
+
+
 def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targets=None):
     N = len(hands)
     s = {}  # stats dict — everything the report needs
@@ -2426,9 +2458,11 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     cbet = {'hu_opp': 0, 'hu_bet': 0, 'mw_opp': 0, 'mw_bet': 0, 'turn_opp': 0, 'turn_bet': 0, 'river_opp': 0, 'river_bet': 0,
             'hu_ip_opp': 0, 'hu_ip_bet': 0, 'hu_oop_opp': 0, 'hu_oop_bet': 0}
     for h in hands:
-        if not h['pfr'] or len(h.get('board',[])) < 3: continue
+        if not h['pfr']: continue
         if h.get('villain_bet_flop_first'): continue  # villain bet first = not a c-bet opportunity
-        if _is_preflop_terminal_allin(h) or (h.get('spr') is not None and h['spr'] <= 0): continue
+        # v8.19.0 Chapter D (PHF-004): same centralized legal-opportunity gate as the texture
+        # counter (board>=3, no terminal/flop all-in, chips behind) so the denominators agree.
+        if not is_legal_cbet_opportunity(h): continue
         pf = h.get('players_at_flop', 0)
         if pf < 2: continue
         flop_cb = any(b[2] == 'cbet' and b[0] == 'flop' for b in h.get('hero_bets', []))
@@ -2496,7 +2530,10 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             (_pt == '3BP' and h.get('hero_3bet')) or
             (_pt == '4BP' and (h.get('hero_4bet') or h.get('pfr')))
         )
-        if _has_initiative and len(h.get('board',[])) >= 3 and not h.get('pf_allin'):
+        # v8.19.0 Chapter D (PHF-004): the centralized legal-opportunity gate replaces the
+        # old `board>=3 and not pf_allin` inline check — it also excludes flop-jammed /
+        # effective-all-in spots where no clean c-bet decision existed (e.g. TM6090177176).
+        if _has_initiative and is_legal_cbet_opportunity(h):
             bt[btx]['cb_opp'] += 1
             _cbet = any(b[2] == 'cbet' and b[0] == 'flop'
                         for b in h.get('hero_bets', []))
@@ -4699,8 +4736,12 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         )
         if not _has_init2:
             continue
-        # Did Hero have a flop c-bet opportunity? (initiative + saw flop)
-        if not h.get('board') or len(h.get('board', [])) < 3:
+        # v8.19.0 Chapter D (PHF-004): the centralized legal-opportunity gate. This counter
+        # feeds ids_missed -> the "Missed c-bets on <texture>" popup; the old check was only
+        # `board>=3`, so impossible spots (Hero all-in / flop jammed / no chips behind, e.g.
+        # TM6090177176) wrongly entered both the denominator and the missed list. The gate
+        # excludes them with a typed reason so denominator, misses and popup all agree.
+        if not is_legal_cbet_opportunity(h):
             continue
         tex = h.get('board_texture') or 'unknown'
         _cbet_by_texture[tex]['opps'] += 1

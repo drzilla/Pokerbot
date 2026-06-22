@@ -1121,6 +1121,32 @@ def compute_report_completeness(rd, candidates=None):
     sig_total = len(significant_loss)
     sig_reviewed = len(significant_loss & reviewed_ids)
 
+    # v8.19.0 Chapter B (PHF-001): one canonical ReviewCoverageVM. The visible numerator in
+    # "X reviewed of N candidates" MUST be the INTERSECTION (reviewed AND a worklist candidate),
+    # NEVER all analyst entries — `reviewed_hands` (all) stays for the CLI / manifest / run
+    # verdict count; the banner now reads `reviewed_in_candidates`. System-priority coverage
+    # stays distinct from Ron's personal review marks (a JS-only concept, not derived here).
+    reviewed_in_candidates = need & reviewed_ids
+    reviewed_critical = critical_need & reviewed_ids
+    if critical_unreviewed:
+        coverage_state = 'PARTIAL'           # required critical coverage incomplete
+    elif awaiting:
+        coverage_state = 'BOUNDED_COMPLETE'  # all critical done; lower-priority candidates remain
+    else:
+        coverage_state = 'COMPLETE'
+    review_coverage_vm = {
+        'analyst_reviewed_all_ids': sorted(reviewed_ids),
+        'worklist_candidate_ids': sorted(need),
+        'critical_ids': sorted(critical_need),
+        'reviewed_worklist_ids': sorted(reviewed_in_candidates),
+        'unreviewed_worklist_ids': sorted(need - reviewed_ids),
+        'reviewed_critical_ids': sorted(reviewed_critical),
+        'unreviewed_critical_ids': critical_unreviewed,
+        'bucket_ids': {bk: sorted(i for i in need if need_bucket.get(i) == bk)
+                       for bk in sorted(set(need_bucket.values()))},
+        'coverage_state': coverage_state,
+    }
+
     if not reviewed_ids:
         state = 'AUTO_ONLY'
     elif awaiting or critical_unreviewed:
@@ -1128,18 +1154,28 @@ def compute_report_completeness(rd, candidates=None):
     else:
         state = 'ANALYST_COMPLETE'
 
-    # Visible, quantified coverage line (single source — MD + HTML agree).
+    # Visible, quantified coverage line (single source — MD + HTML agree). Numerators are the
+    # INTERSECTION sets (PHF-001) so "of N" never uses the all-analyst count.
     if critical_unreviewed:
-        coverage_line = (f'Analyst coverage incomplete: {len(critical_unreviewed)} '
-                         f'critical hands unreviewed — not final.')
+        coverage_line = (f'Analyst coverage PARTIAL: {len(critical_unreviewed)} of '
+                         f'{len(critical_need)} critical hands unreviewed — not final · '
+                         f'worklist {len(reviewed_in_candidates)} of {len(need)} reviewed '
+                         f'({len(need - reviewed_ids)} remain).')
     else:
-        coverage_line = (f'Analyst coverage: {len(reviewed_ids)} reviewed · '
-                         f'{sig_reviewed}/{sig_total} significant-loss hands '
-                         f'reviewed · 0 critical unreviewed')
+        coverage_line = (f'Analyst coverage {coverage_state}: reviewed {len(reviewed_ids)} '
+                         f'hands overall · worklist {len(reviewed_in_candidates)} of '
+                         f'{len(need)} reviewed · critical {len(reviewed_critical)} of '
+                         f'{len(critical_need)} · {sig_reviewed}/{sig_total} significant-loss.')
 
     rc = {
         'state': state,
         'reviewed_hands': len(reviewed_ids),
+        # v8.19.0 Chapter B (PHF-001): intersection numerators + canonical coverage VM.
+        'reviewed_in_candidates': len(reviewed_in_candidates),
+        'reviewed_critical': len(reviewed_critical),
+        'critical_total': len(critical_need),
+        'coverage_state': coverage_state,
+        'review_coverage_vm': review_coverage_vm,
         'candidate_need': len(need),
         'awaiting_candidates': len(awaiting),
         'awaiting_markers': len(awaiting),

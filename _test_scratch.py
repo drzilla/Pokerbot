@@ -5274,10 +5274,10 @@ check('T-PKOE-10: PKO pill wires pko_trust_render with pot-odds threshold facts 
       and "_pk_render.get('strip_md')" in _xiv_src_e
       and 'required_eq_bounty_pct' in _xiv_src_e, '')
 _sm_src_e = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-PKOE-11: PKO opportunity table renamed (Opportunity/Wrong/Missed), clickable counts, no Hands column',
-      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_src_e
-      and 'Review | Drill cue |' in _sm_src_e and '| Spot | PKO' not in _sm_src_e
-      and '_rcc(' in _sm_src_e, '')
+check('T-PKOE-11: PKO table v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review), clickable counts, no Hands column',
+      '| Opportunity | PKO Δ | Seen | Hero rate | Too wide vs Classic |' in _sm_src_e
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_src_e
+      and '| Spot | PKO' not in _sm_src_e and '_rcc(' in _sm_src_e, '')
 _fin_src_e = open('gem_report_draft/sections_financial.py', encoding='utf-8').read()
 check('T-PKOE-12: dense cEV/BB-100 units carry a concise body gloss',
       'cEV/100 = chip-EV per 100 hands' in _fin_src_e
@@ -5975,9 +5975,9 @@ check('T-V8120B-4: teaching rows aggregate by research bucket',
       and len({r['bucket'] for r in _agg_b['teaching_rows']})
       == len(_agg_b['teaching_rows']), '')
 _sm_812b = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-V8120B-5: S4.2 is the compact layout (v8.14.0 Slice E rev-2: Opportunity/Wrong/Missed)',
-      '| Opportunity | PKO Δ | Seen | Actual | Wrong | Missed |' in _sm_812b
-      and 'Review | Drill cue |' in _sm_812b, '')
+check('T-V8120B-5: S4.2 compact layout, v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review)',
+      '| Opportunity | PKO Δ | Seen | Hero rate | Too wide vs Classic |' in _sm_812b
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_812b, '')
 _sx_812b = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-V8120B-6: pill no longer embeds a span (md would escape it)',
       "pko-cov-chip'>" not in _sx_812b, '')
@@ -10364,10 +10364,11 @@ check('T-PKO817-11: openHandListPopup short-circuits a single id to openHand (di
       'v8.17 B8: a count of exactly ONE opens the hand directly' in _html817
       and 'if(hids.length===1){' in _html817 and 'openHand(_only);return true;' in _html817, '')
 _sm817 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
-check('T-PKO817-12: S4 PKO aggregate has Opportunity/Actual/Wrong/Missed, clickable counts, no Hands col in that table, directional⚠',
+check('T-PKO817-12: S4 PKO aggregate v8.19.0 headers + clickable counts (data keys unchanged), no Hands col, directional⚠',
       '| Opportunity | PKO ' in _sm817 and "_t('Actual')" in _sm817 and "_t('Too wide')" in _sm817
       and "_t('Missed')" in _sm817 and 'render_count_cell as _rcc' in _sm817
-      and 'Missed | "\n                  "Review | Drill cue |' in _sm817
+      and 'Seen | Hero rate | Too wide vs Classic |' in _sm817
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm817
       and '+= " ⚠"' in _sm817, 'S4 aggregate contract')
 
 print('\n--- v8.17 Epic A (capsule layer): registers / tiers / capsule / content lints ---')
@@ -13386,6 +13387,85 @@ check('T-COR-005: contiguity helper + multi-day span detection',
       _dc(['2026-06-18', '2026-06-19', '2026-06-20']) is True
       and _dc(['2026-06-18', '2026-06-20']) is False
       and _dc(['2026-06-18']) is True, '')
+
+# ── v8.19.0 Chapter D: legal c-bet opportunity ownership (PHF-004) ──
+from gem_analyzer import cbet_opportunity_exclusion as _cbo, is_legal_cbet_opportunity as _ilco
+def _cbet_hand(**kw):
+    base = {'pfr': True, 'board': ['Ah', 'Td', '6c'], 'spr': 3.0, 'pf_allin': False,
+            'flop_allin': False, 'action_ledger': []}
+    base.update(kw); return base
+check('T-D-001: a normal PFR flop spot is a legal c-bet opportunity',
+      _ilco(_cbet_hand()) and _cbo(_cbet_hand()) is None)
+check('T-D-002: Hero terminal preflop all-in -> HERO_ALL_IN_NO_DECISION (90177176-class)',
+      _cbo(_cbet_hand(pf_allin=True)) == 'HERO_ALL_IN_NO_DECISION'
+      and not _ilco(_cbet_hand(pf_allin=True)))
+check('T-D-003: flop jammed (betting closed) -> BETTING_CLOSED_FLOP',
+      _cbo(_cbet_hand(flop_allin=True)) == 'BETTING_CLOSED_FLOP')
+check('T-D-004: no chips behind / SPR<=0 -> NO_ACTIONABLE_CHIPS',
+      _cbo(_cbet_hand(spr=0)) == 'NO_ACTIONABLE_CHIPS')
+check('T-D-005: never reached a flop -> NO_FLOP',
+      _cbo(_cbet_hand(board=['Ah', 'Td'])) == 'NO_FLOP')
+check('T-D-006: preflop all-in in ledger with no hero postflop action -> excluded',
+      not _ilco(_cbet_hand(action_ledger=[{'street': 'preflop', 'allin': True}])))
+
+# ── v8.19.0 Chapter E: PKO presentation (PHF-005) ──
+_sm_e19 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-E-001: PKO BB Defense uses unambiguous v8.19.0 headers (no bare Actual/Wrong/Review)',
+      'Hero rate | Too wide vs Classic |' in _sm_e19
+      and 'Missed vs Classic | PKO combo review | Drill cue |' in _sm_e19)
+check('T-E-002: aggregate is not a combo verdict — 32o-class guard copy present',
+      'PKO combo review' in _sm_e19 and 'ungraded' in _sm_e19
+      and 'does **not** prove' in _sm_e19 and '32o' in _sm_e19)
+
+# ── v8.19.0 Chapter B: review coverage + priority queue (PHF-001) ──
+from gem_report_data import compute_report_completeness as _crc
+_rc_b = _crc({'analyst_commentary': {**{f'TMH{i}': {} for i in range(9)},
+                                     **{f'TMX{i}': {} for i in range(5)}},
+              'auto_resolved_ids': []},
+             {'iii4_screening': [{'id': f'TMH{i}'} for i in range(9)]
+                                + [{'id': f'TMC{i}'} for i in range(44)]})
+check('T-B-001: PHF-001 numerator is the INTERSECTION (9 of 53), not all analyst entries (14)',
+      _rc_b['reviewed_hands'] == 14 and _rc_b['reviewed_in_candidates'] == 9
+      and _rc_b['candidate_need'] == 53)
+check('T-B-002: coverage_state = BOUNDED_COMPLETE when all critical done but non-critical remain',
+      _rc_b['coverage_state'] == 'BOUNDED_COMPLETE'
+      and _rc_b['review_coverage_vm']['coverage_state'] == 'BOUNDED_COMPLETE'
+      and 'not final' not in _rc_b['coverage_line'])
+_rc_crit = _crc({'analyst_commentary': {}, 'auto_resolved_ids': []},
+                {'mistakes': [{'id': 'TMM1'}, {'id': 'TMM2'}]})
+check('T-B-003: unreviewed critical -> PARTIAL + "not final"',
+      _rc_crit['coverage_state'] == 'PARTIAL' and 'not final' in _rc_crit['coverage_line'])
+from gem_report_draft.tldr import build_review_queue as _brq
+_q_b = _brq({'mistakes': []},
+            {'canonical_verdicts': {'TMMIS': {'verdict': 'III.2 Mistake', 'title': 'bad'},
+                                    'TMCON': {'verdict': 'III.4 Read-dependent'},
+                                    'TMCLR': {'verdict': 'III.5 Justified'}}},
+            {}, {'TMMIS': {'net_bb': -20, 'cards': ['Ah', 'Kh']},
+                 'TMCON': {'net_bb': -5, 'cards': ['2c', '3d']}})
+_qids = {it['id'] for it in _q_b}
+check('T-B-004: every canonical MISTAKE + CONDITIONAL enters the queue; CLEARED does not',
+      'TMMIS' in _qids and 'TMCON' in _qids and 'TMCLR' not in _qids)
+
+# ── v8.19.0 Chapter C: Range Lens VM + provenance (PHF-002/003) ──
+import gem_ranges as _GR
+check('T-C-001: source_quality enum maps coverage exact/closest/none',
+      _GR.range_source_quality('exact') == 'EXACT'
+      and _GR.range_source_quality('closest') == 'NEAREST_DEPTH'
+      and _GR.range_source_quality('none') == 'NONE'
+      and _GR.range_source_quality(None) == 'NONE')
+_RNG_EXPR = 'pairs 22+; suited A2s+, K2s+; offsuit A2o+, K9o+, Q9o+'
+check('T-C-002: matching_class finds the ONE class token containing Hero (A6o -> A2o+)',
+      _GR.matching_class_token(_RNG_EXPR, 'A6o') == 'A2o+')
+check('T-C-003: KTo is OUTSIDE a range with K9o+ but not KTo? (K9o+ DOES contain KTo) — Q8o outside',
+      _GR.matching_class_token('offsuit A2o+, K9o+', 'Q8o') is None)
+check('T-C-004: A6o exact-combo bolding never matches A6s / A6o+ (no broad substring)',
+      _GR._bold_combo_in_expr('A6s, A6o+', 'A6o') == 'A6s, A6o+'  # no exact A6o token -> no-op
+      and "rng-combo-hero" in _GR._bold_combo_in_expr('A2o, A6o, A8o', 'A6o'))
+_hl = _GR.highlight_range_expression(_RNG_EXPR, 'inside', 'closest', role='open', hero_combo='A6o')
+check('T-C-005: lens emphasises exactly the matching class (rng-class-match on A2o+) + exposes matching_class',
+      _hl.get('matching_class') == 'A2o+'
+      and "rng-class-match'>A2o+</strong>" in _hl['html']
+      and _hl['html'].count('rng-class-match') == 1)
 
 # ── v8.19.0 product-contract (RES-006 phase taxonomy) ──
 from gem_tournament_model import phase_category as _phc, PHASE_LABELS as _PHL

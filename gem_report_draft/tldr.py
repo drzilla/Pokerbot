@@ -741,6 +741,33 @@ def _emit_opening_dashboard(doc, s, rd):
                  if _rc.get('coverage_line') else "")
               + "</div>")
         doc.w("")
+    # v8.20 W1A: the canonical MATERIAL-LOSS completeness surface. Every materially important loss is
+    # visible in exactly ONE state (none silently dropped), with clickable counts to the hands. One
+    # owner: rd['material_loss_summary'] (gem_material_loss); loss hands are P0-priority so they render.
+    _mls = rd.get('material_loss_summary') or {}
+    if _mls.get('total'):
+        from gem_report_draft._helpers import render_count_cell as _rcc
+        _mids = _mls.get('by_classification_ids') or {}
+
+        def _mlc(_n, _ids, _title):
+            return _rcc(_n, _ids, _title) if _ids else str(_n)
+        _conf_ids = (_mids.get('confirmed_mistake') or []) + (_mids.get('punt') or [])
+        _clr_ids = (_mids.get('justified') or []) + (_mids.get('read_dependent') or [])
+        _varc_ids = (_mids.get('variance') or []) + (_mids.get('cooler') or [])
+        doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px solid #e5e7eb;"
+              "border-radius:12px;background:#f9fafb;color:#374151'>"
+              "<strong>Material-loss review</strong> — every materially important loss ends in exactly "
+              "one state, none silently dropped: "
+              f"{_mlc(_mls.get('total', 0), _mls.get('all_ids'), 'Material losses')} material loss(es) "
+              f"({_mls.get('reviewed', 0)} reviewed) · "
+              f"{_mlc(_mls.get('confirmed_mistakes_punts', 0), _conf_ids, 'Confirmed mistakes / punts')} confirmed mistake/punt · "
+              f"{_mlc(_mls.get('cleared', 0), _clr_ids, 'Correctly played')} correctly played · "
+              f"{_mlc(_mls.get('variance_coolers', 0), _varc_ids, 'Variance / coolers')} variance/cooler · "
+              f"{_mlc(_mls.get('insufficient', 0), _mids.get('insufficient'), 'Insufficient evidence')} insufficient · "
+              f"{_mlc(_mls.get('ungraded', 0), _mids.get('ungraded'), 'Awaiting analyst')} ungraded · "
+              f"{_mlc(_mls.get('blindspot_only_discovered', 0), _mls.get('blindspot_only_ids'), 'Blind-spot-only discoveries')} found only via the material-loss/blind-spot contract."
+              "</div>")
+        doc.w("")
     # Game-summary absence: cash/ROI/finish fields degrade silently
     _usd_st = (rd.get('usd_overlay') or {}).get('status', '')
     if _usd_st == 'no_summaries_found':

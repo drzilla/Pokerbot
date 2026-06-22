@@ -13644,6 +13644,62 @@ check('T-RC3-PLOg: _non_nlh_ids computed from ALL hands + stamped (never the NLH
       and "s['_non_nlh_ids'] = sorted(_non_nlh_ids)" in _ga_plo
       and "hands = [h for h in all_hands if h.get('game_type', 'NLH') == 'NLH']" in _ga_plo)
 
+# v8.20 W1A T1: the ONE canonical material-loss owner — every material loss ends in exactly one visible
+# state and NONE can silently disappear (dedup / auto-clear / analyst-omission / alt-path / nonmatching
+# detector family). gem_material_loss is keyed on the canonical screen-id owner (build_loss_screens).
+import gem_material_loss as _ml
+_ml_hands = [
+    {'id': 'BL1', 'net_bb': -30.0, 'board': ['Ah', 'Kd', '2c', '7s', '9h'], 'went_to_sd': True},
+    {'id': 'PF1', 'net_bb': -22.0, 'board': ['Ah', 'Kd', '2c'], 'pf_allin': False},
+    {'id': 'PF2', 'net_bb': -18.0, 'board': ['Ah', 'Kd', '2c', '7s'], 'pf_allin': False},
+    {'id': 'WIN', 'net_bb': 10.0, 'board': ['Ah', 'Kd', '2c']},
+]
+_ml_screens = {'biggest_loss_screen': ['BL1'], 'postflop_loss_screen': ['PF1', 'PF2']}
+# PF1 ALSO nominated by mistakes (dedup); PF2 in NO detector family (nonmatching) but in blindspot.
+_ml_cands = {'mistakes': [{'id': 'PF1'}], 'blindspot_sample': [{'id': 'PF2'}]}
+_ml_ac = {'BL1': {'verdict': 'III.2 Mistake'}}   # only BL1 graded -> PF1/PF2 analyst-OMITTED
+_ml_pop = _ml.build_material_loss_population(_ml_screens, _ml_hands, candidates=_ml_cands,
+                                            analyst_commentary=_ml_ac, blindspot_ids={'PF2'})
+check('T-W1A-ML-01: every screened material loss is in the population (3 records, 0 dropped)',
+      set(_ml_pop) == {'BL1', 'PF1', 'PF2'})
+check('T-W1A-ML-02: dedup — PF1 also nominated by mistakes stays present with the family recorded',
+      'PF1' in _ml_pop and 'mistakes' in _ml_pop['PF1']['nominating_detector_families'])
+check('T-W1A-ML-03: nonmatching-family — PF2 in NO detector family is still present (blindspot_only)',
+      'PF2' in _ml_pop and _ml_pop['PF2']['nominating_detector_families'] == []
+      and _ml_pop['PF2']['blindspot_only'] is True)
+check('T-W1A-ML-04: analyst-omission — ungraded material hands are VISIBLE as UNGRADED, not dropped',
+      _ml_pop['PF1']['final_classification'] == _ml.UNGRADED
+      and _ml_pop['PF2']['final_classification'] == _ml.UNGRADED
+      and _ml_pop['BL1']['final_classification'] == _ml.CONFIRMED_MISTAKE)
+_ml_pop2 = _ml.build_material_loss_population(_ml_screens, _ml_hands, candidates={'mistakes': [{'id': 'BL1'}]},
+                                            analyst_commentary={}, blindspot_ids=set())
+check('T-W1A-ML-05: auto-clear — the population is keyed on the loss screens, never auto-resolved out',
+      'BL1' in _ml_pop2 and len(_ml_pop2) == 3)
+_ml_dropped = False
+try:
+    _ml.assert_no_silent_drop(_ml_pop, surfaced_ids={'BL1', 'PF1'})   # PF2 dropped by an alt report path
+except ValueError as _e_ml:
+    _ml_dropped = 'MAT-001' in str(_e_ml) and 'PF2' in str(_e_ml)
+check('T-W1A-ML-06: alt-path — assert_no_silent_drop FAILS LOUD when a material hand is off-surface',
+      _ml_dropped)
+check('T-W1A-ML-07: no false alarm when every material id is surfaced',
+      _ml.assert_no_silent_drop(_ml_pop, surfaced_ids={'BL1', 'PF1', 'PF2'}) == {'BL1', 'PF1', 'PF2'})
+_ml_sum = _ml.material_loss_summary(_ml_pop)
+check('T-W1A-ML-08: summary reconciles (per-classification counts sum == total == |population| == 3)',
+      sum(_ml_sum['by_classification'].values()) == _ml_sum['total'] == len(_ml_pop) == 3)
+check('T-W1A-ML-09: classify_verdict maps all eight terminal states',
+      _ml.classify_verdict('III.2 Mistake') == _ml.CONFIRMED_MISTAKE and _ml.classify_verdict('III.1 Punt') == _ml.PUNT
+      and _ml.classify_verdict('III.5 Justified') == _ml.JUSTIFIED
+      and _ml.classify_verdict('III.4 Read-dependent') == _ml.READ_DEPENDENT
+      and _ml.classify_verdict('I.7 Cooler') == _ml.COOLER and _ml.classify_verdict('variance loss') == _ml.VARIANCE
+      and _ml.classify_verdict('insufficient evidence') == _ml.INSUFFICIENT and _ml.classify_verdict('') == _ml.UNGRADED)
+_ml.reenrich_material_loss(_ml_pop, analyst_commentary={'BL1': {'verdict': 'III.2 Mistake'},
+                                                        'PF1': {'verdict': 'I.7 Cooler'},
+                                                        'PF2': {'verdict': 'III.5 Justified'}})
+check('T-W1A-ML-10: reenrich updates classifications from live analyst verdicts (render-time + --quick)',
+      _ml_pop['PF1']['final_classification'] == _ml.COOLER and _ml_pop['PF2']['final_classification'] == _ml.JUSTIFIED
+      and _ml_pop['PF1']['analyst_status'] == 'reviewed')
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

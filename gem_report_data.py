@@ -1112,6 +1112,17 @@ def compute_report_completeness(rd, candidates=None):
     _ac = rd.get('analyst_commentary') or {}
     reviewed_ids = {hid for hid in _ac.keys() if not str(hid).startswith('__')}
 
+    # v8.20 W1A: re-enrich the ONE canonical material-loss population with the LIVE analyst verdicts so
+    # the visible material-loss surface + summary reflect the same owner on full AND --quick renders
+    # (the population id-set is fixed at build time; only its review state/classification changes here).
+    _mpop_rd = rd.get('material_loss_population')
+    if _mpop_rd:
+        import gem_material_loss as _mloss_rc
+        _vo = rd.get('variance_outcomes')
+        _var_ids = set(_vo.keys()) if isinstance(_vo, dict) else set(rd.get('variance_ids') or [])
+        _mloss_rc.reenrich_material_loss(_mpop_rd, analyst_commentary=_ac, variance_ids=_var_ids)
+        rd['material_loss_summary'] = _mloss_rc.material_loss_summary(_mpop_rd)
+
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
         # RC3 P0-1 / P2-1: the completeness owner and the coverage gate share ONE canonical

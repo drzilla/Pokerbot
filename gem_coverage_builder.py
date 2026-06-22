@@ -2185,6 +2185,19 @@ def build_and_write(stats, hands, report_data, pname_file, session_dir,
         'biggest_loss_screen': len(candidates['biggest_loss_screen']),
         'postflop_loss_screen': len(candidates['postflop_loss_screen']),
     }
+    # v8.20 W1A: stamp the ONE canonical material-loss population (records keyed on the screened ids,
+    # enriched with nominating detector families). analyst_status/final_classification start UNGRADED and
+    # are filled by compute_report_completeness when analyst_commentary is live (full + --quick paths),
+    # so every material loss ends in exactly one visible state and none can silently disappear.
+    import gem_material_loss as _mloss
+    _blind_ids = {c.get('id') for c in (candidates.get('blindspot_sample', []) or [])
+                  if isinstance(c, dict) and c.get('id')}
+    _mpop = _mloss.build_material_loss_population(
+        _loss_screens, hands, candidates=candidates,
+        analyst_commentary=report_data.get('analyst_commentary'),
+        blindspot_ids=_blind_ids, stack_trajectories=stats.get('stack_trajectories'))
+    report_data['material_loss_population'] = _mpop
+    report_data['material_loss_summary'] = _mloss.material_loss_summary(_mpop)
 
     with open(cand_path, 'w', encoding='utf-8') as f:
         json.dump(candidates, f, indent=2, default=str, ensure_ascii=False)

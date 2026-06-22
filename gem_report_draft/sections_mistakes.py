@@ -285,7 +285,14 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
     clear_n = sum(1 for m in survivors if (m.get('confidence', '') or '').upper() == 'CLEAR')
     marginal_n = sum(1 for m in survivors if (m.get('confidence', '') or '').upper() == 'MARGINAL')
     _auto_punt_ids = {p.get('id') for p in raw_punts_list}
-    punts = len((_auto_punt_ids - _analyst_override) | _analyst_iii1)
+    # v8.20 W1A.1 BUG-2: the punt count subtracts _PUNT_OVERRIDE_PREFIXES (includes III.2), NOT the
+    # cleared set (_analyst_override) used for the mistake survivors above — an auto-punt the analyst
+    # reclassifies to a confirmed mistake (III.2) is no longer a punt; counting it in both is the
+    # 'X confirmed + 1 punts' double-count. Agrees with the TL;DR + discipline_tier canonical count.
+    _punt_override = {hid for hid, cmt in _analyst_pre.items()
+                      if isinstance(cmt, dict)
+                      and cmt.get('verdict', '').startswith(_PUNT_OVERRIDE_PREFIXES)}
+    punts = len((_auto_punt_ids - _punt_override) | _analyst_iii1)
     # v7.39 (Ron's request 2026-05-09): #/100 alongside absolute counts in the III
     # section header so the rates are visible without flipping to TL;DR or II.3.
     n_h = len(hands) or 1

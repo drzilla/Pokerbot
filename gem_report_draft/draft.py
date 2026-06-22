@@ -1,6 +1,10 @@
 """Top-level orchestration: render_html, render_md, generate_report_draft."""
 
-VERSION = "v8.12.0"
+# v8.20 W1A.1 BUG-1: the report layout/SCHEMA version (the rendered-report format), deliberately
+# pinned + canary-checked and DISTINCT from the runtime/release version (gem_version.RUNTIME_VERSION).
+# This is NOT the runtime version and must never be presented as one ("two surfaces, one fact").
+REPORT_SCHEMA_VERSION = "v8.12.0"
+VERSION = REPORT_SCHEMA_VERSION   # back-compat alias (deprecated; consumers should name the schema)
 
 from gem_report_draft import _state
 from gem_report_draft._helpers import (_wilson_ci, _clr, _clr_min, _clr_naive,

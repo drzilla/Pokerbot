@@ -13755,6 +13755,38 @@ check('T-W1A-ISO-01: production owners do NOT import the benchmark module',
 check('T-W1A-ISO-02: no production rule keyed to a real hand / tournament / player id',
       not __import__('re').search(r'TM6\d{9}|Knockman|2908\d{5}', _ml_src_iso + _sd_src_iso))
 
+# v8.20 W1A.1 BUG-2 (TRUST): an auto-detected punt the analyst reclassifies to a confirmed mistake
+# (III.2) is subtracted from the punt count — no 'X confirmed + 1 punts' double-count. ONE canonical
+# punt count, agreeing with the TL;DR discipline counter. (live regression: As7d auto-punt -> III.2.)
+from gem_report_draft.sections_mistakes import (_PUNT_OVERRIDE_PREFIXES as _PO_b2,
+                                                _MISTAKE_CLEARED_PREFIXES as _MC_b2)
+check('T-W1A1-BUG2-01: punt-override set includes III.2; mistake-cleared set excludes it (root cause)',
+      'III.2' in _PO_b2 and 'III.2' not in _MC_b2)
+from gem_report_data import _refresh_discipline_tier as _rdt_b2
+_b2_stats = {'punts': {'hands': [{'id': 'AS7D'}]}, 'mistakes': []}
+_b2_rd = {'analyst_commentary': {'AS7D': {'verdict': 'III.2 Mistake', 'argument': 'reclassified'}}}
+_rdt_b2(_b2_rd, _b2_stats, [{'id': 'H%d' % i} for i in range(175)] + [{'id': 'AS7D'}])
+_b2_dt = _b2_rd.get('discipline_tier') or {}
+check('T-W1A1-BUG2-02: an auto-punt graded III.2 leaves the canonical punt count at 0 (not double-counted)',
+      _b2_dt.get('canonical_punts_count') == 0)
+_sm_src_b2 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+_grd_src_b2 = open('gem_report_data.py', encoding='utf-8').read()
+check('T-W1A1-BUG2-03: both discipline builders + the renderer subtract the PUNT-override set for punts',
+      'startswith(_PUNT_OVERRIDE_PREFIXES)' in _sm_src_b2
+      and _grd_src_b2.count("not (cmt.get('verdict', '') or '').startswith('III.1')") >= 2)
+
+# v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
+# named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
+from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1
+from gem_version import RUNTIME_VERSION as _rv_b1
+_ivx_src_b1 = open('gem_report_draft/sections_iv_xii.py', encoding='utf-8').read()
+check('T-W1A1-BUG1-01: report-schema version is a named owner, distinct from runtime (two surfaces, one fact)',
+      _rsv_b1 == 'v8.12.0' and _rv_b1 == 'v8.19.0' and _rsv_b1 != _rv_b1)
+check('T-W1A1-BUG1-02: the footer stamps the RUNTIME version, never the renderer/schema sibling',
+      'from gem_version import RUNTIME_VERSION' in _ivx_src_b1
+      and '{RUNTIME_VERSION} · report schema' in _ivx_src_b1
+      and '**Renderer:** {VERSION}' not in _ivx_src_b1)
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

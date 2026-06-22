@@ -1323,12 +1323,19 @@ def _refresh_discipline_tier(rd, stats, hands):
         and hid not in _dt_clear_ids}
     canonical_mistakes_count = clear_surv + len(_dt_analyst_confirmed)
     mist_per_100 = 100.0 * clear_surv / max(n_h, 1)
-    # Punts: same analyst-override logic
+    # Punts: an auto-detected punt the analyst RECLASSIFIES is no longer a punt.
     raw_punts = stats.get('punts', {}).get('hands', [])
     _iii1 = {hid for hid, cmt in _ac.items()
              if isinstance(cmt, dict) and cmt.get('verdict','').startswith('III.1')}
     _auto_punt_ids = {p.get('id') for p in raw_punts}
-    punts_count = len((_auto_punt_ids - _override) | _iii1)
+    # v8.20 W1A.1 BUG-2: the punt count must subtract EVERY auto-punt the analyst overrode to a non-punt
+    # verdict — including III.2 (confirmed mistake), which the mistake-CLEARED set (_override) omits.
+    # Using _override here left an auto-punt graded III.2 counted in BOTH the mistake and punt headers
+    # (the 'X confirmed + 1 punts' double-count). One canonical punt count, agreeing with the TL;DR.
+    _punt_override = {hid for hid, cmt in _ac.items()
+                      if isinstance(cmt, dict) and (cmt.get('verdict', '') or '')
+                      and not (cmt.get('verdict', '') or '').startswith('III.1')}
+    punts_count = len((_auto_punt_ids - _punt_override) | _iii1)
     punts_per_100 = float(punts_count) * 100.0 / max(n_h, 1)
     # Re-classify discipline tier
     if mist_per_100 < 0.5 and punts_per_100 < 0.1:
@@ -2715,7 +2722,12 @@ def generate_report_data(stats, hands, hh_dir, session_history_path=None,
                      if (m.get('confidence', '') or '').upper() == 'CLEAR')
     mist_per_100 = 100.0 * clear_surv / max(n_h, 1)
     _auto_punt_ids_dt = {p.get('id') for p in raw_punts_list_dt}
-    punts_count_after_override = len((_auto_punt_ids_dt - _analyst_override_dt) | _analyst_iii1_dt)
+    # v8.20 W1A.1 BUG-2: subtract EVERY non-III.1 override (incl. III.2 confirmed mistake) from the punt
+    # count, not just the cleared set (_analyst_override_dt omits III.2) — the canonical punt count.
+    _punt_override_dt = {hid for hid, cmt in _analyst_pre_dt.items()
+                         if isinstance(cmt, dict) and (cmt.get('verdict', '') or '')
+                         and not (cmt.get('verdict', '') or '').startswith('III.1')}
+    punts_count_after_override = len((_auto_punt_ids_dt - _punt_override_dt) | _analyst_iii1_dt)
     punts_per_100 = float(punts_count_after_override) * 100.0 / max(n_h, 1)
     # B222 (Ron review 2026-05-25): the CANONICAL confirmed-mistake count must
     # match III.2 Confirmed Mistakes (and XIII.4). clear_surv above is the

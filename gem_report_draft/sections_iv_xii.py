@@ -2762,9 +2762,11 @@ def _emit_section_ix(doc, s, rd, hands):
 def _emit_section_x(doc, s, rd, hands):
     doc.section("sec-14", "S14. Pipeline QA",
                 "technical metadata, bug tracker, analysis coverage")
-    # v8.3.0: Renderer version in QA metadata
-    from gem_report_draft.draft import VERSION
-    doc.w(f"**Renderer:** {VERSION}")
+    # v8.20 W1A.1 BUG-1: stamp the RUNTIME version (the single fact about what code ran) — not the
+    # report-schema sibling, which is shown separately and clearly labelled (never as the runtime).
+    from gem_report_draft.draft import REPORT_SCHEMA_VERSION
+    from gem_version import RUNTIME_VERSION
+    doc.w(f"**Runtime:** {RUNTIME_VERSION} · report schema {REPORT_SCHEMA_VERSION}")
     doc.w("")
     # P3 #17: Self-reporting QA block
     _ie_issues = rd.get('issue_explorer_issues', [])

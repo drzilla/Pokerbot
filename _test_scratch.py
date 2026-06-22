@@ -13540,6 +13540,24 @@ check('T-RC3-P01b: a non-NLH hand is excluded by the per-candidate fallback (4-c
       'TMPLO' not in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or [])
       and 'TMNLH' in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or []))
 
+# RC3 P0-5: the analyst worklist retains reviewed-decision provenance (authoritative kind survives
+# review-exclusion) and Gate G consumes it + scopes price/range checks to authoritative containers.
+_awl_src = open('gem_analyst_worklist.py', encoding='utf-8').read()
+check("T-RC3-P05a: worklist emits 'reviewed_decisions' (authoritative kind survives exclusion)",
+      "'reviewed_decisions': reviewed_decisions" in _awl_src
+      and "reviewed_decisions[hid]" in _awl_src)
+_qap_src = open('_qa_parity.py', encoding='utf-8').read()
+check("T-RC3-P05b: Gate G consumes reviewed_decisions + scopes checks 1-3 past inferred containers",
+      "worklist.get('reviewed_decisions')" in _qap_src
+      and "body_auth" in _qap_src
+      and "'Inferred decision context' not in seg" in _qap_src)
+_demo_body = ("data-decision-action-index='11'> open to 2.2BB, AQo "
+              "data-decision-action-index='21'> Pot-Odds: Inferred decision context: flop, call. Pot odds: 1.9:1")
+_segs_p05 = __import__('re').split(r"(?=data-decision-action-index=)", _demo_body)
+_body_auth_p05 = ''.join(s for s in _segs_p05 if 'Inferred decision context' not in s)
+check('T-RC3-P05c: scoping strips the inferred container, keeps the authoritative one',
+      'Pot odds:' not in _body_auth_p05 and 'open to 2.2BB' in _body_auth_p05)
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

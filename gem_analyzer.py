@@ -10684,6 +10684,43 @@ if __name__ == '__main__':
     print(f"\nReport (HTML, primary): {html_path} ({_html_kb}KB)")
     print(f"Report (MD,  secondary): {md_path}  ({os.path.getsize(md_path)//1024}KB)")
 
+    # v8.19.0 Chapter I: explicit input manifest + reproducibility (additive; a failure here
+    # never blocks the report). Deterministic given the inputs/config; `generated_at` carries the
+    # session fingerprint (not a wall-clock) so the manifest reproduces byte-for-byte.
+    try:
+        from gem_input_manifest import build_input_manifest as _bim
+        # Use the CANONICAL tournament model events (performance.hands / finish / net) so the
+        # manifest coverage agrees with the Results section — not the raw per_tournament dicts.
+        try:
+            import gem_tournament_model as _TMmf
+            _im_tours = _TMmf.build_tournament_model(report_data).get('events', []) or []
+        except Exception:
+            _im_tours = ((report_data.get('usd_overlay', {}) or {}).get('per_tournament', [])
+                         or report_data.get('tournaments') or [])
+        _rc_state = ((report_data.get('report_completeness') or {}).get('state') or 'AUTO_ONLY')
+        try:
+            from gem_parser import PARSER_SCHEMA_VERSION as _psv
+        except Exception:
+            _psv = None
+        _im = _bim(SESSION_DIR, hands, _im_tours, stats,
+                   analysis_mode=_rc_state,
+                   config={'parser_schema_version': _psv,
+                           'runtime_version': __import__('gem_version',
+                                                         fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION},
+                   cache_state=('cached' if globals().get('_USED_CACHE') else 'fresh'),
+                   generated_at=(stats.get('_session_fingerprint', {}) or {}).get('hh_hash'))
+        _im_path = html_path.replace('.html', '_input_manifest.json')
+        with open(_im_path, 'w', encoding='utf-8') as _imf:
+            json.dump(_im, _imf, indent=2, default=str, ensure_ascii=False)
+        report_data['input_manifest'] = _im
+        _cov = _im['coverage']
+        print(f"Input manifest: {_im_path}  ({_im['files_discovered']} files, "
+              f"{_im['parsed_hands']['count']} hands, {_cov['events_discovered']} events: "
+              f"{_cov['hh_backed_events']} HH-backed / {_cov['summary_only_events']} summary-only / "
+              f"{_cov['financially_resolved_events']} resolved)")
+    except Exception as _ime:
+        print(f"  (input manifest skipped: {_ime})")
+
     # Auto-zip large HTML files (Ron 2026-05-30): browser preview can fail
     # on files >1MB. Wrap both HTML + MD in a zip so the preview doesn't
     # attempt to load the raw file.

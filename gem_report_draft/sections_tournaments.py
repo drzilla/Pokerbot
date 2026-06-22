@@ -200,9 +200,29 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
                   ag['results_covered'], ag['events'],
                   _fmt_usd(ag['committed_cost']), approx, _fmt_usd(ag['covered_return']),
                   _net, _roi, _itm, _t5, _t1, _bb, _cev))
-    doc.w("</tbody></table></div></div>")
+    # RES-005 (v8.19.0): a totals row on EVERY grouping tab (grouping is disjoint, so the
+    # union of the groups' events is all events in this tab) + average Top%.
+    _all_ev = [e for cat in ordered for e in groups[cat]]
+    _tot = _TM.aggregate_group(_all_ev)
+    _tops = [t for t in ((e.get('finish') or {}).get('top_percent') for e in _all_ev) if t is not None]
+    _avg_top = (sum(_tops) / len(_tops)) if _tops else None
+    _tnet = _fmt_usd(_tot['net'], plus=True) if _tot['net'] is not None else EMDASH
+    _troi = _pct_or_dash(_tot['roi_pct']) if _tot['roi_pct'] is not None else EMDASH
+    _tbb = ('%+.1f' % _tot['bb100']) if _tot['bb100'] is not None else EMDASH
+    _tcev = ('%+.1f' % _tot['cev100']) if _tot['cev100'] is not None else EMDASH
+    _tavg = ('%.1f%%' % _avg_top) if _avg_top is not None else EMDASH
+    doc.w("</tbody>")
+    doc.w("<tfoot><tr class='tt-totals'><td><b>Total</b></td><td>%d</td><td>%d</td>"
+          "<td>%d/%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+          "<td title='Average Top%% across settled finishes'>%s</td><td></td><td></td>"
+          "<td>%s</td><td>%s</td></tr></tfoot>" % (
+              _tot['events'], _tot['bullets'], _settled_total, n_events,
+              _fmt_usd(_tot['committed_cost']), _fmt_usd(_tot['covered_return']),
+              _tnet, _troi, _tavg, _tbb, _tcev))
+    doc.w("</table></div></div>")
     doc.w("<p class='tt-coverage-note'>Results available for %d of %d events; the "
-          "rest are estimated or still running.</p>" % (_settled_total, n_events))
+          "rest are estimated or still running. Average Top%%: %s.</p>" % (
+              _settled_total, n_events, _tavg))
 
 
 def _emit_grouped_aggregate(doc, events):
@@ -227,6 +247,16 @@ def _emit_grouped_aggregate(doc, events):
         visible.append((key, label, groups, ordered))
     if not visible:
         return
+    # RES-009 (v8.19.0): explicit coverage inventory — make the events vs HH-backed vs
+    # summary-only vs unresolved vs financially-resolved split visible (the "15 tournaments
+    # vs 26 events" gap was previously unexplained).
+    _ne = len(events)
+    _hh = sum(1 for e in events if ((e.get('performance') or {}).get('hands') or 0) > 0)
+    _inplay = sum(1 for e in events if ((e.get('finish') or {}).get('is_in_play')))
+    _resolved = sum(1 for e in events if e.get('net') is not None)
+    doc.w("<p class='tt-coverage-inventory'><strong>Coverage:</strong> %d event(s) — "
+          "%d HH-backed · %d summary-only · %d financially resolved · %d unresolved/in-play."
+          "</p>" % (_ne, _hh, _ne - _hh, _resolved, _inplay))
     default_key = visible[0][0]              # Buy-in by default (first visible)
     doc.w("<div class='tt-grouped' data-tab='%s'>" % default_key)
     _btns = ''.join(
@@ -419,9 +449,11 @@ def _emit_drivers_rollup(doc, events):
     doc.w("")
 
 
+# RES-007 (v8.19.0): "Entries" (Single / Multi-bullet — the entry COUNT) is distinct from
+# "Entry timing" (Early / Mid / Late) so the two are never conflated.
 _TT_FILTER_DIMS = (
-    ('buyin_band', 'Buy-in'), ('prize_type', 'Prize'), ('entry_pattern', 'Entry'),
-    ('speed', 'Speed'), ('entry_timing', 'Timing'),
+    ('buyin_band', 'Buy-in'), ('prize_type', 'Prize'), ('entry_pattern', 'Entries'),
+    ('speed', 'Speed'), ('entry_timing', 'Entry timing'),
 )
 
 
@@ -691,7 +723,14 @@ def _emit_tournament_tables(doc, s, rd, hands):
             _fin_disp = _esc_tt(_fin_lbl)
         _dt_rows.append({
             'date': _dtcell(_RES_COLS[0], e.get('event_day') or None, display=_esc_tt(e.get('event_day') or EMDASH)),
-            'tournament': _dtcell(_RES_COLS[1], name, display=_esc_tt(name)),
+            # RES-001 (v8.19.0): normalized BOLD tournament name + MUTED detail (the buy-in,
+            # which is not otherwise columned). Sort key stays the plain name.
+            'tournament': _dtcell(
+                _RES_COLS[1], name,
+                display=("<strong class='tt-tname'>%s</strong>%s" % (
+                    _esc_tt(name),
+                    ("<span class='tt-tdetail'> · %s</span>" % _esc_tt(_buy))
+                    if (_buy and _buy != EMDASH) else ''))),
             'type': _dtcell(_RES_COLS[2], pt, display=_esc_tt(pt)),
             'bullets': _dtcell(_RES_COLS[3], e.get('bullets', 1)),
             'finish': _dtcell(_RES_COLS[4], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),

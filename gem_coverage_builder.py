@@ -73,7 +73,8 @@ def _reached_flop_h(h):
     return n >= 3 or bool(h.get('went_to_sd'))
 
 
-def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_BB):
+def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_BB,
+                       strict=True):
     """v8.13.1 P1 (analyst-coverage trust): force critical-loss hands into the
     review set. Pure + testable — returns id lists, no rendering / no candidate
     context. Two coverage screens (NOT mistake detectors):
@@ -92,13 +93,29 @@ def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_
     """
     hands_by_id = {h.get('id'): h for h in (hands or [])}
     seen, biggest, postflop = set(), [], []
+    # v8.19.0 Chapter G (ANA-001): fail loud, do not silent-skip. A tournament with NO
+    # biggest_loss_id is legitimately absent; but a NAMED biggest_loss_id that is missing
+    # from hands or is not a net loss is a payload/schema mismatch — collect and (strict)
+    # raise with the named id + reason so count == payload == rendered can never silently drift.
+    _violations = []
     for _tid, _traj in (stats.get('stack_trajectories', {}) or {}).items():
         blid = (_traj or {}).get('biggest_loss_id')
+        if not blid or blid in seen:
+            continue                              # absent / already screened -> fine
         h = hands_by_id.get(blid)
-        if not blid or blid in seen or not h or (h.get('net_bb') or 0) >= 0:
+        if h is None:
+            _violations.append("%s (tournament %s): named biggest_loss_id missing from hands"
+                               % (blid, _tid))
+            continue
+        if (h.get('net_bb') or 0) >= 0:
+            _violations.append("%s (tournament %s): named biggest_loss_id is not a net loss "
+                               "(net_bb=%s)" % (blid, _tid, h.get('net_bb')))
             continue
         seen.add(blid)
         biggest.append(blid)
+    if _violations and strict:
+        raise ValueError("ANA-001 SCHEMA: biggest_loss_screen payload mismatch — "
+                         + "; ".join(_violations))
     for h in (hands or []):
         hid = h.get('id')
         if not hid or hid in seen or h.get('pf_allin'):
@@ -109,7 +126,8 @@ def build_loss_screens(stats, hands, postflop_threshold_bb=POSTFLOP_LOSS_SCREEN_
             continue
         seen.add(hid)
         postflop.append(hid)
-    return {'biggest_loss_screen': biggest, 'postflop_loss_screen': postflop}
+    return {'biggest_loss_screen': biggest, 'postflop_loss_screen': postflop,
+            'biggest_loss_violations': _violations}
 
 
 def build_and_write(stats, hands, report_data, pname_file, session_dir,

@@ -8898,8 +8898,8 @@ _rep_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False},
     {'tid': 'R2', 'name': 'GGMasters Bounty', 'start_date': '2026-06-14', 'buyin': 22, 'bullets': 1,
      'cost': 22, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -22, 'is_sat': False}]}}
-check('T-TT-R-03: repeated tournament names render as separate event rows',
-      _render_tt(_rep_rd).count(">GGMasters Bounty</td>") == 2, '')
+check('T-TT-R-03: repeated tournament names render as separate event rows (RES-001 bold name)',
+      _render_tt(_rep_rd).count(">GGMasters Bounty</strong>") == 2, '')
 # multi-bullet => one row with bullet count
 _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
   'per_tournament': [
@@ -8907,9 +8907,19 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
      'cost': 150, 'cash_received': 0, 'ticket_value': 0, 'cash_total': 0, 'net': -150, 'is_sat': False}]}}
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
-      _mb_md.count(">Big Re-entry</td>") == 1
+      _mb_md.count(">Big Re-entry</strong>") == 1
       and ">Standard*</td>" in _mb_md
       and "data-label='Bullets' data-sort-value='3'" in _mb_md and ">3</td>" in _mb_md, '')
+# v8.19.0 Chapter A: RES-001 bold name + RES-005 grouped totals + RES-009 coverage inventory
+_a_md = _render_tt(_rep_rd)
+check('T-A-001 (RES-001): tournament name renders bold (tt-tname)', "tt-tname'>" in _a_md)
+check('T-A-005 (RES-005): grouped table carries a totals tfoot row (tt-totals)',
+      'tt-totals' in _a_md and '<tfoot>' in _a_md)
+check('T-A-009 (RES-009): explicit coverage inventory (HH-backed / summary-only / resolved)',
+      'tt-coverage-inventory' in _a_md and 'HH-backed' in _a_md)
+_tt_src_a = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-A-007 (RES-007): Entries (count) is distinct from Entry timing in the filter dims',
+      "('entry_pattern', 'Entries')" in _tt_src_a and "('entry_timing', 'Entry timing')" in _tt_src_a)
 # summary totals match canonical usd_overlay.totals
 check('T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)',
       # Invested $3946.97 | Cash $900.43 (=$1370.43 total − $470 ticket) | Ticket $470
@@ -13416,6 +13426,72 @@ check('T-E-001: PKO BB Defense uses unambiguous v8.19.0 headers (no bare Actual/
 check('T-E-002: aggregate is not a combo verdict — 32o-class guard copy present',
       'PKO combo review' in _sm_e19 and 'ungraded' in _sm_e19
       and 'does **not** prove' in _sm_e19 and '32o' in _sm_e19)
+
+# ── v8.19.0 Chapter I: input manifest + reproducibility ──
+from gem_input_manifest import build_input_manifest as _bim
+_im_hands = [{'id': 'TM1', 'tournament_id': 'T1', 'hand_ts_date': '2026-06-18', 'game_type': 'NLH', 'format': 'BOUNTY'},
+             {'id': 'TM2', 'tournament_id': 'T1', 'hand_ts_date': '2026-06-19', 'game_type': 'NLH', 'format': 'BOUNTY'}]
+_im_tours = [{'tournament_id': 'T1', 'name': 'A', 'return': 10.0},
+             {'tournament_id': 'T2', 'name': 'B', 'return': None}]
+_im_stats = {'volume': {'hands': 2}, 'session_coverage': {'dates': ['2026-06-18', '2026-06-19']}}
+_im = _bim(None, _im_hands, _im_tours, _im_stats, generated_at='fp123')
+check('T-I-001: coverage classifies HH-backed vs summary-only vs financially-resolved events',
+      _im['coverage']['events_discovered'] == 2 and _im['coverage']['hh_backed_events'] == 1
+      and _im['coverage']['summary_only_events'] == 1
+      and _im['coverage']['financially_resolved_events'] == 1
+      and _im['coverage']['unresolved_events'] == 1)
+check('T-I-002: reproducibility invariants hold (hand_count==volume, date_range==coverage)',
+      _im['reproducibility']['hand_count_matches_volume'] is True
+      and _im['reproducibility']['date_range_matches_coverage'] is True
+      and _im['parsed_hands']['count'] == 2 and _im['parsed_hands']['date_range'] == ['2026-06-18', '2026-06-19'])
+_im2 = _bim(None, _im_hands, _im_tours, _im_stats, generated_at='fp123')
+check('T-I-003: same inputs + config reproduce the same manifest (deterministic)', _im == _im2)
+
+# ── v8.19.0 Chapter F: typed insufficient-evidence reasons (COM-002) ──
+from gem_commentary_capsule import decision_capsule_from_signals as _dcs, INSUFFICIENT_REASONS as _IR
+_f_ro = _dcs('flop', decision_label='Call', result_only=True)
+_f_ng = _dcs('flop', decision_label='Call', gradeable=False)
+_f_th = _dcs('flop', decision_label='Call')  # no verdict, no anchor, gradeable
+check('T-F-001 (COM-002): a result-only insufficient capsule carries reason="result_only"',
+      _f_ro and _f_ro.get('insufficient_reason') == 'result_only'
+      and 'result-derived only' in _f_ro['md'])
+check('T-F-002 (COM-002): a non-gradeable spot carries reason="non_gradeable_spot"',
+      _f_ng and _f_ng.get('insufficient_reason') == 'non_gradeable_spot')
+check('T-F-003 (COM-002): an un-anchored gradeable spot carries reason="evidence_threshold_not_met"',
+      _f_th and _f_th.get('insufficient_reason') == 'evidence_threshold_not_met')
+check('T-F-004 (COM-002): every insufficient reason is a typed member of INSUFFICIENT_REASONS',
+      all(c.get('insufficient_reason') in _IR for c in (_f_ro, _f_ng, _f_th) if c
+          and c.get('register') == 'no_clear_lesson'))
+
+# ── v8.19.0 Chapter G: biggest-loss reconciliation (ANA-001/002) ──
+from gem_coverage_builder import build_loss_screens as _bls
+# ANA-002 structural fixture: TM6089787923 is a tournament's named biggest loss (-25BB) AND
+# there is a deeper postflop loss (-40BB). The known regression hand must be SELECTED through
+# the structural screen — not only via analyst-file injection.
+_g_hands = [{'id': 'TM6089787923', 'net_bb': -25.0, 'pf_allin': False, 'board': ['Ah', 'Td', '6c'],
+             'street_reached': 'river'},
+            {'id': 'TM_DEEP40', 'net_bb': -40.0, 'pf_allin': False, 'board': ['Ah', 'Td', '6c', '2s'],
+             'street_reached': 'turn'}]
+_g_stats = {'stack_trajectories': {'T_BL': {'biggest_loss_id': 'TM6089787923'}}}
+_g_screens = _bls(_g_stats, _g_hands)
+check('T-G-001 (ANA-002): the known regression hand TM6089787923 is selected via the structural biggest-loss screen',
+      'TM6089787923' in _g_screens['biggest_loss_screen']
+      and _g_screens['biggest_loss_violations'] == [])
+try:
+    _bls({'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_WIN'}}},
+         [{'id': 'TM_WIN', 'net_bb': 5.0}])
+    _g002 = False
+except ValueError as _e:
+    _g002 = 'ANA-001 SCHEMA' in str(_e) and 'TM_WIN' in str(_e)
+check('T-G-002 (ANA-001): a named biggest_loss_id with net>=0 FAILS LOUD (not silent-skip)', _g002)
+try:
+    _bls({'stack_trajectories': {'T1': {'biggest_loss_id': 'TM_GHOST'}}}, [])
+    _g003 = False
+except ValueError as _e:
+    _g003 = 'missing from hands' in str(_e) and 'TM_GHOST' in str(_e)
+check('T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD', _g003)
+check('T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)',
+      _bls({'stack_trajectories': {'T1': {'biggest_loss_id': None}}}, [])['biggest_loss_violations'] == [])
 
 # ── v8.19.0 Chapter B: review coverage + priority queue (PHF-001) ──
 from gem_report_data import compute_report_completeness as _crc

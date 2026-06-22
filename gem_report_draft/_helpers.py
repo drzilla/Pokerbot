@@ -1338,7 +1338,8 @@ def _register_hids_for_appendix(hids, cap=50, priority=2):
     priority: 0=P0 must, 1=P1 should, 2=P2 optional, 3=P3 id-only.
     Returns the capped list of IDs (for use in data-hids CSV).
     """
-    selected = list(hids)[:cap]
+    # R-G (v8.19.0): dedupe (order-preserving) so no data-hids emission repeats a hand id.
+    selected = list(dict.fromkeys(hids))[:cap]
     for hid in selected:
         if isinstance(hid, str) and (hid.startswith('TM') or hid.replace('-','').isdigit()):
             _state._APPENDIX_HAND_IDS.add(hid)

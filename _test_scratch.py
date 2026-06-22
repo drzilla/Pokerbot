@@ -13524,6 +13524,10 @@ except ValueError as _e:
 check('T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD', _g003)
 check('T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)',
       _bls({'stack_trajectories': {'T1': {'biggest_loss_id': None}}}, [])['biggest_loss_violations'] == [])
+# R-G: popup id payloads must be deduped (count == unique payload == rendered list)
+from gem_report_draft._helpers import _register_hids_for_appendix as _rhfa
+check('T-G-005 (R-G): hand-list popup ids are deduped order-preserving (no duplicate ID)',
+      _rhfa(['TM1', 'TM2', 'TM1', 'TM3', 'TM2']) == ['TM1', 'TM2', 'TM3'])
 
 # ── v8.19.0 Chapter B: review coverage + priority queue (PHF-001) ──
 from gem_report_data import compute_report_completeness as _crc

@@ -197,7 +197,22 @@ class Doc:
         # pending anchor to the next <<H...>> token so the id sits on the
         # heading itself.
         pending_anchor = None
+        # R-G (v8.19.0): ONE universal dedupe of every data-hids attribute at final assembly, so no
+        # popup payload repeats a hand id whichever emitter built it (count == unique payload).
+        import re as _re_dh
+        _DH_PAT = _re_dh.compile(r'data-hids="([^"]*)"')
+
+        def _dh_dedupe(_m):
+            _out = []
+            for _x in _m.group(1).split(','):
+                _x = _x.strip()
+                if _x and _x not in _out:
+                    _out.append(_x)
+            return 'data-hids="' + ','.join(_out) + '"'
+
         for line in self.lines:
+            if 'data-hids="' in line:
+                line = _DH_PAT.sub(_dh_dedupe, line)
             if line.startswith("<<TOC>>"):
                 body_lines.append('<nav class="toc" id="sec-toc"><h2>📑 Table of Contents</h2><ul>')
                 for anchor, header, summary, level in self.toc:
@@ -2900,6 +2915,9 @@ _MODAL_HTML = r"""
   function openHandListPopup(title,hids){
     if(!hids||!hids.length)return false;
     hids=hids.map(normalizeHandId);
+    /* R-G (v8.19.0): universal dedupe (order-preserving) so NO popup ever lists a hand twice,
+       whichever emitter built data-hids — the rendered list count == unique payload. */
+    hids=hids.filter(function(h,i){return hids.indexOf(h)===i;});
     /* v8.17 B8: a count of exactly ONE opens the hand directly (one click),
        not a one-row popup. Falls through to the list popup when the single
        hand is not openable, so the availability reason still shows. */

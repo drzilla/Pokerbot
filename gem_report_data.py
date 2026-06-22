@@ -1074,13 +1074,33 @@ def compute_report_completeness(rd, candidates=None):
 
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
+        # RC3 P0-1 / P2-1: the completeness owner MUST exclude unsupported non-NLH (PLO/Omaha) hands —
+        # consistently with the coverage gate, which already subtracts them. A non-NLH hand can never be
+        # strategically graded, so it must not pin the report at PARTIAL. Source the set from
+        # rd['_non_nlh_ids'] (computed in analyze_session) PLUS a per-candidate fallback (non-NLH
+        # game_type, or a 4+-card hand) so a leak into any bucket is caught defensively.
+        _non_nlh = set(rd.get('_non_nlh_ids') or [])
+
+        def _is_non_nlh(_c):
+            if not isinstance(_c, dict):
+                return False
+            if (_c.get('game_type') or 'NLH') != 'NLH':
+                return True
+            _cards = _c.get('cards') or []
+            return isinstance(_cards, (list, tuple)) and len(_cards) >= 4
+
+        for _bk in set(_COMPLETENESS_NEED_BUCKETS) | set(_CRITICAL_NEED_BUCKETS) | set(_SIGNIFICANT_LOSS_BUCKETS):
+            for _c in candidates.get(_bk, []) or []:
+                if _is_non_nlh(_c) and (_c.get('id') if isinstance(_c, dict) else None):
+                    _non_nlh.add(_c.get('id'))
+        rd['_non_nlh_ids'] = sorted(_non_nlh)   # persist the resolved set for --quick
 
         def _ids_for(_buckets):
             _s = set()
             for _bk in _buckets:
                 for _c in candidates.get(_bk, []) or []:
                     _cid = _c.get('id') if isinstance(_c, dict) else None
-                    if _cid and _cid not in _auto:
+                    if _cid and _cid not in _auto and _cid not in _non_nlh:
                         _s.add(_cid)
             return _s
 
@@ -1089,7 +1109,7 @@ def compute_report_completeness(rd, candidates=None):
         for _bk in _COMPLETENESS_NEED_BUCKETS:
             for _c in candidates.get(_bk, []) or []:
                 _cid = _c.get('id') if isinstance(_c, dict) else None
-                if _cid and _cid not in _auto:
+                if _cid and _cid not in _auto and _cid not in _non_nlh:
                     need.add(_cid)
                     need_bucket.setdefault(_cid, _bk)
         rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
@@ -1100,10 +1120,13 @@ def compute_report_completeness(rd, candidates=None):
         rd['_critical_need_ids'] = sorted(critical_need)
         rd['_significant_loss_ids'] = sorted(significant_loss)
     else:
-        need = set(rd.get('_candidate_need_ids', []) or [])
+        # RC3 P0-1: the --quick path subtracts the persisted non-NLH set too (idempotent if the
+        # cached sets were already filtered, but guarantees consistency across full/--quick).
+        _non_nlh = set(rd.get('_non_nlh_ids') or [])
+        need = set(rd.get('_candidate_need_ids', []) or []) - _non_nlh
         need_bucket = rd.get('_candidate_need_bucket', {}) or {}
-        critical_need = set(rd.get('_critical_need_ids', []) or [])
-        significant_loss = set(rd.get('_significant_loss_ids', []) or [])
+        critical_need = set(rd.get('_critical_need_ids', []) or []) - _non_nlh
+        significant_loss = set(rd.get('_significant_loss_ids', []) or []) - _non_nlh
 
     awaiting = sorted(need - reviewed_ids)
     # v8.12.12 Obj-D: per-bucket breakdown of what is still awaiting review, so

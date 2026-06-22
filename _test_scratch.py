@@ -6577,10 +6577,13 @@ check('T-1225-LAZY-2: ensureAll yields to the event loop (chunked)',
 
 # --- v8.12.6 pins (Chat session 2026-06-11 findings) ---
 _ga_1226 = open('gem_analyzer.py', encoding='utf-8').read()
-check('T-1226-NAME-1: __main__ PLO-quarantine writes to stats, not s',
+_ans_end_1226 = _ga_1226.index('def sanity_check(')  # analyze_session ends just before this def
+check('T-1226-NAME-1: __main__ PLO-quarantine writes to stats, not s (analyze_session may stamp s[_non_nlh_ids])',
       "stats['_non_nlh_ids'] = _non_nlh_ids_main" in _ga_1226
+      # RC3 P0-1: analyze_session legitimately stamps s['_non_nlh_ids'] (serialized for --quick);
+      # the NameError guard only forbids it AFTER analyze_session (where the var is `stats`, not `s`).
       and not __import__('re').search(
-          r"(?<![A-Za-z_])s\['_non_nlh_ids'\]", _ga_1226),
+          r"(?<![A-Za-z_])s\['_non_nlh_ids'\]", _ga_1226[_ans_end_1226:]),
       'NameError crashed fresh __main__ runs')
 _sx_1226 = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
 check('T-1226-WPOT-1: pot claims accepted against ANY street window',
@@ -13524,6 +13527,19 @@ except ValueError as _e:
 check('T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD', _g003)
 check('T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)',
       _bls({'stack_trajectories': {'T1': {'biggest_loss_id': None}}}, [])['biggest_loss_violations'] == [])
+# RC3 P0-1: the completeness owner excludes unsupported non-NLH (PLO) hands (no PARTIAL pin)
+from gem_report_data import compute_report_completeness as _crc_p01
+_plo_c = {'bust_audit': [{'id': 'TMPLO', 'game_type': 'PLO', 'cards': ['Ah', 'Kh', 'Qd', 'Jc']},
+                         {'id': 'TMNLH', 'game_type': 'NLH', 'cards': ['Ah', 'Kh']}]}
+_rc_plo_a = _crc_p01({'analyst_commentary': {}, 'auto_resolved_ids': [], '_non_nlh_ids': ['TMPLO']}, dict(_plo_c))
+_rc_plo_b = _crc_p01({'analyst_commentary': {}, 'auto_resolved_ids': []}, dict(_plo_c))   # fallback only
+check('T-RC3-P01a: a non-NLH hand (via _non_nlh_ids) is excluded from critical/need (NLH retained)',
+      'TMPLO' not in set((_rc_plo_a.get('review_coverage_vm') or {}).get('critical_ids') or [])
+      and 'TMNLH' in set((_rc_plo_a.get('review_coverage_vm') or {}).get('critical_ids') or []))
+check('T-RC3-P01b: a non-NLH hand is excluded by the per-candidate fallback (4-card / non-NLH game_type)',
+      'TMPLO' not in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or [])
+      and 'TMNLH' in set((_rc_plo_b.get('review_coverage_vm') or {}).get('critical_ids') or []))
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

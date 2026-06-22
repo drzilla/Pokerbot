@@ -8529,7 +8529,11 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     # Remove non-NLH hands from mistake/punt stats so Hold'em detectors
     # don't corrupt non-Hold'em hands. The hands stay in the parsed set
     # (for volume counts) but are excluded from strategic analysis.
-    _non_nlh_ids = {h.get('id') for h in hands if h.get('game_type', 'NLH') != 'NLH'}
+    # RC3 P0-1: compute from ALL hands (not the already-NLH-filtered `hands`, which would be empty) and
+    # stamp on `s` so it is SERIALIZED into gem_stats.json and survives into report_data / --quick.
+    # Every completeness + coverage owner reads this set to exclude unsupported non-NLH hands.
+    _non_nlh_ids = {h.get('id') for h in all_hands if h.get('game_type', 'NLH') != 'NLH'}
+    s['_non_nlh_ids'] = sorted(_non_nlh_ids)
     if _non_nlh_ids:
         _pre_m = len(s.get('mistakes', []))
         _filter_non_nlh_from_candidate_buckets(s, _non_nlh_ids)

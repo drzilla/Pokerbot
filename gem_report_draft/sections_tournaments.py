@@ -865,7 +865,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
         doc._extra_js.append('if(window.initTournamentResultsTable)'
                              'window.initTournamentResultsTable();'
                              'if(window.initTtChart)window.initTtChart();'
-                             'if(window.initTtFilters)window.initTtFilters();')
+                             'if(window.initTtFilters)window.initTtFilters();'
+                             # RES-008: wire the multi-bullet drilldown on the deferred-load path too.
+                             'if(window.wireResultsDrilldown)window.wireResultsDrilldown();')
         # v8.17.1 P4: grouped-aggregate tab switching — show the matching tabpane,
         # mark the active button, and (if wired) re-render the distribution chart.
         doc._extra_js.append(

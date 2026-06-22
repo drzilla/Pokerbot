@@ -5529,7 +5529,7 @@ check('T-H141-27: financial settlement-date label is in the REAL results-attribu
 check('T-H141-28: all-auto-clear queue reframes the urgent "open first" title + count',
       'Auto-cleared sample · optional review' in _tldr141
       and 'data-all-auto-clear' in _tldr141 and '_all_auto' in _tldr141
-      and "auto-cleared · '" in _h141b_html, '')
+      and "(all auto-cleared)" in _h141b_html, '')
 
 # B3: call-jam chart check reconciled like push — pre-review heuristic + depth caveat,
 # never a bare hard "Loose call" that contradicts the concrete pot-odds verdict.
@@ -5803,10 +5803,11 @@ check('T-RE-13: --quick rewrites gem_report_data + persists _gto_written_ids',
       'Report data updated (quick re-render)' in _ana_re
       and "_gto_written_ids" in _grd_re and "_gto_written_ids" in _ana_re, '')
 
-# T-RE-14: P0-7 — review-state collapse CSS override + 'marked by you' copy
-check('T-RE-14: reviewed-list [hidden] !important override + "marked by you" copy',
+# T-RE-14: P0-7 — review-state collapse CSS override + R-B explicit "You reviewed" (system-vs-Ron) copy
+check('T-RE-14: reviewed-list [hidden] !important override + R-B "You reviewed" separation copy',
       '#rq-reviewed[hidden], #rq-reviewed-list[hidden]' in _html_re
-      and 'marked by you' in _html_re and 'marked by you' in _tldr_re, '')
+      and 'You reviewed ' in _html_re and 'You reviewed 0' in _tldr_re
+      and 'System priorities:' in _html_re and 'System priorities:' in _tldr_re, '')
 
 # T-RE-15: coverage tags are always one of exact/proxy/closest/none (no silent 'exact' on alias)
 if _RE_OK:
@@ -13417,6 +13418,30 @@ check('T-D-005: never reached a flop -> NO_FLOP',
       _cbo(_cbet_hand(board=['Ah', 'Td'])) == 'NO_FLOP')
 check('T-D-006: preflop all-in in ledger with no hero postflop action -> excluded',
       not _ilco(_cbet_hand(action_ledger=[{'street': 'preflop', 'allin': True}])))
+# v8.19.0 Chapter D FULL AUDIT: generalized street-aware owner + per-family structural mutations
+from gem_analyzer import (postflop_opportunity_exclusion as _poe, is_legal_postflop_opportunity as _ilpo,
+                          preflop_opportunity_exclusion as _pre)
+def _street_hand(n, **kw):
+    base = {'pfr': True, 'board': [1, 2, 3, 4, 5][:n], 'spr': 3.0, 'pf_allin': False,
+            'flop_allin': False, 'action_ledger': []}
+    base.update(kw); return base
+check('T-D-AUDIT-turn: turn-street gate needs board>=4 (probe / delayed-cbet family mutation)',
+      _poe(_street_hand(3), 'turn') == 'NO_STREET' and _ilpo(_street_hand(4), 'turn'))
+check('T-D-AUDIT-river: river-street gate needs board>=5 (river-value family mutation)',
+      _poe(_street_hand(4), 'river') == 'NO_STREET' and _ilpo(_street_hand(5), 'river'))
+check('T-D-AUDIT-allin: a flop-jammed turn/river spot is BETTING_CLOSED_FLOP across families',
+      _poe(_street_hand(5, flop_allin=True), 'turn') == 'BETTING_CLOSED_FLOP'
+      and _poe(_street_hand(5, flop_allin=True), 'river') == 'BETTING_CLOSED_FLOP')
+check('T-D-AUDIT-spr: SPR<=0 (effective all-in / runout) is NO_ACTIONABLE_CHIPS on every street',
+      _poe(_street_hand(4, spr=0), 'turn') == 'NO_ACTIONABLE_CHIPS'
+      and _poe(_street_hand(5, spr=-1), 'river') == 'NO_ACTIONABLE_CHIPS')
+check('T-D-AUDIT-terminal: Hero terminal preflop all-in excluded from every postflop family',
+      _poe(_street_hand(5, pf_allin=True), 'turn') == 'HERO_ALL_IN_NO_DECISION'
+      and _poe(_street_hand(5, pf_allin=True), 'river') == 'HERO_ALL_IN_NO_DECISION')
+check('T-D-AUDIT-preflop: preflop families gate terminal-allin but NOT a valid jam-3bet (family equiv)',
+      _pre(_street_hand(0, pf_allin=True, action_ledger=[{'street': 'preflop', 'allin': True}]))
+          == 'HERO_ALL_IN_NO_DECISION'
+      and _pre(_street_hand(0)) is None)
 
 # ── v8.19.0 Chapter E: PKO presentation (PHF-005) ──
 _sm_e19 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
@@ -13462,6 +13487,13 @@ check('T-F-003 (COM-002): an un-anchored gradeable spot carries reason="evidence
 check('T-F-004 (COM-002): every insufficient reason is a typed member of INSUFFICIENT_REASONS',
       all(c.get('insufficient_reason') in _IR for c in (_f_ro, _f_ng, _f_th) if c
           and c.get('register') == 'no_clear_lesson'))
+# R-F (Chapter F): raw villain evidence behind a closed-by-default disclosure; teaching leads
+_html_rf = open('gem_report_draft/_html.py', encoding='utf-8').read()
+check('T-F-RF-1: raw villain evidence (q1) is wrapped in a closed <details> disclosure',
+      "<details class=\"v25-teach-evid-disc\"><summary>Raw evidence</summary>" in _html_rf
+      and ".v25-teach-evid-disc" in _html_rf)
+check('T-F-RF-2: teaching clusters lead — the Read head is emitted BEFORE the raw-evidence disclosure',
+      _html_rf.index("v25-teach-head") < _html_rf.index("v25-teach-evid-disc"))
 
 # ── v8.19.0 Chapter G: biggest-loss reconciliation (ANA-001/002) ──
 from gem_coverage_builder import build_loss_screens as _bls
@@ -13521,6 +13553,14 @@ _q_b = _brq({'mistakes': []},
 _qids = {it['id'] for it in _q_b}
 check('T-B-004: every canonical MISTAKE + CONDITIONAL enters the queue; CLEARED does not',
       'TMMIS' in _qids and 'TMCON' in _qids and 'TMCLR' not in _qids)
+# R-B (PHF-001) mutation: changing Ron's review state must NOT mutate the system-priority population.
+_cv_b = {'canonical_verdicts': {'TMM': {'verdict': 'III.2 Mistake'}, 'TMC': {'verdict': 'III.4 Read-dependent'}}}
+_q_base = _brq({'mistakes': []}, dict(_cv_b), {}, {})
+_cv_b2 = dict(_cv_b); _cv_b2['user_review_store'] = {'TMM': 'agree', 'TMC': 'debate'}; _cv_b2['reviewed_by_user'] = ['TMM']
+_q_mut = _brq({'mistakes': []}, _cv_b2, {}, {})
+check('T-B-005 (R-B): the system-priority queue is INVARIANT to Ron review state (mutation)',
+      {it['id'] for it in _q_base} == {it['id'] for it in _q_mut} and len(_q_base) >= 2
+      and 'TMM' in {it['id'] for it in _q_mut})
 
 # ── v8.19.0 Chapter C: Range Lens VM + provenance (PHF-002/003) ──
 import gem_ranges as _GR

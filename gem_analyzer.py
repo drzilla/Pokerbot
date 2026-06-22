@@ -2026,6 +2026,53 @@ def is_legal_cbet_opportunity(h):
     return cbet_opportunity_exclusion(h) is None
 
 
+_STREET_MIN_BOARD = {'preflop': 0, 'flop': 3, 'turn': 4, 'river': 5}
+
+
+def postflop_opportunity_exclusion(h, street='flop'):
+    """v8.19.0 Chapter D (PHF-004) — the GENERALIZED legal-opportunity owner for EVERY postflop
+    opportunity family (flop/turn/river c-bets incl. 3BP/4BP/multiway counters, probes, delayed
+    c-bets, check-raises, river value, exploit). Returns the typed structural-invalidity reason or
+    None. Same exclusion class as cbet_opportunity_exclusion so every family's denominator, miss
+    list, popup, leak verdict, queue candidate and Commentary count only LEGAL opportunities.
+
+      NO_STREET                -> the relevant street was never reached
+      HERO_ALL_IN_NO_DECISION  -> Hero all-in before any postflop action (TM6090177176 class)
+      BETTING_CLOSED_FLOP      -> a flop jam committed the pot before this decision
+      NO_ACTIONABLE_CHIPS      -> SPR<=0, effective all-in / automatic runout (no chips behind)
+    Initiative / aggressor / texture validity stay with the caller — we never expand detector logic.
+    """
+    if len(h.get('board') or []) < _STREET_MIN_BOARD.get(street, 3):
+        return 'NO_STREET'
+    if _is_preflop_terminal_allin(h):
+        return 'HERO_ALL_IN_NO_DECISION'
+    if street in ('flop', 'turn', 'river') and h.get('flop_allin'):
+        return 'BETTING_CLOSED_FLOP'
+    _spr = h.get('spr')
+    if _spr is not None and _spr <= 0:
+        return 'NO_ACTIONABLE_CHIPS'
+    return None
+
+
+def is_legal_postflop_opportunity(h, street='flop'):
+    """True iff Hero had a legal postflop decision on `street` (see postflop_opportunity_exclusion)."""
+    return postflop_opportunity_exclusion(h, street) is None
+
+
+def preflop_opportunity_exclusion(h):
+    """Structural invalidity for a PREFLOP raise opportunity (3-bet / 4-bet / squeeze / steal-as-
+    aggressor): Hero already committed all-in before the decision means there is no raise decision.
+    The family-specific raise/stack-structure gates remain the strategic owner; this only strips the
+    impossible-opportunity class so preflop families share the same structural contract."""
+    if _is_preflop_terminal_allin(h):
+        return 'HERO_ALL_IN_NO_DECISION'
+    return None
+
+
+def is_legal_preflop_opportunity(h):
+    return preflop_opportunity_exclusion(h) is None
+
+
 def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targets=None):
     N = len(hands)
     s = {}  # stats dict — everything the report needs
@@ -2563,8 +2610,9 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         # with a flop opportunity and not preflop all-in for the c-bet
         # decision to be meaningful.
         def _gto_eligible(h):
-            return (h.get('pfr') and len(h.get('board', [])) >= 3
-                    and not h.get('pf_allin'))
+            # v8.19.0 Chapter D: same legal flop c-bet gate (board + terminal/flop all-in + chips)
+            # so GTO-texture compliance shares the texture counters' denominator (no drift).
+            return bool(h.get('pfr')) and is_legal_cbet_opportunity(h)
 
         def _gto_did_cbet(h):
             return any(b[0] == 'flop' and b[2] == 'cbet'
@@ -4502,14 +4550,16 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             'streets_bet': sum(1 for b in h.get('hero_bets',[]) if b[0] in ('flop','turn')),
             'tournament': h.get('tournament','')[:40],
             'action_summary': h.get('action_summary', '')}
-           for h in hands if h.get('missed_river_value')]
+           for h in hands if h.get('missed_river_value')
+           and is_legal_postflop_opportunity(h, 'river')]   # v8.19.0 Chapter D river gate
     s['missed_river_value'] = {'count': len(mrv), 'hands': mrv}
 
     # --- MISSED PROBE OPPORTUNITIES ---
     mp = [{'id': h['id'], 'cards': normalize_hand(h.get('cards',[])), 'pos': h['position'],
            'board': ' '.join(h.get('board',[])), 'hand_strength': h.get('hand_strength',''),
            'draw_type': h.get('draw_type',''), 'tournament': h.get('tournament','')[:40]}
-          for h in hands if h.get('missed_probe')]
+          for h in hands if h.get('missed_probe')
+          and is_legal_postflop_opportunity(h, 'turn')]   # v8.19.0 Chapter D turn gate
     s['missed_probes'] = {'count': len(mp), 'hands': mp}
 
     # --- HAND STRENGTH DISTRIBUTION (at showdown) ---
@@ -5908,8 +5958,11 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                               and not h.get('triple_barreled') and len(h.get('board', [])) >= 5
                               and h.get('id')],
         'probe_turn_ids': [h['id'] for h in hands if h.get('probe_turn') and h.get('id')],
-        'missed_probe_ids': [h['id'] for h in hands if h.get('missed_probe') and h.get('id')],
-        'missed_river_value_ids': [h['id'] for h in hands if h.get('missed_river_value') and h.get('id')],
+        # v8.19.0 Chapter D: popup ID lists share the same street legal-opportunity gate as their counters.
+        'missed_probe_ids': [h['id'] for h in hands if h.get('missed_probe') and h.get('id')
+                             and is_legal_postflop_opportunity(h, 'turn')],
+        'missed_river_value_ids': [h['id'] for h in hands if h.get('missed_river_value') and h.get('id')
+                                   and is_legal_postflop_opportunity(h, 'river')],
         'bet_fold_flop_ids': [h['id'] for h in hands if h.get('folded_to_xr_after_cbet') and h.get('id')],
         'bet_fold_turn_ids': [h['id'] for h in hands if h.get('fold_to_villain_bet_turn')
                               and h.get('hero_street_actions', {}).get('turn') in ('bet', 'cbet', 'barrel')
@@ -6169,7 +6222,7 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         # v8.12.4 (QA item 14): a check-raise / flop jam by the PFR is not a
         # MISSED c-bet either — require a genuinely passive flop action.
         'missed_cbet_3bp_ids': [h['id'] for h in hands if h.get('hero_3bet')
-                                and h.get('pot_type') == '3BP' and len(h.get('board', [])) >= 3
+                                and h.get('pot_type') == '3BP' and is_legal_cbet_opportunity(h)
                                 and not h.get('cbet_flop_3bp') and not h.get('cbet_flop_srp')
                                 and (h.get('hero_street_actions', {}) or {}).get('flop')
                                     not in ('jam', 'xr', 'xr-ai', 'raise', 'bet', 'bet-call',
@@ -6810,9 +6863,11 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     s['core']['fold_to_villain_bet_river_pct'] = f28['vs_villain_bet_by_street']['river']['fold_pct']
 
     # ----- C-Bet by pot type -----
+    # v8.19.0 Chapter D (PHF-004): same legal-opportunity gate as the texture counters so the
+    # 3BP/4BP c-bet denominators never count impossible spots (terminal all-in / flop-jammed / no chips).
     cbet_3bp_opps = sum(1 for h in hands if h.get('pfr')
                         and h.get('pot_type') == '3BP'
-                        and len(h.get('board') or []) >= 3)
+                        and is_legal_cbet_opportunity(h))
     cbet_3bp = sum(1 for h in hands if h.get('cbet_flop_3bp'))
     # B31 fix (v7.46): cbet_4bp_opps requires Hero is the LAST preflop raiser
     # (i.e., Hero 4-bet), not just any PFR in a 4BP. Old denominator counted
@@ -6825,7 +6880,7 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                         and h.get('pf_raise_count', 0) == 4
                         and (h.get('pf_action') == 'raise' or
                              h.get('hero_last_pf_action') == 'raise')
-                        and len(h.get('board') or []) >= 3)
+                        and is_legal_cbet_opportunity(h))
     cbet_4bp = sum(1 for h in hands if h.get('cbet_flop_4bp'))
     f3bp_opps = sum(1 for h in hands if h.get('faced_villain_cbet_flop_3bp'))
     f3bp_fold = sum(1 for h in hands if h.get('fold_to_cbet_flop_3bp'))
@@ -6839,7 +6894,7 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
         cbet_ids, nocbet_ids = [], []
         for h in hands:
             if not (h.get('pfr') and h.get('pot_type') == pot_t
-                    and len(h.get('board') or []) >= 3):
+                    and is_legal_cbet_opportunity(h)):    # v8.19.0 Chapter D gate (popup ids)
                 continue
             if last_raiser_gate and not (
                     h.get('pf_raise_count', 0) == 4
@@ -6874,7 +6929,10 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     s['core']['fold_to_cbet_4bp_opps'] = f4bp_opps
 
     # ----- Multiway c-bet -----
-    mw_cbet_opps = sum(1 for h in hands if h.get('pfr') and h.get('multiway_flop'))
+    # v8.19.0 Chapter D: gate the multiway c-bet denominator too (was pfr+multiway_flop only — no
+    # board / all-in validation, so a flop-jammed or no-chips-behind multiway pot wrongly counted).
+    mw_cbet_opps = sum(1 for h in hands if h.get('pfr') and h.get('multiway_flop')
+                       and is_legal_cbet_opportunity(h))
     mw_cbet = sum(1 for h in hands if h.get('cbet_flop_mw'))
     mw_face_opps = sum(1 for h in hands if h.get('faced_mw_cbet_flop'))
     mw_fold = sum(1 for h in hands if h.get('fold_to_mw_cbet'))
@@ -6887,9 +6945,10 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
     s['core']['fold_to_mw_cbet_pct'] = f28['multiway_cbet']['fold_pct']
 
     # ----- Delayed C-Bet Turn rate -----
+    # v8.19.0 Chapter D: turn-street legal-opportunity gate (board>=4 + no terminal/flop all-in + chips).
     dct_opps = sum(1 for h in hands if h.get('pfr')
                    and (h.get('hero_street_actions') or {}).get('flop') in ('x', 'xc', 'xf')
-                   and len(h.get('board') or []) >= 4)
+                   and is_legal_postflop_opportunity(h, 'turn'))
     dct = sum(1 for h in hands if h.get('delayed_cbet_turn'))
     f28['delayed_cbet_turn'] = {'opps': dct_opps, 'count': dct, 'pct': _r(dct, dct_opps)}
     s['core']['delayed_cbet_turn_pct'] = f28['delayed_cbet_turn']['pct']
@@ -6901,7 +6960,9 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
                           and (h.get('players_at_flop') or 0) == 2
                           and (h.get('hero_street_actions') or {}).get('flop') in ('x', None)
                           and not h.get('villain_bet_flop_first')
-                          and len(h.get('board') or []) >= 4)
+                          # v8.19.0 Chapter D: turn legal-opportunity gate (board>=4 + no terminal/
+                          # flop all-in + chips behind) so the probe denominator excludes runouts.
+                          and is_legal_postflop_opportunity(h, 'turn'))
     probe_turn = sum(1 for h in hands if h.get('probe_turn'))
     f28['probe_turn'] = {'opps': probe_turn_opps, 'count': probe_turn,
                          'pct': _r(probe_turn, probe_turn_opps)}

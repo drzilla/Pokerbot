@@ -1067,7 +1067,8 @@ _MODAL_HTML = r"""
       if(_thin){
         _tp.push('<div class="v25-teach-weak">'+_esc(_L.q1_villain_did||'')+'</div>');
       } else {
-        if(_L.q1_villain_did){_tp.push('<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div>');}
+        /* R-F (Chapter F): TEACHING CLUSTERS lead (Read -> Cue -> Exploit -> guard). The raw villain
+           evidence (q1) is moved BEHIND a closed-by-default disclosure below, never the headline. */
         var _head='Read: '+_esc(_L.q3_read||'');
         if(_L.q4_confidence){_head+=' <span class="v25-teach-confchip">'+_esc(_L.q4_confidence)+'</span>';}
         _tp.push('<div class="v25-teach-head">'+_head+'</div>');
@@ -1077,6 +1078,8 @@ _MODAL_HTML = r"""
         if(_L.q7_do_not_overadjust){_tp.push('<div class="v25-teach-guard">Don’t over-adjust: '+_esc(_L.q7_do_not_overadjust)+'</div>');}
         if(_t.icm_guardrail){_tp.push('<div class="v25-teach-icm">ICM caution: '+_esc(_t.icm_guardrail)+'</div>');}
         if(_t.pko&&_t.pko.cover_label){_tp.push('<div class="v25-teach-pko">Bounty: '+_esc(_t.pko.cover_label)+'</div>');}
+        if(_L.q1_villain_did){_tp.push('<details class="v25-teach-evid-disc"><summary>Raw evidence</summary>'
+          +'<div class="v25-teach-evid">'+_esc(_L.q1_villain_did)+'</div></details>');}
       }
       var _tag=_t.tag_suggestion;
       if(_tag&&_tag.label){
@@ -2023,7 +2026,13 @@ _MODAL_HTML = r"""
       var follow=reviewed.filter(function(x){return FOLLOWUP[x.st];}).length;
       var cEl=document.getElementById('rq-count');
       if(cEl){var _allAuto=r.getAttribute('data-all-auto-clear')==='1';
-        cEl.textContent='Your review: '+(_allAuto?(open.length+' auto-cleared · '):(open.length+' open · '))+reviewed.length+' marked by you';}
+        /* R-B (PHF-001): SYSTEM priority count is open+reviewed and is INVARIANT to Ron's review
+           (reviewing moves a hand open->reviewed but never changes the system population). Ron's
+           review count is shown separately so the two ownerships are never conflated. */
+        var _sysN=open.length+reviewed.length;
+        cEl.textContent=_allAuto
+          ? ('System priorities: '+_sysN+' (all auto-cleared) · You reviewed '+reviewed.length)
+          : ('System priorities: '+_sysN+' · '+open.length+' to open · You reviewed '+reviewed.length);}
       var sa=document.getElementById('rq-showall');
       if(sa){if(open.length>topn){sa.hidden=false;sa.textContent=showAll?('Show top '+topn):('Show all '+open.length);}else{sa.hidden=true;}}
       var fn=document.getElementById('rq-foot-note');
@@ -3998,6 +4007,11 @@ _MODAL_HTML = r"""
     var sticky=document.querySelector('[data-tt-sticky]');
     var filters=document.querySelector('[data-tt-filters]');
     var state={};
+    /* RES-007 (v8.19.0): ONE canonical filter state, persisted to sessionStorage so a reload /
+       reopen restores the same selection and re-drives table + chart + totals + grouped views. */
+    var TT_SKEY='tt-filter-state-v1';
+    function saveState(){try{sessionStorage.setItem(TT_SKEY,JSON.stringify(state));}catch(e){}}
+    function loadState(){try{var s=sessionStorage.getItem(TT_SKEY);var o=s?JSON.parse(s):null;return (o&&typeof o==='object')?o:null;}catch(e){return null;}}
     function filtered(){return model.filter(function(e){
       for(var dim in state){if(state[dim]&&state[dim].length&&state[dim].indexOf(String(e[dim]))<0)return false;}return true;});}
     function setC(b,t){if(b)b.textContent=t;}
@@ -4048,11 +4062,19 @@ _MODAL_HTML = r"""
         b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
           state[dim]=state[dim]||[];var i=state[dim].indexOf(val);
           if(i<0){state[dim].push(val);b.classList.add('active');}else{state[dim].splice(i,1);b.classList.remove('active');}
-          render();});});
+          saveState();render();});});
       var clr=filters.querySelector('[data-tt-clear]');
-      if(clr)clr.addEventListener('click',function(){state={};
+      if(clr)clr.addEventListener('click',function(){state={};saveState();
         Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
         render();});}
+    /* RES-007: restore the saved filter state on load and re-mark the chips, THEN render so the
+       table, chart, totals and grouped views all reflect the restored selection (reload-safe). */
+    var _saved=loadState();
+    if(_saved){state=_saved;
+      if(filters)Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+        var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
+        if(state[dim]&&state[dim].indexOf(val)>=0)b.classList.add('active');else b.classList.remove('active');});}
+    render();
   };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
@@ -4105,9 +4127,27 @@ _MODAL_HTML = r"""
     var c=document.getElementById('ttd-modal-close');if(c)c.addEventListener('click',closeTournamentDetail);
     var m=document.getElementById('tournament-detail-modal');
     if(m){var bd=m.querySelector('.modal-backdrop');if(bd)bd.addEventListener('click',closeTournamentDetail);}
+    var esc=function(ev){if(ev.key==='Escape')closeTournamentDetail();};document.addEventListener('keydown',esc);
   })();
+  /* RES-008 (v8.19.0): wire the multi-bullet drilldown. Every Results event row opens the canonical
+     tournament-detail modal (which already shows the per-bullet breakdown + the event's hands). The
+     row is keyboard-focusable and Enter/Space activates it; clicks on inner links/buttons are ignored. */
+  function wireResultsDrilldown(){
+    var t=document.getElementById('tt-unified-table');if(!t)return;
+    Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+      if(r.getAttribute('data-ttd-wired'))return;r.setAttribute('data-ttd-wired','1');
+      r.classList.add('tt-row-drill');r.setAttribute('tabindex','0');r.setAttribute('role','button');
+      var nm=(r.querySelector('.tt-tname')||{}).textContent||'event';
+      r.setAttribute('aria-label','Open details for '+nm);r.setAttribute('title','Open event details');
+      function go(ev){var tg=ev.target;if(tg&&tg.closest&&tg.closest('a,button'))return;
+        openTournamentDetail(r.getAttribute('data-event-id'));}
+      r.addEventListener('click',go);
+      r.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();go(ev);}});
+    });
+  }
+  window.wireResultsDrilldown=wireResultsDrilldown;
   /* The payload is set via _extra_js; if it loaded before this script, wire now. */
-  if(window.tournamentEvents)initTournamentResultsTable();
+  if(window.tournamentEvents){initTournamentResultsTable();wireResultsDrilldown();}
 
   /* v8.8.4: dimension-to-read support mapping for evidence partition */
   var READ_SUPPORT_DIMS={
@@ -6000,6 +6040,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   html.dark .tt-rollup-evt {{ color: #93c5fd; }}
   html.dark .tt-chart-metrics .tt-metric {{ background: #16181d; color: #94a3b8;
     border-color: #2a2f3a; }}
+  /* RES-008 (v8.19.0): multi-bullet drilldown affordance on Results event rows */
+  .tt-row-drill {{ cursor: pointer; }}
+  .tt-row-drill:hover {{ background: rgba(37,99,235,0.06); }}
+  .tt-row-drill:focus-visible {{ outline: 2px solid #2563eb; outline-offset: -2px; }}
+  html.dark .tt-row-drill:hover {{ background: rgba(96,165,250,0.10); }}
   /* v8.17.1 P4 surfaces 1+2: filters panel + sticky filtered summary */
   .tt-sticky-summary {{ position: sticky; top: 0; z-index: 20; display: flex;
     flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 7px 12px;
@@ -6786,6 +6831,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   .v25-teach-weak {{ color: #64748b; font-style: italic; }}
   /* v8.17.0-rc3 (Villain Step-3 visible delivery): compact lesson_7part rows */
   .v25-teach-evid {{ color: #475569; font-size: 11px; margin-bottom: 2px; }}
+  /* R-F: raw villain evidence disclosure (closed by default; teaching leads) */
+  .v25-teach-evid-disc {{ margin-top: 4px; font-size: 11px; }}
+  .v25-teach-evid-disc > summary {{ cursor: pointer; color: #64748b; font-size: 10.5px;
+    list-style: revert; }}
+  .v25-teach-evid-disc[open] > summary {{ color: #475569; }}
   .v25-teach-cue {{ color: #334155; margin: 1px 0; }}
   .v25-teach-now {{ color: #0f766e; font-weight: 600; margin-top: 2px; }}
   /* v8.18.1: the full canonical future-exploit sentence is shown (never truncated); it wraps on

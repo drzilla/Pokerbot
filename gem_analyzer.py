@@ -10339,34 +10339,21 @@ if __name__ == '__main__':
     # Previously only checked bust_audit + punts + blindspot, missing hands that
     # the worksheet includes (coolers, mistakes, iii4, read-dep, bestplay).
     _auto_res = set(report_data.get('auto_resolved_ids', []))
-    _suppress_ids = set()
-    # Collect SUPPRESS verdicts (R0 noise-suppressed — not in worksheet)
-    for _bk_cov in ('bust_audit', 'coolers', 'mistakes', 'punts',
-                     'iii4_screening', 'read_dependent_screening', 'bestplay_screening'):
-        for _c in candidates.get(_bk_cov, []):
-            _sv = (_c.get('suggested_verdict') or {})
-            if _sv.get('verdict') == 'SUPPRESS':
-                _suppress_ids.add(_c.get('id', ''))
-    _need_verdict_ids = set()
-    for _bk_cov in ('bust_audit', 'coolers', 'mistakes', 'punts',
-                     'iii4_screening', 'read_dependent_screening'):
-        for _c in candidates.get(_bk_cov, []):
-            _cid = _c.get('id')
-            if _cid and _cid not in _auto_res and _cid not in _suppress_ids:
-                _need_verdict_ids.add(_cid)
-    # v8.9.8 P2-C: production-safe PLO quarantine invariant
+    # v8.19.0 RC3 (P2-1): the coverage gate and the completeness owner consume ONE canonical
+    # required-review population (gem_report_data.canonical_required_review_ids), so the "Full
+    # coverage" message below provably implies compute_report_completeness has NO unreviewed
+    # required hand. SUPPRESS-noise candidates stay IN the set (a suggested SUPPRESS is the
+    # auto-classifier's hint, not an analyst waiver); the blindspot-audit sample is a SEPARATE
+    # coverage signal (reported just after), never folded into the required-review identity.
+    from gem_report_data import canonical_required_review_ids as _canon_rri
+    _need_verdict_ids = _canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']
+    # v8.9.8 P2-C: production-safe PLO quarantine invariant — the canonical owner already excludes
+    # non-NLH, so this stays as a fail-loud guard that the shared set never carries a PLO leak.
     _plo_leak = _need_verdict_ids & _non_nlh_ids_main
     if _plo_leak:
         import logging
         logging.error("PLO quarantine leak: %s — removing from verdict surface", _plo_leak)
         _need_verdict_ids -= _plo_leak
-    # Blind-spot audit
-    _bs = stats.get('blindspot_audit', {})
-    if isinstance(_bs, dict):
-        for _sh in (_bs.get('sampled', []) or []):
-            _sid = _sh.get('id')
-            if _sid:
-                _need_verdict_ids.add(_sid)
     _uncovered = sorted(_need_verdict_ids - _ac_ids)
     _covered = _need_verdict_ids & _ac_ids
     print(f"\n{'='*60}\nANALYST COVERAGE CHECK\n{'='*60}")
@@ -10415,6 +10402,19 @@ if __name__ == '__main__':
         else:
             print(f"\n  Continuing with ⚪ awaiting-analyst stubs. To fail "
                   f"on incomplete coverage, re-run with --require-analyst.")
+
+    # v8.19.0 RC3 (P2-1): blindspot-audit coverage is a SEPARATE signal from the canonical
+    # required-review set above — so "Full coverage" means exactly "every shared required-review
+    # candidate is graded" == the completeness owner has no unreviewed required hand. Report it
+    # on its own line; an unreviewed blindspot sample is informational, never a coverage failure.
+    _bs = stats.get('blindspot_audit', {})
+    _bs_ids = {(_sh.get('id') or '') for _sh in (_bs.get('sampled', []) or [])} if isinstance(_bs, dict) else set()
+    _bs_ids.discard('')
+    if _bs_ids:
+        _bs_uncov = sorted(_bs_ids - _ac_ids)
+        print(f"  Blindspot audit: {len(_bs_ids) - len(_bs_uncov)}/{len(_bs_ids)} sampled hands reviewed"
+              + (f" ({len(_bs_uncov)} unreviewed — informational, not a coverage requirement)."
+                 if _bs_uncov else "."))
 
     # v8.7.9 FIX (GAP 3): check metric-flagged leaks have analyst judgment
     _promoted = (report_data.get('leak_persistence', {}) or {}).get('current_leaks', []) or []

@@ -13558,6 +13558,27 @@ _body_auth_p05 = ''.join(s for s in _segs_p05 if 'Inferred decision context' not
 check('T-RC3-P05c: scoping strips the inferred container, keeps the authoritative one',
       'Pot odds:' not in _body_auth_p05 and 'open to 2.2BB' in _body_auth_p05)
 
+# RC3 P2-1: the coverage gate and the completeness owner consume ONE canonical required-review owner.
+from gem_report_data import (canonical_required_review_ids as _crri_t,
+                             compute_report_completeness as _crc_p21)
+_cand_p21 = {'mistakes': [{'id': 'M1'}, {'id': 'M2'}],
+             'bust_audit': [{'id': 'B1'},
+                            {'id': 'PLO1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']}],
+             'biggest_loss_screen': [{'id': 'M1'}]}   # M1 appears in two buckets
+_canon_p21 = _crri_t(_cand_p21, auto_resolved_ids=['M2'], non_nlh_ids=[])
+check('T-RC3-P21a: canonical owner = candidate need minus auto minus non-NLH (suppress kept, blindspot excluded)',
+      _canon_p21['need'] == {'M1', 'B1'} and 'M2' not in _canon_p21['need']
+      and 'PLO1' not in _canon_p21['need'] and 'PLO1' in _canon_p21['non_nlh'])
+_rd_p21 = {'analyst_commentary': {}, 'auto_resolved_ids': ['M2']}
+_crc_p21(_rd_p21, candidates=dict(_cand_p21))
+check('T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)',
+      set(_rd_p21['_candidate_need_ids']) == _canon_p21['need'])
+_ga_p21 = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set)',
+      'canonical_required_review_ids as _canon_rri' in _ga_p21
+      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
+      and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

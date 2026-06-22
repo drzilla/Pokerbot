@@ -1059,6 +1059,46 @@ _SIGNIFICANT_LOSS_BUCKETS = ('biggest_loss_screen', 'postflop_loss_screen',
                              'coolers', 'bust_audit')
 
 
+def _is_non_nlh_candidate(_c):
+    """A candidate is unsupported non-NLH when its game_type is not NLH, or it carries 4+ hole
+    cards (Omaha/PLO). Used as a defensive per-candidate fallback when rd['_non_nlh_ids'] is absent."""
+    if not isinstance(_c, dict):
+        return False
+    if (_c.get('game_type') or 'NLH') != 'NLH':
+        return True
+    _cards = _c.get('cards') or []
+    return isinstance(_cards, (list, tuple)) and len(_cards) >= 4
+
+
+def canonical_required_review_ids(candidates, auto_resolved_ids=None, non_nlh_ids=None):
+    """v8.19.0 RC3 (P2-1): the ONE canonical required-review population, shared verbatim by the
+    analyst COVERAGE GATE (gem_analyzer __main__) and the COMPLETENESS owner
+    (compute_report_completeness). A hand requires analyst review iff it is a candidate in a
+    _COMPLETENESS_NEED_BUCKETS bucket and is neither chart-match auto-resolved nor an unsupported
+    non-NLH hand. Two deliberate identity rules so the gate's "Full coverage" message provably
+    implies the completeness layer has NO unreviewed required hand:
+      - SUPPRESS-noise candidates are KEPT (a suggested SUPPRESS is the auto-classifier's hint, not
+        an analyst waiver; every flagged candidate is reviewable until the analyst rules on it).
+      - The blindspot-audit sample is a SEPARATE coverage signal, never folded into this set.
+    Returns {'need': set, 'need_bucket': {id: bucket}, 'non_nlh': set} (non_nlh includes the
+    per-candidate game_type/4-card fallback so both callers exclude the same hands)."""
+    _auto = set(auto_resolved_ids or [])
+    _non_nlh = set(non_nlh_ids or [])
+    for _bk in set(_COMPLETENESS_NEED_BUCKETS) | set(_CRITICAL_NEED_BUCKETS) | set(_SIGNIFICANT_LOSS_BUCKETS):
+        for _c in (candidates.get(_bk, []) or []):
+            _cid = _c.get('id') if isinstance(_c, dict) else None
+            if _cid and _is_non_nlh_candidate(_c):
+                _non_nlh.add(_cid)
+    _need, _need_bucket = set(), {}
+    for _bk in _COMPLETENESS_NEED_BUCKETS:
+        for _c in (candidates.get(_bk, []) or []):
+            _cid = _c.get('id') if isinstance(_c, dict) else None
+            if _cid and _cid not in _auto and _cid not in _non_nlh:
+                _need.add(_cid)
+                _need_bucket.setdefault(_cid, _bk)
+    return {'need': _need, 'need_bucket': _need_bucket, 'non_nlh': _non_nlh}
+
+
 def compute_report_completeness(rd, candidates=None):
     """v8.12.10 (pipeline trust contract): classify the report as
     AUTO_ONLY / ANALYST_PARTIAL / ANALYST_COMPLETE and stamp the counts the
@@ -1074,25 +1114,13 @@ def compute_report_completeness(rd, candidates=None):
 
     if candidates is not None:
         _auto = set(rd.get('auto_resolved_ids', []) or [])
-        # RC3 P0-1 / P2-1: the completeness owner MUST exclude unsupported non-NLH (PLO/Omaha) hands —
-        # consistently with the coverage gate, which already subtracts them. A non-NLH hand can never be
-        # strategically graded, so it must not pin the report at PARTIAL. Source the set from
-        # rd['_non_nlh_ids'] (computed in analyze_session) PLUS a per-candidate fallback (non-NLH
-        # game_type, or a 4+-card hand) so a leak into any bucket is caught defensively.
-        _non_nlh = set(rd.get('_non_nlh_ids') or [])
-
-        def _is_non_nlh(_c):
-            if not isinstance(_c, dict):
-                return False
-            if (_c.get('game_type') or 'NLH') != 'NLH':
-                return True
-            _cards = _c.get('cards') or []
-            return isinstance(_cards, (list, tuple)) and len(_cards) >= 4
-
-        for _bk in set(_COMPLETENESS_NEED_BUCKETS) | set(_CRITICAL_NEED_BUCKETS) | set(_SIGNIFICANT_LOSS_BUCKETS):
-            for _c in candidates.get(_bk, []) or []:
-                if _is_non_nlh(_c) and (_c.get('id') if isinstance(_c, dict) else None):
-                    _non_nlh.add(_c.get('id'))
+        # RC3 P0-1 / P2-1: the completeness owner and the coverage gate share ONE canonical
+        # required-review population (canonical_required_review_ids) so a "Full coverage" message
+        # provably implies completeness has no unreviewed required hand. It excludes auto-resolved
+        # and unsupported non-NLH hands (the latter via rd['_non_nlh_ids'] PLUS a per-candidate
+        # game_type/4-card fallback), keeps SUPPRESS-noise candidates, and never folds in blindspot.
+        _canon = canonical_required_review_ids(candidates, _auto, rd.get('_non_nlh_ids'))
+        _non_nlh = _canon['non_nlh']
         rd['_non_nlh_ids'] = sorted(_non_nlh)   # persist the resolved set for --quick
 
         def _ids_for(_buckets):
@@ -1104,14 +1132,8 @@ def compute_report_completeness(rd, candidates=None):
                         _s.add(_cid)
             return _s
 
-        need = set()
-        need_bucket = {}                       # id -> bucket, persisted for --quick
-        for _bk in _COMPLETENESS_NEED_BUCKETS:
-            for _c in candidates.get(_bk, []) or []:
-                _cid = _c.get('id') if isinstance(_c, dict) else None
-                if _cid and _cid not in _auto and _cid not in _non_nlh:
-                    need.add(_cid)
-                    need_bucket.setdefault(_cid, _bk)
+        need = _canon['need']
+        need_bucket = _canon['need_bucket']    # id -> bucket, persisted for --quick
         rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
         rd['_candidate_need_bucket'] = need_bucket
         # v8.13.1 P0: critical-coverage + significant-loss sets (persist for --quick)

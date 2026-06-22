@@ -13877,6 +13877,13 @@ check('T-W1A2A-FT-14: thin accessors read the owner populations (delegation, not
       _FT.confirmed_mistakes_count(_rd9) == 1 and _FT.punts_count(_rd9) == 1
       and _FT.population_ids(_rd9, _FC.PUNT) == ['B'])
 
+# (QA-005) the Pokerbot Picks surface routes confirmed picks through the canonical positive-class gate,
+# so a hand the owner classes as a mistake / punt / read-dependent / insufficient cannot be a Pick.
+_sm_pick_src = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2A-QA005-01: the Picks surface gates confirmed picks on the canonical positive final class',
+      '_pick_eligible_canonical(hid)' in _sm_pick_src
+      and "rec.get('final_class') in ('WELL_PLAYED', 'STANDARD')" in _sm_pick_src)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

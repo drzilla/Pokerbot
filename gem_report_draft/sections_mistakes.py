@@ -1995,6 +1995,17 @@ def _emit_sub_picks(doc, s, rd, hands):
     analyst_picks = [(hid, cmt) for hid, cmt in analyst_all.items()
                      if isinstance(cmt, dict)
                      and (cmt.get('verdict', '') or '').startswith('III.8')]
+    # v8.20 W1A.2A V820-QA-005: a CONFIRMED Pick must carry a POSITIVE canonical final class
+    # (well-played / standard) per the ONE final-truth owner. Route every analyst pick through the owner
+    # so a hand the owner classes as a mistake, punt, read-dependent or insufficient can NEVER be awarded
+    # as a confirmed Pick (it would fall back to a candidate) -- closing the live "positive Pick surface
+    # contradicts its own conditional/insufficient state" defect. Defensive: if the owner record is
+    # absent (owner not built), defer to the III.8 analyst tag rather than dropping the pick.
+    _pick_records = (rd.get('final_truth') or {}).get('records', {})
+    def _pick_eligible_canonical(hid):
+        rec = _pick_records.get(hid)
+        return True if rec is None else rec.get('final_class') in ('WELL_PLAYED', 'STANDARD')
+    analyst_picks = [(hid, cmt) for hid, cmt in analyst_picks if _pick_eligible_canonical(hid)]
     _analyst_pick_ids = {hid for hid, _ in analyst_picks}
 
     # B191 ranking layer: weight each structural reason by signal strength and

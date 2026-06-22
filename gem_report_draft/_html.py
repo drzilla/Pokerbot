@@ -3923,11 +3923,18 @@ _MODAL_HTML = r"""
       return asc?cmp:-cmp;});
     rows.forEach(function(r){body.appendChild(r);});}
   function _dtApplyFilters(tbl,state){
+    var anyFilter=false;for(var _k in state){if(state[_k]&&state[_k].length){anyFilter=true;break;}}
+    var vis={};
     Array.prototype.forEach.call(tbl.querySelectorAll('tbody tr'),function(r){
       var show=true;for(var key in state){if(!state[key].length)continue;
         if(state[key].indexOf(r.getAttribute('data-filter-'+key))<0){show=false;break;}}
-      r.style.display=show?'':'none';});
-    _dtRecomputeTotals(tbl);}
+      r.style.display=show?'':'none';
+      if(show){var eid=r.getAttribute('data-event-id');if(eid){vis[eid]=1;}}});  /* ttModel.id == full event_id */
+    _dtRecomputeTotals(tbl);
+    /* RES-007: drive the sticky summary + grouped + chart from the SAME filtered Results set
+       (the DataTable filter is the one canonical state); no filter -> restore their own view. */
+    if(tbl.id==='tt-results'&&window.ttApplyFiltersForIds){
+      window.ttApplyFiltersForIds(anyFilter?vis:null);}}
   function initDataTable(tableId){
     var tbl=document.getElementById(tableId);if(!tbl||tbl._dtWired)return;tbl._dtWired=true;
     Array.prototype.forEach.call(tbl.querySelectorAll('thead th[data-dt-sortable="1"]'),function(th){
@@ -3935,6 +3942,11 @@ _MODAL_HTML = r"""
       th.addEventListener('click',function(){_dtSort(tbl,th);});
       th.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();_dtSort(tbl,th);}});});
     var filters=document.querySelector('.dt-filters[data-dt-for="'+tableId+'"]');var state={};
+    /* RES-007 (v8.19.0): the canonical Results-table filter state, persisted to sessionStorage so a
+       reload/reopen restores the same selection and re-drives the table rows + the totals row. */
+    var DT_SKEY='dt-filter-state-'+tableId;
+    function _dtSave(){try{sessionStorage.setItem(DT_SKEY,JSON.stringify(state));}catch(e){}}
+    function _dtLoad(){try{var s=sessionStorage.getItem(DT_SKEY);var o=s?JSON.parse(s):null;return (o&&typeof o==='object')?o:null;}catch(e){return null;}}
     if(filters){Array.prototype.forEach.call(filters.querySelectorAll('.dt-chip'),function(chip){
       chip.setAttribute('aria-pressed','false');
       chip.addEventListener('click',function(){
@@ -3942,7 +3954,19 @@ _MODAL_HTML = r"""
         state[key]=state[key]||[];var i=state[key].indexOf(val);
         if(i<0){state[key].push(val);chip.classList.add('dt-chip-on');chip.setAttribute('aria-pressed','true');}
         else{state[key].splice(i,1);chip.classList.remove('dt-chip-on');chip.setAttribute('aria-pressed','false');}
-        _dtApplyFilters(tbl,state);});});}}
+        _dtSave();_dtApplyFilters(tbl,state);});});
+      var _dtsv=_dtLoad();
+      if(_dtsv){state=_dtsv;
+        Array.prototype.forEach.call(filters.querySelectorAll('.dt-chip'),function(chip){
+          var key=chip.getAttribute('data-dt-filter'),val=chip.getAttribute('data-dt-value');
+          var on=!!(state[key]&&state[key].indexOf(val)>=0);
+          chip.classList.toggle('dt-chip-on',on);chip.setAttribute('aria-pressed',on?'true':'false');});
+        _dtApplyFilters(tbl,state);}}
+    /* RES-007: expose a re-apply hook so the init bootstrap can re-run the (restored) filter AFTER
+       initTtFilters has defined the bridge + run its own render — otherwise an init-order race lets
+       the grouped/chart reset to unfiltered on reload. */
+    window._dtReapply=window._dtReapply||{};
+    window._dtReapply[tableId]=function(){if(Object.keys(state).length)_dtApplyFilters(tbl,state);};}
   window.initDataTable=initDataTable;
   function _ttEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
   // v8.17.1 P4: distribution chart — re-renders from the precomputed window.ttChart
@@ -4075,6 +4099,14 @@ _MODAL_HTML = r"""
       var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
       if(clr)clr.hidden=!any;}
     window.ttApplyFilters=render;
+    /* RES-007 (v8.19.0): ONE canonical filter state. The Results-table (DataTable) filter is the
+       single driver — when it changes, the sticky summary, grouped aggregate and distribution chart
+       re-render from the SAME visible event set (keyed by ttModel id). Passing null restores the
+       grouped/chart filter's own state. */
+    window.ttApplyFiltersForIds=function(idset){
+      var evs=(idset==null)?filtered():model.filter(function(e){return idset[String(e.id)];});
+      renderSticky(evs);renderGrouped(evs);renderChart(evs);
+    };
     if(filters){
       Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
@@ -4151,7 +4183,7 @@ _MODAL_HTML = r"""
      tournament-detail modal (which already shows the per-bullet breakdown + the event's hands). The
      row is keyboard-focusable and Enter/Space activates it; clicks on inner links/buttons are ignored. */
   function wireResultsDrilldown(){
-    var t=document.getElementById('tt-unified-table');if(!t)return;
+    var t=document.getElementById('tt-results');if(!t)return;
     Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
       if(r.getAttribute('data-ttd-wired'))return;r.setAttribute('data-ttd-wired','1');
       r.classList.add('tt-row-drill');r.setAttribute('tabindex','0');r.setAttribute('role','button');
@@ -6541,11 +6573,14 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
   /* ── v8.14.0 Slice C: Compact Hand Review Queue ── */
   .rq-card {{ padding: 0; overflow: hidden; }}
   .rq-head {{ display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }}
+    gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; flex-wrap: wrap; }}
   .rq-title {{ font-weight: 950; color: var(--brand, #1e3a8a); font-size: 15px; }}
   .rq-sub {{ margin-top: 2px; font-size: 12px; color: #64748b; }}
+  /* R-B (v8.19.0): the explicit "System priorities …" copy is longer — allow it to wrap on
+     narrow viewports instead of overflowing (flex-wrap head + normal wrap text). */
   .rq-count {{ border-radius: 999px; border: 1px solid #facc15; background: #fffbeb;
-    color: #92400e; font-weight: 900; font-size: 12px; padding: 5px 9px; white-space: nowrap; }}
+    color: #92400e; font-weight: 900; font-size: 12px; padding: 5px 9px;
+    white-space: normal; overflow-wrap: anywhere; max-width: 100%; }}
   .rq-priority {{ display: flex; gap: 5px; align-items: center; overflow-x: auto;
     padding: 8px 14px; border-bottom: 1px solid #eef2f7; background: #fffdf4; }}
   .rq-priority-label {{ font-size: 11px; font-weight: 950; color: #92400e; white-space: nowrap; }}

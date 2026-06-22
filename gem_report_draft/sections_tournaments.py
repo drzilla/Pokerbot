@@ -743,6 +743,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'bb100': _dtcell(_RES_COLS[9], _bbb.get(tid)),
             'cev': _dtcell(_RES_COLS[10], (e.get('performance') or {}).get('cev100')),
             'exit': _dthand(_RES_COLS[-1], _exit, _exit_cards, size='compact'),
+            '_row_id': _eid,   # RES-008: drilldown key -> tournamentEvents[].event_id
             '_filters': {
                 'entry_time': (e.get('entry_timing') or 'unknown'),
                 'speed': (e.get('speed') or 'unknown'),
@@ -867,7 +868,11 @@ def _emit_tournament_tables(doc, s, rd, hands):
                              'if(window.initTtChart)window.initTtChart();'
                              'if(window.initTtFilters)window.initTtFilters();'
                              # RES-008: wire the multi-bullet drilldown on the deferred-load path too.
-                             'if(window.wireResultsDrilldown)window.wireResultsDrilldown();')
+                             'if(window.wireResultsDrilldown)window.wireResultsDrilldown();'
+                             # RES-007: now that the bridge (ttApplyFiltersForIds) exists, re-apply any
+                             # restored Results-table filter so the grouped/chart reflect it on reload.
+                             "if(window._dtReapply&&window._dtReapply['tt-results'])"
+                             "window._dtReapply['tt-results']();")
         # v8.17.1 P4: grouped-aggregate tab switching — show the matching tabpane,
         # mark the active button, and (if wired) re-render the distribution chart.
         doc._extra_js.append(

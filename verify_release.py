@@ -10,17 +10,17 @@ Usage:
 """
 import hashlib, os, sys, json
 
-VERSION = "v8.17.1"   # v8.17.1 Real-Report Stabilization: completes the four v8.17.0 Decision-Coach epics against a real V2 report. P1 Commentary capsule deployment (MVP v3.4 §17 order); P2 range-lens + action-grade synchronization; P3 Villain Exploitation Step-3 VISIBLE delivery (lesson_7part); P4 Tournament Tables v3 (7 typed surfaces: grouped aggregates + distribution chart + filters/sticky + Finance&Finish + Performance + drivers rollup, unified into one Tournament Results block); P5 trust layer — canonical verdict resolver (active-queue>analyst>auto>neutral) wired into topbar/article/capsule, marker/commentary parity build gate, scored all-in completeness (complete math OR no_clear_lesson), bounty-value provenance, decision-time pot odds. Synthetic-only fixtures (no real IDs drive behavior/tests); Analyst Expansion NOT started; not merged/tagged/pushed
+VERSION = "v8.19.0"   # v8.19.0 Product Closure & Trust Baseline: canonical required-review owner (coverage gate == completeness), retained reviewed-decision provenance, non-NLH quarantine, populated-before-write biggest-loss, invalid-street fallback, dependency-safe import. Product logic approved at a61e588 (GPT audit PASS); finalization stamps the version only. Preflop/exploit universal eligibility-owner DEFERRED to v8.20.
 
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("27b25a231e06e05b8e76e4b4aad0cd5817833b055eaa13cb99ffdea8404487bc", 135837, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("4a0085d8ba2936671e16ed1abda9ea9eb1512e94c1ae114d4e9bbfc9e466fc10", 138144, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("1f7bca9db9ddcbade23c318a2753c1cde34b5584c363dd90d008a01ec483050d", 836640, "v8.18.1: + T-VT181-01..07 (cue-first classify, word-boundary, no-truncation, provenance, alignment, 7 mutation classes, thin-no-future); T-VT-02/T-VS3-04a updated for cue-first projection + provenance keys"),
+    "_test_scratch.py": ("85cd70dba9c05950ab4f328ba8be2125b2a47584d676c3f2030e92c833814b94", 836640, "v8.18.1: + T-VT181-01..07 (cue-first classify, word-boundary, no-truncation, provenance, alignment, 7 mutation classes, thin-no-future); T-VT-02/T-VS3-04a updated for cue-first projection + provenance keys"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("49704978649e916c650564d181199dd92ecd68c8d04090deb66bc0ebd0a1e5ad", 68592, "v8.17.1 Iter-1 REV10 A1/B8: exported decision_node is serialize_reviewed_decision_node (canonical ReviewedDecisionView) + reviewed_decision_view; legacy builder retired to a stack-less fallback"),
@@ -62,7 +62,7 @@ MANIFEST = {
     "gem_review_flags.py": ("826fcb7e119fa298bdc7dcc2c82d39e6cc618152804f2c85687bf9f24eaeffc2", 9665, "v8.12.2: +G6 check-raise review + P4 worksheet"),
     "gem_villain_intel.py": ("0309570b4a26518334db9e7c0051bbd20f76a4ef16c037fab90f0ca23c1aff30", 122465, "v8.16.0 villain: timestamp chronology (Step 1) + loose_passive scorer fix"),
     "gem_villain_teaching.py": ("2fdfcfa56fae7787fa6e435f96a2d584268e7f8cb603fbba2d486418b97f2989", 71449, "v8.18.1 Villain Teaching quality hotfix: CUE-FIRST future_exploit (classify_cue_family signal-first, word-bounded; cue-family templates; current-exploit transform; archetype only as fallback) + provenance + future_exploit_complete + cue_alignment (hindsight-aware); 40-word clamp REMOVED (canonical sentence kept complete)"),
-    "gem_version.py": ("59a1bd9fe8871a381280ffabd8b81c778c362d5614a535f10e127af8cbd29d1b", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
+    "gem_version.py": ("9758e842c3721caff77b4adda6e24c140c960bfc1699e13c21d4bbb1df542ab3", 880, "v8.16.4: RUNTIME_VERSION single source of truth"),
     "gem_ranges.py": ("62053649c8490868d08325052e129226447b368c43682bd746f1b8b4d7e4870f", 55690, "v8.17.1 P2: build_range_evidence + shared open/jam chart selector (range-lens single source of truth)"),
     "gem_review_trust.py": ("55def088b92cf8247e9ac06959748f6867b235563a427e256be1a74e7d6c9043", 33550, "v8.17.1 P5: resolve_canonical_verdict + marker_parity_issues(atoms) + all-in completeness helpers"),
     "gem_final_status.py": ("82898e53ba9e7ebb5e6ac364f6809f66f8f397a5e953e69e1619b143d6177802", 16065, "v8.18.0 W1-A: the ONE canonical Final Decision Status owner (MISTAKE/CONDITIONAL/CLEARED/UNGRADED + separate secondary reasons) -- typed, serialized, with the single status-pill HTML producer; derived from the canonical verdict + decision-snapshot gradeability, never the result"),
@@ -985,8 +985,8 @@ CANARIES = [
     ("gem_report_draft/sections_financial.py", "cEV/100 = chip-EV per 100 hands",
      "v8.14.0 Slice E: concise cEV/BB-100 unit gloss (copy clarity)"),
     # ── v8.14.1: real-report QA hotfix ──
-    ("gem_version.py", "RUNTIME_VERSION = 'v8.17.1'",
-     "v8.17.1 Real-Report Stabilization: runtime/release version single source of truth"),
+    ("gem_version.py", "RUNTIME_VERSION = 'v8.19.0'",
+     "v8.19.0 Product Closure: runtime/release version single source of truth"),
     # ── v8.16.4: Review Precision & Decision-Trust hotfix ──
     ("gem_review_trust.py", "def build_why_review(",
      "v8.16.4 Obj4: actionable why-this-hand contract (street+action+reason+category)"),

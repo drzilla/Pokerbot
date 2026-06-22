@@ -13745,6 +13745,15 @@ check('T-W1A-SD-08: a sufficient bucket with too few judged c-bets (<3) is exclu
 _cb_src_sd = open('gem_coverage_builder.py', encoding='utf-8').read()
 check('T-W1A-SD-09: production-connected — coverage_builder stamps report_data[sizing_leak_signals]',
       "report_data['sizing_leak_signals']" in _cb_src_sd and 'build_sizing_leak_signals' in _cb_src_sd)
+# production isolation + no real-id-keyed rules (acceptance: no production rule keyed to a real hand/
+# session/player; production entry points do not import the benchmark module).
+_ml_src_iso = open('gem_material_loss.py', encoding='utf-8').read()
+_sd_src_iso = open('gem_sizing_detector.py', encoding='utf-8').read()
+check('T-W1A-ISO-01: production owners do NOT import the benchmark module',
+      'v820_wave1a_benchmark' not in _ml_src_iso and 'v820_wave1a_benchmark' not in _sd_src_iso
+      and 'v820_wave1a_benchmark' not in _cb_src_sd)
+check('T-W1A-ISO-02: no production rule keyed to a real hand / tournament / player id',
+      not __import__('re').search(r'TM6\d{9}|Knockman|2908\d{5}', _ml_src_iso + _sd_src_iso))
 
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()

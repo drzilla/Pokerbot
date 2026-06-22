@@ -31,7 +31,7 @@ MANIFEST = {
     "gem_coverage_audit.py": ("1d8b610cc020b28deb242f0e0c2fd049fa2638a156d6513926d12b244d29cce4", 15323, "v8.12.2: G7-G10 registry + preflop_deviations fix"),
     "gem_coverage_builder.py": ("fa0ba4fe0cc3031c50cf8cfc664a8214712bc880689dae6073eaa14103aab346", 129935, "v8.14.1 REV5: re-jam key strips '+' + resolves at any depth (REJAM_MPvsUTG1, 72692569)"),
     "gem_csv_types.py": ("6ec184a2d8e3722e1bce18cc07d334b6388ce7ff50ac54b287b455913266ff26", 3599, "COR-001 (v8.18.1): ONE typed session-CSV load/model boundary -- coerce_numeric + coerce_csv_rows normalize numeric/comma/empty/non-numeric so renderers never numeric-format a raw csv string"),
-    "gem_input_manifest.py": ("8c4f3701f3acd614e604d208df824b94eb82354239d7b3e9661754ec76f708dd", 6453, "v8.19.0 Chapter I input manifest"),
+    "gem_input_manifest.py": ("33c749d3ebf1830bba0c768b48d28999687d75cf1dbec4a469d0af3d61a4e2dd", 6619, "v8.19.0 Chapter I input manifest"),
     "gem_eai_equity.py": ("4313ade454b4dd4f163b9576832d42ca28fdadffc406e7438558c32131b9abfb", 8687, "v8.9.9: except Exception + smoke value compare + MC comment fix"),
     "gem_gtow.py": ("680aa0c462e2cf2799c4946d7bdc898a6cb24dc11459ab10e4048cfe066d77a7", 32085, "v8.12.0a: builder v2.2.1 (verification-pass fixes + pf_settled gate)"),
     "gem_known_bugs.json": ("daa07f7d009b05eefe7e334748826da88ad9aa350ea75adda57398143f00d7e7", 46594, "v8.12.1: open bugs live; fixed history archived"),

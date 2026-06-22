@@ -21,10 +21,9 @@ import json
 import glob
 import argparse
 
-# import the canonical owners (verification apparatus may import production; production never imports us)
+# import the canonical owner (verification apparatus may import production; production never imports us)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import gem_material_loss as ML            # noqa: E402
-import gem_final_status as FS             # noqa: E402
 
 _CRITICAL_BUCKETS = ('mistakes', 'punts', 'coolers', 'bust_audit',
                      'biggest_loss_screen', 'postflop_loss_screen')

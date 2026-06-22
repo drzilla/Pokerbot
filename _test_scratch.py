@@ -13524,6 +13524,22 @@ except ValueError as _e:
 check('T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD', _g003)
 check('T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)',
       _bls({'stack_trajectories': {'T1': {'biggest_loss_id': None}}}, [])['biggest_loss_violations'] == [])
+# RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
+_cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
+_w_idx = _cov_src.index("with open(cand_path, 'w'")
+_pop_idx = _cov_src.index("candidates['biggest_loss_screen'].append")
+_early_idx = _cov_src.index('_loss_screens = build_loss_screens(stats, hands)')
+check('T-RC3-P02a: biggest/postflop loss buckets are populated BEFORE the analyst_candidates file is written',
+      _early_idx < _w_idx and _pop_idx < _w_idx)
+check('T-RC3-P02b: a mandatory biggest/postflop loss is never auto-resolved (guard present)',
+      '_mandatory_loss_ids' in _cov_src
+      and '_auto_resolved_ids -= _mandatory_loss_ids' in _cov_src)
+# RC3 P1-1: an invalid analyst street must not KeyError the render
+_xiv_src = open('gem_report_draft/sections_xiv.py', encoding='utf-8').read()
+check('T-RC3-P11: invalid analyst street is validated to a canonical street (no KeyError crash)',
+      "if analyst_street not in ('', 'preflop', 'flop', 'turn', 'river'):" in _xiv_src
+      and "if analyst_street not in ('preflop', 'flop', 'turn', 'river'):" in _xiv_src)
+
 # R-G: popup id payloads must be deduped (count == unique payload == rendered list)
 from gem_report_draft._helpers import _register_hids_for_appendix as _rhfa
 check('T-G-005 (R-G): hand-list popup ids are deduped order-preserving (no duplicate ID)',

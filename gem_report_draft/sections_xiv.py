@@ -2871,6 +2871,12 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
         # Heuristic: if cmt has a 'street' field, use it; else attach to the
         # street where Hero made the last meaningful (non-fold) action.
         analyst_street = (cmt.get('street') or '').lower()
+        # RC3 P1-1: an analyst entry with a NON-EMPTY but INVALID street ('review', 'showdown',
+        # 'all', …) previously fell through to `per_street[analyst_street]` and KeyError-crashed the
+        # entire render. Treat any value outside the canonical 4 streets as empty so the fallback
+        # chain below recomputes a real street (validate-and-fallback, not setdefault).
+        if analyst_street not in ('', 'preflop', 'flop', 'turn', 'river'):
+            analyst_street = ''
         # v8.12.3 (Ron QA, hand 59114187): a note quoting the FULL runout
         # (e.g. **6-2-7-T-7**) must not land on an earlier street where those
         # cards have not been seen yet — route it to the last street Hero
@@ -2917,7 +2923,8 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         analyst_street = st
                         break
                 if analyst_street: break
-        if not analyst_street:
+        # RC3 P1-1: guarantee a canonical street key before per_street[analyst_street] is indexed.
+        if analyst_street not in ('preflop', 'flop', 'turn', 'river'):
             analyst_street = 'preflop'
 
         # Compose the analyst-notes block once — we'll attach it under the

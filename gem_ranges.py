@@ -19,7 +19,17 @@ TRANSPARENCY CONTRACT:
     - No ICM or bounty adjustment
 """
 import os, re, itertools, json
-from phevaluator import evaluate_cards
+# v8.19.0 RC3: dependency-safe import. phevaluator (declared in requirements.txt) powers the
+# postflop equity bucketing below; if it is genuinely unavailable the MODULE still imports so the
+# preflop Range Lens / RangeLensVM (which never calls evaluate_cards) and the rest of the runtime
+# work — only the postflop bucketing raises a clear, actionable error if actually invoked.
+try:
+    from phevaluator import evaluate_cards
+except ImportError:  # pragma: no cover - exercised only in a deps-missing environment
+    def evaluate_cards(*_a, **_k):
+        raise RuntimeError(
+            'phevaluator is not installed — postflop equity bucketing is unavailable. '
+            'Install the declared runtime dependency: pip install -r requirements.txt')
 
 # ============================================================
 # RANGE FILE LOADING

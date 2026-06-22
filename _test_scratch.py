@@ -13769,11 +13769,113 @@ _rdt_b2(_b2_rd, _b2_stats, [{'id': 'H%d' % i} for i in range(175)] + [{'id': 'AS
 _b2_dt = _b2_rd.get('discipline_tier') or {}
 check('T-W1A1-BUG2-02: an auto-punt graded III.2 leaves the canonical punt count at 0 (not double-counted)',
       _b2_dt.get('canonical_punts_count') == 0)
-_sm_src_b2 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
 _grd_src_b2 = open('gem_report_data.py', encoding='utf-8').read()
-check('T-W1A1-BUG2-03: both discipline builders + the renderer subtract the PUNT-override set for punts',
-      'startswith(_PUNT_OVERRIDE_PREFIXES)' in _sm_src_b2
-      and _grd_src_b2.count("not (cmt.get('verdict', '') or '').startswith('III.1')") >= 2)
+check('T-W1A1-BUG2-03: both discipline builders delegate punt/mistake counts to the gem_final_truth '
+      'owner; the two old independent punt formulas are gone (BUG-2 fix is now structural)',
+      _grd_src_b2.count('_ft.build_final_truth(rd, stats, hands') >= 2
+      and '(_auto_punt_ids - _punt_override) | _iii1' not in _grd_src_b2
+      and '(_auto_punt_ids_dt - _punt_override_dt) | _analyst_iii1_dt' not in _grd_src_b2)
+
+# ============================================================================
+# v8.20 Wave 1A.2A — canonical final-truth owner (gem_final_truth) CONTRACT tests.
+# Behavioural (not source-marker): drive the owner with deterministic synthetic fixtures and assert the
+# final-truth invariants every coaching surface depends on. Closes V820-QA-001..005, -013(semantic),
+# -030, -034 and the final-verdict portion of -036.
+# ============================================================================
+import gem_final_truth as _FT
+from gem_final_truth import FinalClass as _FC
+
+def _ft_build(commentary, mistakes=None, punts=None, reviewed=None, n=176):
+    _rd = {'analyst_commentary': dict(commentary), 'reviewed_mistakes': reviewed or {}}
+    _st = {'mistakes': mistakes or [], 'punts': {'hands': punts or []}}
+    return _FT.build_final_truth(_rd, _st, [{'id': 'h%d' % i} for i in range(n)])
+
+# (1) auto-punt -> confirmed mistake: counted once as mistake, zero as punt (the live As7d regression).
+_t1 = _ft_build({'X': {'verdict': 'III.2 Mistake'}}, punts=[{'id': 'X'}])
+check('T-W1A2A-FT-01: auto-punt overridden to III.2 is one confirmed mistake, zero punt (override final)',
+      _t1['records']['X']['final_class'] == 'CONFIRMED_MISTAKE'
+      and _t1['counts']['CONFIRMED_MISTAKE'] == 1 and _t1['counts']['PUNT'] == 0
+      and _t1['records']['X']['override'] is True)
+
+# (2) auto-punt -> justified/cleared: zero mistake, zero punt.
+_t2 = _ft_build({'X': {'verdict': 'III.5 Justified'}}, punts=[{'id': 'X'}])
+check('T-W1A2A-FT-02: auto-punt cleared to Justified is zero mistake and zero punt',
+      _t2['counts']['CONFIRMED_MISTAKE'] == 0 and _t2['counts']['PUNT'] == 0
+      and _t2['records']['X']['final_class'] == 'JUSTIFIED')
+
+# (3) raw mistake -> cooler: one cooler, zero mistake.
+_t3 = _ft_build({'X': {'verdict': 'I.7 Cooler'}}, mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-03: a detector mistake the analyst graded a cooler is one cooler, zero confirmed mistake',
+      _t3['counts']['COOLER'] == 1 and _t3['counts']['CONFIRMED_MISTAKE'] == 0)
+
+# (4) nomination -> read-dependent: not a confirmed mistake.
+_t4 = _ft_build({'X': {'verdict': 'III.4 Read-dependent'}},
+                mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-04: a nomination graded read-dependent is not a confirmed mistake',
+      _t4['records']['X']['final_class'] == 'READ_DEPENDENT' and _t4['counts']['CONFIRMED_MISTAKE'] == 0)
+
+# (5) insufficient/conditional evidence cannot become a confirmed Pick.
+check('T-W1A2A-FT-05: insufficient / read-dependent / mistake hands are NOT Pick-eligible',
+      _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.INSUFFICIENT)) is False
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.READ_DEPENDENT)) is False
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.CONFIRMED_MISTAKE)) is False)
+
+# (6) positive Pick eligibility.
+check('T-W1A2A-FT-06: a well-played / standard hand IS Pick-eligible',
+      _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.WELL_PLAYED)) is True
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.STANDARD)) is True)
+
+# (7) workflow state is carried separately from final class (not substituted).
+_t7 = _ft_build({'X': {'verdict': 'III.2 Mistake'}})
+check('T-W1A2A-FT-07: workflow_state (REVIEWED) is separate from final_class (workflow != poker class)',
+      _t7['records']['X']['workflow_state'] == 'REVIEWED'
+      and _t7['records']['X']['final_class'] == 'CONFIRMED_MISTAKE')
+
+# (8) same hand cannot occupy mutually exclusive populations (reconciliation invariants).
+_t8 = _ft_build({'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.1 Punt'},
+                 'C': {'verdict': 'I.7 Cooler'}, 'D': {'verdict': 'III.5 Justified'}},
+                mistakes=[{'id': 'E', 'type': 't', 'confidence': 'CLEAR'}], punts=[{'id': 'F'}])
+check('T-W1A2A-FT-08: reconciliation has zero contradictions / orphans / duplicate final owners',
+      _t8['reconciliation']['contradictions'] == 0
+      and _t8['reconciliation']['orphans'] == 0
+      and _t8['reconciliation']['duplicates'] == 0)
+
+# (9) cross-surface coherence: the discipline_tier counts that every KPI/header/TL;DR surface reads ARE
+#     the owner counts (both builders delegate) — one source across all count surfaces.
+_rd9 = {'analyst_commentary': {'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.1 Punt'}},
+        'reviewed_mistakes': {}}
+import gem_report_data as _GRD
+_GRD._refresh_discipline_tier(_rd9, {'mistakes': [], 'punts': {'hands': []}},
+                              [{'id': 'h%d' % i} for i in range(100)])
+_dt9 = _rd9['discipline_tier']; _ft9 = _rd9['final_truth']
+check('T-W1A2A-FT-09: discipline_tier canonical counts equal the owner counts (one cross-surface source)',
+      _dt9['canonical_mistakes_count'] == _ft9['counts']['CONFIRMED_MISTAKE'] == 1
+      and _dt9['canonical_punts_count'] == _ft9['counts']['PUNT'] == 1)
+
+# (10) raw detector nomination survives in debug provenance but leaves the mistake population after clear.
+_t10 = _ft_build({'X': {'verdict': 'III.5 Justified'}},
+                 mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-10: a cleared detector nomination keeps its provenance but leaves the mistake population',
+      'detector_mistake' in _t10['records']['X']['nominations']
+      and 'X' not in _t10['populations']['CONFIRMED_MISTAKE']
+      and _t10['records']['X']['final_class'] == 'JUSTIFIED')
+
+# (11) stable user-facing labels carry NO internal Roman taxonomy codes.
+import re as _re_ft
+_labels = [_t8['records'][h]['label'] for h in _t8['records']]
+check('T-W1A2A-FT-11: owner labels expose no internal Roman codes (III.1/III.2/I.7...)',
+      all(not _re_ft.search(r'\b(?:III|II|I)\.\d', lbl) for lbl in _labels)
+      and _t1['records']['X']['label'] == 'Confirmed mistake')
+
+# (12) data-attribute escaping for ', ", &, <, >.
+_esc = _FT.escape_attr("a'b\"c&d<e>f")
+check('T-W1A2A-FT-12: escape_attr escapes apostrophe, quote, ampersand and angle brackets',
+      "'" not in _esc and '&amp;' in _esc and '&lt;' in _esc and '&gt;' in _esc and '&#x27;' in _esc)
+
+# (14) transitional accessors delegate to the one owner (no recompute).
+check('T-W1A2A-FT-14: thin accessors read the owner populations (delegation, not recompute)',
+      _FT.confirmed_mistakes_count(_rd9) == 1 and _FT.punts_count(_rd9) == 1
+      and _FT.population_ids(_rd9, _FC.PUNT) == ['B'])
 
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.

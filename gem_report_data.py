@@ -1297,45 +1297,18 @@ def _refresh_discipline_tier(rd, stats, hands):
             print(f"  ⚠ Analyst batch-stamp: {_st_n} verdicts share one "
                   f"argument text (\"{_st_t[:60]}…\") — these read as "
                   f"rubber stamps, not reviews.")
-    from gem_report_draft.sections_mistakes import _MISTAKE_CLEARED_PREFIXES
-    _override = {hid for hid, cmt in _ac.items()
-                 if isinstance(cmt, dict)
-                 and cmt.get('verdict', '').startswith(_MISTAKE_CLEARED_PREFIXES)}
-    survivors = [m for m in raw_mistakes
-                 if (m.get('id'), m.get('type')) not in needs_keys
-                 and (m.get('id'), m.get('type')) not in auto_keys
-                 and m.get('id') not in _override]
-    clear_surv = sum(1 for m in survivors
-                     if (m.get('confidence', '') or '').upper() == 'CLEAR')
-    # Canonical mistakes (detector + analyst-confirmed III.1/III.2)
-    _dt_detector_ids = {m.get('id') for m in raw_mistakes}
-    _dt_clear_ids = {m.get('id') for m in survivors
-                     if (m.get('confidence', '') or '').upper() == 'CLEAR'}
-    # B258 FIX: analyst III.1/III.2 verdicts count as confirmed mistakes
-    # even if the hand had a detector flag at non-CLEAR confidence.
-    # Only exclude hands already in the CLEAR-survivor set (prevent double-count).
-    # Removed: `and hid not in _dt_detector_ids` which excluded analyst-upgraded
-    # MARGINAL hands and caused 3-vs-8 count divergence.
-    _dt_analyst_confirmed = {
-        hid for hid, cmt in _ac.items()
-        if isinstance(cmt, dict)
-        and (cmt.get('verdict', '') or '').startswith(('III.1', 'III.2'))
-        and hid not in _dt_clear_ids}
-    canonical_mistakes_count = clear_surv + len(_dt_analyst_confirmed)
+    # v8.20 W1A.2A: the canonical confirmed-mistake / punt populations are now owned by ONE place --
+    # gem_final_truth.build_final_truth (one final class per hand; analyst override fully replaces the raw
+    # nomination; PUNT and CONFIRMED_MISTAKE are disjoint by construction). The discipline tier DELEGATES
+    # here instead of re-deriving the populations, so the "confirmed + punts = errors" math can never
+    # double-count an overridden hand again (the v8.20 W1A.1 BUG-2 class of divergence is now impossible),
+    # and every consumer of dt['canonical_*_count'] reads the SAME owner.
+    import gem_final_truth as _ft
+    _ft_out = _ft.build_final_truth(rd, stats, hands)
+    canonical_mistakes_count = _ft_out['counts']['CONFIRMED_MISTAKE']
+    punts_count = _ft_out['counts']['PUNT']
+    clear_surv = _ft_out['reconciliation']['detector_clear_survivors']
     mist_per_100 = 100.0 * clear_surv / max(n_h, 1)
-    # Punts: an auto-detected punt the analyst RECLASSIFIES is no longer a punt.
-    raw_punts = stats.get('punts', {}).get('hands', [])
-    _iii1 = {hid for hid, cmt in _ac.items()
-             if isinstance(cmt, dict) and cmt.get('verdict','').startswith('III.1')}
-    _auto_punt_ids = {p.get('id') for p in raw_punts}
-    # v8.20 W1A.1 BUG-2: the punt count must subtract EVERY auto-punt the analyst overrode to a non-punt
-    # verdict — including III.2 (confirmed mistake), which the mistake-CLEARED set (_override) omits.
-    # Using _override here left an auto-punt graded III.2 counted in BOTH the mistake and punt headers
-    # (the 'X confirmed + 1 punts' double-count). One canonical punt count, agreeing with the TL;DR.
-    _punt_override = {hid for hid, cmt in _ac.items()
-                      if isinstance(cmt, dict) and (cmt.get('verdict', '') or '')
-                      and not (cmt.get('verdict', '') or '').startswith('III.1')}
-    punts_count = len((_auto_punt_ids - _punt_override) | _iii1)
     punts_per_100 = float(punts_count) * 100.0 / max(n_h, 1)
     # Re-classify discipline tier
     if mist_per_100 < 0.5 and punts_per_100 < 0.1:
@@ -2700,54 +2673,20 @@ def generate_report_data(stats, hands, hh_dir, session_history_path=None,
     # set first so survivors_dt below can use it. prepare_report_data runs
     # BEFORE analyst_commentary is set on rd (gem_analyzer sets it only after
     # this returns), so load from the JSON file via _maybe_load_analyst_commentary.
-    raw_punts_list_dt = stats.get('punts', {}).get('hands', [])
+    # v8.20 W1A.2A: delegate the canonical confirmed-mistake / punt populations to the ONE owner
+    # (gem_final_truth) -- the same single source the post-analyst _refresh_discipline_tier uses, so the
+    # prepare-time and refresh-time tiers can never diverge. This pass runs BEFORE analyst_commentary is
+    # bound to rd, so the file-loaded commentary is passed explicitly. No independent count formula
+    # remains here -- one owner, one definition of "confirmed mistake" and "punt" (disjoint).
     _analyst_pre_dt = (rd.get('analyst_commentary') or
                        _maybe_load_analyst_commentary(stats) or {})
-    _analyst_iii1_dt = {hid for hid, cmt in _analyst_pre_dt.items()
-                        if isinstance(cmt, dict) and cmt.get('verdict','').startswith('III.1')}
-    # Bug fix (Ron 2026-05-30): must match _MISTAKE_CLEARED_PREFIXES from
-    # sections_mistakes.py — was missing III.0, III.8, I.7, 'no leak'.
-    # A hand the analyst cleared as III.0 (GTO-standard) or I.7 (cooler)
-    # was still counted as a mistake in the discipline tier, inflating the
-    # headline rate and potentially downgrading the discipline label.
-    from gem_report_draft.sections_mistakes import _MISTAKE_CLEARED_PREFIXES
-    _analyst_override_dt = {hid for hid, cmt in _analyst_pre_dt.items()
-                            if isinstance(cmt, dict)
-                            and cmt.get('verdict','').startswith(_MISTAKE_CLEARED_PREFIXES)}
-    survivors_dt = [m for m in raw_mistakes
-                    if (m.get('id'), m.get('type')) not in needs_keys
-                    and (m.get('id'), m.get('type')) not in auto_keys
-                    and m.get('id') not in _analyst_override_dt]
-    clear_surv = sum(1 for m in survivors_dt
-                     if (m.get('confidence', '') or '').upper() == 'CLEAR')
+    import gem_final_truth as _ft
+    _ft_out_dt = _ft.build_final_truth(rd, stats, hands, analyst_commentary=_analyst_pre_dt)
+    clear_surv = _ft_out_dt['reconciliation']['detector_clear_survivors']
     mist_per_100 = 100.0 * clear_surv / max(n_h, 1)
-    _auto_punt_ids_dt = {p.get('id') for p in raw_punts_list_dt}
-    # v8.20 W1A.1 BUG-2: subtract EVERY non-III.1 override (incl. III.2 confirmed mistake) from the punt
-    # count, not just the cleared set (_analyst_override_dt omits III.2) — the canonical punt count.
-    _punt_override_dt = {hid for hid, cmt in _analyst_pre_dt.items()
-                         if isinstance(cmt, dict) and (cmt.get('verdict', '') or '')
-                         and not (cmt.get('verdict', '') or '').startswith('III.1')}
-    punts_count_after_override = len((_auto_punt_ids_dt - _punt_override_dt) | _analyst_iii1_dt)
+    punts_count_after_override = _ft_out_dt['counts']['PUNT']
     punts_per_100 = float(punts_count_after_override) * 100.0 / max(n_h, 1)
-    # B222 (Ron review 2026-05-25): the CANONICAL confirmed-mistake count must
-    # match III.2 Confirmed Mistakes (and XIII.4). clear_surv above is the
-    # DETECTOR-only CLEAR count — it predates the B208 rule that analyst-
-    # confirmed III.1/III.2 verdicts with no detector flag are also confirmed
-    # mistakes. The headline counters (TL;DR Discipline, Section III header,
-    # positive-signals) were still showing the detector-only count (1) while
-    # III.2 correctly showed 8. Compute the analyst-inclusive total here once,
-    # the same way III.2 / XIII.4 do, and expose it as the canonical field.
-    _dt_detector_ids = {m.get('id') for m in raw_mistakes}
-    _dt_clear_ids = {m.get('id') for m in survivors_dt
-                     if (m.get('confidence', '') or '').upper() == 'CLEAR'}
-    # B258 FIX: same rule as _refresh_discipline_tier — analyst III.1/III.2
-    # counts even if detector flagged the hand at non-CLEAR confidence.
-    _dt_analyst_confirmed = {
-        hid for hid, cmt in _analyst_pre_dt.items()
-        if isinstance(cmt, dict)
-        and (cmt.get('verdict', '') or '').startswith(('III.1', 'III.2'))
-        and hid not in _dt_clear_ids}
-    canonical_mistakes_count = clear_surv + len(_dt_analyst_confirmed)
+    canonical_mistakes_count = _ft_out_dt['counts']['CONFIRMED_MISTAKE']
     canonical_mistakes_per_100 = 100.0 * canonical_mistakes_count / max(n_h, 1)
     # B130 (Ron 2026-05-20): this is a DISCIPLINE ladder (mistake-rate +
     # punt-rate based) — not a stakes measure. The old top label

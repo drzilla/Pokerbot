@@ -13579,6 +13579,71 @@ check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_re
       and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
       and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
 
+# RC3 COND-3a: deterministic mixed NLH/PLO finality + quarantine regression (real corpus is NLH-only,
+# so this is the ONLY guard against a future refactor silently reintroducing a PLO leak).
+from gem_report_data import compute_report_completeness as _crc_plo
+from gem_analyzer import _filter_non_nlh_from_candidate_buckets as _fnn_plo
+
+
+def _mix_cands():
+    return {
+        'mistakes': [{'id': 'H1', 'game_type': 'NLH', 'cards': ['Ah', 'Kd']},
+                     {'id': 'P1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']}],
+        'coolers': [{'id': 'H2', 'game_type': 'NLH', 'cards': ['Qh', 'Qd']},
+                    {'id': 'P2', 'cards': ['2h', '3d', '4s', '5c']}],   # no game_type -> 4-card fallback
+        'biggest_loss_screen': [{'id': 'P1', 'game_type': 'PLO', 'cards': ['Ah', 'Kd', 'Qs', 'Jc']},
+                                {'id': 'H1', 'game_type': 'NLH', 'cards': ['Ah', 'Kd']}],
+    }
+
+
+_PLO = {'P1', 'P2'}
+# (a) QUARANTINE — PLO never enters any required-review / finality surface
+_rd_plo = {'analyst_commentary': {}}
+_rc_plo = _crc_plo(_rd_plo, candidates=_mix_cands())
+_vm_plo = _rc_plo['review_coverage_vm']
+check('T-RC3-PLOa: PLO quarantined from non_nlh + need + critical + significant sets',
+      set(_rd_plo['_non_nlh_ids']) == _PLO
+      and not (_PLO & set(_rd_plo['_candidate_need_ids']))
+      and not (_PLO & set(_rd_plo['_critical_need_ids']))
+      and not (_PLO & set(_rd_plo['_significant_loss_ids'])))
+check('T-RC3-PLOb: PLO quarantined from the coverage VM + rc awaiting/critical-unreviewed',
+      not (_PLO & set(_vm_plo['worklist_candidate_ids']))
+      and not (_PLO & set(_vm_plo['critical_ids']))
+      and not (_PLO & set(_vm_plo['unreviewed_worklist_ids']))
+      and not (_PLO & set(_rc_plo['awaiting_ids']))
+      and not (_PLO & set(_rc_plo['critical_unreviewed_ids'])))
+# (b) NLH FINALIZES — the NLH hands are the entire need set; grading them reaches ANALYST_COMPLETE
+check('T-RC3-PLOc: the NLH hands are the entire need set (PLO does not pin PARTIAL)',
+      set(_rd_plo['_candidate_need_ids']) == {'H1', 'H2'})
+_rc_plo2 = _crc_plo({'analyst_commentary': {'H1': {'verdict': 'x'}, 'H2': {'verdict': 'x'}}},
+                    candidates=_mix_cands())
+check('T-RC3-PLOd: NLH graded -> ANALYST_COMPLETE / COMPLETE, 0 awaiting, 0 critical-unreviewed',
+      _rc_plo2['state'] == 'ANALYST_COMPLETE' and _rc_plo2['coverage_state'] == 'COMPLETE'
+      and _rc_plo2['awaiting_candidates'] == 0 and _rc_plo2['critical_unreviewed'] == 0)
+# (c) BUCKET FILTER strips PLO from candidate buckets + punts (count updated)
+_sbuf = {'mistakes': [{'id': 'H1'}, {'id': 'P1'}], 'coolers': [{'id': 'P2'}, {'id': 'H2'}],
+         'punts': {'hands': [{'id': 'P1'}, {'id': 'H3'}], 'count': 2}}
+_fnn_plo(_sbuf, {'P1', 'P2'})
+check('T-RC3-PLOe: _filter_non_nlh_from_candidate_buckets strips PLO from buckets + punts',
+      [x['id'] for x in _sbuf['mistakes']] == ['H1'] and [x['id'] for x in _sbuf['coolers']] == ['H2']
+      and [p['id'] for p in _sbuf['punts']['hands']] == ['H3'] and _sbuf['punts']['count'] == 1)
+# (d) --quick path subtracts a planted stale PLO id from the cached sets
+_rc_plo_q = _crc_plo({'analyst_commentary': {}, '_non_nlh_ids': ['P9'],
+                      '_candidate_need_ids': ['H1', 'P9'], '_critical_need_ids': ['H1', 'P9'],
+                      '_significant_loss_ids': ['P9'], '_candidate_need_bucket': {'H1': 'mistakes'}},
+                     candidates=None)
+check('T-RC3-PLOf: --quick subtracts cached PLO id from need/critical/awaiting',
+      'P9' not in set(_rc_plo_q['review_coverage_vm']['worklist_candidate_ids'])
+      and 'P9' not in set(_rc_plo_q['awaiting_ids'])
+      and 'P9' not in set(_rc_plo_q['review_coverage_vm']['critical_ids']))
+# (e) canonical invariant: _non_nlh_ids from ALL hands (not the already-NLH-filtered list) — guards the
+#     line-2190 shadow that keeps the all-in finality (EAI) builder NLH-only.
+_ga_plo = open('gem_analyzer.py', encoding='utf-8').read()
+check('T-RC3-PLOg: _non_nlh_ids computed from ALL hands + stamped (never the NLH-filtered list)',
+      "_non_nlh_ids = {h.get('id') for h in all_hands" in _ga_plo
+      and "s['_non_nlh_ids'] = sorted(_non_nlh_ids)" in _ga_plo
+      and "hands = [h for h in all_hands if h.get('game_type', 'NLH') == 'NLH']" in _ga_plo)
+
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()
 _w_idx = _cov_src.index("with open(cand_path, 'w'")

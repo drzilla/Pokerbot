@@ -76,77 +76,174 @@ def _norm_decision(c):
     }
 
 
-def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version='', optional_cap=8):
-    """Build the ONE sealed analyst packet: required queue (high-confidence rule/chart violations) +
-    optional queue (lower-confidence, capped) + keyed evidence + manifest. Each hand/decision appears
-    once. Pure."""
+def _legacy_required_decision(hand_id, rd):
+    """A required-review decision for a hand from the CANONICAL legacy required population. Carries its
+    prior reviewed decision ref + prior verdict so accepted analyst verdicts remain reproducible."""
+    ft = (rd.get('final_truth') or {}).get('records', {}) or {}
+    rec = ft.get(hand_id) or {}
+    ref = (rd.get('reviewed_decision_ref_by_hand') or {}).get(hand_id)
+    bucket = (rd.get('_candidate_need_bucket') or {}).get(hand_id)
+    return {
+        'decision_id': ref or ('%s:required' % hand_id),
+        'hand_id': hand_id, 'family': 'legacy_required_review', 'street': None,
+        'detector_reason': 'canonical required-review hand (need bucket %s)' % bucket,
+        'evidence_ref': None, 'evidence_tier': 'canonical_required_population',
+        'prior_final_class': rec.get('final_class'), 'prior_verdict': rec.get('verdict'),
+        'prior_decision_id': ref, 'relationship': 'REQUIRED_REVIEW',
+        'missing_assumptions': [], 'allowed_verdicts': list(ALLOWED_VERDICTS),
+        'required_output_fields': list(REQUIRED_OUTPUT_FIELDS),
+    }
+
+
+def legacy_required_ids(rd):
+    """The CANONICAL legacy mandatory review population (owner gap 3): the production required-review
+    hands -- _candidate_need_ids plus every material-loss-population hand. NOT defined by the new packet."""
+    out = list(rd.get('_candidate_need_ids') or [])
+    mlp = rd.get('material_loss_population')
+    if isinstance(mlp, dict):
+        out += [h for h in mlp.keys() if not str(h).startswith('_')]
+    elif isinstance(mlp, list):
+        out += [m.get('id') for m in mlp if isinstance(m, dict) and m.get('id')]
+    seen, uniq = set(), []
+    for h in out:
+        if h and h not in seen:
+            seen.add(h)
+            uniq.append(h)
+    return uniq
+
+
+def _content_hash(payload):
+    """SHA-256 over the CANONICAL serialization of the packet contents (every field except the hash
+    itself). Any change to a decision fact, evidence excerpt, input hash, runtime identity, cache
+    identity, or queue membership changes the hash (owner gap 4)."""
+    import json
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                                     default=str).encode('utf-8')).hexdigest()
+
+
+def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version='',
+                 runtime_commit='', cache_identity='', optional_cap=8):
+    """Build the ONE sealed analyst packet. REQUIRED = the canonical legacy required-review population
+    (preserved 100%) PLUS the accepted rule-backed findings (the KQs SB-flat). OPTIONAL = lower-confidence
+    read-dependent candidates, capped. Each hand/decision appears once; nothing required is demoted. The
+    packet_hash binds all contents + input/runtime/cache identity."""
     import gem_discovery_context as _dc
     prior = (rd.get('final_truth') or {}).get('records', {}) if isinstance(rd, dict) else {}
     val = _dc.run_value(hands, prior)
-    required, optional, seen = [], [], set()
-    # required: rule/chart violations confirmable now (the rule-backed SB-flat family). optional: the rest.
     confirmed_ids = {r['decision_id'] for r in val['confirmed']}
-    for c in val['candidates']:
-        did = c.get('decision_id')
-        if did in seen:
+    discovery = {c.get('decision_id'): _norm_decision(c) for c in val['candidates']}
+    rule_required = {c.get('decision_id'): _norm_decision(c) for c in val['candidates']
+                     if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
+
+    required, optional, by_hand = [], [], {}
+    # 1. the canonical legacy required population FIRST (parity) -- one decision per hand.
+    for hid in legacy_required_ids(rd):
+        if hid in by_hand:
             continue
-        seen.add(did)
-        rec = _norm_decision(c)
-        if c.get('family') == 'sb_flat_vs_late_open' or did in confirmed_ids:
-            required.append(rec)
-        else:
-            optional.append(rec)
+        rec = _legacy_required_decision(hid, rd)
+        by_hand[hid] = rec['decision_id']
+        required.append(rec)
+    # 2. add the accepted rule-backed findings (KQs) if not already covered by the legacy hand.
+    for did, rec in rule_required.items():
+        if rec['hand_id'] in by_hand:
+            continue
+        by_hand[rec['hand_id']] = did
+        required.append(rec)
+    # 3. optional = remaining read-dependent discovery candidates (capped), never a required hand.
+    req_dids = {r['decision_id'] for r in required}
+    req_hands = set(by_hand.keys())
+    for did, rec in discovery.items():
+        if did in req_dids or rec['hand_id'] in req_hands:
+            continue
+        optional.append(rec)
     optional = optional[:optional_cap]
+
+    evidence = {k: EVIDENCE[k] for k in sorted({d['evidence_ref'] for d in required + optional if d.get('evidence_ref')})}
     manifest = {
         'schema': SCHEMA_VERSION, 'session_id': session_id,
         'input_hashes': input_hashes or {}, 'runtime_version': runtime_version,
-        'required_count': len(required), 'optional_count': len(optional),
-        'optional_cap': optional_cap,
-        'evidence_keys': sorted(EVIDENCE.keys()),
-        'allowed_verdicts': list(ALLOWED_VERDICTS),
+        'runtime_commit': runtime_commit, 'cache_identity': cache_identity,
+        'required_count': len(required), 'optional_count': len(optional), 'optional_cap': optional_cap,
+        'evidence_keys': sorted(evidence.keys()), 'allowed_verdicts': list(ALLOWED_VERDICTS),
     }
-    manifest['packet_hash'] = hashlib.sha256(
-        ('%s|%s|%d|%d' % (SCHEMA_VERSION, session_id, len(required), len(optional))).encode()).hexdigest()[:16]
-    return {'manifest': manifest, 'evidence': {k: EVIDENCE[k] for k in
-            sorted({d['evidence_ref'] for d in required + optional if d['evidence_ref']})},
-            'required': required, 'optional': optional}
+    packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional}
+    manifest['packet_hash'] = _content_hash(packet)   # over contents that exclude packet_hash itself
+    return packet
 
 
-def validate_analyst_output(packet, analyst):
-    """Fail-closed validator run BEFORE the quick render. Returns {valid, errors}. Rejects unknown/dup
-    decisions, missing required decisions, out-of-enum verdicts, wrong session/packet binding, and any
-    exact numeric claim not present in the packet. Never silently launches another analyst pass."""
+def validate_analyst_output(packet, analyst, cache_ok=True):
+    """Fail-closed validator run BEFORE the quick render. REQUIRES session_id + packet_hash (rejects when
+    missing), exactly one verdict per required decision, at most one per optional, the allowed enum, only
+    packet-provided decision/evidence refs, no unknown/duplicate decisions, no unbound external evidence,
+    and a fresh cache. A failure returns concise errors -- never a second analyst pass."""
     errors = []
+    m = packet['manifest']
+    if not analyst.get('session_id'):
+        errors.append('missing required session_id binding')
+    elif analyst['session_id'] != m['session_id']:
+        errors.append('analyst output bound to the wrong session: %s' % analyst.get('session_id'))
+    if not analyst.get('packet_hash'):
+        errors.append('missing required packet_hash binding')
+    elif analyst['packet_hash'] != m['packet_hash']:
+        errors.append('analyst output bound to the wrong packet hash')
+    if not cache_ok:
+        errors.append('stale or missing deterministic cache -- rerun the full pipeline')
     decisions = {d['decision_id']: d for d in packet['required'] + packet['optional']}
     required_ids = {d['decision_id'] for d in packet['required']}
-    import re
-    seen = set()
+    optional_ids = {d['decision_id'] for d in packet['optional']}
+    counts = {}
     for a in (analyst.get('verdicts') or []):
         did = a.get('decision_id')
         if did not in decisions:
             errors.append('unknown decision id: %s' % did)
             continue
-        if did in seen:
-            errors.append('duplicate decision: %s' % did)
-        seen.add(did)
+        counts[did] = counts.get(did, 0) + 1
         if a.get('verdict') not in ALLOWED_VERDICTS:
             errors.append('verdict outside allowed enum (%s): %s' % (did, a.get('verdict')))
-        # an exact numeric claim in the reason must already be present in the decision's packet facts.
-        d = decisions[did]
-        facts_blob = str({k: d.get(k) for k in ('eff_stack_bb', 'pot_before_bb', 'spr', 'board',
-                          'hand_code', 'action_line', 'detector_reason')})
-        for num in re.findall(r'\d+(?:\.\d+)?\s*(?:%|bb|BB)', str(a.get('reason', ''))):
-            base = re.match(r'\d+(?:\.\d+)?', num).group(0)
-            if base not in facts_blob:
-                errors.append('exact numeric claim not in packet (%s): %s' % (did, num))
-    missing = sorted(required_ids - seen)
-    if missing:
-        errors.append('missing required decisions: %s' % missing)
-    if analyst.get('session_id') and analyst['session_id'] != packet['manifest']['session_id']:
-        errors.append('analyst output bound to the wrong session: %s' % analyst.get('session_id'))
-    if analyst.get('packet_hash') and analyst['packet_hash'] != packet['manifest']['packet_hash']:
-        errors.append('analyst output bound to the wrong packet hash')
+        # structured refs only: any evidence_ref / fact_ref the analyst cites must be packet-provided.
+        for ref in (a.get('evidence_refs') or []):
+            if ref not in packet.get('evidence', {}):
+                errors.append('cites evidence not in packet (%s): %s' % (did, ref))
+        for fr in (a.get('fact_refs') or []):
+            if fr not in decisions[did]:
+                errors.append('cites a fact not in the decision record (%s): %s' % (did, fr))
+    for did in required_ids:
+        if counts.get(did, 0) == 0:
+            errors.append('missing required decision verdict: %s' % did)
+        elif counts.get(did, 0) > 1:
+            errors.append('duplicate required verdict: %s' % did)
+    for did in optional_ids:
+        if counts.get(did, 0) > 1:
+            errors.append('duplicate optional verdict: %s' % did)
     if analyst.get('cited_external_evidence'):
         errors.append('analyst cited unprovided external evidence')
+    covered = len([d for d in required_ids if counts.get(d, 0) >= 1])
     return {'valid': not errors, 'errors': errors,
-            'required_coverage': round(len(seen & required_ids) / max(len(required_ids), 1), 3)}
+            'required_coverage': round(covered / max(len(required_ids), 1), 3)}
+
+
+def build_coverage_reconciliation(rd, packet):
+    """Owner gap 3 artifact: reconcile the sealed packet's required population against the CANONICAL
+    legacy required-review population. The invariant is legacy_required - sealed_required == empty."""
+    legacy = legacy_required_ids(rd)
+    sealed_required_hands = sorted({d['hand_id'] for d in packet['required']})
+    sealed_optional_hands = sorted({d['hand_id'] for d in packet['optional']})
+    missing = sorted(set(legacy) - set(sealed_required_hands))
+    demoted = sorted(set(legacy) & set(sealed_optional_hands))
+    # one decision per hand (no duplicate)
+    from collections import Counter
+    dup = [h for h, n in Counter(d['hand_id'] for d in packet['required']).items() if n > 1]
+    kqs = 'TM6084610450'
+    kqs_present_required = any(d['hand_id'] == kqs for d in packet['required'])
+    return {
+        'session': packet['manifest'].get('session_id'),
+        'legacy_required_count': len(legacy),
+        'sealed_required_count': len(sealed_required_hands),
+        'legacy_minus_sealed_required': missing,
+        'required_demoted_to_optional': demoted,
+        'duplicate_required_hands': dup,
+        'kqs_sb_flat_present_and_required': kqs_present_required,
+        'optional_count': len(sealed_optional_hands), 'optional_cap': packet['manifest'].get('optional_cap'),
+        'parity_pass': bool(not missing and not demoted and not dup),
+        'invariants_pass': bool(not missing and not demoted and not dup and kqs_present_required),
+    }

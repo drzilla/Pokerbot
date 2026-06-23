@@ -14183,14 +14183,47 @@ _v_ok = _AP.validate_analyst_output(_pkt, _aout)
 check('T-IT4-T2-01: the fail-closed validator accepts a complete one-pass output (100% required coverage, 0 errors)',
       _v_ok['valid'] is True and _v_ok['required_coverage'] == 1.0 and _v_ok['errors'] == [])
 _v_bad = _AP.validate_analyst_output(_pkt, {'session_id': 'WRONG',
-         'verdicts': [{'decision_id': _pkt['required'][0]['decision_id'], 'verdict': 'MAGIC', 'reason': '~28% equity'},
+         'verdicts': [{'decision_id': _pkt['required'][0]['decision_id'], 'verdict': 'MAGIC', 'reason': 'x'},
                       {'decision_id': 'unknown:x', 'verdict': 'JUSTIFIED', 'reason': 'ok'}]})
-check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unpacketed numeric + unknown id + wrong session',
+check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unknown id + wrong session + missing packet hash',
       _v_bad['valid'] is False and len(_v_bad['errors']) >= 4
       and any('outside allowed enum' in e for e in _v_bad['errors'])
-      and any('not in packet' in e for e in _v_bad['errors'])
       and any('unknown decision' in e for e in _v_bad['errors'])
-      and any('wrong session' in e for e in _v_bad['errors']))
+      and any('wrong session' in e for e in _v_bad['errors'])
+      and any('missing required packet_hash' in e for e in _v_bad['errors']))
+
+# ---- Release validation: coverage parity + binding hardening (owner gaps 3/4/5) ----
+_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:preflop:1'}}},
+          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:preflop:1'},
+          '_candidate_need_bucket': {'TMa': 10, 'TMb': 9}, 'material_loss_population': {'TMc': {}}}
+_rv_pkt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                           input_hashes={'x': '1'}, cache_identity='ci', optional_cap=8)
+_cov = _AP.build_coverage_reconciliation(_rv_rd, _rv_pkt)
+check('T-RV-01: the sealed required queue preserves 100% of the legacy required population (parity, no demotion/dup)',
+      _cov['legacy_minus_sealed_required'] == [] and _cov['required_demoted_to_optional'] == []
+      and _cov['duplicate_required_hands'] == [] and _cov['legacy_required_count'] == 3 and _cov['parity_pass'] is True)
+_h0 = _rv_pkt['manifest']['packet_hash']
+_h_rt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
+                         input_hashes={'x': '1'}, cache_identity='ci')['manifest']['packet_hash']
+_h_in = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                         input_hashes={'x': '2'}, cache_identity='ci')['manifest']['packet_hash']
+check('T-RV-02: packet_hash is content-bound -- changes with runtime commit and with input hashes',
+      len(_h0) == 64 and _h0 != _h_rt and _h0 != _h_in)
+_va_ok = {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': d['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'x'} for d in _rv_pkt['required']]}
+check('T-RV-03: validator REQUIRES session_id + packet_hash; accepts a complete bound output (coverage 1.0)',
+      _AP.validate_analyst_output(_rv_pkt, _va_ok)['valid'] is True
+      and _AP.validate_analyst_output(_rv_pkt, _va_ok)['required_coverage'] == 1.0
+      and _AP.validate_analyst_output(_rv_pkt, {'packet_hash': _h0, 'verdicts': []})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'verdicts': []})['valid'] is False)
+check('T-RV-04: validator fail-closes on stale cache, other-packet hash, unknown id, duplicate required',
+      _AP.validate_analyst_output(_rv_pkt, _va_ok, cache_ok=False)['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': 'WRONG', 'verdicts': []})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': 'unknown', 'verdict': 'JUSTIFIED', 'reason': 'x'}]})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'a'},
+                       {'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'b'}]})['valid'] is False)
 
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.

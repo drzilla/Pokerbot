@@ -3999,7 +3999,10 @@ _MODAL_HTML = r"""
       b.addEventListener('click',function(){
         ch.setAttribute('data-metric',b.getAttribute('data-metric'));
         Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(x){x.classList.toggle('active',x===b);});
-        window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
+        /* QA-RES (shared state): a metric change re-renders from the CURRENT canonical filtered set (not the
+           full-session window.ttChart values) and never alters the active filter. */
+        if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();
+        else window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
     var tip=ch.querySelector('.tt-tooltip');
     function show(ev){var row=ev.target.closest?ev.target.closest('.tt-bar-row'):null;if(!row||!tip)return;
       tip.textContent=row.getAttribute('data-tip')||'';tip.hidden=false;
@@ -4085,28 +4088,65 @@ _MODAL_HTML = r"""
         c[8].textContent=(a.itm_pct==null?'—':Math.round(a.itm_pct)+'%');
         c[9].textContent=(a.top5_pct==null?'—':Math.round(a.top5_pct)+'%');
         c[10].textContent=(a.top1_pct==null?'—':Math.round(a.top1_pct)+'%');
-        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});}
+        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});
+      /* QA-RES-005: keep the grouped FOOTER total + coverage note LIVE (the filtered event set, not the
+         stale session total) so every Results surface reconciles with the primary table. */
+      var ta=_ttAggregate(evs);var tf=pane.querySelector('tfoot tr.tt-totals');
+      if(tf&&tf.children.length>=8){var f=tf.children;
+        f[1].textContent=ta.events;f[2].textContent=ta.bullets;f[3].textContent=ta.results_covered+'/'+ta.events;
+        f[4].textContent=_ttMoney(ta.committed_cost);f[5].textContent=_ttMoney(ta.covered_return);
+        f[6].textContent=(ta.net==null?'—':_ttMoney(ta.net,true));
+        f[7].textContent=(ta.roi_pct==null?'—':_ttPct(ta.roi_pct));
+        if(f.length>11)f[11].textContent=(ta.bb100==null?'—':(ta.bb100>=0?'+':'')+ta.bb100.toFixed(1));}
+      var note=pane.querySelector('.tt-coverage-note');
+      if(note)note.textContent='Results available for '+ta.results_covered+' of '+ta.events
+        +' events; the rest are estimated or still running.';}
     function renderChart(evs){var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
       var tab=ch.getAttribute('data-tab')||'buyin';var metric=ch.getAttribute('data-metric')||'net';
       var cats=(window.ttChart[tab]||{}).cats||[];var body=ch.querySelector('.tt-chart-body');if(!body)return;
+      /* QA-RES (shared state): chart VALUES are ALWAYS re-aggregated from the current filtered events +
+         active tab/metric -- never the precomputed full-session window.ttChart values. window.ttChart is
+         used only for the category list + colours. */
       var aggByCat={};cats.forEach(function(c){aggByCat[c.key]=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===c.key;}));});
       var shares=_ttDist(aggByCat,metric,cats);var h='';
       cats.forEach(function(c){h+=_ttChartBar(c,shares[c.key],metric);});
-      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';}
+      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';
+      var ttl=ch.querySelector('[data-tt-chart-title]');
+      if(ttl){var tl=String(tab).charAt(0).toUpperCase()+String(tab).slice(1).replace(/_/g,' ');
+        var ml={net:'Net',cost:'Cost',return:'Cash Return'}[metric]||metric;
+        ttl.textContent='Distribution — '+tl+' · '+ml;}}
     function render(){var evs=filtered();var ids={};evs.forEach(function(e){ids[e.id]=1;});
       renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);
       var clr=filters&&filters.querySelector('[data-tt-clear]');
       var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
       if(clr)clr.hidden=!any;}
     window.ttApplyFilters=render;
-    /* RES-007 (v8.19.0): ONE canonical filter state. The Results-table (DataTable) filter is the
-       single driver — when it changes, the sticky summary, grouped aggregate and distribution chart
-       re-render from the SAME visible event set (keyed by ttModel id). Passing null restores the
-       grouped/chart filter's own state. */
-    window.ttApplyFiltersForIds=function(idset){
-      var evs=(idset==null)?filtered():model.filter(function(e){return idset[String(e.id)];});
-      renderSticky(evs);renderGrouped(evs);renderChart(evs);
-    };
+    /* QA-RES (FINAL shared-state correction): ONE canonical Results state, owned by the DataTable filter
+       and stored as window.__ttFilteredIds (null => all events). ONE canonical render function,
+       renderResultsFromCurrentState(), re-renders EVERY surface (sticky, grouped rows+footer, coverage,
+       chart) from that same filtered set + the active grouping tab + active metric. The DataTable filter
+       bridge, the metric selector, the grouping-tab handler, reset and reload/restoration ALL call it, so
+       no Results interaction ever renders from the full-session population or an empty private state. */
+    window.__ttFilteredIds=null;
+    function _ttCurrentEvents(){
+      /* Canonical source of truth = the Results DataTable's currently-VISIBLE rows. Deriving the event set
+         from the DOM (rather than an id-set the bridge has to push) makes every caller order-independent:
+         the DataTable filters its own #tt-results rows first (on click AND on reload/restoration), so the
+         metric, grouping-tab, reset and init renders all read the SAME population the table shows -- even
+         when initDataTable runs before this controller defines the bridge. __ttFilteredIds is a fallback. */
+      var t=document.getElementById('tt-results');
+      if(t){var vis={},any=false;
+        Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+          if(r.style.display!=='none'){vis[r.getAttribute('data-event-id')]=1;any=true;}});
+        if(any)return model.filter(function(e){return vis[String(e.id)];});}
+      var s=window.__ttFilteredIds;
+      return (s==null)?model.slice():model.filter(function(e){return s[String(e.id)];});}
+    window.ttCurrentFilteredIds=function(){return _ttCurrentEvents().map(function(e){return e.id;}).sort();};
+    function renderResultsFromCurrentState(){var evs=_ttCurrentEvents();var ids={};
+      evs.forEach(function(e){ids[e.id]=1;});
+      renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);}
+    window.renderResultsFromCurrentState=renderResultsFromCurrentState;
+    window.ttApplyFiltersForIds=function(idset){window.__ttFilteredIds=idset||null;renderResultsFromCurrentState();};
     if(filters){
       Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
@@ -4117,14 +4157,23 @@ _MODAL_HTML = r"""
       if(clr)clr.addEventListener('click',function(){state={};saveState();
         Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
         render();});}
-    /* RES-007: restore the saved filter state on load and re-mark the chips, THEN render so the
-       table, chart, totals and grouped views all reflect the restored selection (reload-safe). */
-    var _saved=loadState();
+    /* QA-RES-001: with the top .tt-filters toolbar removed, the Results DataTable (.dt-filters) is the ONE
+       canonical filter state and its bridge re-drives every surface. Only restore a saved tt-filter
+       selection when that toolbar actually exists; otherwise keep this controller's state EMPTY (and clear
+       any orphaned saved selection) so it renders the full set on load and never diverges from the table. */
+    if(!filters){try{sessionStorage.removeItem(TT_SKEY);}catch(e){}}
+    var _saved=filters?loadState():null;
     if(_saved){state=_saved;
-      if(filters)Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+      Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
         if(state[dim]&&state[dim].indexOf(val)>=0)b.classList.add('active');else b.classList.remove('active');});}
-    render();
+    /* QA-RES (reload/restoration parity): the INITIAL render must reflect the ONE canonical state
+       (window.__ttFilteredIds), NOT this controller's own empty state. Otherwise, when the DataTable
+       restores a saved filter on reload and bridges the filtered id-set, this end-of-init render() would
+       clobber the restored sticky/grouped/chart back to the full population. Order-independent: if the
+       DataTable has already bridged, we render its filtered set; if not, __ttFilteredIds is null => all,
+       and the DataTable's later bridge becomes the final word. */
+    renderResultsFromCurrentState();
   };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];
@@ -6703,7 +6752,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     .rq-row-title {{ white-space: normal; }}
   }}
   @media(max-width:980px){{
-    .od-row {{ grid-template-columns: 1fr !important; }}
+    /* QA 360px overflow fix: a bare `1fr` track keeps min-width:auto (=min-content), so the .od-card grid
+       item (e.g. .rq-card / .cooler-summary-card) expanded the column to its intrinsic ~323px and pushed the
+       document 3px past a 360px viewport. minmax(0,1fr) lets the single mobile column shrink to the container
+       width so the card fits and its content reflows -- a real box-model fix, NOT an overflow suppression. */
+    .od-row {{ grid-template-columns: minmax(0, 1fr) !important; }}
     .opening-metric-grid {{ grid-template-columns: repeat(3, 1fr) !important; }}
     .coach-watchlist-card .od-watch-grid {{ grid-template-columns: 1fr !important; }}
   }}

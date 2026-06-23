@@ -2766,7 +2766,20 @@ def _emit_section_x(doc, s, rd, hands):
     # report-schema sibling, which is shown separately and clearly labelled (never as the runtime).
     from gem_report_draft.draft import REPORT_SCHEMA_VERSION
     from gem_version import RUNTIME_VERSION
-    doc.w(f"**Runtime:** {RUNTIME_VERSION} · report schema {REPORT_SCHEMA_VERSION}")
+    # QA-META-001: reconcile the report's identity line with the canonical build identity. Each field stays
+    # SEMANTICALLY distinct -- release candidate (package label) != runtime base (code version) != report
+    # schema (layout format) -- never collapsed to one string. In a frozen package the commit is the
+    # embedded SOURCE_COMMIT (Git-less); in the dev tree it falls back to the live git read.
+    try:
+        from gem_build_identity import build_identity as _bi_fn
+        _bidy = _bi_fn()
+        _rel_lbl = _bidy.get('release_candidate') or RUNTIME_VERSION
+        _commit_lbl = _bidy.get('source_commit_short') or 'dev'
+        _build_lbl = _bidy.get('build_id') or ''
+    except Exception:
+        _rel_lbl, _commit_lbl, _build_lbl = RUNTIME_VERSION, 'dev', ''
+    doc.w(f"**Release:** {_rel_lbl} · **Runtime:** {RUNTIME_VERSION} · report schema {REPORT_SCHEMA_VERSION}"
+          f" · commit {_commit_lbl}" + (f" · build {_build_lbl}" if _build_lbl else ""))
     doc.w("")
     # P3 #17: Self-reporting QA block
     _ie_issues = rd.get('issue_explorer_issues', [])

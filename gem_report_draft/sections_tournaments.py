@@ -166,7 +166,12 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
     """Render ONE grouped-aggregate table for a tab: pooled ROI on the covered
     subset, settled-only ITM/Top denominators, hand-weighted BB/100·cEV/100, and a
     deterministic legend-square colour per group (the table IS the chart legend)."""
-    doc.w("<div class='table-shell'><div class='table-scroll'>")
+    # QA mobile-chart fix: this 11-column numeric aggregate must stay a COMPACT horizontally-scrollable
+    # table on mobile. Without data-mobile-mode the .table-shell falls into the stacked-card layout
+    # (.data-table tr -> display:block), which blew every group row up to ~410px tall blank panels at
+    # 360/390/430. data-mobile-mode='scroll' keeps one compact row per group + horizontal swipe, exactly
+    # like the per-event Results table. Pure responsive layout -- no data/filter/grouping/chart-state change.
+    doc.w("<div class='table-shell' data-mobile-mode='scroll'><div class='table-scroll'>")
     doc.w("<table class='data-table tt-aggregate'>")
     doc.w("<thead><tr><th>Group</th><th>Events</th><th>Bullets</th>"
           "<th title='Final financial results available for X of Y events; the "
@@ -332,6 +337,42 @@ def _tt_chart_data(_TM, events):
                           sh.get(c) for c in ordered}
         out[key] = {'cats': cats, 'metrics': metrics}
     return out
+
+
+def _emit_financial_chart(doc, events):
+    """v8.20 QA-RES-003 (owner-locked, supersedes the static finish-outcome bar): the group-aware FINANCIAL
+    distribution chart as the PRIMARY Results chart. Metric controls Cost / Cash Return / Net; categories
+    follow the active grouping tab; the canonical filter JS (initTtChart + renderChart) re-renders from the
+    SAME filtered event set + window.ttChart on every filter / tab / metric change, so the chart values +
+    categories reconcile exactly with the filtered primary table."""
+    import gem_tournament_model as _TM
+    tabs = list(_TT_TABS)
+    _days = set(e.get('event_day') for e in events if e.get('event_day'))
+    if len(_days) > 1:
+        tabs.append(('by_day', 'By day'))
+    default = None
+    for key, label in tabs:
+        groups = _TM.group_events(events, key) or {}
+        ordered = _tt_ordered_cats(_TM, key, groups)
+        if ordered:
+            default = (key, label, groups, ordered)
+            break
+    if not default:
+        return
+    dkey, dlabel, dgroups, dordered = default
+    body = _tt_chart_bars_html(_TM, dkey, dgroups, dordered, 'net')
+    _btns = ''.join(
+        "<button type='button' class='tt-metric%s' data-metric='%s'>%s</button>"
+        % (' active' if m == 'net' else '', m, lbl)
+        for m, lbl in (('net', 'Net'), ('cost', 'Cost'), ('return', 'Cash Return')))
+    doc.w("<div class='tt-chart' data-tab='%s' data-metric='net'>" % dkey)
+    doc.w("<div class='tt-chart-head'>"
+          "<span class='tt-chart-title' data-tt-chart-title>Distribution — %s · Net</span>"
+          "<span class='tt-chart-metrics'>%s</span></div>" % (_esc_tt(dlabel), _btns))
+    doc.w("<div class='tt-chart-body'>%s</div>" % body)
+    doc.w("<div class='tt-tooltip' hidden></div>")
+    doc.w("</div>")
+    doc.w("")
 
 
 # v8.20 W1A.2A Track A2: the ONE finish-outcome distribution model. Mutually-exclusive buckets by
@@ -569,10 +610,11 @@ def _emit_filters_and_sticky(doc, events):
               (_fmt_usd(_ag['net'], plus=True) if _ag['net'] is not None else EMDASH),
               (_pct_or_dash(_ag['roi_pct']) if _ag['roi_pct'] is not None else EMDASH),
               _ag['n_settled'], len(events)))
-    if chips:
-        doc.w("<div class='tt-filters' data-tt-filters>" + ''.join(chips)
-              + "<button type='button' class='tt-filter-clear' data-tt-clear hidden>"
-              "Clear filters</button></div>")
+    # QA-RES-001/002: the competing top `.tt-filters` toolbar is REMOVED -- the Results DataTable filter
+    # (`.dt-filters` on tt-results) is the ONE canonical filter state, and its bridge (ttApplyFiltersForIds)
+    # already re-drives the sticky summary, grouped rows+footer, coverage note and the financial chart from
+    # the same filtered event-ID set. The sticky bar above stays; `chips` is intentionally not emitted.
+    _ = chips
     doc.w("")
 
 
@@ -697,8 +739,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # denominators, legend-square colours. Rendered ABOVE the per-event detail.
     _emit_grouped_aggregate(doc, events)
 
-    # ---- v8.17.1 P4 surface 4: distribution chart directly below the grouped table ----
-    _emit_distribution_chart(doc, events)
+    # ---- v8.20 QA-RES-003: group-aware Cost/Cash-Return/Net financial chart (owner-locked; replaces the
+    # static finish-outcome bar as the primary Results chart). ----
+    _emit_financial_chart(doc, events)
 
     # ---- v8.17 Epic 4: PRIMARY unified sortable table + per-event drilldown ----
     # Built ONCE from the canonical events; the per-event payload feeds the
@@ -843,6 +886,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'exit': _dthand(_C['exit'], _exit, _exit_cards, size='compact'),
             '_row_id': _eid,   # RES-008: drilldown key -> tournamentEvents[].event_id
             '_filters': {
+                'buyin': (e.get('buyin_band') or 'unknown'),   # QA-RES-004: buy-in joins the one filter set
                 'entry_time': (e.get('entry_timing') or 'unknown'),
                 'speed': (e.get('speed') or 'unknown'),
                 'bounty': ('bounty' if e.get('prize_type') == 'bounty' else 'non-bounty'),
@@ -921,7 +965,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
     doc.w('')
     _avg_top = ('Avg Top %.1f%%' % (sum(_top_pcts) / len(_top_pcts))) if _top_pcts else EMDASH
     import collections as _coll_tt
-    _FILTER_DEFS = [('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
+    _FILTER_DEFS = [('buyin', 'Buy-in'), ('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
                     ('freezeout', 'Freezeout'), ('multibullet', 'Multi-bullet'),
                     ('multiday', 'Multi-day'), ('satellite', 'Satellite'), ('phase', 'Phase')]
     # per-filter display labels for the typed values (the value stays the canonical typed token).
@@ -1003,8 +1047,12 @@ def _emit_tournament_tables(doc, s, rd, hands):
             "b.classList.toggle('active',b===btn);});"
             "g.querySelectorAll('.tt-tabpane').forEach(function(p){"
             "p.style.display=(p.getAttribute('data-tabpane')===tab)?'':'none';});"
-            "if(window.ttRenderChart)window.ttRenderChart(g,tab);"
-            "if(window.ttApplyFilters)window.ttApplyFilters();});});});})();")
+            # QA-RES (shared state): the grouping tab follows on the chart too, then EVERY surface re-renders
+            # through the ONE canonical render (current filtered set + active metric) -- never the old
+            # full-session ttRenderChart / empty-state ttApplyFilters paths. The active filter is preserved.
+            "var ch=document.querySelector('.tt-chart');if(ch)ch.setAttribute('data-tab',tab);"
+            "if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();"
+            "else if(window.ttRenderChart)window.ttRenderChart(g,tab);});});});})();")
     except Exception:
         pass
 

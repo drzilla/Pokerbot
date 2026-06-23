@@ -709,6 +709,11 @@ def _emit_sizing_lines(doc, s, rd, hands):
     from gem_report_draft._helpers import render_count_cell as _rcc
     sigs = rd.get('sizing_leak_signals') or []
     excl = rd.get('sizing_leak_excluded') or {}
+    # QA-META-002: the nav rail + topbar workflow tabs link to #sec-SL (derived as 'sec-'+label[1:] from
+    # the 'SSL' section key), but this surface emitted a bare '## ' heading with no anchor target -> 3 dead
+    # links. Emit the canonical sec-SL anchor so every nav link resolves (same <<ANCHOR>> mechanism as
+    # doc.section, without forcing a TOC entry or changing the visible heading).
+    doc.w("<<ANCHOR:sec-SL>>")
     doc.w("## Sizing & Line Patterns")
     if not sigs:
         _n_excl = sum(v for v in excl.values() if isinstance(v, (int, float)))

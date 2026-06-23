@@ -201,8 +201,10 @@ def family_river_value(hands, prior_records=None):
         if len((h.get('board') or [])) < 5 or len((h.get('cards') or [])) != 2:
             continue
         # genuine value hand only -- a strong class that USES Hero's hole cards (no board-plays-itself
-        # false positives). This is the guard that keeps a 'missed value' confirmation honest.
-        if not _genuine_value_hand(h.get('cards') or [], h.get('board') or []):
+        # false positives). QA-DET-001: the board-plays-itself guard must look only at the FLOP (first 3
+        # cards), not the full runout -- a turn/river card that COMPLETES board trips is a legitimate
+        # Hero-hand improvement, not a board that played itself on the flop.
+        if not _genuine_value_hand(h.get('cards') or [], (h.get('board') or [])[:3]):
             continue
         f = _street_facts(h, 'river')
         riv = _street_acts(h, 'river')
@@ -339,7 +341,11 @@ def _preflop(h):
 
 
 def _hero_eff_stack(h):
-    for k in ('eff_stack_bb', 'effective_stack_bb', 'hero_eff_stack_bb', 'stack_bb', 'hero_stack_bb'):
+    # QA-DET-001 (defects 3-6): use the DECISION-TIME effective stack only, never the end-of-hand RAW
+    # stack (stack_bb / hero_stack_bb). The raw stack overstates depth and pushes hands outside their
+    # intended depth bands (short-stack <15bb, SB-flat 20-40bb) and mis-scopes all-in calls. When no
+    # decision-time stack is available the gate returns None and the family conservatively skips the hand.
+    for k in ('eff_stack_bb_at_decision', 'eff_stack_bb', 'effective_stack_bb', 'hero_eff_stack_bb'):
         if isinstance(h.get(k), (int, float)):
             return h[k]
     return None

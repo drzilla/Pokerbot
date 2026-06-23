@@ -303,7 +303,9 @@ def semantic_audit(packet):
     incl. zero_analyst_calculations_required."""
     rows, failing, leaks, calc_required = [], 0, 0, 0
     req_ids = {d['decision_id'] for d in packet['required']}
-    for d in (packet['required'] + packet['optional']):
+    # QA-PACKET-001: audit the unresolved/debt records too (their `unresolved` flag short-circuits the
+    # operand checks below) so the no-calc audit accounts for every sealed record, not only required+optional.
+    for d in (packet['required'] + packet['optional'] + packet.get('unresolved', [])):
         issues, calc_issues = [], []
         unresolved = bool(d.get('unresolved'))
         for k in _LEAK_KEYS:
@@ -460,8 +462,12 @@ def artifact_cache_identity(rd, hands, runtime_id=None, input_hashes=None):
         'reviewed_decision_ref_by_hand': rd.get('reviewed_decision_ref_by_hand') or {},
         'material_loss_keys': (sorted(k for k in mlp.keys() if not str(k).startswith('_'))
                                if isinstance(mlp, dict) else []),
-        'final_truth_counts': ft.get('counts') if isinstance(ft, dict) else None,
+        # NOTE: final_truth counts/records are deliberately EXCLUDED -- the analyst-output merge during the
+        # quick render legitimately changes the final-truth classification (e.g. CONFIRMED_MISTAKE 0->3), so
+        # including them would break --quick idempotency. The required population + reviewed refs + material-
+        # loss keys + hand ids already detect any input / queue-membership / hand mutation.
     }
+    _ = ft  # retained for clarity; final_truth is intentionally not part of the cache identity
     core_hash = hashlib.sha256(json.dumps(core, sort_keys=True, ensure_ascii=False, default=str)
                                .encode('utf-8')).hexdigest()
     payload = {'n_hands': len(hand_ids), 'hand_ids': hand_ids, 'analytical_core_hash': core_hash,
@@ -535,14 +541,20 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     rule_required = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']
                      if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
 
-    required, optional, by_hand = [], [], {}
+    required, optional, unresolved, by_hand = [], [], [], {}
     # 1. the canonical legacy required population FIRST (parity) -- ONE hydrated decision per hand.
+    #    QA-PACKET-001: a hand with no canonical decision node is NOT a gradable canonical decision -- route
+    #    it to the explicit `unresolved`/debt population so REQUIRED holds only decisions the analyst can
+    #    actually verdict. REQUIRED + UNRESOLVED together preserve 100% of the legacy population (parity).
     for hid in legacy_required_ids(rd):
         if hid in by_hand:
             continue
         rec = _legacy_required_decision(hid, rd, hands_by_id)
         by_hand[hid] = rec['decision_id']
-        required.append(rec)
+        if rec.get('unresolved'):
+            unresolved.append(rec)
+        else:
+            required.append(rec)
     # 2. add the accepted rule-backed findings (KQs) if not already covered by the legacy hand.
     for did, rec in rule_required.items():
         if rec['hand_id'] in by_hand:
@@ -565,9 +577,11 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
         'runtime_commit': runtime_commit, 'cache_identity': cache_identity,
         'build_identity': build_identity or {},
         'required_count': len(required), 'optional_count': len(optional), 'optional_cap': optional_cap,
+        'unresolved_count': len(unresolved),   # QA-PACKET-001: explicit no-canonical-node debt population
         'evidence_keys': sorted(evidence.keys()), 'allowed_verdicts': list(ALLOWED_VERDICTS),
     }
-    packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional}
+    packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional,
+              'unresolved': unresolved}
     manifest['packet_hash'] = _content_hash(packet)   # over contents that exclude packet_hash itself
     return packet
 
@@ -581,6 +595,62 @@ def recompute_packet_hash(packet):
     if isinstance(p.get('manifest'), dict):
         p['manifest'].pop('packet_hash', None)
     return _content_hash(p)
+
+
+# The one-pass analyst enum -> the canonical report verdict taxonomy (class_from_verdict in gem_final_truth).
+# Only CONFIRMED_MISTAKE maps to a mistake class, so the rebuilt final-truth confirmed-mistake count equals
+# the analyst's CONFIRMED_MISTAKE count; the analyst verdict OVERRIDES any prior automatic nomination.
+ONEPASS_TO_REPORT_VERDICT = {
+    'CONFIRMED_MISTAKE': 'III.2 Confirmed mistake',
+    'JUSTIFIED': 'III.5 Justified',
+    'READ_DEPENDENT': 'III.4 Read-dependent',
+    'INSUFFICIENT_EVIDENCE': 'Insufficient evidence',
+    'DETECTOR_BUG': 'III.0 Detector bug (cleared)',
+}
+
+
+def analyst_commentary_from_output(packet, analyst_output):
+    """Transform a validated ONE-PASS analyst output (decision-keyed verdicts) into the canonical
+    hand-keyed `analyst_commentary` the report consumes, plus a one-pass verdict-count summary
+    (QA-BLOCK-001). The one-pass enum is mapped to the report taxonomy so the final-truth owner recomputes
+    terminal ownership from the analyst verdicts (a CONFIRMED_MISTAKE overrides any automatic nomination;
+    a DETECTOR_BUG clears it). Returns (commentary_by_hand, onepass_summary)."""
+    by_decision = {d.get('decision_id'): d
+                   for d in (packet.get('required') or []) + (packet.get('optional') or [])}
+    commentary, counts = {}, {k: 0 for k in ONEPASS_TO_REPORT_VERDICT}
+    for v in (analyst_output.get('verdicts') or []):
+        did = v.get('decision_id')
+        enum = v.get('verdict')
+        if enum not in ONEPASS_TO_REPORT_VERDICT:
+            continue
+        dec = by_decision.get(did) or {}
+        hid = dec.get('hand_id') or (str(did).rsplit(':', 2)[0] if did else None)
+        if not hid:
+            continue
+        counts[enum] = counts.get(enum, 0) + 1
+        commentary[hid] = {
+            'verdict': ONEPASS_TO_REPORT_VERDICT[enum],
+            'onepass_verdict': enum,
+            'decision_id': did,
+            'reason': v.get('reason', ''),
+            'better_action': v.get('better_action', ''),
+            'source': 'one_pass_analyst',
+        }
+    summary = {
+        'reviewed_decisions': len([v for v in (analyst_output.get('verdicts') or [])
+                                   if v.get('verdict') in ONEPASS_TO_REPORT_VERDICT]),
+        'reviewed_hands': len(commentary),
+        'verdict_counts': {
+            'confirmed_mistakes': counts['CONFIRMED_MISTAKE'],
+            'justified': counts['JUSTIFIED'],
+            'read_dependent': counts['READ_DEPENDENT'],
+            'insufficient_evidence': counts['INSUFFICIENT_EVIDENCE'],
+            'detector_bugs': counts['DETECTOR_BUG'],
+        },
+        'packet_hash': (packet.get('manifest') or {}).get('packet_hash'),
+        'session_id': (packet.get('manifest') or {}).get('session_id'),
+    }
+    return commentary, summary
 
 
 def validate_analyst_output(packet, analyst, cache_ok=True):
@@ -639,23 +709,32 @@ def build_coverage_reconciliation(rd, packet):
     legacy required-review population. The invariant is legacy_required - sealed_required == empty."""
     legacy = legacy_required_ids(rd)
     sealed_required_hands = sorted({d['hand_id'] for d in packet['required']})
+    sealed_unresolved_hands = sorted({d['hand_id'] for d in packet.get('unresolved', [])})
     sealed_optional_hands = sorted({d['hand_id'] for d in packet['optional']})
-    missing = sorted(set(legacy) - set(sealed_required_hands))
+    # QA-PACKET-001: REQUIRED (gradable canonical decisions) + UNRESOLVED (no-canonical-node debt) together
+    # preserve 100% of the legacy required population (parity); neither is demoted to optional.
+    sealed_all = set(sealed_required_hands) | set(sealed_unresolved_hands)
+    missing = sorted(set(legacy) - sealed_all)
     demoted = sorted(set(legacy) & set(sealed_optional_hands))
-    # one decision per hand (no duplicate)
+    # one decision per hand across required + unresolved (no duplicate)
     from collections import Counter
-    dup = [h for h, n in Counter(d['hand_id'] for d in packet['required']).items() if n > 1]
-    kqs = 'TM6084610450'
-    kqs_present_required = any(d['hand_id'] == kqs for d in packet['required'])
+    dup = [h for h, n in Counter([d['hand_id'] for d in packet['required']]
+                                 + [d['hand_id'] for d in packet.get('unresolved', [])]).items() if n > 1]
+    # QA-META-001: removed the hardcoded fixture-hand dependency (was 'TM6084610450'). Session-agnostic
+    # invariant: a rule-backed sb_flat finding, when the session produces one, is sealed AS REQUIRED and
+    # never demoted to optional. Vacuously satisfied when the session has no such finding.
+    rule_backed_demoted = sorted({d['hand_id'] for d in packet['optional']
+                                  if d.get('family') == 'sb_flat_vs_late_open'})
     return {
         'session': packet['manifest'].get('session_id'),
         'legacy_required_count': len(legacy),
         'sealed_required_count': len(sealed_required_hands),
+        'sealed_unresolved_count': len(sealed_unresolved_hands),
         'legacy_minus_sealed_required': missing,
         'required_demoted_to_optional': demoted,
         'duplicate_required_hands': dup,
-        'kqs_sb_flat_present_and_required': kqs_present_required,
+        'rule_backed_sb_flat_demoted': rule_backed_demoted,
         'optional_count': len(sealed_optional_hands), 'optional_cap': packet['manifest'].get('optional_cap'),
         'parity_pass': bool(not missing and not demoted and not dup),
-        'invariants_pass': bool(not missing and not demoted and not dup and kqs_present_required),
+        'invariants_pass': bool(not missing and not demoted and not dup and not rule_backed_demoted),
     }

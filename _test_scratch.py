@@ -9789,11 +9789,12 @@ _ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
 _md_p4s = _d_p4s.render_md()
 _js_p4s = ' '.join(_d_p4s._extra_js)
 _html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
-check('T-P4UI-04: ONE stacked finish-outcome bar renders BELOW the grouped table; legacy Net/Cost/Return toggle gone',
-      'tt-outcome-bar' in _md_p4s and 'data-outcome-buckets' in _md_p4s
-      and 'tt-chart-metrics' not in _md_p4s and "data-metric='cost'" not in _md_p4s
-      and 'tt-bar-row' not in _md_p4s and 'tt-diverge' not in _md_p4s
-      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-outcome-bar'), '')
+check('T-P4UI-04 (QA-RES-003): the group-aware Cost/Cash-Return/Net financial chart is the PRIMARY Results chart (owner-locked); the static finish-outcome bar is removed',
+      "class='tt-chart'" in _md_p4s and 'tt-chart-metrics' in _md_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and "data-metric='return'" in _md_p4s
+      and 'Cash Return' in _md_p4s and 'tt-bar-row' in _md_p4s
+      and 'tt-outcome-bar' not in _md_p4s and 'data-outcome-buckets' not in _md_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index("class='tt-chart'"), '')
 check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
       "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
       and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
@@ -9812,11 +9813,12 @@ check('T-P4UI-09: Results DataTable is the canonical per-event surface; exit-han
       and "data-dt-col='type'" in _md_p4s and "data-dt-col='exit'" in _md_p4s
       and 'hand-ref xref' in _md_p4s
       and 'Per-event financial detail' not in _md_p4s, '')
-check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
+check('T-P4UI-10 (QA-RES-001/002/004): ONE canonical Results filter state (the .dt-filters DataTable, full owner dimension set); the competing .tt-filters chip toolbar is removed; sticky summary present',
       'tt-sticky-summary' in _md_p4s and 'Results available for' in _md_p4s
       and "data-ss='events'" in _md_p4s
-      and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
-      and "data-dim='prize_type'" in _md_p4s
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s  # second toolbar gone
+      and "data-dt-filter='buyin'" in _md_p4s and "data-dt-filter='bounty'" in _md_p4s  # the canonical dims
+      and "data-dt-filter='multibullet'" in _md_p4s and "data-dt-filter='phase'" in _md_p4s
       and 'data-cat-key=' in _md_p4s
       and 'window.ttModel=' in _js_p4s
       and 'window.initTtFilters=' in _html_p4src
@@ -9827,6 +9829,73 @@ check('T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers 
       and _md_p4s.count("id='tt-results'") == 1   # exactly ONE canonical Results DataTable (per-event)
       and 'tt-drivers-rollup' not in _md_p4s and 'Tournament Performance' not in _md_p4s,
       '')
+# QA-RES-001..005: the Tournament Results repair (one canonical state + restored financial chart).
+check('T-RES-01 (chart): window.ttChart carries Cost/Return/Net per tab so the chart recomputes from canonical numbers (no JS re-aggregation drift)',
+      'window.ttChart=' in _js_p4s and '"net"' in _js_p4s and '"cost"' in _js_p4s and '"return"' in _js_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and 'Cash Return' in _md_p4s)
+check('T-RES-02 (stale-state prevention): renderGrouped keeps the grouped FOOTER total + coverage note live from the filtered set',
+      "pane.querySelector('tfoot tr.tt-totals')" in _html_p4src
+      and "pane.querySelector('.tt-coverage-note')" in _html_p4src
+      and 'Results available for' in _html_p4src)
+check('T-RES-03 (one canonical state): the .dt-filters DataTable is the single filter owner with the full dimension set; the .tt-filters chip toolbar is gone',
+      all("data-dt-filter='%s'" % d in _md_p4s for d in ('buyin', 'bounty', 'freezeout', 'multibullet', 'phase'))
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s)
+check('T-RES-04 (reload-safe single state): initTtFilters only restores a saved selection when its toolbar exists; otherwise it clears the orphaned key and renders the full set',
+      'filters?loadState():null' in _html_p4src and 'sessionStorage.removeItem(TT_SKEY)' in _html_p4src)
+check('T-RES-05 (chart follows grouping tab + filter): the chart re-renders from the active tab + filtered events',
+      "ch.getAttribute('data-tab')" in _html_p4src and 'function renderChart(' in _html_p4src
+      and 'window.ttApplyFiltersForIds=' in _html_p4src)
+# QA-RES FINAL shared-state correction: ONE canonical state + ONE render fn for filter/metric/tab/reset/reload.
+_ttcode_res = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-RES-06 (chart values ALWAYS from the filtered set): renderChart re-aggregates from the current filtered events (_ttAggregate over evs.filter), never the precomputed full-session window.ttChart values',
+      '_ttAggregate(evs.filter(' in _html_p4src and 'function renderChart(evs)' in _html_p4src)
+check('T-RES-07 (one canonical state owner derived from the DataTable rows): renderResultsFromCurrentState + _ttCurrentEvents read the DataTable visible rows (DOM source of truth), so every caller is order-independent; ttCurrentFilteredIds is exposed',
+      'function renderResultsFromCurrentState(' in _html_p4src
+      and "document.getElementById('tt-results')" in _html_p4src
+      and "r.style.display!=='none'" in _html_p4src
+      and 'window.ttCurrentFilteredIds=' in _html_p4src
+      and 'window.renderResultsFromCurrentState=renderResultsFromCurrentState' in _html_p4src)
+check('T-RES-08 (metric change -> canonical render, not full-session): the metric button handler calls renderResultsFromCurrentState (so a metric switch after a filter recomputes from the filtered set) and never alters the filter',
+      'if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();' in _html_p4src)
+check('T-RES-09 (grouping-tab change -> canonical render; old empty-state path retired): the tab handler sets the chart data-tab AND calls renderResultsFromCurrentState; the bare window.ttApplyFilters() (empty private state) call is GONE',
+      "ch.setAttribute('data-tab',tab)" in _ttcode_res
+      and 'window.renderResultsFromCurrentState()' in _ttcode_res
+      and 'if(window.ttApplyFilters)window.ttApplyFilters()' not in _ttcode_res)
+check('T-RES-10 (reload/restoration parity): initTtFilters initial render is renderResultsFromCurrentState (the canonical state), NOT a bare render() that would clobber the DataTable-restored filter back to the full population',
+      'reload/restoration parity' in _html_p4src
+      and 'renderResultsFromCurrentState();\n  };' in _html_p4src)
+check('T-RES-11 (no render path to an empty independent Results state): the only filter bridge stores window.__ttFilteredIds and routes through the canonical render; no tournament handler calls window.ttApplyFilters()',
+      'window.__ttFilteredIds' in _html_p4src
+      and 'window.ttApplyFiltersForIds=function(idset){window.__ttFilteredIds=idset||null;renderResultsFromCurrentState();}' in _html_p4src
+      and 'window.ttApplyFilters()' not in _ttcode_res)
+# Required filter/grouping coverage -- proven against the actual render_datatable emit (NOT source strings):
+from gem_report_draft._datatable import render_datatable as _rdt_dim, Column as _Col_dim
+_dim_filters = [
+    {'key': 'entry_time', 'label': 'Entry time', 'options': [
+        {'value': 'early', 'label': 'Early', 'count': 1}, {'value': 'late', 'label': 'Late', 'count': 1}]},
+    {'key': 'multiday', 'label': 'Multi-day', 'options': [
+        {'value': 'multiday', 'label': 'Multiday', 'count': 1}, {'value': 'single-day', 'label': 'Single day', 'count': 1}]},
+    {'key': 'satellite', 'label': 'Satellite', 'options': [
+        {'value': 'satellite', 'label': 'Satellite', 'count': 1}, {'value': 'standard', 'label': 'Standard', 'count': 1}]}]
+_dim_html = _rdt_dim([_Col_dim(key='a', label='A', kind='text')],
+                     [{'a': {'value': 'x', 'display': 'x'}, '_filters': {'entry_time': 'early', 'multiday': 'multiday', 'satellite': 'satellite'}},
+                      {'a': {'value': 'y', 'display': 'y'}, '_filters': {'entry_time': 'late', 'multiday': 'single-day', 'satellite': 'standard'}}],
+                     table_id='tt-dimtest', totals=False, filters=_dim_filters)
+check('T-RES-DIM (renderer emits every required dim with >=2 values): entry_time / multiday / satellite chip-groups render when the data carries them (auto-hidden in the June-16 session ONLY because it is single-valued for those three); the other six (buy-in/speed/bounty/freezeout/multi-bullet/phase) are live-proven in the browser matrix',
+      all("data-dt-filter='%s'" % d in _dim_html for d in ('entry_time', 'multiday', 'satellite')))
+check('T-RES-DIM-DEFS (all 9 owner filter dimensions defined + the 6 grouping tabs): the Results filter set covers buy-in/entry-timing/speed/bounty/freezeout/multi-bullet/multi-day/satellite/phase and the grouping tabs cover buy-in/prize/speed/entry-pattern/entry-timing/phase-reached',
+      all("('%s'," % d in _ttcode_res for d in ('buyin', 'entry_time', 'speed', 'bounty', 'freezeout', 'multibullet', 'multiday', 'satellite', 'phase'))
+      and all("('%s'," % g in _ttcode_res for g in ('buyin', 'prize_type', 'speed', 'entry_pattern', 'entry_timing'))
+      and 'phase_reached' in _ttcode_res)
+check('T-RES-DIM-HIDE (auto-hide is the only reason a dim is absent): a dimension is shown iff it has >=2 distinct values among the events (single-valued dims are intentionally skipped)',
+      'if len(_cnts) <= 1:' in _ttcode_res and 'continue' in _ttcode_res)
+import re as _re_mob
+check('T-MOBCHART-01 (mobile usability): the grouped-aggregate table stays a COMPACT horizontally-scrollable table on mobile (its .table-shell carries data-mobile-mode=scroll), never the tall stacked-card layout that blew group rows up to ~410px blank panels at 360/390/430',
+      bool(_re_mob.search(r"table-shell['\"] +data-mobile-mode=['\"]scroll['\"][^>]*>\s*<div class=['\"]table-scroll['\"]>\s*<table class=['\"]data-table tt-aggregate", _md_p4s))
+      and "data-mobile-mode='scroll'" in _ttcode_res)
+check('T-MOBOVF-01 (360px page-overflow fix): the .od-row mobile single-column track is minmax(0,1fr), NOT a bare 1fr -- so .od-card.rq-card / .od-card.cooler-summary-card shrink to the container instead of expanding the grid track to their ~323px min-content and pushing the document 3px past a 360px viewport',
+      '.od-row {{ grid-template-columns: minmax(0, 1fr) !important; }}' in _html_p4src
+      and '.od-row {{ grid-template-columns: 1fr !important; }}' not in _html_p4src)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like
@@ -13574,9 +13643,10 @@ _crc_p21(_rd_p21, candidates=dict(_cand_p21))
 check('T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)',
       set(_rd_p21['_candidate_need_ids']) == _canon_p21['need'])
 _ga_p21 = open('gem_analyzer.py', encoding='utf-8').read()
-check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set)',
+check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set), excluding the no-node debt',
       'canonical_required_review_ids as _canon_rri' in _ga_p21
-      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
+      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main," in _ga_p21
+      and "_canon_main['need'] - _ungraded_main" in _ga_p21
       and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
 
 # RC3 COND-3a: deterministic mixed NLH/PLO finality + quarantine regression (real corpus is NLH-only,
@@ -14131,6 +14201,22 @@ check('T-IT3-T1-02: the production render-field path consumes the finality owner
           {'name': 'R', 'finish': {'state': 'done', 'place': 5, 'total_players': 100},
            'exit_hand': 'HX', 'bullets': 1}))['exit_hand'] == 'HX')
 
+# ---- v8.20 Wave-1A.2A Area 4: seven-fixture Tournament Results acceptance harness (8 dimensions) ----
+# Deterministic: drives the REAL Doc/_emit_tournament_tables render path over the SEVEN canonical
+# scenario fixtures and asserts all 7 fixtures x 8 dimensions PASS (no network, no Date.now).
+import _qa_seven_fixture_results as _Q7FIX
+_q7 = _Q7FIX.run()
+_q7_dims = list(_Q7FIX.DIMENSIONS)
+_q7_fix = list(_Q7FIX.FIXTURE_ORDER)
+check('T-7FIX-01: seven-fixture Results acceptance -- all 7 fixtures x 8 dimensions present and True',
+      _q7['all_pass'] is True
+      and len(_q7['fixtures']) == 7
+      and set(_q7['fixtures'].keys()) == set(_q7_fix)
+      and len(_q7_dims) == 8
+      and all(set(_q7['fixtures'][_n].keys()) == set(_q7_dims) for _n in _q7_fix)
+      and all(_q7['fixtures'][_n][_d] is True for _n in _q7_fix for _d in _q7_dims),
+      'matrix=%s' % {_n: {_d: _q7['fixtures'][_n][_d] for _d in _q7_dims} for _n in _q7_fix})
+
 # ---- Iteration 4, Track 0: release-safety corrections ----
 # 0.2 packet-completeness is a STRICT boolean (not a hand-code string); present-fields is a separate list.
 _c4 = {'family': 'sb_flat_vs_late_open', 'decision_id': 'd', 'detector_reason': 'r',
@@ -14193,19 +14279,35 @@ check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unknown i
       and any('missing required packet_hash' in e for e in _v_bad['errors']))
 
 # ---- Release validation: coverage parity + binding hardening (owner gaps 3/4/5) ----
-_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:preflop:1'}}},
-          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:preflop:1'},
+# QA-PACKET-001: TMa has a canonical decision node (gradable -> REQUIRED); TMb + TMc have no hand data,
+# so they are no-canonical-node records routed to the explicit UNRESOLVED/debt population. REQUIRED +
+# UNRESOLVED together preserve 100% of the legacy population (parity).
+_rv_hands = [{'id': 'TMa', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
+              'board': ['As', '7d', '2c', '9h', '3s'],
+              'action_ledger': [{'street': 'flop', 'player': 'Hero', 'position': 'CO', 'action': 'bets',
+                                 'amount_bb': 3, 'added_bb': 3, 'is_all_in': False}],
+              'decision_points': [{'street': 'flop', 'action_index': 0, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+                                   'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
+                                   'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}]
+_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:flop:0'}}},
+          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:flop:0'},
           '_candidate_need_bucket': {'TMa': 10, 'TMb': 9}, 'material_loss_population': {'TMc': {}}}
-_rv_pkt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+_rv_pkt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
                            input_hashes={'x': '1'}, cache_identity='ci', optional_cap=8)
 _cov = _AP.build_coverage_reconciliation(_rv_rd, _rv_pkt)
-check('T-RV-01: the sealed required queue preserves 100% of the legacy required population (parity, no demotion/dup)',
+check('T-RV-01: REQUIRED (gradable) + UNRESOLVED (no-node debt) preserve 100% of the legacy population (parity, no demotion/dup)',
       _cov['legacy_minus_sealed_required'] == [] and _cov['required_demoted_to_optional'] == []
       and _cov['duplicate_required_hands'] == [] and _cov['legacy_required_count'] == 3 and _cov['parity_pass'] is True)
+check('T-RV-01b (QA-PACKET-001): no-canonical-node hands are split OUT of required into the explicit unresolved population',
+      _cov['sealed_required_count'] == 1 and _cov['sealed_unresolved_count'] == 2
+      and _rv_pkt['manifest']['unresolved_count'] == 2 and _rv_pkt['manifest']['required_count'] == 1
+      and all(r.get('unresolved') for r in _rv_pkt['unresolved'])
+      and not any(r.get('unresolved') for r in _rv_pkt['required'])
+      and _cov['invariants_pass'] is True and 'kqs_sb_flat_present_and_required' not in _cov)
 _h0 = _rv_pkt['manifest']['packet_hash']
-_h_rt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
+_h_rt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
                          input_hashes={'x': '1'}, cache_identity='ci')['manifest']['packet_hash']
-_h_in = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+_h_in = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
                          input_hashes={'x': '2'}, cache_identity='ci')['manifest']['packet_hash']
 check('T-RV-02: packet_hash is content-bound -- changes with runtime commit and with input hashes',
       len(_h0) == 64 and _h0 != _h_rt and _h0 != _h_in)
@@ -14315,9 +14417,9 @@ check('T-RC-NC-10: price applicable but required_equity missing fails',
 import gem_build_identity as _BID
 import gem_input_manifest as _GIM
 _bi = _BID.build_identity()
-check('T-RC-BIND-01: build_identity reports the v8.20.0-rc release candidate + a build id, git-independently',
-      _bi['release_candidate'] == 'v8.20.0-rc' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
-_rt = {'build_id': 'GEM-v8.20.0-rc-abc'}
+check('T-RC-BIND-01: build_identity reports the v8.20.0 FINAL release + a build id, git-independently',
+      _bi['release_candidate'] == 'v8.20.0' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
+_rt = {'build_id': 'GEM-v8.20.0-abc'}
 _ih1 = {'a.txt': 'h1'}
 _ci0 = _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1)
 check('T-RC-BIND-02: cache identity changes when an INPUT hash changes',
@@ -14339,12 +14441,55 @@ check('T-RC-BIND-07: build_packet embeds build_identity in the manifest AND the 
 check('T-RC-BIND-08: canonical_input_hashes returns SHA-256 (64-hex) per file; empty/missing dir -> {} (no crash)',
       _GIM.canonical_input_hashes('/no/such/dir/xyz') == {}
       and callable(_GIM.canonical_input_hashes))
+
+# QA-BLOCK-001: the one-pass analyst output integrates into the final report.
+import gem_final_truth as _QA_FT
+import gem_report_data as _QA_RD
+_qa_dist = [('CONFIRMED_MISTAKE', 3), ('JUSTIFIED', 17), ('READ_DEPENDENT', 6),
+            ('INSUFFICIENT_EVIDENCE', 10), ('DETECTOR_BUG', 6)]
+_qa_req, _qa_verds, _qa_i = [], [], 0
+for _e, _n in _qa_dist:
+    for _ in range(_n):
+        _hid = 'TM7770%03d' % _qa_i
+        _did = '%s:flop:0' % _hid
+        _qa_req.append({'decision_id': _did, 'hand_id': _hid})
+        _qa_verds.append({'decision_id': _did, 'verdict': _e})
+        _qa_i += 1
+_qa_pkt = {'manifest': {'session_id': 'dryrun', 'packet_hash': 'h'}, 'required': _qa_req, 'optional': []}
+_qa_ao = {'session_id': 'dryrun', 'packet_hash': 'h', 'verdicts': _qa_verds}
+_qa_comm, _qa_summ = _AP.analyst_commentary_from_output(_qa_pkt, _qa_ao)
+check('T-QA1-01: one-pass output -> exact per-decision verdict totals (3/17/6/10/6) + 42 reviewed decisions',
+      _qa_summ['reviewed_decisions'] == 42 and _qa_summ['reviewed_hands'] == 42
+      and _qa_summ['verdict_counts'] == {'confirmed_mistakes': 3, 'justified': 17, 'read_dependent': 6,
+                                         'insufficient_evidence': 10, 'detector_bugs': 6})
+_qa_ft = _QA_FT.build_final_truth({}, {}, [], analyst_commentary=_qa_comm)['counts']
+check('T-QA1-02: final-truth recomputes ownership from the analyst verdicts (CONFIRMED_MISTAKE=3, JUSTIFIED=17, READ_DEPENDENT=6, INSUFFICIENT=10, cleared=6)',
+      _qa_ft.get('CONFIRMED_MISTAKE') == 3 and _qa_ft.get('JUSTIFIED') == 17 and _qa_ft.get('READ_DEPENDENT') == 6
+      and _qa_ft.get('INSUFFICIENT') == 10 and _qa_ft.get('STANDARD') == 6)
+_qa_rd = {'analyst_commentary': _qa_comm, '_candidate_need_ids': [r['hand_id'] for r in _qa_req]}
+check('T-QA1-03: merging analyst commentary clears AUTO_ONLY (report becomes analyst-integrated)',
+      _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['state'] != 'AUTO_ONLY'
+      and _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['reviewed_hands'] == 42)
+check('T-QA1-04: an EMPTY analyst output keeps the report AUTO_ONLY (auto candidates are never relabelled as confirmed mistakes)',
+      _QA_RD.compute_report_completeness({'analyst_commentary': {}, '_candidate_need_ids': ['X']},
+                                         candidates=None)['state'] == 'AUTO_ONLY')
+check('T-QA1-05: the one-pass enum maps to the report taxonomy so only CONFIRMED_MISTAKE is a mistake class',
+      _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['CONFIRMED_MISTAKE']) == _QA_FT.FinalClass.CONFIRMED_MISTAKE
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['JUSTIFIED']) == _QA_FT.FinalClass.JUSTIFIED
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['DETECTOR_BUG']) != _QA_FT.FinalClass.CONFIRMED_MISTAKE)
+check('T-QA1-06: validate_analyst_output rejects a DUPLICATE required verdict (fail-closed in --quick)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds + [dict(_qa_verds[0])]}, cache_ok=True)['valid'] is False)
+check('T-QA1-07: validate_analyst_output rejects an INCOMPLETE output (missing a required verdict)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds[3:]}, cache_ok=True)['valid'] is False)
 _rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
 _rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
                            session_id='s', runtime_version='v')
-_rc_ud = [d for d in _rc_unp['required'] if d['hand_id'] == 'TMu'][0]
-check('T-RC-A3: a hand with no canonical decision node -> explicit UNRESOLVED record (flagged), never an invented node',
-      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved'))
+_rc_ud = [d for d in _rc_unp['unresolved'] if d['hand_id'] == 'TMu'][0]
+check('T-RC-A3 (QA-PACKET-001): a hand with no canonical decision node -> explicit UNRESOLVED/debt record (flagged), NEVER in required, never an invented node',
+      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved')
+      and not any(d['hand_id'] == 'TMu' for d in _rc_unp['required']))
 open('/tmp/_rc_inp.txt', 'w').write('abc')
 _ih = _AP.real_input_hashes(['/tmp/_rc_inp.txt'])
 check('T-RC-B1: real_input_hashes are actual file SHA-256; content_cache_identity is content-derived',

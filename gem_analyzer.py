@@ -9013,10 +9013,18 @@ if __name__ == '__main__':
             if not os.path.exists(_ao_path_q):
                 _quick_fail(f"analyst output missing ({os.path.basename(_ao_path_q)}) -- review the packet "
                             "and save the analyst JSON there")
-            with open(_pkt_path_q, encoding='utf-8') as _pf:
-                _pkt_q = json.load(_pf)
-            with open(_ao_path_q, encoding='utf-8') as _af:
-                _ao_q = json.load(_af)
+            try:
+                with open(_pkt_path_q, encoding='utf-8') as _pf:
+                    _pkt_q = json.load(_pf)
+            except Exception as _pe:
+                _quick_fail(f"sealed packet is malformed JSON ({_pe}) -- re-run the full pipeline")
+            try:
+                with open(_ao_path_q, encoding='utf-8') as _af:
+                    _ao_q = json.load(_af)
+            except Exception as _ae:
+                _quick_fail(f"analyst output is malformed JSON ({_ae}) -- fix the analyst JSON and re-run --quick")
+            if not isinstance(_ao_q, dict) or not isinstance(_ao_q.get('verdicts'), list):
+                _quick_fail("analyst output has no 'verdicts' array -- fix the analyst JSON and re-run --quick")
             _m_q = _pkt_q.get('manifest', {})
             if _apq.recompute_packet_hash(_pkt_q) != _m_q.get('packet_hash'):
                 _quick_fail("sealed packet hash mismatch -- the packet was modified; re-run the full pipeline")
@@ -9043,6 +9051,18 @@ if __name__ == '__main__':
                                              'coverage': _val_q.get('required_coverage'), 'cache_ok': _cache_ok}
             print(f"  ✓ --quick pre-render validation PASSED (packet+analyst+cache+identity bound; "
                   f"coverage {_val_q.get('required_coverage')})")
+            # ---- QA-BLOCK-001: CONSUME the validated analyst output. Merge its verdicts into the canonical
+            # hand-keyed analyst_commentary, then recompute the analyst-dependent owners (completeness +
+            # final-truth) BEFORE render, so the final report is analyst-integrated: the AUTO_ONLY banner
+            # disappears, the reviewed count + verdict totals reconcile exactly with the JSON, and each
+            # analyst verdict OVERRIDES any stale automatic nomination (final-truth analyst override).
+            _commentary_q, _onepass_q = _apq.analyst_commentary_from_output(_pkt_q, _ao_q)
+            report_data['analyst_commentary'] = _commentary_q
+            report_data['analyst_onepass'] = _onepass_q
+            _rc_q = compute_report_completeness(report_data, candidates=None)
+            _refresh_discipline_tier(report_data, stats, hands)
+            print(f"  ✓ analyst output integrated: state={_rc_q['state']} "
+                  f"reviewed_hands={_rc_q['reviewed_hands']} verdicts={_onepass_q['verdict_counts']}")
 
         # Re-render
         from gem_report_draft import render_both
@@ -10459,7 +10479,13 @@ if __name__ == '__main__':
     # auto-classifier's hint, not an analyst waiver); the blindspot-audit sample is a SEPARATE
     # coverage signal (reported just after), never folded into the required-review identity.
     from gem_report_data import canonical_required_review_ids as _canon_rri
-    _need_verdict_ids = _canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']
+    # QA-DET-001: the gate and the completeness owner exclude the SAME no-canonical-node (ungraded/debt) set
+    # so "Full coverage" provably implies the gradable required-review is complete; the debt is reported
+    # separately, never as an uncovered gradable hand.
+    _canon_main = _canon_rri(candidates, _auto_res, _non_nlh_ids_main,
+                             {h['id']: h for h in hands if h.get('id')})
+    _ungraded_main = _canon_main.get('ungraded') or set()
+    _need_verdict_ids = _canon_main['need'] - _ungraded_main
     # v8.9.8 P2-C: production-safe PLO quarantine invariant — the canonical owner already excludes
     # non-NLH, so this stays as a fail-loud guard that the shared set never carries a PLO leak.
     _plo_leak = _need_verdict_ids & _non_nlh_ids_main
@@ -10473,6 +10499,9 @@ if __name__ == '__main__':
     if _auto_res:
         print(f"  Chart-match auto-resolved: {len(_auto_res)} "
               f"(excluded from coverage requirement)")
+    if _ungraded_main:
+        print(f"  Unresolved/debt (no canonical decision node): {len(_ungraded_main)} hand(s) "
+              f"— engineering debt, NOT required analyst review.")
     if not _need_verdict_ids:
         print("  No hands require analyst verdicts this session.")
     elif not _uncovered:
@@ -10741,7 +10770,10 @@ if __name__ == '__main__':
     # the TL;DR banner + filename + CLI reflect analyst coverage, AND the
     # need-set persists into the cached rd below for later --quick renders.
     from gem_report_data import compute_report_completeness as _crc_full
-    _rc_full = _crc_full(report_data, candidates=candidates)
+    # QA-DET-001: supply the hands so the completeness owner can split the no-canonical-node (ungraded/debt)
+    # hands out of the gradable required-review population, matching the analyst packet's unresolved split.
+    _rc_full = _crc_full(report_data, candidates=candidates,
+                         hands_by_id={h['id']: h for h in hands if h.get('id')})
 
     # v8.12.11 (Slice E): emit the analyst worklist — a prioritized triage
     # queue (proposals, not verdicts) for the LLM analyst pass. Write-only
@@ -11039,6 +11071,12 @@ if __name__ == '__main__':
                        __import__('gem_version', fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION,
             'report_format_version':
                        __import__('gem_report_draft.draft', fromlist=['VERSION']).VERSION,
+            # QA-BLOCK-002 / QA-META-001: the run manifest carries the FULL canonical build identity so it
+            # reconciles with the report footer, the sealed analyst packet, and the package MANIFEST. 'version'
+            # stays the runtime base (semantically accurate); the release candidate + commit + build id are
+            # peer fields -- each identity layer is distinct, never collapsed to one string.
+            'build_identity': (lambda: __import__('gem_build_identity',
+                                                  fromlist=['build_identity']).build_identity())(),
             'timestamp': str(stats.get('volume', {}).get('date', '')),
             'session_dir': SESSION_DIR,
             'player': _pname_display,

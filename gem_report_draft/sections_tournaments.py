@@ -334,30 +334,93 @@ def _tt_chart_data(_TM, events):
     return out
 
 
+# v8.20 W1A.2A Track A2: the ONE finish-outcome distribution model. Mutually-exclusive buckets by
+# finish percentile / cash state -- every event maps to exactly one bucket, so the segment counts sum to
+# the (filtered) event count. Colours are stable per bucket.
+_OUTCOME_BUCKETS = [
+    ('top1', 'Top 1%', '#1b7837'),
+    ('top10', 'Top 10%', '#5aae61'),
+    ('itm', 'In the money', '#a6dba0'),
+    ('nocash', 'No cash', '#d9d9d9'),
+    ('unresolved', 'Unresolved', '#bdbdbd'),
+]
+
+
+def _event_outcome_bucket(e):
+    """Map ONE event to exactly ONE finish-outcome bucket (B-mutually-exclusive)."""
+    fin = e.get('finish') or {}
+    ret = e.get('return') or {}
+    state = fin.get('state')
+    if state in ('in_play', 'unresolved') or (ret.get('value') is None and not fin.get('place')):
+        return 'unresolved'
+    tp = fin.get('top_percent')
+    if tp is not None:
+        if tp <= 1:
+            return 'top1'
+        if tp <= 10:
+            return 'top10'
+    itm = bool(fin.get('itm') or (fin.get('is_satellite') and fin.get('itm'))
+               or (isinstance(ret.get('value'), (int, float)) and ret.get('value') > 0))
+    return 'itm' if itm else 'nocash'
+
+
+def outcome_distribution(events):
+    """The typed outcome-distribution model: every bucket defined (zero-count included), counts + %.
+    Pure -- callable on the FULL or any FILTERED event subset, so the bar recomputes from one dataset."""
+    counts = {k: 0 for k, _, _ in _OUTCOME_BUCKETS}
+    for e in (events or []):
+        counts[_event_outcome_bucket(e)] += 1
+    total = sum(counts.values())
+    buckets = [{'key': k, 'label': lbl, 'color': col, 'count': counts[k],
+                'pct': round(100.0 * counts[k] / total, 1) if total else 0.0}
+               for k, lbl, col in _OUTCOME_BUCKETS]
+    return {'total': total, 'buckets': buckets}
+
+
+_OUTCOME_CSS = (
+    "<style>.tt-outcome-dist{margin:.5rem 0 1rem}.tt-outcome-bar{display:flex;width:100%;height:26px;"
+    "border-radius:4px;overflow:hidden;border:1px solid var(--border,#ccc)}.tt-outcome-seg{display:flex;"
+    "align-items:center;justify-content:center;font-size:11px;color:#10240f;white-space:nowrap;min-width:0;"
+    "overflow:hidden}.tt-oc-top1{background:#1b7837;color:#fff}.tt-oc-top10{background:#5aae61}"
+    ".tt-oc-itm{background:#a6dba0}.tt-oc-nocash{background:#d9d9d9}.tt-oc-unresolved{background:#bdbdbd}"
+    ".tt-outcome-legend{margin-top:.4rem;font-size:11px;display:flex;flex-wrap:wrap;gap:.6rem}"
+    ".tt-oc-legend{display:inline-flex;align-items:center;gap:.25rem}.tt-oc-sw{width:11px;height:11px;"
+    "border-radius:2px;display:inline-block}</style>")
+
+
 def _emit_distribution_chart(doc, events):
-    """v8.17.1 P4 surface 4: distribution chart directly BELOW the grouped table.
-    Cost/Return share + diverging Net; bars share the table's category colours (the
-    legend squares ARE the legend — no separate legend). Server-rendered for the
-    default Buy-in tab + Net metric; the JS controller re-renders on tab / metric
-    change. Safe empty / partial-coverage states."""
-    import gem_tournament_model as _TM
-    groups = _TM.group_events(events, 'buyin') or {}
-    ordered = _tt_ordered_cats(_TM, 'buyin', groups)
-    doc.w("<div class='tt-chart' data-tab='buyin' data-metric='net'>")
-    doc.w("<div class='tt-chart-head'><span class='tt-chart-title' data-tt-chart-title>"
-          "Distribution — Buy-in · Net</span>"
-          "<div class='tt-chart-metrics'>"
-          "<button type='button' class='tt-metric active' data-metric='net'>Net</button>"
-          "<button type='button' class='tt-metric' data-metric='cost'>Cost</button>"
-          "<button type='button' class='tt-metric' data-metric='return'>Return</button>"
-          "</div></div>")
-    doc.w("<div class='tt-chart-body'>")
-    if ordered:
-        doc.w(_tt_chart_bars_html(_TM, 'buyin', groups, ordered, 'net'))
+    """Track A2: ONE horizontal stacked finish-outcome-distribution bar. The legacy Net/Cost/Return
+    metric toggle, the multi-category bar rows and the metric-dependent title are REMOVED. Segments are
+    mutually-exclusive finish-outcome buckets covering every event; each carries label, count, % and a
+    tooltip. The typed bucket model is embedded (data-outcome-buckets) and each Results row carries its
+    bucket (data-outcome-bucket) so the filter controller recomputes the bar from the same filtered
+    dataset. Zero-count buckets are omitted from the bar but stay defined in the model + legend."""
+    import json as _json
+    model = outcome_distribution(events)
+    doc.w(_OUTCOME_CSS)
+    doc.w("<div class='tt-outcome-dist' data-outcome-buckets='%s'>"
+          % _esc_tt(_json.dumps(model, separators=(',', ':'))))
+    doc.w("<div class='tt-chart-head'><span class='tt-chart-title'>Finish-outcome distribution</span> "
+          "<span class='tt-outcome-total' data-outcome-total>%d event%s</span></div>"
+          % (model['total'], '' if model['total'] == 1 else 's'))
+    if model['total']:
+        segs = []
+        for b in model['buckets']:
+            if b['count'] <= 0:
+                continue
+            segs.append(
+                "<span class='tt-outcome-seg tt-oc-%s' style='width:%.4f%%' data-bucket='%s' "
+                "data-count='%d' title='%s — %d event%s (%.1f%%)'>%d</span>"
+                % (b['key'], b['pct'], b['key'], b['count'], _esc_tt(b['label']), b['count'],
+                   '' if b['count'] == 1 else 's', b['pct'], b['count']))
+        doc.w("<div class='tt-outcome-bar' role='img' aria-label='Finish-outcome distribution'>%s</div>"
+              % ''.join(segs))
+        leg = ' '.join(
+            "<span class='tt-oc-legend'><span class='tt-oc-sw tt-oc-%s'></span>%s (%d, %.1f%%)</span>"
+            % (b['key'], _esc_tt(b['label']), b['count'], b['pct']) for b in model['buckets'])
+        doc.w("<div class='tt-outcome-legend'>%s</div>" % leg)
     else:
-        doc.w("<p class='tt-coverage-note'>No grouped data to chart.</p>")
-    doc.w("</div>")
-    doc.w("<div class='tt-tooltip' role='status' aria-live='polite' hidden></div>")
+        doc.w("<p class='tt-coverage-note'>No events to chart.</p>")
     doc.w("</div>")
     doc.w("")
 
@@ -632,8 +695,10 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # (gem_report_draft._datatable). One Results section; the exit hand is the FINAL column rendered
     # with the canonical PokerHandDisplay; Details/Drivers/SRC removed; totals + sticky filters.
     from gem_report_draft._datatable import Column as _DTCol, build_cell as _dtcell, hand_cell as _dthand, render_datatable as _dtrender
+    # v8.20 W1A.2A Track A1: ONE combined Date + Tournament identity column -- the separate Date column is
+    # removed; the tournament cell carries the name (primary) + date/time + buy-in (secondary). Columns are
+    # referenced by KEY (_C['name']) below, not by positional index, so the inventory stays stable.
     _RES_COLS = [
-        _DTCol('date', 'Date', 'text'),
         _DTCol('tournament', 'Tournament', 'text'),
         _DTCol('type', 'Type', 'text'),
         _DTCol('bullets', 'Bullets', 'num', aggregate='sum'),
@@ -646,6 +711,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _DTCol('cev', 'cEV/100', 'signednum'),
         _DTCol('exit', 'Exit hand', 'hand', sortable=False),
     ]
+    _C = {c.key: c for c in _RES_COLS}
     _cards_by_hid = {}
     for _h in (hands or []):
         _hk = str(_h.get('tournament_hand_id') or _h.get('id') or '')
@@ -702,16 +768,16 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _tick = ret.get('ticket_value')
         _fin_state = fin.get('state')
         if _ret_val is None or (not _ret_exact and not ret.get('cash_received') and not _tick):
-            _ret_cell = _dtcell(_RES_COLS[6], None,
+            _ret_cell = _dtcell(_C['return'], None,
                                 display="<span class='dt-unresolved' title='HH-only — return not yet resolved'>unresolved</span>")
         elif _fin_state == 'no_cash' and not _tick and not ret.get('cash_received'):
-            _ret_cell = _dtcell(_RES_COLS[6], _ret_val if _ret_val is not None else 0.0,
+            _ret_cell = _dtcell(_C['return'], _ret_val if _ret_val is not None else 0.0,
                                 display="<span class='dt-nocash' title='Did not cash'>No cash</span>")
         else:
             _rdisp = _esc_tt(_retv)
             if _tick:
                 _rdisp = "<span class='dt-ticket' title='Satellite seat (ticket value)'>&#127915;</span> " + _rdisp
-            _ret_cell = _dtcell(_RES_COLS[6], _ret_val, display=_rdisp)
+            _ret_cell = _dtcell(_C['return'], _ret_val, display=_rdisp)
         # Avg Top% (totals row) is computed over EVERY event with a valid source Top% -- not only cashers.
         if fin.get('top_percent') is not None:
             _top_pcts.append(float(fin['top_percent']))
@@ -724,28 +790,29 @@ def _emit_tournament_tables(doc, s, rd, hands):
                                                  _esc_tt(_fin_lbl))
         else:
             _fin_disp = _esc_tt(_fin_lbl)
+        # A1: ONE combined Date + Tournament identity cell -- name (primary), then date/time + buy-in
+        # (secondary, muted). The separate Date column is gone; event identity lives in _row_id/tooltip.
+        _ident_detail = ' &middot; '.join(
+            _esc_tt(x) for x in (e.get('event_day') or '',
+                                 (_buy if (_buy and _buy != EMDASH) else '')) if x)
         _dt_rows.append({
-            'date': _dtcell(_RES_COLS[0], e.get('event_day') or None, display=_esc_tt(e.get('event_day') or EMDASH)),
-            # RES-001 (v8.19.0): normalized BOLD tournament name + MUTED detail (the buy-in,
-            # which is not otherwise columned). Sort key stays the plain name.
             'tournament': _dtcell(
-                _RES_COLS[1], name,
+                _C['tournament'], name,
                 display=("<strong class='tt-tname'>%s</strong>%s" % (
                     _esc_tt(name),
-                    ("<span class='tt-tdetail'> · %s</span>" % _esc_tt(_buy))
-                    if (_buy and _buy != EMDASH) else ''))),
-            'type': _dtcell(_RES_COLS[2], pt, display=_esc_tt(pt)),
-            'bullets': _dtcell(_RES_COLS[3], e.get('bullets', 1)),
-            'finish': _dtcell(_RES_COLS[4], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
-            'cost': _dtcell(_RES_COLS[5], e.get('cost', 0)),
+                    ("<span class='tt-tdetail'>%s</span>" % _ident_detail) if _ident_detail else ''))),
+            'type': _dtcell(_C['type'], pt, display=_esc_tt(pt)),
+            'bullets': _dtcell(_C['bullets'], e.get('bullets', 1)),
+            'finish': _dtcell(_C['finish'], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
+            'cost': _dtcell(_C['cost'], e.get('cost', 0)),
             'return': _ret_cell,
-            'net': _dtcell(_RES_COLS[7], e.get('net', 0)),
-            'roi': _dtcell(_RES_COLS[8], e.get('roi_pct')),
+            'net': _dtcell(_C['net'], e.get('net', 0)),
+            'roi': _dtcell(_C['roi'], e.get('roi_pct')),
             # BB/100 (per-tournament, from the perf maps) + cEV/100 (per-event, canonical only) folded
             # into the ONE Results table -- the separate Performance event table is removed.
-            'bb100': _dtcell(_RES_COLS[9], _bbb.get(tid)),
-            'cev': _dtcell(_RES_COLS[10], (e.get('performance') or {}).get('cev100')),
-            'exit': _dthand(_RES_COLS[-1], _exit, _exit_cards, size='compact'),
+            'bb100': _dtcell(_C['bb100'], _bbb.get(tid)),
+            'cev': _dtcell(_C['cev'], (e.get('performance') or {}).get('cev100')),
+            'exit': _dthand(_C['exit'], _exit, _exit_cards, size='compact'),
             '_row_id': _eid,   # RES-008: drilldown key -> tournamentEvents[].event_id
             '_filters': {
                 'entry_time': (e.get('entry_timing') or 'unknown'),
@@ -756,6 +823,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
                 'multiday': ('multiday' if fin.get('advanced_day2') else 'single-day'),
                 'satellite': ('satellite' if fin.get('is_satellite') else 'standard'),
                 'phase': (status_label or 'unknown'),
+                # A2: each row carries its finish-outcome bucket so the filter controller recomputes the
+                # ONE stacked outcome bar from the same currently-filtered event dataset.
+                'outcome_bucket': _event_outcome_bucket(e),
             },
         })
 

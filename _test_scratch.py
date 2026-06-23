@@ -9789,11 +9789,11 @@ _ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
 _md_p4s = _d_p4s.render_md()
 _js_p4s = ' '.join(_d_p4s._extra_js)
 _html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
-check('T-P4UI-04: distribution chart renders BELOW the grouped table (Cost/Return/Net metrics + diverging + precomputed dataset)',
-      'tt-chart' in _md_p4s and 'tt-chart-metrics' in _md_p4s
-      and "data-metric='net'" in _md_p4s and 'tt-bar-row' in _md_p4s
-      and 'tt-diverge' in _md_p4s and 'window.ttChart=' in _js_p4s
-      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-chart'), '')
+check('T-P4UI-04: ONE stacked finish-outcome bar renders BELOW the grouped table; legacy Net/Cost/Return toggle gone',
+      'tt-outcome-bar' in _md_p4s and 'data-outcome-buckets' in _md_p4s
+      and 'tt-chart-metrics' not in _md_p4s and "data-metric='cost'" not in _md_p4s
+      and 'tt-bar-row' not in _md_p4s and 'tt-diverge' not in _md_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-outcome-bar'), '')
 check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
       "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
       and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
@@ -13992,6 +13992,35 @@ _st_src = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').rea
 check('T-W1A2A-T2-02: tournament drilldown hand-id lists carry no silent [:60] cap (every hand reachable)',
       '(hids_by_tid.get(tid) or [])[:60]' not in _st_src
       and '_hids_by_tid.get(tid, [])[:60]' not in _st_src)
+
+# ---- Track A1: ONE combined Date + Tournament identity column (no separate Date column) ----
+import gem_report_draft.sections_tournaments as _STM
+check('T-W1A2A-A1-01: the Results DataTable has NO separate Date column (identity is combined)',
+      "_DTCol('date', 'Date'" not in _st_src and "_DTCol('tournament', 'Tournament', 'text')," in _st_src
+      and "'tt-tdetail'" in _st_src)
+
+# ---- Track A2: ONE stacked outcome-distribution bar; no legacy Net/Cost/Return toggle ----
+check('T-W1A2A-A2-01: the legacy Net/Cost/Return metric toggle + multi-bar chart are removed',
+      "data-metric='cost'" not in _st_src and "data-metric='return'" not in _st_src
+      and "class='tt-metric active'" not in _st_src
+      and 'Distribution — Buy-in' not in _st_src)
+# the typed outcome model: mutually-exclusive buckets, every event in exactly one, counts sum to total.
+_ev_fix = [{'finish': {'top_percent': 0.5, 'place': 1, 'total_players': 200, 'itm': True}, 'return': {'value': 500}},
+           {'finish': {'top_percent': 6.0, 'place': 12, 'total_players': 200, 'itm': True}, 'return': {'value': 80}},
+           {'finish': {'top_percent': 40.0, 'place': 80, 'total_players': 200, 'itm': True}, 'return': {'value': 20}},
+           {'finish': {'place': 150, 'total_players': 200, 'itm': False}, 'return': {'value': 0}},
+           {'finish': {'state': 'in_play'}, 'return': {'value': None}}]
+_od = _STM.outcome_distribution(_ev_fix)
+check('T-W1A2A-A2-02: outcome buckets are mutually exclusive and the segment counts sum to the event count',
+      _od['total'] == 5 and sum(b['count'] for b in _od['buckets']) == 5
+      and {b['key']: b['count'] for b in _od['buckets']} ==
+          {'top1': 1, 'top10': 1, 'itm': 1, 'nocash': 1, 'unresolved': 1})
+# filtering the dataset recomputes the model from the SAME function (one dataset drives the bar).
+_od_filt = _STM.outcome_distribution(_ev_fix[:2])
+check('T-W1A2A-A2-03: the outcome bar recomputes from a filtered subset (counts + % follow the dataset)',
+      _od_filt['total'] == 2 and {b['key']: b['count'] for b in _od_filt['buckets'] if b['count']} ==
+          {'top1': 1, 'top10': 1}
+      and all(b['pct'] == 50.0 for b in _od_filt['buckets'] if b['count']))
 
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.

@@ -6752,7 +6752,11 @@ def _html_wrap(body, topbar_kpis=None, nav_sections=None,
     .rq-row-title {{ white-space: normal; }}
   }}
   @media(max-width:980px){{
-    .od-row {{ grid-template-columns: 1fr !important; }}
+    /* QA 360px overflow fix: a bare `1fr` track keeps min-width:auto (=min-content), so the .od-card grid
+       item (e.g. .rq-card / .cooler-summary-card) expanded the column to its intrinsic ~323px and pushed the
+       document 3px past a 360px viewport. minmax(0,1fr) lets the single mobile column shrink to the container
+       width so the card fits and its content reflows -- a real box-model fix, NOT an overflow suppression. */
+    .od-row {{ grid-template-columns: minmax(0, 1fr) !important; }}
     .opening-metric-grid {{ grid-template-columns: repeat(3, 1fr) !important; }}
     .coach-watchlist-card .od-watch-grid {{ grid-template-columns: 1fr !important; }}
   }}

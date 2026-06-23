@@ -9893,6 +9893,9 @@ import re as _re_mob
 check('T-MOBCHART-01 (mobile usability): the grouped-aggregate table stays a COMPACT horizontally-scrollable table on mobile (its .table-shell carries data-mobile-mode=scroll), never the tall stacked-card layout that blew group rows up to ~410px blank panels at 360/390/430',
       bool(_re_mob.search(r"table-shell['\"] +data-mobile-mode=['\"]scroll['\"][^>]*>\s*<div class=['\"]table-scroll['\"]>\s*<table class=['\"]data-table tt-aggregate", _md_p4s))
       and "data-mobile-mode='scroll'" in _ttcode_res)
+check('T-MOBOVF-01 (360px page-overflow fix): the .od-row mobile single-column track is minmax(0,1fr), NOT a bare 1fr -- so .od-card.rq-card / .od-card.cooler-summary-card shrink to the container instead of expanding the grid track to their ~323px min-content and pushing the document 3px past a 360px viewport',
+      '.od-row {{ grid-template-columns: minmax(0, 1fr) !important; }}' in _html_p4src
+      and '.od-row {{ grid-template-columns: 1fr !important; }}' not in _html_p4src)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like

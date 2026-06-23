@@ -8,10 +8,10 @@ self-verifies, proves the bundled phevaluator runtime is self-contained (no pip/
 gem_lean_runtime.py self-extracting payload to a fresh runtime dir and runs the ENTIRE remaining pipeline
 FROM THAT EXTRACTED RUNTIME (not the repo checkout), asserts up-front that the RC package MANIFEST
 runtime_commit, the extracted runtime's build_identity() source commit, and the expected branch commit
-b1233f38015c all reconcile (12-char short, full 40 recorded), runs the canonical FULL pipeline (emitting the
-AUTO_ONLY report) from the extracted runtime, generates the deterministic 24-verdict analyst output, runs ONE
---quick from the extracted runtime, proves the analyst-integrated report's footer carries
-`commit b1233f38015c` and is ANALYST_COMPLETE (not AUTO_ONLY), proves ZERO forbidden quick-stage work via the
+(read DYNAMICALLY from git HEAD) all reconcile (12-char short, full 40 recorded), runs the canonical FULL
+pipeline (emitting the AUTO_ONLY report) from the extracted runtime, generates the deterministic 24-verdict
+analyst output, runs ONE --quick from the extracted runtime, proves the analyst-integrated report's footer
+carries that same frozen `commit <HEAD>` and is ANALYST_COMPLETE (not AUTO_ONLY), proves ZERO forbidden quick-stage work via the
 stage meter, and TAMPERS each of the five fail-closed bindings AGAINST THE EXACT EXTRACTED RUNTIME proving
 --quick exits non-zero with the report NEVER overwritten -- restoring the good artifacts between every tamper
 case so each is isolated.
@@ -36,7 +36,7 @@ def _head_short():
                                 stderr=_sp.DEVNULL).decode().strip()[:12]
     except Exception:
         return ''
-EXPECTED_COMMIT_SHORT = _head_short() or 'b1233f38015c'
+EXPECTED_COMMIT_SHORT = _head_short()   # always derived from the live branch HEAD (no stale literal)
 
 # canonical, git-independent paths (match the production pipeline's resolution on this host)
 OUT_RELEASE = os.path.abspath('/mnt/user-data/outputs/release_v8200rc')
@@ -365,7 +365,7 @@ def step0b_extract_runtime():
 def step0c_commit_reconciliation():
     """EARLY ASSERTION (before any pipeline work): the RC package MANIFEST runtime_commit AND
     build_identity.source_commit, the EXTRACTED RUNTIME's build_identity() source commit, and the expected
-    branch commit b1233f38015c must ALL reconcile on the 12-char short form. Record the full 40-char too.
+    branch commit (EXPECTED_COMMIT_SHORT, read from git HEAD) must ALL reconcile on the 12-char short form. Record the full 40-char too.
     If they do not all reconcile, FAIL before the pipeline starts (this is exactly the identity mismatch that
     rejected the prior sealed RC)."""
     global EXPECTED_COMMIT_FULL
@@ -408,7 +408,7 @@ def step0c_commit_reconciliation():
           'extracted_runtime_full_source_commit_recorded': rt_commit,
           'extracted_runtime_git_independent': rt_bi.get('git_independent'),
           'note': 'short-form compare avoids full-vs-short false negatives; full 40 recorded for audit'}
-    record('0c', 'Commit reconciliation: MANIFEST == extracted-runtime build_identity == b1233f38015c',
+    record('0c', 'Commit reconciliation: MANIFEST == extracted-runtime build_identity == %s' % EXPECTED_COMMIT_SHORT,
            ok, 'compare MANIFEST.runtime_commit / extracted build_identity().source_commit / expected', ev)
     return ok
 
@@ -533,7 +533,7 @@ def step7_8_9_quick():
     reviewed_marker_matches = topline_equals_graded and coverage_row_equals_graded and all_within_graded
     # (4) NOT the auto-only awaiting-analyst shell
     no_awaiting_shell = ('AUTO_ONLY' not in html) and ('awaiting analyst' not in html.lower())
-    # (5) FROZEN-COMMIT FOOTER: the rendered footer must carry `commit b1233f38015c` -- proving the report was
+    # (5) FROZEN-COMMIT FOOTER: the rendered footer must carry the frozen `commit <EXPECTED_COMMIT_SHORT>` -- proving the report was
     #     rendered by the EXTRACTED runtime (whose build_identity is frozen to that commit), NOT the repo.
     footer_m = _re8.search(r'Release:.{0,200}?commit\s+([0-9a-f]{6,40})', html)
     footer_line = footer_m.group(0)[:200] if footer_m else ''
@@ -555,7 +555,8 @@ def step7_8_9_quick():
                'analyst_integrated_report_path': report_path,
                'footer_line': footer_line,
                'footer_commit': footer_commit,
-               'footer_carries_frozen_commit_b1233f38015c': footer_carries_frozen,
+               'expected_frozen_commit': EXPECTED_COMMIT_SHORT,
+               'footer_carries_frozen_commit': footer_carries_frozen,
                'graded_required_count': n_required,
                'inline_analyst_reviewed_numbers': inline_nums,
                'coverage_row_numbers': coverage_row_nums,

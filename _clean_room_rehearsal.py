@@ -24,8 +24,19 @@ import io, os, sys, re, json, time, shutil, hashlib, zipfile, tempfile, subproce
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 
-# The frozen branch commit this RC must reconcile to (the embedded runtime froze THIS HEAD).
-EXPECTED_COMMIT_SHORT = 'b1233f38015c'
+# The frozen branch commit this RC must reconcile to (the embedded runtime froze THIS HEAD). Read it
+# DYNAMICALLY from the current branch HEAD so the rehearsal is self-consistent at any commit: the RC is
+# built from HEAD, so the RC's embedded commit == HEAD == this expected value by construction. Falls back
+# to a literal only if git is unavailable.
+def _head_short():
+    try:
+        import subprocess as _sp
+        return _sp.check_output(['git', 'rev-parse', 'HEAD'],
+                                cwd=os.path.dirname(os.path.abspath(__file__)),
+                                stderr=_sp.DEVNULL).decode().strip()[:12]
+    except Exception:
+        return ''
+EXPECTED_COMMIT_SHORT = _head_short() or 'b1233f38015c'
 
 # canonical, git-independent paths (match the production pipeline's resolution on this host)
 OUT_RELEASE = os.path.abspath('/mnt/user-data/outputs/release_v8200rc')

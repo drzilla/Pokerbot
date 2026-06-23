@@ -9789,11 +9789,12 @@ _ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
 _md_p4s = _d_p4s.render_md()
 _js_p4s = ' '.join(_d_p4s._extra_js)
 _html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
-check('T-P4UI-04: ONE stacked finish-outcome bar renders BELOW the grouped table; legacy Net/Cost/Return toggle gone',
-      'tt-outcome-bar' in _md_p4s and 'data-outcome-buckets' in _md_p4s
-      and 'tt-chart-metrics' not in _md_p4s and "data-metric='cost'" not in _md_p4s
-      and 'tt-bar-row' not in _md_p4s and 'tt-diverge' not in _md_p4s
-      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-outcome-bar'), '')
+check('T-P4UI-04 (QA-RES-003): the group-aware Cost/Cash-Return/Net financial chart is the PRIMARY Results chart (owner-locked); the static finish-outcome bar is removed',
+      "class='tt-chart'" in _md_p4s and 'tt-chart-metrics' in _md_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and "data-metric='return'" in _md_p4s
+      and 'Cash Return' in _md_p4s and 'tt-bar-row' in _md_p4s
+      and 'tt-outcome-bar' not in _md_p4s and 'data-outcome-buckets' not in _md_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index("class='tt-chart'"), '')
 check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
       "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
       and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
@@ -9812,11 +9813,12 @@ check('T-P4UI-09: Results DataTable is the canonical per-event surface; exit-han
       and "data-dt-col='type'" in _md_p4s and "data-dt-col='exit'" in _md_p4s
       and 'hand-ref xref' in _md_p4s
       and 'Per-event financial detail' not in _md_p4s, '')
-check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
+check('T-P4UI-10 (QA-RES-001/002/004): ONE canonical Results filter state (the .dt-filters DataTable, full owner dimension set); the competing .tt-filters chip toolbar is removed; sticky summary present',
       'tt-sticky-summary' in _md_p4s and 'Results available for' in _md_p4s
       and "data-ss='events'" in _md_p4s
-      and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
-      and "data-dim='prize_type'" in _md_p4s
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s  # second toolbar gone
+      and "data-dt-filter='buyin'" in _md_p4s and "data-dt-filter='bounty'" in _md_p4s  # the canonical dims
+      and "data-dt-filter='multibullet'" in _md_p4s and "data-dt-filter='phase'" in _md_p4s
       and 'data-cat-key=' in _md_p4s
       and 'window.ttModel=' in _js_p4s
       and 'window.initTtFilters=' in _html_p4src
@@ -9827,6 +9829,22 @@ check('T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers 
       and _md_p4s.count("id='tt-results'") == 1   # exactly ONE canonical Results DataTable (per-event)
       and 'tt-drivers-rollup' not in _md_p4s and 'Tournament Performance' not in _md_p4s,
       '')
+# QA-RES-001..005: the Tournament Results repair (one canonical state + restored financial chart).
+check('T-RES-01 (chart): window.ttChart carries Cost/Return/Net per tab so the chart recomputes from canonical numbers (no JS re-aggregation drift)',
+      'window.ttChart=' in _js_p4s and '"net"' in _js_p4s and '"cost"' in _js_p4s and '"return"' in _js_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and 'Cash Return' in _md_p4s)
+check('T-RES-02 (stale-state prevention): renderGrouped keeps the grouped FOOTER total + coverage note live from the filtered set',
+      "pane.querySelector('tfoot tr.tt-totals')" in _html_p4src
+      and "pane.querySelector('.tt-coverage-note')" in _html_p4src
+      and 'Results available for' in _html_p4src)
+check('T-RES-03 (one canonical state): the .dt-filters DataTable is the single filter owner with the full dimension set; the .tt-filters chip toolbar is gone',
+      all("data-dt-filter='%s'" % d in _md_p4s for d in ('buyin', 'bounty', 'freezeout', 'multibullet', 'phase'))
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s)
+check('T-RES-04 (reload-safe single state): initTtFilters only restores a saved selection when its toolbar exists; otherwise it clears the orphaned key and renders the full set',
+      'filters?loadState():null' in _html_p4src and 'sessionStorage.removeItem(TT_SKEY)' in _html_p4src)
+check('T-RES-05 (chart follows grouping tab + filter): the chart re-renders from the active tab + filtered events',
+      "ch.getAttribute('data-tab')" in _html_p4src and 'function renderChart(' in _html_p4src
+      and 'window.ttApplyFiltersForIds=' in _html_p4src)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like

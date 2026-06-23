@@ -4085,7 +4085,19 @@ _MODAL_HTML = r"""
         c[8].textContent=(a.itm_pct==null?'—':Math.round(a.itm_pct)+'%');
         c[9].textContent=(a.top5_pct==null?'—':Math.round(a.top5_pct)+'%');
         c[10].textContent=(a.top1_pct==null?'—':Math.round(a.top1_pct)+'%');
-        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});}
+        c[11].textContent=(a.bb100==null?'—':(a.bb100>=0?'+':'')+a.bb100.toFixed(1));});
+      /* QA-RES-005: keep the grouped FOOTER total + coverage note LIVE (the filtered event set, not the
+         stale session total) so every Results surface reconciles with the primary table. */
+      var ta=_ttAggregate(evs);var tf=pane.querySelector('tfoot tr.tt-totals');
+      if(tf&&tf.children.length>=8){var f=tf.children;
+        f[1].textContent=ta.events;f[2].textContent=ta.bullets;f[3].textContent=ta.results_covered+'/'+ta.events;
+        f[4].textContent=_ttMoney(ta.committed_cost);f[5].textContent=_ttMoney(ta.covered_return);
+        f[6].textContent=(ta.net==null?'—':_ttMoney(ta.net,true));
+        f[7].textContent=(ta.roi_pct==null?'—':_ttPct(ta.roi_pct));
+        if(f.length>11)f[11].textContent=(ta.bb100==null?'—':(ta.bb100>=0?'+':'')+ta.bb100.toFixed(1));}
+      var note=pane.querySelector('.tt-coverage-note');
+      if(note)note.textContent='Results available for '+ta.results_covered+' of '+ta.events
+        +' events; the rest are estimated or still running.';}
     function renderChart(evs){var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
       var tab=ch.getAttribute('data-tab')||'buyin';var metric=ch.getAttribute('data-metric')||'net';
       var cats=(window.ttChart[tab]||{}).cats||[];var body=ch.querySelector('.tt-chart-body');if(!body)return;
@@ -4117,11 +4129,14 @@ _MODAL_HTML = r"""
       if(clr)clr.addEventListener('click',function(){state={};saveState();
         Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip.active'),function(x){x.classList.remove('active');});
         render();});}
-    /* RES-007: restore the saved filter state on load and re-mark the chips, THEN render so the
-       table, chart, totals and grouped views all reflect the restored selection (reload-safe). */
-    var _saved=loadState();
+    /* QA-RES-001: with the top .tt-filters toolbar removed, the Results DataTable (.dt-filters) is the ONE
+       canonical filter state and its bridge re-drives every surface. Only restore a saved tt-filter
+       selection when that toolbar actually exists; otherwise keep this controller's state EMPTY (and clear
+       any orphaned saved selection) so it renders the full set on load and never diverges from the table. */
+    if(!filters){try{sessionStorage.removeItem(TT_SKEY);}catch(e){}}
+    var _saved=filters?loadState():null;
     if(_saved){state=_saved;
-      if(filters)Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
+      Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
         if(state[dim]&&state[dim].indexOf(val)>=0)b.classList.add('active');else b.classList.remove('active');});}
     render();

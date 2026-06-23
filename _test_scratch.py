@@ -9789,11 +9789,12 @@ _ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
 _md_p4s = _d_p4s.render_md()
 _js_p4s = ' '.join(_d_p4s._extra_js)
 _html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
-check('T-P4UI-04: distribution chart renders BELOW the grouped table (Cost/Return/Net metrics + diverging + precomputed dataset)',
-      'tt-chart' in _md_p4s and 'tt-chart-metrics' in _md_p4s
-      and "data-metric='net'" in _md_p4s and 'tt-bar-row' in _md_p4s
-      and 'tt-diverge' in _md_p4s and 'window.ttChart=' in _js_p4s
-      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-chart'), '')
+check('T-P4UI-04 (QA-RES-003): the group-aware Cost/Cash-Return/Net financial chart is the PRIMARY Results chart (owner-locked); the static finish-outcome bar is removed',
+      "class='tt-chart'" in _md_p4s and 'tt-chart-metrics' in _md_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and "data-metric='return'" in _md_p4s
+      and 'Cash Return' in _md_p4s and 'tt-bar-row' in _md_p4s
+      and 'tt-outcome-bar' not in _md_p4s and 'data-outcome-buckets' not in _md_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index("class='tt-chart'"), '')
 check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
       "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
       and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
@@ -9812,11 +9813,12 @@ check('T-P4UI-09: Results DataTable is the canonical per-event surface; exit-han
       and "data-dt-col='type'" in _md_p4s and "data-dt-col='exit'" in _md_p4s
       and 'hand-ref xref' in _md_p4s
       and 'Per-event financial detail' not in _md_p4s, '')
-check('T-P4UI-10: filters panel + sticky filtered summary render; one filtered set wired (ttModel + filter JS)',
+check('T-P4UI-10 (QA-RES-001/002/004): ONE canonical Results filter state (the .dt-filters DataTable, full owner dimension set); the competing .tt-filters chip toolbar is removed; sticky summary present',
       'tt-sticky-summary' in _md_p4s and 'Results available for' in _md_p4s
       and "data-ss='events'" in _md_p4s
-      and 'tt-filters' in _md_p4s and 'tt-filter-chip' in _md_p4s
-      and "data-dim='prize_type'" in _md_p4s
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s  # second toolbar gone
+      and "data-dt-filter='buyin'" in _md_p4s and "data-dt-filter='bounty'" in _md_p4s  # the canonical dims
+      and "data-dt-filter='multibullet'" in _md_p4s and "data-dt-filter='phase'" in _md_p4s
       and 'data-cat-key=' in _md_p4s
       and 'window.ttModel=' in _js_p4s
       and 'window.initTtFilters=' in _html_p4src
@@ -9827,6 +9829,73 @@ check('T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers 
       and _md_p4s.count("id='tt-results'") == 1   # exactly ONE canonical Results DataTable (per-event)
       and 'tt-drivers-rollup' not in _md_p4s and 'Tournament Performance' not in _md_p4s,
       '')
+# QA-RES-001..005: the Tournament Results repair (one canonical state + restored financial chart).
+check('T-RES-01 (chart): window.ttChart carries Cost/Return/Net per tab so the chart recomputes from canonical numbers (no JS re-aggregation drift)',
+      'window.ttChart=' in _js_p4s and '"net"' in _js_p4s and '"cost"' in _js_p4s and '"return"' in _js_p4s
+      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and 'Cash Return' in _md_p4s)
+check('T-RES-02 (stale-state prevention): renderGrouped keeps the grouped FOOTER total + coverage note live from the filtered set',
+      "pane.querySelector('tfoot tr.tt-totals')" in _html_p4src
+      and "pane.querySelector('.tt-coverage-note')" in _html_p4src
+      and 'Results available for' in _html_p4src)
+check('T-RES-03 (one canonical state): the .dt-filters DataTable is the single filter owner with the full dimension set; the .tt-filters chip toolbar is gone',
+      all("data-dt-filter='%s'" % d in _md_p4s for d in ('buyin', 'bounty', 'freezeout', 'multibullet', 'phase'))
+      and 'data-tt-filters' not in _md_p4s and "class='tt-filter-chip'" not in _md_p4s)
+check('T-RES-04 (reload-safe single state): initTtFilters only restores a saved selection when its toolbar exists; otherwise it clears the orphaned key and renders the full set',
+      'filters?loadState():null' in _html_p4src and 'sessionStorage.removeItem(TT_SKEY)' in _html_p4src)
+check('T-RES-05 (chart follows grouping tab + filter): the chart re-renders from the active tab + filtered events',
+      "ch.getAttribute('data-tab')" in _html_p4src and 'function renderChart(' in _html_p4src
+      and 'window.ttApplyFiltersForIds=' in _html_p4src)
+# QA-RES FINAL shared-state correction: ONE canonical state + ONE render fn for filter/metric/tab/reset/reload.
+_ttcode_res = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-RES-06 (chart values ALWAYS from the filtered set): renderChart re-aggregates from the current filtered events (_ttAggregate over evs.filter), never the precomputed full-session window.ttChart values',
+      '_ttAggregate(evs.filter(' in _html_p4src and 'function renderChart(evs)' in _html_p4src)
+check('T-RES-07 (one canonical state owner derived from the DataTable rows): renderResultsFromCurrentState + _ttCurrentEvents read the DataTable visible rows (DOM source of truth), so every caller is order-independent; ttCurrentFilteredIds is exposed',
+      'function renderResultsFromCurrentState(' in _html_p4src
+      and "document.getElementById('tt-results')" in _html_p4src
+      and "r.style.display!=='none'" in _html_p4src
+      and 'window.ttCurrentFilteredIds=' in _html_p4src
+      and 'window.renderResultsFromCurrentState=renderResultsFromCurrentState' in _html_p4src)
+check('T-RES-08 (metric change -> canonical render, not full-session): the metric button handler calls renderResultsFromCurrentState (so a metric switch after a filter recomputes from the filtered set) and never alters the filter',
+      'if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();' in _html_p4src)
+check('T-RES-09 (grouping-tab change -> canonical render; old empty-state path retired): the tab handler sets the chart data-tab AND calls renderResultsFromCurrentState; the bare window.ttApplyFilters() (empty private state) call is GONE',
+      "ch.setAttribute('data-tab',tab)" in _ttcode_res
+      and 'window.renderResultsFromCurrentState()' in _ttcode_res
+      and 'if(window.ttApplyFilters)window.ttApplyFilters()' not in _ttcode_res)
+check('T-RES-10 (reload/restoration parity): initTtFilters initial render is renderResultsFromCurrentState (the canonical state), NOT a bare render() that would clobber the DataTable-restored filter back to the full population',
+      'reload/restoration parity' in _html_p4src
+      and 'renderResultsFromCurrentState();\n  };' in _html_p4src)
+check('T-RES-11 (no render path to an empty independent Results state): the only filter bridge stores window.__ttFilteredIds and routes through the canonical render; no tournament handler calls window.ttApplyFilters()',
+      'window.__ttFilteredIds' in _html_p4src
+      and 'window.ttApplyFiltersForIds=function(idset){window.__ttFilteredIds=idset||null;renderResultsFromCurrentState();}' in _html_p4src
+      and 'window.ttApplyFilters()' not in _ttcode_res)
+# Required filter/grouping coverage -- proven against the actual render_datatable emit (NOT source strings):
+from gem_report_draft._datatable import render_datatable as _rdt_dim, Column as _Col_dim
+_dim_filters = [
+    {'key': 'entry_time', 'label': 'Entry time', 'options': [
+        {'value': 'early', 'label': 'Early', 'count': 1}, {'value': 'late', 'label': 'Late', 'count': 1}]},
+    {'key': 'multiday', 'label': 'Multi-day', 'options': [
+        {'value': 'multiday', 'label': 'Multiday', 'count': 1}, {'value': 'single-day', 'label': 'Single day', 'count': 1}]},
+    {'key': 'satellite', 'label': 'Satellite', 'options': [
+        {'value': 'satellite', 'label': 'Satellite', 'count': 1}, {'value': 'standard', 'label': 'Standard', 'count': 1}]}]
+_dim_html = _rdt_dim([_Col_dim(key='a', label='A', kind='text')],
+                     [{'a': {'value': 'x', 'display': 'x'}, '_filters': {'entry_time': 'early', 'multiday': 'multiday', 'satellite': 'satellite'}},
+                      {'a': {'value': 'y', 'display': 'y'}, '_filters': {'entry_time': 'late', 'multiday': 'single-day', 'satellite': 'standard'}}],
+                     table_id='tt-dimtest', totals=False, filters=_dim_filters)
+check('T-RES-DIM (renderer emits every required dim with >=2 values): entry_time / multiday / satellite chip-groups render when the data carries them (auto-hidden in the June-16 session ONLY because it is single-valued for those three); the other six (buy-in/speed/bounty/freezeout/multi-bullet/phase) are live-proven in the browser matrix',
+      all("data-dt-filter='%s'" % d in _dim_html for d in ('entry_time', 'multiday', 'satellite')))
+check('T-RES-DIM-DEFS (all 9 owner filter dimensions defined + the 6 grouping tabs): the Results filter set covers buy-in/entry-timing/speed/bounty/freezeout/multi-bullet/multi-day/satellite/phase and the grouping tabs cover buy-in/prize/speed/entry-pattern/entry-timing/phase-reached',
+      all("('%s'," % d in _ttcode_res for d in ('buyin', 'entry_time', 'speed', 'bounty', 'freezeout', 'multibullet', 'multiday', 'satellite', 'phase'))
+      and all("('%s'," % g in _ttcode_res for g in ('buyin', 'prize_type', 'speed', 'entry_pattern', 'entry_timing'))
+      and 'phase_reached' in _ttcode_res)
+check('T-RES-DIM-HIDE (auto-hide is the only reason a dim is absent): a dimension is shown iff it has >=2 distinct values among the events (single-valued dims are intentionally skipped)',
+      'if len(_cnts) <= 1:' in _ttcode_res and 'continue' in _ttcode_res)
+import re as _re_mob
+check('T-MOBCHART-01 (mobile usability): the grouped-aggregate table stays a COMPACT horizontally-scrollable table on mobile (its .table-shell carries data-mobile-mode=scroll), never the tall stacked-card layout that blew group rows up to ~410px blank panels at 360/390/430',
+      bool(_re_mob.search(r"table-shell['\"] +data-mobile-mode=['\"]scroll['\"][^>]*>\s*<div class=['\"]table-scroll['\"]>\s*<table class=['\"]data-table tt-aggregate", _md_p4s))
+      and "data-mobile-mode='scroll'" in _ttcode_res)
+check('T-MOBOVF-01 (360px page-overflow fix): the .od-row mobile single-column track is minmax(0,1fr), NOT a bare 1fr -- so .od-card.rq-card / .od-card.cooler-summary-card shrink to the container instead of expanding the grid track to their ~323px min-content and pushing the document 3px past a 360px viewport',
+      '.od-row {{ grid-template-columns: minmax(0, 1fr) !important; }}' in _html_p4src
+      and '.od-row {{ grid-template-columns: 1fr !important; }}' not in _html_p4src)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like
@@ -13574,9 +13643,10 @@ _crc_p21(_rd_p21, candidates=dict(_cand_p21))
 check('T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)',
       set(_rd_p21['_candidate_need_ids']) == _canon_p21['need'])
 _ga_p21 = open('gem_analyzer.py', encoding='utf-8').read()
-check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set)',
+check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set), excluding the no-node debt',
       'canonical_required_review_ids as _canon_rri' in _ga_p21
-      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
+      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main," in _ga_p21
+      and "_canon_main['need'] - _ungraded_main" in _ga_p21
       and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
 
 # RC3 COND-3a: deterministic mixed NLH/PLO finality + quarantine regression (real corpus is NLH-only,
@@ -13643,6 +13713,858 @@ check('T-RC3-PLOg: _non_nlh_ids computed from ALL hands + stamped (never the NLH
       "_non_nlh_ids = {h.get('id') for h in all_hands" in _ga_plo
       and "s['_non_nlh_ids'] = sorted(_non_nlh_ids)" in _ga_plo
       and "hands = [h for h in all_hands if h.get('game_type', 'NLH') == 'NLH']" in _ga_plo)
+
+# v8.20 W1A T1: the ONE canonical material-loss owner — every material loss ends in exactly one visible
+# state and NONE can silently disappear (dedup / auto-clear / analyst-omission / alt-path / nonmatching
+# detector family). gem_material_loss is keyed on the canonical screen-id owner (build_loss_screens).
+import gem_material_loss as _ml
+_ml_hands = [
+    {'id': 'BL1', 'net_bb': -30.0, 'board': ['Ah', 'Kd', '2c', '7s', '9h'], 'went_to_sd': True},
+    {'id': 'PF1', 'net_bb': -22.0, 'board': ['Ah', 'Kd', '2c'], 'pf_allin': False},
+    {'id': 'PF2', 'net_bb': -18.0, 'board': ['Ah', 'Kd', '2c', '7s'], 'pf_allin': False},
+    {'id': 'WIN', 'net_bb': 10.0, 'board': ['Ah', 'Kd', '2c']},
+]
+_ml_screens = {'biggest_loss_screen': ['BL1'], 'postflop_loss_screen': ['PF1', 'PF2']}
+# PF1 ALSO nominated by mistakes (dedup); PF2 in NO detector family (nonmatching) but in blindspot.
+_ml_cands = {'mistakes': [{'id': 'PF1'}], 'blindspot_sample': [{'id': 'PF2'}]}
+_ml_ac = {'BL1': {'verdict': 'III.2 Mistake'}}   # only BL1 graded -> PF1/PF2 analyst-OMITTED
+_ml_pop = _ml.build_material_loss_population(_ml_screens, _ml_hands, candidates=_ml_cands,
+                                            analyst_commentary=_ml_ac, blindspot_ids={'PF2'})
+check('T-W1A-ML-01: every screened material loss is in the population (3 records, 0 dropped)',
+      set(_ml_pop) == {'BL1', 'PF1', 'PF2'})
+check('T-W1A-ML-02: dedup — PF1 also nominated by mistakes stays present with the family recorded',
+      'PF1' in _ml_pop and 'mistakes' in _ml_pop['PF1']['nominating_detector_families'])
+check('T-W1A-ML-03: nonmatching-family — PF2 in NO detector family is still present (blindspot_only)',
+      'PF2' in _ml_pop and _ml_pop['PF2']['nominating_detector_families'] == []
+      and _ml_pop['PF2']['blindspot_only'] is True)
+check('T-W1A-ML-04: analyst-omission — ungraded material hands are VISIBLE as UNGRADED, not dropped',
+      _ml_pop['PF1']['final_classification'] == _ml.UNGRADED
+      and _ml_pop['PF2']['final_classification'] == _ml.UNGRADED
+      and _ml_pop['BL1']['final_classification'] == _ml.CONFIRMED_MISTAKE)
+_ml_pop2 = _ml.build_material_loss_population(_ml_screens, _ml_hands, candidates={'mistakes': [{'id': 'BL1'}]},
+                                            analyst_commentary={}, blindspot_ids=set())
+check('T-W1A-ML-05: auto-clear — the population is keyed on the loss screens, never auto-resolved out',
+      'BL1' in _ml_pop2 and len(_ml_pop2) == 3)
+_ml_dropped = False
+try:
+    _ml.assert_no_silent_drop(_ml_pop, surfaced_ids={'BL1', 'PF1'})   # PF2 dropped by an alt report path
+except ValueError as _e_ml:
+    _ml_dropped = 'MAT-001' in str(_e_ml) and 'PF2' in str(_e_ml)
+check('T-W1A-ML-06: alt-path — assert_no_silent_drop FAILS LOUD when a material hand is off-surface',
+      _ml_dropped)
+check('T-W1A-ML-07: no false alarm when every material id is surfaced',
+      _ml.assert_no_silent_drop(_ml_pop, surfaced_ids={'BL1', 'PF1', 'PF2'}) == {'BL1', 'PF1', 'PF2'})
+_ml_sum = _ml.material_loss_summary(_ml_pop)
+check('T-W1A-ML-08: summary reconciles (per-classification counts sum == total == |population| == 3)',
+      sum(_ml_sum['by_classification'].values()) == _ml_sum['total'] == len(_ml_pop) == 3)
+check('T-W1A-ML-09: classify_verdict maps all eight terminal states',
+      _ml.classify_verdict('III.2 Mistake') == _ml.CONFIRMED_MISTAKE and _ml.classify_verdict('III.1 Punt') == _ml.PUNT
+      and _ml.classify_verdict('III.5 Justified') == _ml.JUSTIFIED
+      and _ml.classify_verdict('III.4 Read-dependent') == _ml.READ_DEPENDENT
+      and _ml.classify_verdict('I.7 Cooler') == _ml.COOLER and _ml.classify_verdict('variance loss') == _ml.VARIANCE
+      and _ml.classify_verdict('insufficient evidence') == _ml.INSUFFICIENT and _ml.classify_verdict('') == _ml.UNGRADED)
+_ml.reenrich_material_loss(_ml_pop, analyst_commentary={'BL1': {'verdict': 'III.2 Mistake'},
+                                                        'PF1': {'verdict': 'I.7 Cooler'},
+                                                        'PF2': {'verdict': 'III.5 Justified'}})
+check('T-W1A-ML-10: reenrich updates classifications from live analyst verdicts (render-time + --quick)',
+      _ml_pop['PF1']['final_classification'] == _ml.COOLER and _ml_pop['PF2']['final_classification'] == _ml.JUSTIFIED
+      and _ml_pop['PF1']['analyst_status'] == 'reviewed')
+
+# v8.20 W1A T2: bet-sizing detector v1 — wraps the production flop-c-bet sizing engine
+# (stats['texture_gto_findings']) into bounded high-confidence AGGREGATE leak signals; no new sizing
+# math, no per-hand mistake reclassification. Tests: TP / justified / insufficient / small / deep-band
+# / aggregate-doesn't-regrade / judged-guard / production-wiring.
+import gem_sizing_detector as _sd
+_sd_tp = {'ace_high_coordinated': {'ip': {
+    'sample_size_label': 'sufficient', 'sizing_judged_n': 5, 'sizing_compliance_pct': 40.0,
+    'sizing_hands': [{'id': 'H1', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'},
+                     {'id': 'H2', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'},
+                     {'id': 'H3', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'}],
+    'verdict': 'deviation', 'target_freq_pct': [90, 99]}}}
+_o_tp = _sd.build_sizing_leak_signals(_sd_tp)
+check('T-W1A-SD-01: true positive — a sufficient bucket with <60% sizing compliance emits ONE high-confidence signal',
+      len(_o_tp['signals']) == 1 and _o_tp['signals'][0]['family'] == 'flop_cbet_sizing'
+      and _o_tp['signals'][0]['confidence'] == 'high')
+check('T-W1A-SD-02: full provenance — aggregate signal_type + contributing hands + reference + trigger',
+      _o_tp['signals'][0]['signal_type'] == 'aggregate_leak'
+      and set(_o_tp['signals'][0]['contributing_hands']) == {'H1', 'H2', 'H3'}
+      and _o_tp['signals'][0]['evidence']['reference_sizings_pct']
+      and 'off-reference' in _o_tp['signals'][0]['trigger'])
+_sd_ok = {'ace_high_coordinated': {'ip': dict(_sd_tp['ace_high_coordinated']['ip'], sizing_compliance_pct=80.0)}}
+check('T-W1A-SD-03: justified — a compliant (>=60%) sufficient bucket emits NO signal',
+      len(_sd.build_sizing_leak_signals(_sd_ok)['signals']) == 0
+      and _sd.build_sizing_leak_signals(_sd_ok)['excluded_counts']['compliant'] == 1)
+_sd_thin = {'low_two_tone': {'ip': {'sample_size_label': 'thin', 'sizing_judged_n': 2, 'sizing_compliance_pct': 0.0,
+            'sizing_hands': [{'id': 'T1', 'sizing_pct': 33, 'within': False, 'depth_band': '40-999BB'}]}}}
+check('T-W1A-SD-04: insufficient — a thin-sample bucket emits NO signal (excluded, never silently graded)',
+      len(_sd.build_sizing_leak_signals(_sd_thin)['signals']) == 0
+      and _sd.build_sizing_leak_signals(_sd_thin)['excluded_counts']['thin_sample'] == 1)
+_sd_small = {'monotone': {'ip': {'sample_size_label': 'small', 'sizing_judged_n': 1, 'sizing_compliance_pct': 0.0,
+             'sizing_hands': [{'id': 'S1', 'sizing_pct': 33, 'within': False, 'depth_band': '8-15BB'}]}}}
+check('T-W1A-SD-05: small-sample bucket excluded (deep-vs-short: short-stack thin samples never fire)',
+      _sd.build_sizing_leak_signals(_sd_small)['excluded_counts']['small_sample'] == 1)
+check('T-W1A-SD-06: deep-band signal carries the depth band + a depth-derived reference band',
+      _o_tp['signals'][0]['evidence']['depth_band'] == '40-999BB'
+      and _o_tp['signals'][0]['evidence']['tolerance_pp'] == 10)
+check('T-W1A-SD-07: an aggregate sizing leak does NOT grade its contributing hands (no per-hand verdict)',
+      all('verdict' not in str(h).lower() for h in _o_tp['signals'][0]['contributing_hands'])
+      and 'does not grade' in _o_tp['signals'][0]['requires_analyst_review'])
+_sd_few = {'ace_high_coordinated': {'ip': dict(_sd_tp['ace_high_coordinated']['ip'], sizing_judged_n=2)}}
+check('T-W1A-SD-08: a sufficient bucket with too few judged c-bets (<3) is excluded (thin sizing sample)',
+      len(_sd.build_sizing_leak_signals(_sd_few)['signals']) == 0)
+_cb_src_sd = open('gem_coverage_builder.py', encoding='utf-8').read()
+check('T-W1A-SD-09: production-connected — coverage_builder stamps report_data[sizing_leak_signals]',
+      "report_data['sizing_leak_signals']" in _cb_src_sd and 'build_sizing_leak_signals' in _cb_src_sd)
+# production isolation + no real-id-keyed rules (acceptance: no production rule keyed to a real hand/
+# session/player; production entry points do not import the benchmark module).
+_ml_src_iso = open('gem_material_loss.py', encoding='utf-8').read()
+_sd_src_iso = open('gem_sizing_detector.py', encoding='utf-8').read()
+check('T-W1A-ISO-01: production owners do NOT import the benchmark module',
+      'v820_wave1a_benchmark' not in _ml_src_iso and 'v820_wave1a_benchmark' not in _sd_src_iso
+      and 'v820_wave1a_benchmark' not in _cb_src_sd)
+check('T-W1A-ISO-02: no production rule keyed to a real hand / tournament / player id',
+      not __import__('re').search(r'TM6\d{9}|Knockman|2908\d{5}', _ml_src_iso + _sd_src_iso))
+
+# v8.20 W1A.1 BUG-2 (TRUST): an auto-detected punt the analyst reclassifies to a confirmed mistake
+# (III.2) is subtracted from the punt count — no 'X confirmed + 1 punts' double-count. ONE canonical
+# punt count, agreeing with the TL;DR discipline counter. (live regression: As7d auto-punt -> III.2.)
+from gem_report_draft.sections_mistakes import (_PUNT_OVERRIDE_PREFIXES as _PO_b2,
+                                                _MISTAKE_CLEARED_PREFIXES as _MC_b2)
+check('T-W1A1-BUG2-01: punt-override set includes III.2; mistake-cleared set excludes it (root cause)',
+      'III.2' in _PO_b2 and 'III.2' not in _MC_b2)
+from gem_report_data import _refresh_discipline_tier as _rdt_b2
+_b2_stats = {'punts': {'hands': [{'id': 'AS7D'}]}, 'mistakes': []}
+_b2_rd = {'analyst_commentary': {'AS7D': {'verdict': 'III.2 Mistake', 'argument': 'reclassified'}}}
+_rdt_b2(_b2_rd, _b2_stats, [{'id': 'H%d' % i} for i in range(175)] + [{'id': 'AS7D'}])
+_b2_dt = _b2_rd.get('discipline_tier') or {}
+check('T-W1A1-BUG2-02: an auto-punt graded III.2 leaves the canonical punt count at 0 (not double-counted)',
+      _b2_dt.get('canonical_punts_count') == 0)
+_grd_src_b2 = open('gem_report_data.py', encoding='utf-8').read()
+check('T-W1A1-BUG2-03: both discipline builders delegate punt/mistake counts to the gem_final_truth '
+      'owner; the two old independent punt formulas are gone (BUG-2 fix is now structural)',
+      _grd_src_b2.count('_ft.build_final_truth(rd, stats, hands') >= 2
+      and '(_auto_punt_ids - _punt_override) | _iii1' not in _grd_src_b2
+      and '(_auto_punt_ids_dt - _punt_override_dt) | _analyst_iii1_dt' not in _grd_src_b2)
+
+# ============================================================================
+# v8.20 Wave 1A.2A — canonical final-truth owner (gem_final_truth) CONTRACT tests.
+# Behavioural (not source-marker): drive the owner with deterministic synthetic fixtures and assert the
+# final-truth invariants every coaching surface depends on. Closes V820-QA-001..005, -013(semantic),
+# -030, -034 and the final-verdict portion of -036.
+# ============================================================================
+import gem_final_truth as _FT
+from gem_final_truth import FinalClass as _FC
+
+def _ft_build(commentary, mistakes=None, punts=None, reviewed=None, n=176):
+    _rd = {'analyst_commentary': dict(commentary), 'reviewed_mistakes': reviewed or {}}
+    _st = {'mistakes': mistakes or [], 'punts': {'hands': punts or []}}
+    return _FT.build_final_truth(_rd, _st, [{'id': 'h%d' % i} for i in range(n)])
+
+# (1) auto-punt -> confirmed mistake: counted once as mistake, zero as punt (the live As7d regression).
+_t1 = _ft_build({'X': {'verdict': 'III.2 Mistake'}}, punts=[{'id': 'X'}])
+check('T-W1A2A-FT-01: auto-punt overridden to III.2 is one confirmed mistake, zero punt (override final)',
+      _t1['records']['X']['final_class'] == 'CONFIRMED_MISTAKE'
+      and _t1['counts']['CONFIRMED_MISTAKE'] == 1 and _t1['counts']['PUNT'] == 0
+      and _t1['records']['X']['override'] is True)
+
+# (2) auto-punt -> justified/cleared: zero mistake, zero punt.
+_t2 = _ft_build({'X': {'verdict': 'III.5 Justified'}}, punts=[{'id': 'X'}])
+check('T-W1A2A-FT-02: auto-punt cleared to Justified is zero mistake and zero punt',
+      _t2['counts']['CONFIRMED_MISTAKE'] == 0 and _t2['counts']['PUNT'] == 0
+      and _t2['records']['X']['final_class'] == 'JUSTIFIED')
+
+# (3) raw mistake -> cooler: one cooler, zero mistake.
+_t3 = _ft_build({'X': {'verdict': 'I.7 Cooler'}}, mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-03: a detector mistake the analyst graded a cooler is one cooler, zero confirmed mistake',
+      _t3['counts']['COOLER'] == 1 and _t3['counts']['CONFIRMED_MISTAKE'] == 0)
+
+# (4) nomination -> read-dependent: not a confirmed mistake.
+_t4 = _ft_build({'X': {'verdict': 'III.4 Read-dependent'}},
+                mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-04: a nomination graded read-dependent is not a confirmed mistake',
+      _t4['records']['X']['final_class'] == 'READ_DEPENDENT' and _t4['counts']['CONFIRMED_MISTAKE'] == 0)
+
+# (5) insufficient/conditional evidence cannot become a confirmed Pick.
+check('T-W1A2A-FT-05: insufficient / read-dependent / mistake hands are NOT Pick-eligible',
+      _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.INSUFFICIENT)) is False
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.READ_DEPENDENT)) is False
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.CONFIRMED_MISTAKE)) is False)
+
+# (6) positive Pick eligibility.
+check('T-W1A2A-FT-06: a well-played / standard hand IS Pick-eligible',
+      _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.WELL_PLAYED)) is True
+      and _FT.pick_eligible(_FT.FinalTruthRecord('X', _FC.STANDARD)) is True)
+
+# (7) workflow state is carried separately from final class (not substituted).
+_t7 = _ft_build({'X': {'verdict': 'III.2 Mistake'}})
+check('T-W1A2A-FT-07: workflow_state (REVIEWED) is separate from final_class (workflow != poker class)',
+      _t7['records']['X']['workflow_state'] == 'REVIEWED'
+      and _t7['records']['X']['final_class'] == 'CONFIRMED_MISTAKE')
+
+# (8) same hand cannot occupy mutually exclusive populations (reconciliation invariants).
+_t8 = _ft_build({'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.1 Punt'},
+                 'C': {'verdict': 'I.7 Cooler'}, 'D': {'verdict': 'III.5 Justified'}},
+                mistakes=[{'id': 'E', 'type': 't', 'confidence': 'CLEAR'}], punts=[{'id': 'F'}])
+check('T-W1A2A-FT-08: reconciliation has zero contradictions / orphans / duplicate final owners',
+      _t8['reconciliation']['contradictions'] == 0
+      and _t8['reconciliation']['orphans'] == 0
+      and _t8['reconciliation']['duplicates'] == 0)
+
+# (9) cross-surface coherence: the discipline_tier counts that every KPI/header/TL;DR surface reads ARE
+#     the owner counts (both builders delegate) — one source across all count surfaces.
+_rd9 = {'analyst_commentary': {'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.1 Punt'}},
+        'reviewed_mistakes': {}}
+import gem_report_data as _GRD
+_GRD._refresh_discipline_tier(_rd9, {'mistakes': [], 'punts': {'hands': []}},
+                              [{'id': 'h%d' % i} for i in range(100)])
+_dt9 = _rd9['discipline_tier']; _ft9 = _rd9['final_truth']
+check('T-W1A2A-FT-09: discipline_tier canonical counts equal the owner counts (one cross-surface source)',
+      _dt9['canonical_mistakes_count'] == _ft9['counts']['CONFIRMED_MISTAKE'] == 1
+      and _dt9['canonical_punts_count'] == _ft9['counts']['PUNT'] == 1)
+
+# (10) raw detector nomination survives in debug provenance but leaves the mistake population after clear.
+_t10 = _ft_build({'X': {'verdict': 'III.5 Justified'}},
+                 mistakes=[{'id': 'X', 'type': 't', 'confidence': 'CLEAR'}])
+check('T-W1A2A-FT-10: a cleared detector nomination keeps its provenance but leaves the mistake population',
+      'detector_mistake' in _t10['records']['X']['nominations']
+      and 'X' not in _t10['populations']['CONFIRMED_MISTAKE']
+      and _t10['records']['X']['final_class'] == 'JUSTIFIED')
+
+# (11) stable user-facing labels carry NO internal Roman taxonomy codes.
+import re as _re_ft
+_labels = [_t8['records'][h]['label'] for h in _t8['records']]
+check('T-W1A2A-FT-11: owner labels expose no internal Roman codes (III.1/III.2/I.7...)',
+      all(not _re_ft.search(r'\b(?:III|II|I)\.\d', lbl) for lbl in _labels)
+      and _t1['records']['X']['label'] == 'Confirmed mistake')
+
+# (12) data-attribute escaping for ', ", &, <, >.
+_esc = _FT.escape_attr("a'b\"c&d<e>f")
+check('T-W1A2A-FT-12: escape_attr escapes apostrophe, quote, ampersand and angle brackets',
+      "'" not in _esc and '&amp;' in _esc and '&lt;' in _esc and '&gt;' in _esc and '&#x27;' in _esc)
+
+# (14) transitional accessors delegate to the one owner (no recompute).
+check('T-W1A2A-FT-14: thin accessors read the owner populations (delegation, not recompute)',
+      _FT.confirmed_mistakes_count(_rd9) == 1 and _FT.punts_count(_rd9) == 1
+      and _FT.population_ids(_rd9, _FC.PUNT) == ['B'])
+
+# (QA-005) the Pokerbot Picks surface routes confirmed picks through the canonical positive-class gate,
+# so a hand the owner classes as a mistake / punt / read-dependent / insufficient cannot be a Pick.
+_sm_pick_src = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2A-QA005-01: the Picks surface gates confirmed picks on the canonical positive final class',
+      '_pick_eligible_canonical(hid)' in _sm_pick_src
+      and "rec.get('final_class') not in ('WELL_PLAYED', 'STANDARD')" in _sm_pick_src)
+
+# ---- Track 1: row-level closeout (rendered-ID reconciliation, stronger Pick, attribute escaping) ----
+# (1.2) rendered-ID reconciliation flags a row the owner expects but a surface omitted (or added).
+_rdrr = {'analyst_commentary': {'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.2 Mistake'}},
+         'reviewed_mistakes': {}}
+_FT.build_final_truth(_rdrr, {'mistakes': [], 'punts': {'hands': []}},
+                      [{'id': 'h%d' % i} for i in range(50)])  # stamps _rdrr['final_truth']
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A'], _FC.CONFIRMED_MISTAKE)   # B omitted
+_rr = _FT.reconcile_rendered(_rdrr)
+check('T-W1A2A-T1-12a: rendered reconciliation flags a row the owner expects but the surface omitted',
+      _rr['surfaces']['confirmed_mistakes']['missing'] == ['B'] and _rr['rendered_reconciles'] is False)
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A', 'B'], _FC.CONFIRMED_MISTAKE)  # now complete
+check('T-W1A2A-T1-12b: a surface emitting exactly the owner population reconciles (0 missing/extra/dupes)',
+      _FT.reconcile_rendered(_rdrr)['rendered_reconciles'] is True)
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A', 'B', 'B'], _FC.CONFIRMED_MISTAKE)  # dup
+check('T-W1A2A-T1-12c: rendered reconciliation flags a duplicated row id',
+      _FT.reconcile_rendered(_rdrr)['total_duplicates'] == 1)
+
+# (1.3) Pick eligibility requires positive evidence and rejects hedged arguments — not just the III.8 tag.
+_sm_pick2 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2A-T1-13: confirmed-Pick eligibility requires positive evidence + rejects hedged arguments',
+      '_PICK_HEDGE_WORDS' in _sm_pick2 and 'if not arg:' in _sm_pick2
+      and 'read-dependent' in _sm_pick2)
+
+# (1.4) the dynamic verdict-pill data attribute is escaped via the canonical escape_attr helper.
+_helpers_src_esc = open('gem_report_draft/_helpers.py', encoding='utf-8').read()
+check('T-W1A2A-T1-14: the verdict-pill data attribute is escaped via the canonical escape_attr helper',
+      "data-verdict='{_esc_attr(label)}'" in _helpers_src_esc
+      and 'from gem_final_truth import escape_attr' in _helpers_src_esc)
+
+# ---- Track 3: mistake-discovery pilot (candidate families, never auto-confirm, no invented math) ----
+import gem_discovery_pilot as _DP
+# (3.1) the commitment node moves to the later large stack-off, not the preflop defend (live BUG-4 class).
+_h_pf_flop = {'id': 'H1', 'net_bb': -50.0, 'board': ['As', 'Kd', '2c'], 'went_to_sd': True,
+              'decision_points': [
+                  {'street': 'preflop', 'action_index': 3, 'hero_risk_bb': 3.0, 'hero_action': 'calls'},
+                  {'street': 'flop', 'action_index': 7, 'hero_risk_bb': 47.0, 'hero_action': 'calls',
+                   'pot_facing_hero_bb': 40.0, 'eff_stack_bb': 47.0}]}
+_node, _why = _DP.commitment_node(_h_pf_flop)
+check('T-W1A2A-T3-01: commitment node selects the later large flop stack-off over the preflop defend',
+      _node['street'] == 'flop' and _node['action_index'] == 7 and 'later' in _why)
+# (3.1) a material loss with no reviewable decision becomes an explicit ungraded blocker, not a mistake.
+_h_nodp = {'id': 'H2', 'net_bb': -30.0, 'board': [], 'decision_points': []}
+_mlc = _DP.material_loss_commitment_candidates([_h_pf_flop, _h_nodp])
+_blk = [c for c in _mlc if c['hand_id'] == 'H2']
+check('T-W1A2A-T3-02: a material loss with no decision node is an ungraded blocker (candidate, not mistake)',
+      _blk and _blk[0]['route'] == 'ungraded_blocker' and _blk[0]['status'] == 'candidate'
+      and all(c['status'] == 'candidate' for c in _mlc))
+# (3.3) a turn/river active candidate records the missing villain-range assumption (no invented equity).
+_h_river = {'id': 'H3', 'net_bb': -20.0, 'went_to_sd': False,
+            'board': ['As', 'Kd', '2c', '7h', '3d'],
+            'decision_points': [{'street': 'river', 'action_index': 9, 'hero_action': 'bets',
+                                 'hero_is_last_aggressor': True, 'pot_facing_hero_bb': 20.0}]}
+_tr = _DP.turn_river_active_candidates([_h_river])
+check('T-W1A2A-T3-03: a turn/river candidate records the missing villain-range assumption (no invented math)',
+      _tr and 'villain' in ' '.join(_tr[0]['missing_assumptions']).lower()
+      and _tr[0]['status'] == 'candidate' and 'hero_equity_vs_range' not in _tr[0]['observed_facts'])
+# (3.4) the full pilot: never auto-promotes, every candidate has a decision node, no unsupported math,
+#       and review-dependent yield fields are 'pending' (not 0) before analyst review.
+_pilot = _DP.run_discovery_pilot([_h_pf_flop, _h_nodp, _h_river], {})
+_pm = _pilot['metrics']
+check('T-W1A2A-T3-04: pilot never auto-promotes; hand-level candidates carry a real node; zero invented math',
+      _pm['auto_promoted_to_confirmed'] == 0
+      and all(c['status'] == 'candidate' for c in _pilot['candidates'])
+      and _pm['totals']['unsupported_exact_math'] == 0
+      and _pm['totals']['with_decision_node'] == sum(1 for c in _pilot['reconciled'] if _DP._is_hand_level(c)))
+# B6: the bounded review runs and returns one terminal outcome per candidate (no field left 'pending');
+# fail-closed -> nothing is confirmed without canonical inputs.
+check('T-W1A2A-T3-05: the bounded review runs, gives a terminal outcome per candidate, confirms none w/o inputs',
+      _pm['review_performed'] is True and len(_pilot['reviewed']) == len(_pilot['reconciled'])
+      and all(r['terminal_outcome'] in (_DP.CONFIRMED_MISTAKE, _DP.CLEARED, _DP.READ_DEPENDENT,
+              _DP.INSUFFICIENT_EVIDENCE, _DP.DETECTOR_OR_OPERAND_BUG) for r in _pilot['reviewed'])
+      and _pm['totals']['incremental_confirmed_mistakes'] == 0)
+check('T-W1A2A-T3-06: the analyst queue splits new / re-review / aggregate, with node+facts per item',
+      set(_pilot['analyst_queue'].keys()) == {'new_unreviewed', 're_review_changed_node', 'aggregate_signals'}
+      and all(q.get('decision_id') and 'observed_facts' in q
+              for q in _pilot['analyst_queue']['new_unreviewed']))
+# B1: a prior-reviewed hand re-flagged at a DIFFERENT node is RE_REVIEW_CHANGED_NODE (with node diff);
+# the same-node candidate is suppressed from the queue.
+_prior_tr = {'TMx': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMx:preflop:1'}}
+_rc_ch = _DP.reconcile_with_prior_truth(
+    [{'family': 'material_loss_commitment', 'hand_id': 'TMx', 'decision_id': 'TMx:turn:9',
+      'observed_facts': {}, 'status': 'candidate', 'confidence': 'candidate'}], _prior_tr)
+check('T-W1A2A-T3-07: prior-reviewed hand at a different node = RE_REVIEW_CHANGED_NODE with old/new node diff',
+      _rc_ch[0]['relationship'] == 'RE_REVIEW_CHANGED_NODE'
+      and _rc_ch[0]['node_diff']['prior'] == 'TMx:preflop:1' and _rc_ch[0]['node_diff']['new'] == 'TMx:turn:9')
+_q_same = _DP.analyst_queue(_DP.reconcile_with_prior_truth(
+    [{'family': 'material_loss_commitment', 'hand_id': 'TMx', 'decision_id': 'TMx:preflop:1',
+      'observed_facts': {}, 'status': 'candidate', 'confidence': 'candidate'}], _prior_tr))
+check('T-W1A2A-T3-08: an already-reviewed-same-node candidate is suppressed from the analyst queue',
+      not _q_same['new_unreviewed'] and not _q_same['re_review_changed_node'])
+# B2: decision risk is bounded by the decision-time effective stack; the raw cumulative field is kept + flagged.
+_dp_over = {'street': 'turn', 'action_index': 5, 'hero_risk_bb': 56.6, 'eff_stack_bb': 31.7, 'hero_action': 'calls'}
+check('T-W1A2A-T3-09: decision_risk is capped at eff_stack; raw cumulative risk recorded + capped flag set',
+      _DP._decision_risk(_dp_over) == 31.7 and _DP._raw_risk(_dp_over) == 56.6
+      and _DP._risk_reconciled(_dp_over) is True)
+# B3: a river bet with no canonical strength input is INSUFFICIENT_INPUT (not SDV/bluff inferred from went_to_sd).
+_h_bet = {'id': 'Z', 'net_bb': -5.0, 'went_to_sd': True,
+          'decision_points': [{'street': 'river', 'action_index': 3, 'hero_action': 'bets',
+                               'pot_facing_hero_bb': 10.0}]}
+_tr2 = _DP.turn_river_active_candidates([_h_bet])
+check('T-W1A2A-T3-10: a river bet without canonical strength input is INSUFFICIENT_INPUT, not from went_to_sd',
+      _tr2 and _tr2[0]['confidence'] == 'insufficient_input' and 'went_to_sd' not in _tr2[0]['observed_facts'])
+
+# ---- Track 2.2: tournament drilldowns expose every hand (no silent 60-hand cap) ----
+_st_src = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-W1A2A-T2-02: tournament drilldown hand-id lists carry no silent [:60] cap (every hand reachable)',
+      '(hids_by_tid.get(tid) or [])[:60]' not in _st_src
+      and '_hids_by_tid.get(tid, [])[:60]' not in _st_src)
+
+# ---- Track A1: ONE combined Date + Tournament identity column (no separate Date column) ----
+import gem_report_draft.sections_tournaments as _STM
+check('T-W1A2A-A1-01: the Results DataTable has NO separate Date column (identity is combined)',
+      "_DTCol('date', 'Date'" not in _st_src and "_DTCol('tournament', 'Tournament', 'text')," in _st_src
+      and "'tt-tdetail'" in _st_src)
+
+# ---- Track A2: ONE stacked outcome-distribution bar; no legacy Net/Cost/Return toggle ----
+check('T-W1A2A-A2-01: the legacy Net/Cost/Return metric toggle + multi-bar chart are removed',
+      "data-metric='cost'" not in _st_src and "data-metric='return'" not in _st_src
+      and "class='tt-metric active'" not in _st_src
+      and 'Distribution — Buy-in' not in _st_src)
+# the typed outcome model: mutually-exclusive buckets, every event in exactly one, counts sum to total.
+_ev_fix = [{'finish': {'top_percent': 0.5, 'place': 1, 'total_players': 200, 'itm': True}, 'return': {'value': 500}},
+           {'finish': {'top_percent': 6.0, 'place': 12, 'total_players': 200, 'itm': True}, 'return': {'value': 80}},
+           {'finish': {'top_percent': 40.0, 'place': 80, 'total_players': 200, 'itm': True}, 'return': {'value': 20}},
+           {'finish': {'place': 150, 'total_players': 200, 'itm': False}, 'return': {'value': 0}},
+           {'finish': {'state': 'in_play'}, 'return': {'value': None}}]
+_od = _STM.outcome_distribution(_ev_fix)
+check('T-W1A2A-A2-02: outcome buckets are mutually exclusive and the segment counts sum to the event count',
+      _od['total'] == 5 and sum(b['count'] for b in _od['buckets']) == 5
+      and {b['key']: b['count'] for b in _od['buckets']} ==
+          {'top1': 1, 'top10': 1, 'itm': 1, 'nocash': 1, 'unresolved': 1})
+# filtering the dataset recomputes the model from the SAME function (one dataset drives the bar).
+_od_filt = _STM.outcome_distribution(_ev_fix[:2])
+check('T-W1A2A-A2-03: the outcome bar recomputes from a filtered subset (counts + % follow the dataset)',
+      _od_filt['total'] == 2 and {b['key']: b['count'] for b in _od_filt['buckets'] if b['count']} ==
+          {'top1': 1, 'top10': 1}
+      and all(b['pct'] == 50.0 for b in _od_filt['buckets'] if b['count']))
+
+# ---- Iteration 2, Outcome 2: context-rich discovery (no fabricated pass) ----
+import gem_discovery_context as _DC
+# the genuine-value guard rejects board two-pair (paired board); accepts a real two pair on an unpaired board.
+check('T-IT2-O2-01: genuine-value guard rejects board two-pair (paired board), accepts a real two pair',
+      _DC._genuine_value_hand(['Jc', 'Qc'], ['9h', 'Ah', 'Ac', '9s', '4h']) is None
+      and _DC._genuine_value_hand(['Ah', 'Kd'], ['As', 'Kc', '7d', '2h', '9s']) is not None)
+# a genuine strong hand (set, hole cards used) checked through the river IS a confirmed missed-value mistake.
+_h_val = {'id': 'V1', 'cards': ['Ah', 'Ad'], 'board': ['As', 'Kc', '7d', '2h', '9s'],
+          'position': 'CO', 'hero_ip': True,
+          'action_ledger': [{'street': 'river', 'player': 'X', 'action': 'checks', 'amount_bb': 0},
+                            {'street': 'river', 'player': 'Hero', 'action': 'checks', 'amount_bb': 0}]}
+_rv = _DC.family_river_value([_h_val])
+_rev_v = _DC.review(_rv)
+check('T-IT2-O2-02: a genuine strong hand checked through the river is a CONFIRMED missed-value mistake (confirm path works)',
+      _rv and _rev_v and _rev_v[0]['terminal_verdict'] == _DC.CONFIRMED_MISTAKE and _rev_v[0]['better_action'])
+# the aggression / curiosity families fail closed to READ_DEPENDENT (no canonical opponent range).
+check('T-IT2-O2-03: over-barrel + curiosity-call families review as READ_DEPENDENT (no canonical range)',
+      all(r['terminal_verdict'] == _DC.READ_DEPENDENT for r in _DC.review([
+          {'family': 'turn_overbarrel', 'hand_id': 'A', 'decision_id': 'A:turn:1', 'context': {},
+           'detector_reason': 'x', 'relationship': 'NEW_UNREVIEWED'},
+          {'family': 'river_curiosity', 'hand_id': 'B', 'decision_id': 'B:river:1', 'context': {},
+           'detector_reason': 'y', 'relationship': 'NEW_UNREVIEWED'}])))
+# the product-value gate is honest: FAIL with zero confirmed, PASS with >=1 -- never fabricated.
+check('T-IT2-O2-04: product-value gate is FAIL at zero confirmed, PASS at >=1 (no fabricated pass)',
+      _DC.value_metrics({'candidates': [], 'suppressed': [], 'engineering_debt': []}, [], 844)['product_value_gate'] == 'FAIL'
+      and _DC.value_metrics({'candidates': [{'family': 'river_value'}], 'suppressed': [], 'engineering_debt': []},
+                            [{'family': 'river_value', 'terminal_verdict': _DC.CONFIRMED_MISTAKE}], 844)['product_value_gate'] == 'PASS')
+
+# ---- Iteration 2, Outcome 1: Tournament Results event/bullet/exit finality model + 7 fixtures + freeze ----
+import gem_tournament_finality as _TF
+_fx = _TF.run_fixtures()
+check('T-IT2-O1-01: all seven deterministic finality fixtures pass (HH / summary / unresolved / multi-bullet / multi-day / satellite / >60)',
+      _fx['all_pass'] is True and len(_fx['fixtures']) == 7 and all(r['pass'] for r in _fx['fixtures'].values()))
+check('T-IT2-O1-02: finality reconciliation -- one row per tournament, no invented exits, exits reachable, totals reconcile',
+      _fx['reconciliation']['invariants_pass'] is True and _fx['reconciliation']['invented_final_exits'] == 0
+      and _fx['reconciliation']['duplicate_identity_rows'] == 0
+      and _fx['reconciliation']['final_exit_reachable_in_bullets'] is True)
+_md = [ev for ev in _TF.build_finality_model(_TF.seven_fixtures()[0]) if ev.tournament_identity == 'FIXTURE-MultiDay']
+check('T-IT2-O1-03: multi-day flights merge into ONE event row; both bullets remain individually inspectable',
+      len(_md) == 1 and len(_md[0].bullets) == 2 and _md[0].final_event_exit == 'E55')
+_unres = _TF.build_event_finality({'tournament_identity': 'U', 'status': _TF.UNRESOLVED, 'exit_hand': 'X9',
+                                   'bullets': [{'bullet_id': 'u1', 'exit_hand': '', 'resolved': False}]})
+check('T-IT2-O1-04: an unresolved event never invents a final exit (source exit dropped + warning recorded)',
+      (_unres.final_event_exit or None) is None and any('never invented' in w for w in _unres.warnings))
+_rt_src_o1 = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-IT2-O1-05: responsive structure -- the stacked outcome bar is width:100% flex (scales to every viewport, no fixed-width overflow)',
+      'width:100%;height:26px' in _rt_src_o1 and 'display:flex' in _rt_src_o1
+      and '_hids_by_tid.get(tid, [])[:60]' not in _rt_src_o1)
+check('T-IT2-O1-06: Tournament Results carries the FROZEN_AFTER_V820_CLOSURE marker after passing closure',
+      "RESULTS_FROZEN = 'FROZEN_AFTER_V820_CLOSURE'" in _rt_src_o1)
+
+# ---- Iteration 3, Track 2: rule-backed sweep + recalibration (genuine confirmed mistake, no fabrication) ----
+def _sbhand(actions, cards=None, eff=30):
+    return {'id': 'X', 'position': 'SB', 'cards': cards or ['Kc', 'Qc'], 'eff_stack_bb': eff,
+            'action_ledger': [dict(street='preflop', **a) for a in actions]}
+_clean = _sbhand([{'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+                  {'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+                  {'player': 'bb', 'position': 'BB', 'action': 'folds', 'amount_bb': 0}])
+_limp = _sbhand([{'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 0.5},
+                 {'player': 'bb', 'position': 'BB', 'action': 'checks', 'amount_bb': 0}])
+_mw = _sbhand([{'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+               {'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+               {'player': 'bb', 'position': 'BB', 'action': 'calls', 'amount_bb': 1.2}])
+check('T-IT3-V-02: SB-flat family flags only the clean heads-up late-open flat; rejects limp-completes and multiway',
+      len(_DC.family_sb_flat_vs_late_open([_clean])) == 1
+      and len(_DC.family_sb_flat_vs_late_open([_limp])) == 0
+      and len(_DC.family_sb_flat_vs_late_open([_mw])) == 0)
+_rev_sb = _DC.review_value(_DC.family_sb_flat_vs_late_open([_clean]))
+check('T-IT3-V-03: the SB-flat confirmed mistake is OWNER_RULE_BACKED + result-independent (3-bet-or-fold)',
+      _rev_sb[0]['terminal_verdict'] == _DC.CONFIRMED_MISTAKE
+      and _rev_sb[0]['evidence_tier'] == _DC.OWNER_RULE_BACKED
+      and _rev_sb[0]['result_independent'] is True and 'fold' in (_rev_sb[0]['better_action'] or ''))
+_val_hand = {'id': 'Y', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'board': ['Ac', '7d', '2s', '9h'],
+             'action_ledger': [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'amount_bb': 3},
+                               {'street': 'turn', 'player': 'Hero', 'action': 'bets', 'amount_bb': 6}]}
+check('T-IT3-V-01: turn_overbarrel suppresses canonical value hands (betting_class=value -- owner correction #2)',
+      len(_DC.family_turn_overbarrel([_val_hand])) == 0)
+check('T-IT3-V-04: the value gate is PASS with >=1 confirmed, FAIL at zero (no fabricated pass)',
+      _DC.run_value([_clean], {})['metrics']['product_value_gate'] == 'PASS'
+      and _DC.run_value([_limp], {})['metrics']['product_value_gate'] == 'FAIL')
+
+# ---- Iteration 3, Track 1: the LIVE Results renderer consumes the finality owner ----
+_st_src_t1 = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-IT3-T1-01: the live Results Exit hand derives from the canonical finality owner (not the raw event field)',
+      '_ev_final = _TFIN.event_finality_for(e)' in _st_src_t1
+      and '_exit = _ev_final.final_event_exit or None' in _st_src_t1
+      and "rd['_live_results_finality']" in _st_src_t1)
+# the production render-field path (event -> finality -> render_fields) reconciles the seven fixtures
+# field-by-field, and an unresolved/advanced live event NEVER renders a final exit.
+_fx_raw, _fx_exp = _TF.seven_fixtures()
+_t1_ok = True
+for _r in _fx_raw:
+    _evf = _TF.event_finality_for({'name': _r['tournament_identity'], 'tournament_id': _r.get('tournament_id'),
+                                   'finish': {'state': ('in_play' if _r.get('status') == _TF.UNRESOLVED else 'done'),
+                                              'advanced_day2': _r.get('status') == _TF.ADVANCED,
+                                              'place': _r.get('finish_place'), 'total_players': _r.get('total_players'),
+                                              'top_percent': _r.get('percentile'), 'is_satellite': _r.get('is_satellite')},
+                                   'exit_hand': (_r.get('bullets') or [{}])[-1].get('exit_hand') if _r.get('bullets') else None,
+                                   'bullets': len(_r.get('bullets') or []) or 1,
+                                   'return': {'value': _r.get('return'), 'ticket_value': _r.get('ticket_return')},
+                                   'cost': _r.get('cost'), 'net': _r.get('net')})
+    _rf = _TF.render_fields(_evf)
+    if _evf.status in (_TF.UNRESOLVED, _TF.ADVANCED) and _rf['exit_hand']:
+        _t1_ok = False     # an unresolved/advanced live event must never render a final exit
+check('T-IT3-T1-02: the production render-field path consumes the finality owner; unresolved/advanced rows never render a final exit',
+      _t1_ok is True and _TF.render_fields(_TF.event_finality_for(
+          {'name': 'R', 'finish': {'state': 'done', 'place': 5, 'total_players': 100},
+           'exit_hand': 'HX', 'bullets': 1}))['exit_hand'] == 'HX')
+
+# ---- v8.20 Wave-1A.2A Area 4: seven-fixture Tournament Results acceptance harness (8 dimensions) ----
+# Deterministic: drives the REAL Doc/_emit_tournament_tables render path over the SEVEN canonical
+# scenario fixtures and asserts all 7 fixtures x 8 dimensions PASS (no network, no Date.now).
+import _qa_seven_fixture_results as _Q7FIX
+_q7 = _Q7FIX.run()
+_q7_dims = list(_Q7FIX.DIMENSIONS)
+_q7_fix = list(_Q7FIX.FIXTURE_ORDER)
+check('T-7FIX-01: seven-fixture Results acceptance -- all 7 fixtures x 8 dimensions present and True',
+      _q7['all_pass'] is True
+      and len(_q7['fixtures']) == 7
+      and set(_q7['fixtures'].keys()) == set(_q7_fix)
+      and len(_q7_dims) == 8
+      and all(set(_q7['fixtures'][_n].keys()) == set(_q7_dims) for _n in _q7_fix)
+      and all(_q7['fixtures'][_n][_d] is True for _n in _q7_fix for _d in _q7_dims),
+      'matrix=%s' % {_n: {_d: _q7['fixtures'][_n][_d] for _d in _q7_dims} for _n in _q7_fix})
+
+# ---- Iteration 4, Track 0: release-safety corrections ----
+# 0.2 packet-completeness is a STRICT boolean (not a hand-code string); present-fields is a separate list.
+_c4 = {'family': 'sb_flat_vs_late_open', 'decision_id': 'd', 'detector_reason': 'r',
+       'context': {'hero_cards': ['Ah', 'Kd'], 'eff_stack_bb': 30, 'hand_code': 'AKo'}}
+check('T-IT4-T0-01: packet-completeness is a strict boolean (not a hand-code string); present-fields is a list',
+      _DC._packet_complete(_c4) is True and isinstance(_DC._packet_complete(_c4), bool)
+      and isinstance(_DC.packet_present_fields(_c4), list))
+# 0.2 deep_preflop_stackoff is READ_DEPENDENT (no auto-justify, no result inference).
+_rev_ds = _DC.review_value([{'family': 'deep_preflop_stackoff', 'hand_id': 'H', 'decision_id': 'H:preflop:1',
+                            'detector_reason': 'x', 'context': {'hand_code': 'JJ'}, 'relationship': 'NEW_UNREVIEWED'}])
+check('T-IT4-T0-02: deep_preflop_stackoff reviews as READ_DEPENDENT, not auto-justified',
+      _rev_ds[0]['terminal_verdict'] == _DC.READ_DEPENDENT)
+# 0.2 short_stack_coldcall keeps a genuine flat (chips behind), excludes the all-in call; "outside the BB".
+def _ssc(eff, call_amt, allin=False):
+    return {'id': 'S', 'position': 'BTN', 'cards': ['Ah', '9d'], 'eff_stack_bb': eff,
+            'action_ledger': [{'street': 'preflop', 'player': 'x', 'action': 'raises', 'amount_bb': 2.2},
+                              {'street': 'preflop', 'player': 'Hero', 'action': 'calls',
+                               'amount_bb': call_amt, 'is_all_in': allin}]}
+_ssc_flat = _DC.family_short_stack_coldcall([_ssc(12, 2.2)])
+check('T-IT4-T0-03: short_stack_coldcall keeps a genuine flat (chips behind), excludes the all-in call; uses "outside the BB"',
+      len(_ssc_flat) == 1 and len(_DC.family_short_stack_coldcall([_ssc(4, 15.0)])) == 0
+      and 'outside the BB' in _ssc_flat[0]['detector_reason'])
+# 0.1 bullet lineage: a count-only multi-bullet live event marks intermediate exits unavailable -- NOT fabricated.
+_mbl = _TF.event_finality_for({'name': 'MB', 'tournament_id': 'MB',
+                               'finish': {'state': 'done', 'place': 5, 'total_players': 100},
+                               'exit_hand': 'HX', 'bullets': 3})
+check('T-IT4-T0-04: a count-only multi-bullet event marks intermediate bullet exits Unavailable; final exit factual; none fabricated',
+      len(_mbl.bullets) == 3 and _mbl.bullets[-1].exit_hand == 'HX' and _mbl.final_event_exit == 'HX'
+      and _mbl.bullets[0].exit_unavailable is True and not _mbl.bullets[0].exit_hand
+      and _mbl.bullets[0].exit_display() == 'Unavailable from source'
+      and _TF.bullet_lineage_reconciliation([_mbl])['no_fabrication'] is True)
+
+# ---- Iteration 4, Tracks 1-2: sealed one-pass analyst packet + fail-closed validator ----
+import gem_analyst_packet as _AP
+_pk_hand = {'id': 'TMX', 'position': 'SB', 'cards': ['Kc', 'Qc'], 'eff_stack_bb': 30,
+            'action_ledger': [{'street': 'preflop', 'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+                              {'street': 'preflop', 'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+                              {'street': 'preflop', 'player': 'bb', 'position': 'BB', 'action': 'folds', 'amount_bb': 0}]}
+_pkt = _AP.build_packet([_pk_hand], {}, session_id='t', runtime_version='v', optional_cap=8)
+check('T-IT4-T1-01: the sealed packet holds the high-confidence SB-flat as required, keyed evidence, manifest binds session+hash',
+      _pkt['manifest']['required_count'] >= 1 and _pkt['manifest']['session_id'] == 't'
+      and _pkt['manifest']['packet_hash']
+      and any(d['family'] == 'sb_flat_vs_late_open' for d in _pkt['required'])
+      and _pkt['required'][0]['evidence_ref'] in _pkt['evidence']
+      and _pkt['required'][0]['allowed_verdicts'] == list(_AP.ALLOWED_VERDICTS))
+_aout = {'session_id': 't', 'packet_hash': _pkt['manifest']['packet_hash'],
+         'verdicts': [{'decision_id': d['decision_id'], 'verdict': 'CONFIRMED_MISTAKE', 'reason': 'OOP flat'}
+                      for d in _pkt['required']]}
+_v_ok = _AP.validate_analyst_output(_pkt, _aout)
+check('T-IT4-T2-01: the fail-closed validator accepts a complete one-pass output (100% required coverage, 0 errors)',
+      _v_ok['valid'] is True and _v_ok['required_coverage'] == 1.0 and _v_ok['errors'] == [])
+_v_bad = _AP.validate_analyst_output(_pkt, {'session_id': 'WRONG',
+         'verdicts': [{'decision_id': _pkt['required'][0]['decision_id'], 'verdict': 'MAGIC', 'reason': 'x'},
+                      {'decision_id': 'unknown:x', 'verdict': 'JUSTIFIED', 'reason': 'ok'}]})
+check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unknown id + wrong session + missing packet hash',
+      _v_bad['valid'] is False and len(_v_bad['errors']) >= 4
+      and any('outside allowed enum' in e for e in _v_bad['errors'])
+      and any('unknown decision' in e for e in _v_bad['errors'])
+      and any('wrong session' in e for e in _v_bad['errors'])
+      and any('missing required packet_hash' in e for e in _v_bad['errors']))
+
+# ---- Release validation: coverage parity + binding hardening (owner gaps 3/4/5) ----
+# QA-PACKET-001: TMa has a canonical decision node (gradable -> REQUIRED); TMb + TMc have no hand data,
+# so they are no-canonical-node records routed to the explicit UNRESOLVED/debt population. REQUIRED +
+# UNRESOLVED together preserve 100% of the legacy population (parity).
+_rv_hands = [{'id': 'TMa', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
+              'board': ['As', '7d', '2c', '9h', '3s'],
+              'action_ledger': [{'street': 'flop', 'player': 'Hero', 'position': 'CO', 'action': 'bets',
+                                 'amount_bb': 3, 'added_bb': 3, 'is_all_in': False}],
+              'decision_points': [{'street': 'flop', 'action_index': 0, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+                                   'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
+                                   'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}]
+_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:flop:0'}}},
+          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:flop:0'},
+          '_candidate_need_bucket': {'TMa': 10, 'TMb': 9}, 'material_loss_population': {'TMc': {}}}
+_rv_pkt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                           input_hashes={'x': '1'}, cache_identity='ci', optional_cap=8)
+_cov = _AP.build_coverage_reconciliation(_rv_rd, _rv_pkt)
+check('T-RV-01: REQUIRED (gradable) + UNRESOLVED (no-node debt) preserve 100% of the legacy population (parity, no demotion/dup)',
+      _cov['legacy_minus_sealed_required'] == [] and _cov['required_demoted_to_optional'] == []
+      and _cov['duplicate_required_hands'] == [] and _cov['legacy_required_count'] == 3 and _cov['parity_pass'] is True)
+check('T-RV-01b (QA-PACKET-001): no-canonical-node hands are split OUT of required into the explicit unresolved population',
+      _cov['sealed_required_count'] == 1 and _cov['sealed_unresolved_count'] == 2
+      and _rv_pkt['manifest']['unresolved_count'] == 2 and _rv_pkt['manifest']['required_count'] == 1
+      and all(r.get('unresolved') for r in _rv_pkt['unresolved'])
+      and not any(r.get('unresolved') for r in _rv_pkt['required'])
+      and _cov['invariants_pass'] is True and 'kqs_sb_flat_present_and_required' not in _cov)
+_h0 = _rv_pkt['manifest']['packet_hash']
+_h_rt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
+                         input_hashes={'x': '1'}, cache_identity='ci')['manifest']['packet_hash']
+_h_in = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                         input_hashes={'x': '2'}, cache_identity='ci')['manifest']['packet_hash']
+check('T-RV-02: packet_hash is content-bound -- changes with runtime commit and with input hashes',
+      len(_h0) == 64 and _h0 != _h_rt and _h0 != _h_in)
+_va_ok = {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': d['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'x'} for d in _rv_pkt['required']]}
+check('T-RV-03: validator REQUIRES session_id + packet_hash; accepts a complete bound output (coverage 1.0)',
+      _AP.validate_analyst_output(_rv_pkt, _va_ok)['valid'] is True
+      and _AP.validate_analyst_output(_rv_pkt, _va_ok)['required_coverage'] == 1.0
+      and _AP.validate_analyst_output(_rv_pkt, {'packet_hash': _h0, 'verdicts': []})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'verdicts': []})['valid'] is False)
+check('T-RV-04: validator fail-closes on stale cache, other-packet hash, unknown id, duplicate required',
+      _AP.validate_analyst_output(_rv_pkt, _va_ok, cache_ok=False)['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': 'WRONG', 'verdicts': []})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': 'unknown', 'verdict': 'JUSTIFIED', 'reason': 'x'}]})['valid'] is False
+      and _AP.validate_analyst_output(_rv_pkt, {'session_id': 's', 'packet_hash': _h0,
+          'verdicts': [{'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'a'},
+                       {'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'b'}]})['valid'] is False)
+
+# ---- Final RC execution A/B: hydrated self-contained required decisions + real identities ----
+_rc_hand = {'id': 'TMh', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
+            'board': ['As', '7d', '2c', '9h', '3s'],
+            'action_ledger': [{'street': 'flop', 'player': 'Hero', 'position': 'CO', 'action': 'bets',
+                               'amount_bb': 3, 'added_bb': 3, 'is_all_in': False}],
+            'decision_points': [{'street': 'flop', 'action_index': 0, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+                                 'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
+                                 'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}
+_rc_rd = {'final_truth': {'records': {'TMh': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMh:flop:0'}}},
+          '_candidate_need_ids': ['TMh'], 'reviewed_decision_ref_by_hand': {'TMh': 'TMh:flop:0'},
+          '_candidate_need_bucket': {'TMh': 10}}
+_rc_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                           input_hashes={}, cache_identity='ci', optional_cap=8)
+_rc_dec = [d for d in _rc_pkt['required'] if d['hand_id'] == 'TMh'][0]
+check('T-RC-A1: a legacy required decision is a CANONICALLY-RESOLVED atomic snapshot -- exact id, scalar action, street-exact board, action line ends at Hero, NO net_bb/prior leak',
+      _rc_dec['decision_id'] == 'TMh:flop:0' and isinstance(_rc_dec['hero_action'], str)
+      and _rc_dec.get('canonical_resolved') is True and _rc_dec.get('canonical_source') == 'gem_decision_snapshot'
+      and _rc_dec['hero_cards'] == ['Ah', 'Kd'] and isinstance(_rc_dec['eff_stack_bb'], (int, float))
+      and len(_rc_dec['board']) == 3 and _rc_dec['made_hand_class']
+      and _rc_dec['action_line_through_decision'][-1]['actor'] == 'Hero'
+      and 'net_bb' not in _rc_dec and 'prior_final_class' not in _rc_dec and 'prior_verdict' not in _rc_dec)
+import copy as _rc_copy
+# A known-good, fully-canonical resolved record -- the portable base for the audit + injection tests.
+_rc_good = {
+    'decision_id': 'TG:flop:4', 'hand_id': 'TG', 'family': 'legacy_required_review',
+    'street': 'flop', 'hero_action': 'call', 'hero_cards': ['Ah', 'Kd'],
+    'board': ['As', '7d', '2c'], 'made_hand_class': 'pair', 'draw_profile': {},
+    'board_texture': 'unpaired rainbow', 'position': 'BB', 'ip_oop': False,
+    'active_players': 2, 'multiway': False,
+    'pot_before_bb': 10.0, 'contestable_pot_bb': 10.0,
+    'hero_stack_before_bb': 40.0, 'hero_street_committed_bb': 0.0, 'eff_stack_bb': 40.0,
+    'price_status': 'facing_bet', 'price_applicable': True,
+    'amount_to_call_bb': 3.0, 'required_equity_pct': 23.0, 'pot_after_call_bb': 13.0,
+    'chosen_incremental_bb': 3.0, 'chosen_total_bb': 3.0, 'raise_increment_bb': None,
+    'became_all_in': False, 'decision_risk_bb': 3.0, 'spr': 4.0,
+    'action_line_through_decision': [{'street': 'flop', 'action_index': 4, 'actor': 'Hero',
+                                      'position': 'BB', 'action': 'call', 'incremental_bb': 3.0,
+                                      'total_bb': 3.0, 'all_in': False}],
+    'canonical_resolved': True, 'canonical_source': 'gem_decision_snapshot',
+    'evidence_ref': None, 'evidence_tier': 'canonical_decision_point', 'detector_reason': 'x',
+    'allowed_verdicts': list(_AP.ALLOWED_VERDICTS), 'required_output_fields': list(_AP.REQUIRED_OUTPUT_FIELDS),
+}
+_rc_good_pkt = {'required': [_rc_good], 'optional': []}
+check('T-RC-A2: a fully-canonical record passes the audit -- zero silently-incomplete, zero future leaks, zero analyst calculations required',
+      _AP.semantic_audit(_rc_good_pkt)['zero_silently_incomplete'] is True
+      and _AP.semantic_audit(_rc_good_pkt)['zero_future_information_leaks'] is True
+      and _AP.semantic_audit(_rc_good_pkt)['zero_analyst_calculations_required'] is True
+      and _AP.decision_completeness(_rc_good_pkt)['zero_silently_incomplete'] is True)
+# Gate 1 + no-calc mutation tests: every deliberate atomicity / missing-operand violation must be caught.
+def _rc_mut_fails(_fn):
+    _p = _rc_copy.deepcopy(_rc_good_pkt)
+    _fn(_p['required'][0])
+    _sa = _AP.semantic_audit(_p)
+    return (not _sa['zero_silently_incomplete']) or (not _sa['zero_future_information_leaks']) \
+        or (not _sa['zero_analyst_calculations_required'])
+check('T-RC-G1-01: mutation -- a turn card injected into a flop record fails the audit',
+      _rc_mut_fails(lambda d: d.__setitem__('board', ['As', '7d', '2c', '9h'])))
+check('T-RC-G1-02: mutation -- a full board injected into a preflop record fails board-length',
+      _rc_mut_fails(lambda d: (d.__setitem__('street', 'preflop'), d.__setitem__('board', ['As', '7d', '2c', '9h', '3s']))))
+check('T-RC-G1-03: mutation -- an opponent action appended after Hero fails truncation',
+      _rc_mut_fails(lambda d: d['action_line_through_decision'].append(
+          {'actor': 'V', 'action': 'calls', 'action_index': 99, 'street': 'flop'})))
+check('T-RC-G1-04: mutation -- net_bb leak fails', _rc_mut_fails(lambda d: d.__setitem__('net_bb', -30)))
+check('T-RC-G1-05: mutation -- prior verdict leak fails', _rc_mut_fails(lambda d: d.__setitem__('prior_final_class', 'JUSTIFIED')))
+check('T-RC-G1-06: mutation -- a call with null amount_to_call fails',
+      _rc_mut_fails(lambda d: d.__setitem__('amount_to_call_bb', None)))
+check('T-RC-G1-07: mutation -- a non-scalar Hero action fails', _rc_mut_fails(lambda d: d.__setitem__('hero_action', ['bets'])))
+check('T-RC-G1-08: mutation -- a preflop made-hand class (runout leak) fails',
+      _rc_mut_fails(lambda d: (d.__setitem__('street', 'preflop'), d.__setitem__('board', []), d.__setitem__('made_hand_class', 'two pair'))))
+# T-RC-NC: no-calculation failure-injection per canonical operand class (owner blocker #2).
+check('T-RC-NC-01: a RAISE whose amount_to_call equals its full added (NOT the call component) fails',
+      _rc_mut_fails(lambda d: d.update({'hero_action': 'raise', 'price_status': 'facing_raise',
+                                        'chosen_incremental_bb': 9.0, 'amount_to_call_bb': 9.0, 'raise_increment_bb': 0.0})))
+check('T-RC-NC-02: missing canonical hero_stack_before fails', _rc_mut_fails(lambda d: d.__setitem__('hero_stack_before_bb', None)))
+check('T-RC-NC-03: missing canonical pot_before fails', _rc_mut_fails(lambda d: d.__setitem__('pot_before_bb', None)))
+check('T-RC-NC-04: missing canonical effective stack fails', _rc_mut_fails(lambda d: d.__setitem__('eff_stack_bb', None)))
+check('T-RC-NC-05: missing explicit price_status fails', _rc_mut_fails(lambda d: d.__setitem__('price_status', None)))
+check('T-RC-NC-06: decision risk exceeding the decision-time stack fails', _rc_mut_fails(lambda d: d.__setitem__('decision_risk_bb', 99.0)))
+check('T-RC-NC-07: an aggressive action without chosen_incremental fails',
+      _rc_mut_fails(lambda d: d.update({'hero_action': 'bet', 'price_status': 'first_in',
+                                        'amount_to_call_bb': 'NOT_APPLICABLE', 'chosen_incremental_bb': None})))
+check('T-RC-NC-08: missing active_players fails', _rc_mut_fails(lambda d: d.__setitem__('active_players', None)))
+check('T-RC-NC-09: a non-canonically-resolved record (without explicit unresolved flag) fails',
+      _rc_mut_fails(lambda d: d.__setitem__('canonical_resolved', False)))
+check('T-RC-NC-10: price applicable but required_equity missing fails',
+      _rc_mut_fails(lambda d: d.__setitem__('required_equity_pct', 'NOT_APPLICABLE')))
+# T-RC-BIND: git-independent build identity (B5) + real input/cache identities (B6).
+import gem_build_identity as _BID
+import gem_input_manifest as _GIM
+_bi = _BID.build_identity()
+check('T-RC-BIND-01: build_identity reports the v8.20.0-rc release candidate + a build id, git-independently',
+      _bi['release_candidate'] == 'v8.20.0-rc' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
+_rt = {'build_id': 'GEM-v8.20.0-rc-abc'}
+_ih1 = {'a.txt': 'h1'}
+_ci0 = _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1)
+check('T-RC-BIND-02: cache identity changes when an INPUT hash changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, {'a.txt': 'h2'}))
+check('T-RC-BIND-03: cache identity changes when the RUNTIME/build identity changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], {'build_id': 'GEM-other'}, _ih1))
+check('T-RC-BIND-04: cache identity changes when a HAND id changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'C'}], _rt, _ih1))
+check('T-RC-BIND-05: cache identity changes when QUEUE membership (_candidate_need_ids) changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1))
+check('T-RC-BIND-06: cache identity is STABLE under a final_truth RECORDS change (quick-render idempotency)',
+      _AP.artifact_cache_identity({'_candidate_need_ids': ['A'], 'final_truth': {'records': {'A': {'v': 1}}, 'counts': {'x': 1}}}, [{'id': 'A'}], _rt, _ih1)
+      == _AP.artifact_cache_identity({'_candidate_need_ids': ['A'], 'final_truth': {'records': {'A': {'v': 2}}, 'counts': {'x': 1}}}, [{'id': 'A'}], _rt, _ih1))
+_bind_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v8.19.0',
+                             cache_identity='cache_x', build_identity=_bi)
+check('T-RC-BIND-07: build_packet embeds build_identity in the manifest AND the packet hash still binds it',
+      _bind_pkt['manifest'].get('build_identity', {}).get('build_id') == _bi['build_id']
+      and _AP.recompute_packet_hash(json.loads(json.dumps(_bind_pkt, default=str))) == _bind_pkt['manifest']['packet_hash'])
+check('T-RC-BIND-08: canonical_input_hashes returns SHA-256 (64-hex) per file; empty/missing dir -> {} (no crash)',
+      _GIM.canonical_input_hashes('/no/such/dir/xyz') == {}
+      and callable(_GIM.canonical_input_hashes))
+
+# QA-BLOCK-001: the one-pass analyst output integrates into the final report.
+import gem_final_truth as _QA_FT
+import gem_report_data as _QA_RD
+_qa_dist = [('CONFIRMED_MISTAKE', 3), ('JUSTIFIED', 17), ('READ_DEPENDENT', 6),
+            ('INSUFFICIENT_EVIDENCE', 10), ('DETECTOR_BUG', 6)]
+_qa_req, _qa_verds, _qa_i = [], [], 0
+for _e, _n in _qa_dist:
+    for _ in range(_n):
+        _hid = 'TM7770%03d' % _qa_i
+        _did = '%s:flop:0' % _hid
+        _qa_req.append({'decision_id': _did, 'hand_id': _hid})
+        _qa_verds.append({'decision_id': _did, 'verdict': _e})
+        _qa_i += 1
+_qa_pkt = {'manifest': {'session_id': 'dryrun', 'packet_hash': 'h'}, 'required': _qa_req, 'optional': []}
+_qa_ao = {'session_id': 'dryrun', 'packet_hash': 'h', 'verdicts': _qa_verds}
+_qa_comm, _qa_summ = _AP.analyst_commentary_from_output(_qa_pkt, _qa_ao)
+check('T-QA1-01: one-pass output -> exact per-decision verdict totals (3/17/6/10/6) + 42 reviewed decisions',
+      _qa_summ['reviewed_decisions'] == 42 and _qa_summ['reviewed_hands'] == 42
+      and _qa_summ['verdict_counts'] == {'confirmed_mistakes': 3, 'justified': 17, 'read_dependent': 6,
+                                         'insufficient_evidence': 10, 'detector_bugs': 6})
+_qa_ft = _QA_FT.build_final_truth({}, {}, [], analyst_commentary=_qa_comm)['counts']
+check('T-QA1-02: final-truth recomputes ownership from the analyst verdicts (CONFIRMED_MISTAKE=3, JUSTIFIED=17, READ_DEPENDENT=6, INSUFFICIENT=10, cleared=6)',
+      _qa_ft.get('CONFIRMED_MISTAKE') == 3 and _qa_ft.get('JUSTIFIED') == 17 and _qa_ft.get('READ_DEPENDENT') == 6
+      and _qa_ft.get('INSUFFICIENT') == 10 and _qa_ft.get('STANDARD') == 6)
+_qa_rd = {'analyst_commentary': _qa_comm, '_candidate_need_ids': [r['hand_id'] for r in _qa_req]}
+check('T-QA1-03: merging analyst commentary clears AUTO_ONLY (report becomes analyst-integrated)',
+      _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['state'] != 'AUTO_ONLY'
+      and _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['reviewed_hands'] == 42)
+check('T-QA1-04: an EMPTY analyst output keeps the report AUTO_ONLY (auto candidates are never relabelled as confirmed mistakes)',
+      _QA_RD.compute_report_completeness({'analyst_commentary': {}, '_candidate_need_ids': ['X']},
+                                         candidates=None)['state'] == 'AUTO_ONLY')
+check('T-QA1-05: the one-pass enum maps to the report taxonomy so only CONFIRMED_MISTAKE is a mistake class',
+      _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['CONFIRMED_MISTAKE']) == _QA_FT.FinalClass.CONFIRMED_MISTAKE
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['JUSTIFIED']) == _QA_FT.FinalClass.JUSTIFIED
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['DETECTOR_BUG']) != _QA_FT.FinalClass.CONFIRMED_MISTAKE)
+check('T-QA1-06: validate_analyst_output rejects a DUPLICATE required verdict (fail-closed in --quick)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds + [dict(_qa_verds[0])]}, cache_ok=True)['valid'] is False)
+check('T-QA1-07: validate_analyst_output rejects an INCOMPLETE output (missing a required verdict)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds[3:]}, cache_ok=True)['valid'] is False)
+_rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
+_rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
+                           session_id='s', runtime_version='v')
+_rc_ud = [d for d in _rc_unp['unresolved'] if d['hand_id'] == 'TMu'][0]
+check('T-RC-A3 (QA-PACKET-001): a hand with no canonical decision node -> explicit UNRESOLVED/debt record (flagged), NEVER in required, never an invented node',
+      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved')
+      and not any(d['hand_id'] == 'TMu' for d in _rc_unp['required']))
+open('/tmp/_rc_inp.txt', 'w').write('abc')
+_ih = _AP.real_input_hashes(['/tmp/_rc_inp.txt'])
+check('T-RC-B1: real_input_hashes are actual file SHA-256; content_cache_identity is content-derived',
+      len(list(_ih.values())[0]) == 64 and _AP.content_cache_identity({}, [{'id': 'x'}]).startswith('cache_'))
+_hb0 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', cache_identity='A')['manifest']['packet_hash']
+_hb1 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', cache_identity='B')['manifest']['packet_hash']
+check('T-RC-B2: packet_hash binds the cache identity (changing it changes the hash)', _hb0 != _hb1)
+
+# Gate 2.2: cache-only --quick binding + stage meter.
+import json as _rc_json
+_rc_pkt_rt = _rc_json.loads(_rc_json.dumps(_rc_pkt, default=str))      # serialize/reload round-trip
+check('T-RC-G2-01: recompute_packet_hash matches the stored hash across a serialize/reload round-trip',
+      _AP.recompute_packet_hash(_rc_pkt_rt) == _rc_pkt['manifest']['packet_hash'])
+_rc_pkt_tampered = _rc_copy.deepcopy(_rc_pkt_rt)
+_rc_pkt_tampered['required'][0]['pot_before_bb'] = 999.0
+check('T-RC-G2-02: tampering any packet fact breaks the recomputed hash (fail-closed binding)',
+      _AP.recompute_packet_hash(_rc_pkt_tampered) != _rc_pkt['manifest']['packet_hash'])
+import gem_stage_meter as _rc_sm
+_rc_sm.reset()
+check('T-RC-G2-03: a fresh process (no heavy stage) has zero forbidden quick counts -> quick_is_clean',
+      _rc_sm.quick_is_clean() is True and all(v == 0 for v in _rc_sm.forbidden_quick_counts().values()))
+_rc_sm.tick('parse')
+check('T-RC-G2-04: once a forbidden stage ticks, quick_is_clean is False (the meter actually detects work)',
+      _rc_sm.quick_is_clean() is False and _rc_sm.forbidden_quick_counts()['parse'] == 1)
+_rc_sm.reset()
+_rc_ao_bad = {'session_id': _rc_pkt['manifest']['session_id'], 'packet_hash': 'deadbeef',
+              'verdicts': [{'decision_id': d['decision_id'], 'verdict': sorted(_AP.ALLOWED_VERDICTS)[0]}
+                           for d in _rc_pkt['required']]}
+check('T-RC-G2-05: --quick analyst-output validation rejects a wrong packet_hash binding (fail-closed)',
+      _AP.validate_analyst_output(_rc_pkt, _rc_ao_bad, cache_ok=True)['valid'] is False)
+check('T-RC-G2-06: --quick analyst-output validation fails closed on a stale cache (cache_ok=False)',
+      _AP.validate_analyst_output(_rc_pkt, {'session_id': _rc_pkt['manifest']['session_id'],
+          'packet_hash': _rc_pkt['manifest']['packet_hash'],
+          'verdicts': [{'decision_id': d['decision_id'], 'verdict': sorted(_AP.ALLOWED_VERDICTS)[0]}
+                       for d in _rc_pkt['required']]}, cache_ok=False)['valid'] is False)
+
+# v8.20 RC render bug: the Tournament Results finish-outcome stacked bar's CSS leaked as literal text.
+# Root cause: the body markdown converter escapes inline <style> blocks (they are excluded from its
+# passthrough allowlist by design), so emitting the CSS via doc.w() printed it as visible text. The fix
+# routes the CSS to doc._extra_css (the head <style>). These pin BOTH the converter behavior that makes
+# the routing necessary AND the routing itself.
+from gem_report_draft._html import Doc as _RC_Doc, _md_to_html as _rc_md
+from gem_report_draft.sections_tournaments import _emit_distribution_chart as _rc_emit, _OUTCOME_CSS as _rc_oc
+check('T-RC-G3-01: the body markdown converter ESCAPES an inline <style> block (so it must NOT be emitted in the body)',
+      '&lt;style&gt;' in _rc_md('<style>.x{color:red}</style>') and '<style>' not in _rc_md('<style>.x{color:red}</style>'))
+check('T-RC-G3-02: the same converter PASSES a <div> block through as real HTML (the bar markup is fine in the body)',
+      "<div class='tt-outcome-bar'>" in _rc_md("<div class='tt-outcome-bar'>x</div>"))
+_rc_doc = _RC_Doc()
+_rc_emit(_rc_doc, [{'final_place': 1, 'field_size': 100}, {'final_place': 90, 'field_size': 100}])
+_rc_body = ''.join(_rc_doc.lines)
+check('T-RC-G3-03: the outcome-bar CSS is routed to the HEAD (doc._extra_css), never an inline <style> in the body',
+      _rc_oc in _rc_doc._extra_css and '<style>' not in _rc_body and '<style>' not in _rc_oc)
+check('T-RC-G3-04: the stacked-bar MARKUP is still emitted into the body as real HTML (the bar itself renders)',
+      "tt-outcome-bar" in _rc_body and "tt-outcome-seg" in _rc_body)
+
+# v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
+# named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
+from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1
+from gem_version import RUNTIME_VERSION as _rv_b1
+_ivx_src_b1 = open('gem_report_draft/sections_iv_xii.py', encoding='utf-8').read()
+check('T-W1A1-BUG1-01: report-schema version is a named owner, distinct from runtime (two surfaces, one fact)',
+      _rsv_b1 == 'v8.12.0' and _rv_b1 == 'v8.19.0' and _rsv_b1 != _rv_b1)
+check('T-W1A1-BUG1-02: the footer stamps the RUNTIME version, never the renderer/schema sibling',
+      'from gem_version import RUNTIME_VERSION' in _ivx_src_b1
+      and '{RUNTIME_VERSION} · report schema' in _ivx_src_b1
+      and '**Renderer:** {VERSION}' not in _ivx_src_b1)
+
+# v8.20 W1A.2 V820-QA-013: realized hand net must never be labelled 'EV' — the Confirmed-Mistakes
+# tables show h['net_bb'] under a 'Hand net' column; 'EV' is reserved for a canonical calculation record.
+_smv_q13 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2-QA013-01: Confirmed-Mistakes tables label realized net as "Hand net", never "EV"',
+      '| Hand Reference | Cards | Type | Hand net | Source |' in _smv_q13
+      and '| Hand Reference | Cards | What went wrong | Hand net | Source |' in _smv_q13
+      and '| Hand Reference | Cards | Type | EV | Source |' not in _smv_q13
+      and '| Hand Reference | Cards | What went wrong | EV | Source |' not in _smv_q13)
 
 # RC3 P0-2: loss screens computed BEFORE the analyst_candidates write + never auto-resolved
 _cov_src = open('gem_coverage_builder.py', encoding='utf-8').read()

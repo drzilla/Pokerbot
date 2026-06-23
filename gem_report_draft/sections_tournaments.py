@@ -166,7 +166,12 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
     """Render ONE grouped-aggregate table for a tab: pooled ROI on the covered
     subset, settled-only ITM/Top denominators, hand-weighted BB/100·cEV/100, and a
     deterministic legend-square colour per group (the table IS the chart legend)."""
-    doc.w("<div class='table-shell'><div class='table-scroll'>")
+    # QA mobile-chart fix: this 11-column numeric aggregate must stay a COMPACT horizontally-scrollable
+    # table on mobile. Without data-mobile-mode the .table-shell falls into the stacked-card layout
+    # (.data-table tr -> display:block), which blew every group row up to ~410px tall blank panels at
+    # 360/390/430. data-mobile-mode='scroll' keeps one compact row per group + horizontal swipe, exactly
+    # like the per-event Results table. Pure responsive layout -- no data/filter/grouping/chart-state change.
+    doc.w("<div class='table-shell' data-mobile-mode='scroll'><div class='table-scroll'>")
     doc.w("<table class='data-table tt-aggregate'>")
     doc.w("<thead><tr><th>Group</th><th>Events</th><th>Bullets</th>"
           "<th title='Final financial results available for X of Y events; the "
@@ -334,30 +339,134 @@ def _tt_chart_data(_TM, events):
     return out
 
 
-def _emit_distribution_chart(doc, events):
-    """v8.17.1 P4 surface 4: distribution chart directly BELOW the grouped table.
-    Cost/Return share + diverging Net; bars share the table's category colours (the
-    legend squares ARE the legend — no separate legend). Server-rendered for the
-    default Buy-in tab + Net metric; the JS controller re-renders on tab / metric
-    change. Safe empty / partial-coverage states."""
+def _emit_financial_chart(doc, events):
+    """v8.20 QA-RES-003 (owner-locked, supersedes the static finish-outcome bar): the group-aware FINANCIAL
+    distribution chart as the PRIMARY Results chart. Metric controls Cost / Cash Return / Net; categories
+    follow the active grouping tab; the canonical filter JS (initTtChart + renderChart) re-renders from the
+    SAME filtered event set + window.ttChart on every filter / tab / metric change, so the chart values +
+    categories reconcile exactly with the filtered primary table."""
     import gem_tournament_model as _TM
-    groups = _TM.group_events(events, 'buyin') or {}
-    ordered = _tt_ordered_cats(_TM, 'buyin', groups)
-    doc.w("<div class='tt-chart' data-tab='buyin' data-metric='net'>")
-    doc.w("<div class='tt-chart-head'><span class='tt-chart-title' data-tt-chart-title>"
-          "Distribution — Buy-in · Net</span>"
-          "<div class='tt-chart-metrics'>"
-          "<button type='button' class='tt-metric active' data-metric='net'>Net</button>"
-          "<button type='button' class='tt-metric' data-metric='cost'>Cost</button>"
-          "<button type='button' class='tt-metric' data-metric='return'>Return</button>"
-          "</div></div>")
-    doc.w("<div class='tt-chart-body'>")
-    if ordered:
-        doc.w(_tt_chart_bars_html(_TM, 'buyin', groups, ordered, 'net'))
-    else:
-        doc.w("<p class='tt-coverage-note'>No grouped data to chart.</p>")
+    tabs = list(_TT_TABS)
+    _days = set(e.get('event_day') for e in events if e.get('event_day'))
+    if len(_days) > 1:
+        tabs.append(('by_day', 'By day'))
+    default = None
+    for key, label in tabs:
+        groups = _TM.group_events(events, key) or {}
+        ordered = _tt_ordered_cats(_TM, key, groups)
+        if ordered:
+            default = (key, label, groups, ordered)
+            break
+    if not default:
+        return
+    dkey, dlabel, dgroups, dordered = default
+    body = _tt_chart_bars_html(_TM, dkey, dgroups, dordered, 'net')
+    _btns = ''.join(
+        "<button type='button' class='tt-metric%s' data-metric='%s'>%s</button>"
+        % (' active' if m == 'net' else '', m, lbl)
+        for m, lbl in (('net', 'Net'), ('cost', 'Cost'), ('return', 'Cash Return')))
+    doc.w("<div class='tt-chart' data-tab='%s' data-metric='net'>" % dkey)
+    doc.w("<div class='tt-chart-head'>"
+          "<span class='tt-chart-title' data-tt-chart-title>Distribution — %s · Net</span>"
+          "<span class='tt-chart-metrics'>%s</span></div>" % (_esc_tt(dlabel), _btns))
+    doc.w("<div class='tt-chart-body'>%s</div>" % body)
+    doc.w("<div class='tt-tooltip' hidden></div>")
     doc.w("</div>")
-    doc.w("<div class='tt-tooltip' role='status' aria-live='polite' hidden></div>")
+    doc.w("")
+
+
+# v8.20 W1A.2A Track A2: the ONE finish-outcome distribution model. Mutually-exclusive buckets by
+# finish percentile / cash state -- every event maps to exactly one bucket, so the segment counts sum to
+# the (filtered) event count. Colours are stable per bucket.
+_OUTCOME_BUCKETS = [
+    ('top1', 'Top 1%', '#1b7837'),
+    ('top10', 'Top 10%', '#5aae61'),
+    ('itm', 'In the money', '#a6dba0'),
+    ('nocash', 'No cash', '#d9d9d9'),
+    ('unresolved', 'Unresolved', '#bdbdbd'),
+]
+
+
+def _event_outcome_bucket(e):
+    """Map ONE event to exactly ONE finish-outcome bucket (B-mutually-exclusive)."""
+    fin = e.get('finish') or {}
+    ret = e.get('return') or {}
+    state = fin.get('state')
+    if state in ('in_play', 'unresolved') or (ret.get('value') is None and not fin.get('place')):
+        return 'unresolved'
+    tp = fin.get('top_percent')
+    if tp is not None:
+        if tp <= 1:
+            return 'top1'
+        if tp <= 10:
+            return 'top10'
+    itm = bool(fin.get('itm') or (fin.get('is_satellite') and fin.get('itm'))
+               or (isinstance(ret.get('value'), (int, float)) and ret.get('value') > 0))
+    return 'itm' if itm else 'nocash'
+
+
+def outcome_distribution(events):
+    """The typed outcome-distribution model: every bucket defined (zero-count included), counts + %.
+    Pure -- callable on the FULL or any FILTERED event subset, so the bar recomputes from one dataset."""
+    counts = {k: 0 for k, _, _ in _OUTCOME_BUCKETS}
+    for e in (events or []):
+        counts[_event_outcome_bucket(e)] += 1
+    total = sum(counts.values())
+    buckets = [{'key': k, 'label': lbl, 'color': col, 'count': counts[k],
+                'pct': round(100.0 * counts[k] / total, 1) if total else 0.0}
+               for k, lbl, col in _OUTCOME_BUCKETS]
+    return {'total': total, 'buckets': buckets}
+
+
+# v8.20 RC fix: RAW CSS rules (no <style> wrapper) injected into the HEAD stylesheet via doc._extra_css --
+# matching the established sections_issue_explorer pattern. The body markdown converter (_md_to_html in
+# _html.py) DELIBERATELY escapes inline <style>/<script>, so emitting this via doc.w() printed the raw CSS
+# as literal text on the page instead of styling the finish-outcome stacked bar.
+_OUTCOME_CSS = (
+    ".tt-outcome-dist{margin:.5rem 0 1rem}.tt-outcome-bar{display:flex;width:100%;height:26px;"
+    "border-radius:4px;overflow:hidden;border:1px solid var(--border,#ccc)}.tt-outcome-seg{display:flex;"
+    "align-items:center;justify-content:center;font-size:11px;color:#10240f;white-space:nowrap;min-width:0;"
+    "overflow:hidden}.tt-oc-top1{background:#1b7837;color:#fff}.tt-oc-top10{background:#5aae61}"
+    ".tt-oc-itm{background:#a6dba0}.tt-oc-nocash{background:#d9d9d9}.tt-oc-unresolved{background:#bdbdbd}"
+    ".tt-outcome-legend{margin-top:.4rem;font-size:11px;display:flex;flex-wrap:wrap;gap:.6rem}"
+    ".tt-oc-legend{display:inline-flex;align-items:center;gap:.25rem}.tt-oc-sw{width:11px;height:11px;"
+    "border-radius:2px;display:inline-block}")
+
+
+def _emit_distribution_chart(doc, events):
+    """Track A2: ONE horizontal stacked finish-outcome-distribution bar. The legacy Net/Cost/Return
+    metric toggle, the multi-category bar rows and the metric-dependent title are REMOVED. Segments are
+    mutually-exclusive finish-outcome buckets covering every event; each carries label, count, % and a
+    tooltip. The typed bucket model is embedded (data-outcome-buckets) and each Results row carries its
+    bucket (data-outcome-bucket) so the filter controller recomputes the bar from the same filtered
+    dataset. Zero-count buckets are omitted from the bar but stay defined in the model + legend."""
+    import json as _json
+    model = outcome_distribution(events)
+    if _OUTCOME_CSS not in doc._extra_css:        # head stylesheet -- inline <style> in body would escape
+        doc._extra_css.append(_OUTCOME_CSS)
+    doc.w("<div class='tt-outcome-dist' data-outcome-buckets='%s'>"
+          % _esc_tt(_json.dumps(model, separators=(',', ':'))))
+    doc.w("<div class='tt-chart-head'><span class='tt-chart-title'>Finish-outcome distribution</span> "
+          "<span class='tt-outcome-total' data-outcome-total>%d event%s</span></div>"
+          % (model['total'], '' if model['total'] == 1 else 's'))
+    if model['total']:
+        segs = []
+        for b in model['buckets']:
+            if b['count'] <= 0:
+                continue
+            segs.append(
+                "<span class='tt-outcome-seg tt-oc-%s' style='width:%.4f%%' data-bucket='%s' "
+                "data-count='%d' title='%s — %d event%s (%.1f%%)'>%d</span>"
+                % (b['key'], b['pct'], b['key'], b['count'], _esc_tt(b['label']), b['count'],
+                   '' if b['count'] == 1 else 's', b['pct'], b['count']))
+        doc.w("<div class='tt-outcome-bar' role='img' aria-label='Finish-outcome distribution'>%s</div>"
+              % ''.join(segs))
+        leg = ' '.join(
+            "<span class='tt-oc-legend'><span class='tt-oc-sw tt-oc-%s'></span>%s (%d, %.1f%%)</span>"
+            % (b['key'], _esc_tt(b['label']), b['count'], b['pct']) for b in model['buckets'])
+        doc.w("<div class='tt-outcome-legend'>%s</div>" % leg)
+    else:
+        doc.w("<p class='tt-coverage-note'>No events to chart.</p>")
     doc.w("</div>")
     doc.w("")
 
@@ -399,7 +508,10 @@ def _emit_performance(doc, events, hids_by_tid):
             _cevc = ("<td data-sort-value='%s'>%s</td>"
                      % ((cv if cv is not None else ''), (('%.2f' % cv) if cv is not None else EMDASH)))
         drv = '; '.join(e.get('drivers') or []) or EMDASH
-        _hids = (hids_by_tid.get(tid) or [])[:60]
+        # v8.20 W1A.2A Track 2.2: every hand in the event must be reachable from its drilldown -- the old
+        # [:60] silently capped the popup while the "X/Y reviewed" count showed the true total, so events
+        # with >60 hands hid hands behind a count that did not match. No cap: the popup lists all hands.
+        _hids = (hids_by_tid.get(tid) or [])
         rv_n = rev.get('reviewed', 0) or 0
         rv_m = rev.get('total', hd or 0) or 0
         if _hids:
@@ -498,11 +610,26 @@ def _emit_filters_and_sticky(doc, events):
               (_fmt_usd(_ag['net'], plus=True) if _ag['net'] is not None else EMDASH),
               (_pct_or_dash(_ag['roi_pct']) if _ag['roi_pct'] is not None else EMDASH),
               _ag['n_settled'], len(events)))
-    if chips:
-        doc.w("<div class='tt-filters' data-tt-filters>" + ''.join(chips)
-              + "<button type='button' class='tt-filter-clear' data-tt-clear hidden>"
-              "Clear filters</button></div>")
+    # QA-RES-001/002: the competing top `.tt-filters` toolbar is REMOVED -- the Results DataTable filter
+    # (`.dt-filters` on tt-results) is the ONE canonical filter state, and its bridge (ttApplyFiltersForIds)
+    # already re-drives the sticky summary, grouped rows+footer, coverage note and the financial chart from
+    # the same filtered event-ID set. The sticky bar above stays; `chips` is intentionally not emitted.
+    _ = chips
     doc.w("")
+
+
+# =====================================================================================================
+# FROZEN_AFTER_V820_CLOSURE -- Tournament Results passed its v8.20 Iteration-2 closure:
+#   * combined Date + Tournament identity (A1); ONE stacked finish-outcome bar, no metric toggle (A2);
+#   * no silent hand-count cap (Track 2.2);
+#   * canonical event/bullet/exit finality model (gem_tournament_finality) with all SEVEN deterministic
+#     fixtures passing + reconciliation invariants (one row per tournament; Day-1 flights merge; bullet
+#     exits reachable; unresolved/advanced never invents a final exit; totals reconcile).
+# Future changes to this section require a DEMONSTRATED data/correctness defect (a failing acceptance
+# test) or an explicit new owner decision -- no further redesign. (Browser screenshot capture is the only
+# deferred item, left for the release-candidate run per the closure brief.)
+# =====================================================================================================
+RESULTS_FROZEN = 'FROZEN_AFTER_V820_CLOSURE'
 
 
 def _emit_tournament_tables(doc, s, rd, hands):
@@ -612,8 +739,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # denominators, legend-square colours. Rendered ABOVE the per-event detail.
     _emit_grouped_aggregate(doc, events)
 
-    # ---- v8.17.1 P4 surface 4: distribution chart directly below the grouped table ----
-    _emit_distribution_chart(doc, events)
+    # ---- v8.20 QA-RES-003: group-aware Cost/Cash-Return/Net financial chart (owner-locked; replaces the
+    # static finish-outcome bar as the primary Results chart). ----
+    _emit_financial_chart(doc, events)
 
     # ---- v8.17 Epic 4: PRIMARY unified sortable table + per-event drilldown ----
     # Built ONCE from the canonical events; the per-event payload feeds the
@@ -629,8 +757,10 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # (gem_report_draft._datatable). One Results section; the exit hand is the FINAL column rendered
     # with the canonical PokerHandDisplay; Details/Drivers/SRC removed; totals + sticky filters.
     from gem_report_draft._datatable import Column as _DTCol, build_cell as _dtcell, hand_cell as _dthand, render_datatable as _dtrender
+    # v8.20 W1A.2A Track A1: ONE combined Date + Tournament identity column -- the separate Date column is
+    # removed; the tournament cell carries the name (primary) + date/time + buy-in (secondary). Columns are
+    # referenced by KEY (_C['name']) below, not by positional index, so the inventory stays stable.
     _RES_COLS = [
-        _DTCol('date', 'Date', 'text'),
         _DTCol('tournament', 'Tournament', 'text'),
         _DTCol('type', 'Type', 'text'),
         _DTCol('bullets', 'Bullets', 'num', aggregate='sum'),
@@ -643,6 +773,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _DTCol('cev', 'cEV/100', 'signednum'),
         _DTCol('exit', 'Exit hand', 'hand', sortable=False),
     ]
+    _C = {c.key: c for c in _RES_COLS}
     _cards_by_hid = {}
     for _h in (hands or []):
         _hk = str(_h.get('tournament_hand_id') or _h.get('id') or '')
@@ -650,6 +781,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
             _cards_by_hid[_hk[-8:]] = _h.get('cards') or []
     _dt_rows = []
     _top_pcts = []
+    _live_finality = []     # Iter3 Track 1: (eid, event, EventFinality) per row -> live reconciliation
     for e in events:
         ret = e.get('return') or {}
         prov = e.get('field_provenance') or {}
@@ -689,7 +821,15 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _fin_lbl = fin.get('label') or finish_txt
         _fin_sort = fin.get('sort_key')
         _fin_sort = _fin_sort if _fin_sort is not None else 999
-        _exit = e.get('exit_hand')
+        # v8.20 Iter3 Track 1: the live Results Exit hand now derives from the canonical event/bullet/exit
+        # finality OWNER (gem_tournament_finality), not the raw event field. The owner returns the final
+        # event exit = the last resolved bullet's exit, and NEVER a final exit for an unresolved/advanced
+        # event -- so the live row can no longer show an invented exit. The per-event record is collected
+        # for the live reconciliation artifact.
+        import gem_tournament_finality as _TFIN
+        _ev_final = _TFIN.event_finality_for(e)
+        _live_finality.append((_eid, e, _ev_final))
+        _exit = _ev_final.final_event_exit or None
         _exit_cards = _cards_by_hid.get(str(_exit)[-8:]) if _exit else None
         # v8.18.0 final product-truth correction: return -- HH-only unresolved -> unresolved; satellite
         # seat -> ticket marker; a settled NON-CASH result reads "No cash" HERE (the finish keeps its
@@ -699,16 +839,16 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _tick = ret.get('ticket_value')
         _fin_state = fin.get('state')
         if _ret_val is None or (not _ret_exact and not ret.get('cash_received') and not _tick):
-            _ret_cell = _dtcell(_RES_COLS[6], None,
+            _ret_cell = _dtcell(_C['return'], None,
                                 display="<span class='dt-unresolved' title='HH-only — return not yet resolved'>unresolved</span>")
         elif _fin_state == 'no_cash' and not _tick and not ret.get('cash_received'):
-            _ret_cell = _dtcell(_RES_COLS[6], _ret_val if _ret_val is not None else 0.0,
+            _ret_cell = _dtcell(_C['return'], _ret_val if _ret_val is not None else 0.0,
                                 display="<span class='dt-nocash' title='Did not cash'>No cash</span>")
         else:
             _rdisp = _esc_tt(_retv)
             if _tick:
                 _rdisp = "<span class='dt-ticket' title='Satellite seat (ticket value)'>&#127915;</span> " + _rdisp
-            _ret_cell = _dtcell(_RES_COLS[6], _ret_val, display=_rdisp)
+            _ret_cell = _dtcell(_C['return'], _ret_val, display=_rdisp)
         # Avg Top% (totals row) is computed over EVERY event with a valid source Top% -- not only cashers.
         if fin.get('top_percent') is not None:
             _top_pcts.append(float(fin['top_percent']))
@@ -721,30 +861,32 @@ def _emit_tournament_tables(doc, s, rd, hands):
                                                  _esc_tt(_fin_lbl))
         else:
             _fin_disp = _esc_tt(_fin_lbl)
+        # A1: ONE combined Date + Tournament identity cell -- name (primary), then date/time + buy-in
+        # (secondary, muted). The separate Date column is gone; event identity lives in _row_id/tooltip.
+        _ident_detail = ' &middot; '.join(
+            _esc_tt(x) for x in (e.get('event_day') or '',
+                                 (_buy if (_buy and _buy != EMDASH) else '')) if x)
         _dt_rows.append({
-            'date': _dtcell(_RES_COLS[0], e.get('event_day') or None, display=_esc_tt(e.get('event_day') or EMDASH)),
-            # RES-001 (v8.19.0): normalized BOLD tournament name + MUTED detail (the buy-in,
-            # which is not otherwise columned). Sort key stays the plain name.
             'tournament': _dtcell(
-                _RES_COLS[1], name,
+                _C['tournament'], name,
                 display=("<strong class='tt-tname'>%s</strong>%s" % (
                     _esc_tt(name),
-                    ("<span class='tt-tdetail'> · %s</span>" % _esc_tt(_buy))
-                    if (_buy and _buy != EMDASH) else ''))),
-            'type': _dtcell(_RES_COLS[2], pt, display=_esc_tt(pt)),
-            'bullets': _dtcell(_RES_COLS[3], e.get('bullets', 1)),
-            'finish': _dtcell(_RES_COLS[4], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
-            'cost': _dtcell(_RES_COLS[5], e.get('cost', 0)),
+                    ("<span class='tt-tdetail'>%s</span>" % _ident_detail) if _ident_detail else ''))),
+            'type': _dtcell(_C['type'], pt, display=_esc_tt(pt)),
+            'bullets': _dtcell(_C['bullets'], e.get('bullets', 1)),
+            'finish': _dtcell(_C['finish'], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
+            'cost': _dtcell(_C['cost'], e.get('cost', 0)),
             'return': _ret_cell,
-            'net': _dtcell(_RES_COLS[7], e.get('net', 0)),
-            'roi': _dtcell(_RES_COLS[8], e.get('roi_pct')),
+            'net': _dtcell(_C['net'], e.get('net', 0)),
+            'roi': _dtcell(_C['roi'], e.get('roi_pct')),
             # BB/100 (per-tournament, from the perf maps) + cEV/100 (per-event, canonical only) folded
             # into the ONE Results table -- the separate Performance event table is removed.
-            'bb100': _dtcell(_RES_COLS[9], _bbb.get(tid)),
-            'cev': _dtcell(_RES_COLS[10], (e.get('performance') or {}).get('cev100')),
-            'exit': _dthand(_RES_COLS[-1], _exit, _exit_cards, size='compact'),
+            'bb100': _dtcell(_C['bb100'], _bbb.get(tid)),
+            'cev': _dtcell(_C['cev'], (e.get('performance') or {}).get('cev100')),
+            'exit': _dthand(_C['exit'], _exit, _exit_cards, size='compact'),
             '_row_id': _eid,   # RES-008: drilldown key -> tournamentEvents[].event_id
             '_filters': {
+                'buyin': (e.get('buyin_band') or 'unknown'),   # QA-RES-004: buy-in joins the one filter set
                 'entry_time': (e.get('entry_timing') or 'unknown'),
                 'speed': (e.get('speed') or 'unknown'),
                 'bounty': ('bounty' if e.get('prize_type') == 'bounty' else 'non-bounty'),
@@ -753,6 +895,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
                 'multiday': ('multiday' if fin.get('advanced_day2') else 'single-day'),
                 'satellite': ('satellite' if fin.get('is_satellite') else 'standard'),
                 'phase': (status_label or 'unknown'),
+                # A2: each row carries its finish-outcome bucket so the filter controller recomputes the
+                # ONE stacked outcome bar from the same currently-filtered event dataset.
+                'outcome_bucket': _event_outcome_bucket(e),
             },
         })
 
@@ -791,8 +936,26 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'return_breakdown': _rb,
             'drivers': list(e.get('drivers') or []),
             'notes': ' · '.join(_notes),
-            'hand_ids': _hids_by_tid.get(tid, [])[:60],
+            # Track 2.2: no silent 60-hand cap — the drilldown carries every hand id for the event.
+            'hand_ids': _hids_by_tid.get(tid, []),
         })
+
+    # Iter3 Track 1: stamp the live-render finality reconciliation. Each rendered Exit hand now equals the
+    # canonical EventFinality.final_event_exit (the live row consumes the owner), and an unresolved/
+    # advanced row carries NO final exit (the owner never invents one).
+    import gem_tournament_finality as _TFIN2
+    _lf_rows, _lf_invented = [], 0
+    for _eid_f, _ev_e, _ev_fin in _live_finality:
+        _rf = _TFIN2.render_fields(_ev_fin)
+        _invented = bool(_ev_fin.status in (_TFIN2.UNRESOLVED, _TFIN2.ADVANCED, _TFIN2.IN_PROGRESS)
+                         and _rf['exit_hand'])
+        if _invented:
+            _lf_invented += 1
+        _lf_rows.append({'event_id': _eid_f, 'status': _ev_fin.status,
+                         'rendered_exit': _rf['exit_hand'], 'finality_exit': _ev_fin.final_event_exit or None,
+                         'raw_event_exit': _ev_e.get('exit_hand'), 'invented_exit': _invented})
+    rd['_live_results_finality'] = {'events': len(_lf_rows), 'invented_exits': _lf_invented,
+                                    'consumes_owner': True, 'reconciles': _lf_invented == 0, 'rows': _lf_rows}
 
     # v8.18.0 Tournament Results redesign — the canonical typed DataTable Results surface. Exit hand is
     # the FINAL column rendered with PokerHandDisplay; Details/Drivers/SRC removed; totals row + average
@@ -802,7 +965,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
     doc.w('')
     _avg_top = ('Avg Top %.1f%%' % (sum(_top_pcts) / len(_top_pcts))) if _top_pcts else EMDASH
     import collections as _coll_tt
-    _FILTER_DEFS = [('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
+    _FILTER_DEFS = [('buyin', 'Buy-in'), ('entry_time', 'Entry time'), ('speed', 'Speed'), ('bounty', 'Bounty'),
                     ('freezeout', 'Freezeout'), ('multibullet', 'Multi-bullet'),
                     ('multiday', 'Multi-day'), ('satellite', 'Satellite'), ('phase', 'Phase')]
     # per-filter display labels for the typed values (the value stays the canonical typed token).
@@ -884,8 +1047,12 @@ def _emit_tournament_tables(doc, s, rd, hands):
             "b.classList.toggle('active',b===btn);});"
             "g.querySelectorAll('.tt-tabpane').forEach(function(p){"
             "p.style.display=(p.getAttribute('data-tabpane')===tab)?'':'none';});"
-            "if(window.ttRenderChart)window.ttRenderChart(g,tab);"
-            "if(window.ttApplyFilters)window.ttApplyFilters();});});});})();")
+            # QA-RES (shared state): the grouping tab follows on the chart too, then EVERY surface re-renders
+            # through the ONE canonical render (current filtered set + active metric) -- never the old
+            # full-session ttRenderChart / empty-state ttApplyFilters paths. The active filter is preserved.
+            "var ch=document.querySelector('.tt-chart');if(ch)ch.setAttribute('data-tab',tab);"
+            "if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();"
+            "else if(window.ttRenderChart)window.ttRenderChart(g,tab);});});});})();")
     except Exception:
         pass
 

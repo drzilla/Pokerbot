@@ -25,6 +25,30 @@ def _file_md5(path):
         return None
 
 
+def canonical_input_hashes(session_dir):
+    """SHA-256 of every input file actually used under session_dir, by RECURSIVE walk (not only top-level
+    *.txt) -- the canonical input identity the sealed analyst packet + --quick bind against (owner blocker
+    #6/#7). Keys are session-relative POSIX paths so the identity is stable across machines."""
+    out = {}
+    if not session_dir or not os.path.isdir(session_dir):
+        return out
+    for root, _dirs, files in os.walk(session_dir):
+        for fn in sorted(files):
+            if fn.startswith('.') or not fn.lower().endswith('.txt'):
+                continue
+            p = os.path.join(root, fn)
+            try:
+                h = hashlib.sha256()
+                with open(p, 'rb') as f:
+                    for chunk in iter(lambda: f.read(65536), b''):
+                        h.update(chunk)
+                rel = os.path.relpath(p, session_dir).replace('\\', '/')
+                out[rel] = h.hexdigest()
+            except OSError:
+                pass
+    return out
+
+
 def _date_of(h):
     return h.get('hand_ts_date') or h.get('date') or None
 

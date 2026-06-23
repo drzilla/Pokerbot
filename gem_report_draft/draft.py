@@ -1,6 +1,10 @@
 """Top-level orchestration: render_html, render_md, generate_report_draft."""
 
-VERSION = "v8.12.0"
+# v8.20 W1A.1 BUG-1: the report layout/SCHEMA version (the rendered-report format), deliberately
+# pinned + canary-checked and DISTINCT from the runtime/release version (gem_version.RUNTIME_VERSION).
+# This is NOT the runtime version and must never be presented as one ("two surfaces, one fact").
+REPORT_SCHEMA_VERSION = "v8.12.0"
+VERSION = REPORT_SCHEMA_VERSION   # back-compat alias (deprecated; consumers should name the schema)
 
 from gem_report_draft import _state
 from gem_report_draft._helpers import (_wilson_ci, _clr, _clr_min, _clr_naive,
@@ -65,7 +69,54 @@ def render_both(stats, report_data, hands, sections=None,
     doc = _build(stats, report_data, hands, sections=sections)
     stats['_hands_ref'] = hands
     _lint_phase(doc, strict_lint, qa_block, stats=stats, report_data=report_data)
+    # v8.20 W1A.2A Track 1.2: now that every section has rendered (and registered the hand-ids it
+    # actually emitted), stamp the rendered-ID reconciliation onto final_truth + drop a sidecar
+    # artifact so the evidence uses REAL emitted IDs, not a static intended-consumer list.
+    _emit_final_truth_artifact(report_data)
     return doc.render_html(), doc.render_md()
+
+
+def _emit_final_truth_artifact(report_data):
+    """Stamp the rendered-ID reconciliation onto report_data['final_truth'] and write a
+    FINAL_TRUTH_RECONCILIATION sidecar to the outputs dir. Best-effort: never breaks a render."""
+    try:
+        import os
+        import io
+        import json
+        import gem_final_truth as _ft
+        ft = report_data.get('final_truth')
+        if not isinstance(ft, dict):
+            return
+        rr = _ft.reconcile_rendered(report_data)
+        ft['rendered_reconciliation'] = rr
+        out_dir = '/mnt/user-data/outputs'
+        if not os.path.isdir(out_dir):
+            out_dir = '/home/claude'
+        if not os.path.isdir(out_dir):
+            return
+        # Iter3 Track 1: emit the live Results finality reconciliation (the live render consumed the
+        # canonical event/bullet/exit owner during this render) as a sidecar.
+        lf = report_data.get('_live_results_finality')
+        if isinstance(lf, dict):
+            with io.open(os.path.join(out_dir, 'LIVE_RESULTS_FINALITY_RECONCILIATION.json'),
+                         'w', encoding='utf-8', newline='\n') as f:
+                json.dump(lf, f, indent=2, ensure_ascii=False)
+        player = str(report_data.get('player') or report_data.get('hero') or 'session').replace(' ', '_')[:30]
+        payload = {
+            'artifact': 'FINAL_TRUTH_RECONCILIATION',
+            'owner': 'gem_final_truth.build_final_truth',
+            'reviewed_hands': ft.get('reconciliation', {}).get('reviewed_hands'),
+            'counts_by_class': ft.get('counts'),
+            'reconciliation': ft.get('reconciliation'),
+            'rendered_reconciliation': rr,
+            'records': ft.get('records'),
+            'populations': ft.get('populations'),
+        }
+        with io.open(os.path.join(out_dir, f'FINAL_TRUTH_RECONCILIATION_{player}.json'),
+                     'w', encoding='utf-8', newline='\n') as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def _resolve_gtow_flag(report_data, gtow_links=None):
@@ -261,6 +312,7 @@ def _build(stats, report_data, hands, sections=None):
         ('S9',  _emit_section_v),              # Postflop SRP
         ('S10', _emit_section_vi),             # Postflop 3BP/4BP
         ('S11', _emit_section_vii),            # Mechanics — facing bets, sizing, stack depth, river, bet-fold, steal, bet/check, archetype
+        ('SSL', _emit_sizing_lines),           # v8.20 W1A: Sizing & Line Patterns — production sizing-leak signals
         ('S13', _emit_iii_cleared_justified),  # Aggression — AF, CR freq, CR made, drills, 3-bet sizing, bluff all streets
         ('S12', _emit_section_ix),             # Progress — tracker + learnings
         ('S14', _emit_section_x),              # QA
@@ -570,7 +622,7 @@ def _build(stats, report_data, hands, sections=None):
         'SIE': 'tiered issues & coverage',
         'S3': 'legacy leak details', 'S4': 'bounty / PKO',
         'S8': 'preflop engine', 'S9': 'postflop SRP',
-        'S10': '3BP & 4BP', 'S11': 'macro postflop',
+        'S10': '3BP & 4BP', 'S11': 'macro postflop', 'SSL': 'bet-size & line patterns',
         'S13': 'aggression profile', 'S5': 'action card & GTO',
         'S12': 'leak persistence', 'S14': 'bug tracker',
         'S15': 'stat reference', 'S16': 'terminology & symbols',
@@ -587,7 +639,7 @@ def _build(stats, report_data, hands, sections=None):
         'S6': 'KPIs', 'S2': 'Top hands',
         'SIE': 'Issue Explorer', 'S3': 'Leaks (Legacy)', 'S4': 'Tourney type',
         'S8': 'Preflop', 'S9': 'Postflop SRP',
-        'S10': 'Postflop 3BP/4BP', 'S11': 'Mechanics',
+        'S10': 'Postflop 3BP/4BP', 'S11': 'Mechanics', 'SSL': 'Sizing & Lines',
         'S13': 'Aggression', 'S5': 'Action Items',
         'S12': 'Progress', 'S14': 'QA',
         'S15': 'Raw Stats', 'S16': 'Glossary',
@@ -646,6 +698,52 @@ def _compute_table_size_breakdown(hands):
 # ============================================================
 # HEADER + TL;DR + LEGEND
 # ============================================================
+
+def _emit_sizing_lines(doc, s, rd, hands):
+    """v8.20 W1A Track 3 — the visible Sizing & Line Patterns surface. Renders the production
+    bet-sizing detector's AGGREGATE leak signals (rd['sizing_leak_signals']) with human-readable
+    pattern labels (never internal codes), confidence, actual-vs-reference sizing, what/why/adjustment,
+    and clickable example hands (reuses render_count_cell: 1 hand opens directly, N opens the hand
+    list). The empty state explains no high-confidence repeated pattern was found — never implies
+    perfect play."""
+    from gem_report_draft._helpers import render_count_cell as _rcc
+    sigs = rd.get('sizing_leak_signals') or []
+    excl = rd.get('sizing_leak_excluded') or {}
+    # QA-META-002: the nav rail + topbar workflow tabs link to #sec-SL (derived as 'sec-'+label[1:] from
+    # the 'SSL' section key), but this surface emitted a bare '## ' heading with no anchor target -> 3 dead
+    # links. Emit the canonical sec-SL anchor so every nav link resolves (same <<ANCHOR>> mechanism as
+    # doc.section, without forcing a TOC entry or changing the visible heading).
+    doc.w("<<ANCHOR:sec-SL>>")
+    doc.w("## Sizing & Line Patterns")
+    if not sigs:
+        _n_excl = sum(v for v in excl.values() if isinstance(v, (int, float)))
+        doc.w("<div style='margin:8px 0;padding:10px 14px;border:1px solid #e5e7eb;border-radius:12px;"
+              "background:#f9fafb;color:#6b7280'>No high-confidence repeated sizing or line pattern was "
+              "found this session. This does <strong>not</strong> imply perfect play — "
+              f"{_n_excl} board class(es) had too thin a sample to judge and were set aside.</div>")
+        return
+    doc.w("*Repeated bet-sizing patterns surfaced this session. Each is an AGGREGATE pattern across a "
+          "whole board class — not a per-hand verdict; the example hands are evidence, not graded "
+          "mistakes.*")
+    for sig in sigs:
+        ev = sig.get('evidence') or {}
+        _ch = sig.get('contributing_hands') or []
+        _ex = _rcc(len(_ch), _ch, sig.get('pattern_label') or 'Example hands')
+        _conf = sig.get('confidence', 'high')
+        doc.w(
+            "<div style='margin:10px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;"
+            "background:#fff'>"
+            f"<div style='font-weight:700;color:#111827'>{sig.get('pattern_label', 'Sizing pattern')}"
+            "<span style='margin-left:8px;padding:2px 8px;border-radius:10px;background:#eef2ff;"
+            f"color:#3730a3;font-size:.78em;font-weight:700'>{_conf} confidence · aggregate</span></div>"
+            f"<div style='margin-top:4px;color:#374151'><strong>What:</strong> {sig.get('what_happened', '')}</div>"
+            f"<div style='color:#374151'><strong>Why it matters:</strong> {sig.get('why_it_matters', '')}</div>"
+            f"<div style='color:#374151'><strong>Adjustment:</strong> {sig.get('adjustment', '')}</div>"
+            "<div style='margin-top:4px;color:#6b7280;font-size:.92em'>Sizing compliance "
+            f"{ev.get('sizing_compliance_pct', '?')}% on {ev.get('judged_c_bets', '?')} sized c-bets · "
+            f"example hands: {_ex}</div>"
+            "</div>")
+
 
 def _emit_header(doc, s, rd):
     vol = s.get('volume', {})

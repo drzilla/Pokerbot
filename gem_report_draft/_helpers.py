@@ -1589,8 +1589,13 @@ def short_verdict_pill(h, verdict_str, app_details=None):
                     label = 'Flip'
     if not label:
         return ''
+    # v8.20 W1A.2A Track 1.4: escape the dynamic data-attribute payload + text (apostrophe / quote /
+    # ampersand / angle brackets) via the canonical escape_attr helper so a label carrying any of those
+    # can't break the attribute or inject markup.
+    import html as _h_esc
+    from gem_final_truth import escape_attr as _esc_attr
     return (f"<span class='verdict-pill' "
-            f"data-verdict='{label}'>{label}</span>")
+            f"data-verdict='{_esc_attr(label)}'>{_h_esc.escape(label)}</span>")
 
 
 def render_count_cell(count, hand_ids, context_title):

@@ -138,11 +138,45 @@ CHECKLIST = """# Pass/fail checklist (private dry run)
 """
 
 
+def _freeze_identity(c):
+    """Bake the git-independent build identity into gem_build_identity.py so the EXTRACTED runtime knows it
+    is v8.20.0-rc @ <commit> WITHOUT git (owner blocker #5)."""
+    import re
+    p = os.path.join(REPO, 'gem_build_identity.py')
+    src = io.open(p, encoding='utf-8').read()
+    src = re.sub(r"SOURCE_COMMIT = '[^']*'", "SOURCE_COMMIT = '%s'" % c, src, count=1)
+    src = re.sub(r"BUILD_ID = '[^']*'", "BUILD_ID = 'GEM-%s-%s'" % (PKG_ID, c[:12]), src, count=1)
+    io.open(p, 'w', encoding='utf-8', newline='\n').write(src)
+
+
+def _restore_identity():
+    """Restore the dev (self-deriving) gem_build_identity.py so the repo is left clean after the build."""
+    subprocess.run(['git', 'checkout', '--', 'gem_build_identity.py'], cwd=REPO,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _regen_lean():
+    """Regenerate gem_lean_runtime.py so it bundles the frozen gem_build_identity.py + the current runtime."""
+    subprocess.check_call([sys.executable, os.path.join(REPO, '_build_lean_runtime.py')], cwd=REPO,
+                          stdout=subprocess.DEVNULL)
+
+
 def main():
     if os.path.isdir(STAGE):
         shutil.rmtree(STAGE)
     os.makedirs(STAGE)
     c = commit()
+    _freeze_identity(c)          # bake the git-independent identity, then bundle it
+    try:
+        _regen_lean()            # gem_lean_runtime.py now carries the frozen v8.20.0-rc identity
+        _build_body(c)
+    finally:
+        _restore_identity()      # leave the repo clean (dev identity restored)
+
+
+def _build_body(c):
+    import gem_build_identity as _bid
+    _idy = _bid.build_identity()
     # 1) runtime + clean-room verifier/suite + schema (copied from the repo at HEAD)
     for f in ('gem_lean_runtime.py', 'verify_release.py', '_test_scratch.py', 'gem_schema.json'):
         shutil.copy2(os.path.join(REPO, f), os.path.join(STAGE, f))
@@ -181,7 +215,9 @@ def main():
         if os.path.isfile(full):
             files[rel] = {'sha256': sha256(full), 'size': os.path.getsize(full)}
     manifest = {'package': 'GEM %s Claude Chat candidate' % PKG_ID, 'runtime_base': 'v8.19.0',
-                'runtime_commit': c, 'packet_schema': ap.SCHEMA_VERSION, 'files': files}
+                'runtime_commit': c, 'release_candidate': PKG_ID, 'build_identity': _idy,
+                'report_schema': _idy.get('report_schema'), 'packet_schema': ap.SCHEMA_VERSION,
+                'files': files}
     io.open(os.path.join(STAGE, 'MANIFEST.json'), 'w', encoding='utf-8', newline='\n').write(
         json.dumps(manifest, indent=2, ensure_ascii=False))
     # 7) zip + package sha

@@ -8982,6 +8982,60 @@ if __name__ == '__main__':
         # are not re-derived in --quick; the full/resume run stamped them).
         _rc_q = compute_report_completeness(report_data, candidates=None)
 
+        # ---- Gate B4: in analyst/release mode, VALIDATE EVERY BINDING *before* rendering or writing any
+        # report file (owner blocker #2-#4/#6). Require the sealed packet AND analyst output; recompute and
+        # compare the packet hash, the immutable build identity, the canonical input hashes, and the cache
+        # identity derived from the ACTUAL loaded cache; validate the analyst JSON with the REAL cache_ok;
+        # require complete required coverage. Any failure exits non-zero with NO report written -- never a
+        # silent full-run fallback. (GEM_ANALYST_MODE=0 keeps the legacy non-analyst quick re-render.)
+        _q_analyst_mode = os.environ.get('GEM_ANALYST_MODE', '1') != '0'
+        if _q_analyst_mode:
+            import gem_analyst_packet as _apq
+            import gem_build_identity as _bidq
+            from gem_input_manifest import canonical_input_hashes as _cihq
+            _ap_out_q = '/mnt/user-data/outputs' if os.path.isdir('/mnt/user-data/outputs') else '/home/claude'
+            _pkt_path_q = os.path.join(_ap_out_q, f'analyst_packet_{_pname_file}.json')
+            _ao_path_q = os.path.join(_ap_out_q, f'analyst_packet_{_pname_file}_analyst_output.json')
+
+            def _quick_fail(_msg):
+                print(f"  ❌ --quick FAIL CLOSED (no report written): {_msg}")
+                sys.exit(1)
+            if not os.path.exists(_pkt_path_q):
+                _quick_fail(f"sealed packet missing -- run: python gem_analyzer.py {SESSION_DIR}")
+            if not os.path.exists(_ao_path_q):
+                _quick_fail(f"analyst output missing ({os.path.basename(_ao_path_q)}) -- review the packet "
+                            "and save the analyst JSON there")
+            with open(_pkt_path_q, encoding='utf-8') as _pf:
+                _pkt_q = json.load(_pf)
+            with open(_ao_path_q, encoding='utf-8') as _af:
+                _ao_q = json.load(_af)
+            _m_q = _pkt_q.get('manifest', {})
+            if _apq.recompute_packet_hash(_pkt_q) != _m_q.get('packet_hash'):
+                _quick_fail("sealed packet hash mismatch -- the packet was modified; re-run the full pipeline")
+            _idy_now = _bidq.build_identity()
+            _idy_pkt = _m_q.get('build_identity') or {}
+            if _idy_pkt.get('build_id') and _idy_pkt.get('build_id') != _idy_now.get('build_id'):
+                _quick_fail(f"build identity mismatch (packet {_idy_pkt.get('build_id')} vs runtime "
+                            f"{_idy_now.get('build_id')}) -- rebuild/re-run the full pipeline")
+            _inhash_now = _cihq(SESSION_DIR)
+            if _m_q.get('input_hashes') and _inhash_now != _m_q.get('input_hashes'):
+                _quick_fail("input files changed since the packet was sealed -- re-run the full pipeline")
+            _cache_now = _apq.cache_identity_from_disk(_rd_path, _hands_path, _idy_now, _inhash_now)
+            _cache_ok = (_cache_now == _m_q.get('cache_identity'))
+            if not _cache_ok:
+                _quick_fail("deterministic cache does not match the packet cache identity (stale cache) -- "
+                            "re-run the full pipeline")
+            _val_q = _apq.validate_analyst_output(_pkt_q, _ao_q, cache_ok=_cache_ok)
+            if not _val_q.get('valid'):
+                _quick_fail(f"analyst output invalid: {_val_q.get('errors')} -- fix the JSON and re-run --quick")
+            if (_val_q.get('required_coverage') or 0) < 1.0:
+                _quick_fail(f"incomplete required-decision coverage ({_val_q.get('required_coverage')}) -- "
+                            "review every required decision")
+            globals()['_QUICK_VALIDATED'] = {'packet_hash': _m_q.get('packet_hash'),
+                                             'coverage': _val_q.get('required_coverage'), 'cache_ok': _cache_ok}
+            print(f"  ✓ --quick pre-render validation PASSED (packet+analyst+cache+identity bound; "
+                  f"coverage {_val_q.get('required_coverage')})")
+
         # Re-render
         from gem_report_draft import render_both
         date_compact = _date_range
@@ -10805,30 +10859,33 @@ if __name__ == '__main__':
     # content-derived cache id. Emitted AFTER render so the canonical required-review population
     # (_candidate_need_ids, stamped by compute_report_completeness) is present. --quick later validates
     # that binding and renders from cache. Best-effort -- never breaks the run.
+    # In analyst/release mode (default ON; GEM_ANALYST_MODE=0 disables) any packet / identity / semantic-
+    # audit failure FAILS CLOSED with a non-zero exit -- never a silent warning. The packaged Chat workflow
+    # runs analyst mode by default. Identity comes from the embedded git-independent build id; input hashes
+    # from the canonical recursive manifest; cache identity from the ACTUAL cache artifacts.
+    _analyst_mode = os.environ.get('GEM_ANALYST_MODE', '1') != '0'
     try:
         import gem_analyst_packet as _ap_emit
-        import glob as _glob_emit
-        import subprocess as _sub_emit
+        import gem_build_identity as _ap_bid
+        from gem_input_manifest import canonical_input_hashes as _ap_cih
         _ap_out = '/mnt/user-data/outputs' if os.path.isdir('/mnt/user-data/outputs') else '/home/claude'
-        _ap_inputs = (_glob_emit.glob(os.path.join(SESSION_DIR, '*.txt'))
-                      if SESSION_DIR and os.path.isdir(SESSION_DIR) else [])
-        try:
-            _ap_commit = _sub_emit.check_output(
-                ['git', 'rev-parse', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
-                stderr=_sub_emit.DEVNULL).decode().strip()[:12]
-        except Exception:
-            _ap_commit = ''
-        try:
-            from gem_version import RUNTIME_VERSION as _ap_rv
-        except Exception:
-            _ap_rv = ''
-        _ap_cache = _ap_emit.content_cache_identity(report_data, hands)
+        _ap_idy = _ap_bid.build_identity()
+        _ap_inhash = _ap_cih(SESSION_DIR)
+        # Compute the cache identity from the ON-DISK cache artifacts (the exact files --quick reloads), so a
+        # fresh full->quick always matches and any later cache mutation is detected (owner blocker #6).
+        _q_slug_e = os.path.basename(os.path.normpath(SESSION_DIR)).replace(' ', '_')[:30] if SESSION_DIR else ''
+        _rd_cache_e = f'/home/claude/gem_report_data_{_pname_file}.json'
+        _hands_cache_e = f'/home/claude/gem_hands_{_pname_file}' + (f'_{_q_slug_e}' if _q_slug_e else '') + '.json'
+        if not os.path.exists(_hands_cache_e):
+            _hands_cache_e = f'/home/claude/gem_hands_{_pname_file}.json'
+        _ap_cache = _ap_emit.cache_identity_from_disk(_rd_cache_e, _hands_cache_e, _ap_idy, _ap_inhash)
         _ap_pkt = _ap_emit.build_packet(
-            hands, report_data, session_id=str(_pname_file), runtime_version=str(_ap_rv),
-            runtime_commit=_ap_commit, input_hashes=_ap_emit.real_input_hashes(_ap_inputs),
-            cache_identity=_ap_cache, optional_cap=8)
+            hands, report_data, session_id=str(_pname_file),
+            runtime_version=str(_ap_idy.get('runtime_base') or ''),
+            runtime_commit=str(_ap_idy.get('source_commit_short') or ''),
+            input_hashes=_ap_inhash, cache_identity=_ap_cache, build_identity=_ap_idy, optional_cap=8)
         _ap_base = os.path.join(_ap_out, f'analyst_packet_{_pname_file}')
-        _ap_sa = _ap_emit.semantic_audit(_ap_pkt)            # owner Gate 1 semantic audit
+        _ap_sa = _ap_emit.semantic_audit(_ap_pkt)            # owner Gate 1 + no-calc semantic audit
         for _ap_fn, _ap_obj in (('.json', _ap_pkt),
                                 ('_manifest.json', _ap_pkt['manifest']),
                                 ('_semantic_audit.json', _ap_sa),
@@ -10839,19 +10896,24 @@ if __name__ == '__main__':
                 json.dump(_ap_obj, _apf, indent=2, ensure_ascii=False, default=str)
         with open(os.path.join(_ap_out, f'analyst_cache_identity_{_pname_file}.txt'), 'w', encoding='utf-8') as _apf:
             _apf.write(_ap_cache)
-        # In analyst/release mode a semantically non-atomic packet must FAIL CLOSED (owner Gate 2.1).
-        if not (_ap_sa['zero_silently_incomplete'] and _ap_sa['zero_future_information_leaks']):
-            raise RuntimeError('analyst packet NOT semantically atomic: %d failing, %d future-info leaks '
-                               '-- see %s_semantic_audit.json' % (_ap_sa['failing'],
-                               _ap_sa['future_information_leaks'], _ap_base))
-        print(f"  ✓ Sealed atomic analyst packet: {_ap_base}.json "
+        # FAIL CLOSED: a non-atomic / calculation-requiring packet is a release blocker.
+        if not (_ap_sa['zero_silently_incomplete'] and _ap_sa['zero_future_information_leaks']
+                and _ap_sa['zero_analyst_calculations_required']):
+            raise RuntimeError('analyst packet NOT atomic/no-calc-safe: failing=%d future_leaks=%d '
+                               'analyst_calc_required=%d -- see %s_semantic_audit.json'
+                               % (_ap_sa['failing'], _ap_sa['future_information_leaks'],
+                                  _ap_sa['analyst_calculation_required_count'], _ap_base))
+        print(f"  ✓ Sealed atomic analyst packet ({_ap_idy['build_id']}): {_ap_base}.json "
               f"(required={_ap_pkt['manifest']['required_count']} optional={_ap_pkt['manifest']['optional_count']} "
-              f"hash={_ap_pkt['manifest']['packet_hash'][:12]} "
-              f"semantic_failing={_ap_sa['failing']} future_leaks={_ap_sa['future_information_leaks']})")
+              f"hash={_ap_pkt['manifest']['packet_hash'][:12]} semantic_failing={_ap_sa['failing']} "
+              f"future_leaks={_ap_sa['future_information_leaks']} zero_calc={_ap_sa['zero_analyst_calculations_required']})")
         print(f"    1) review every required decision once -> save analyst JSON at {_ap_base}_analyst_output.json")
         print(f"    2) python gem_analyzer.py {SESSION_DIR} --quick   (validates binding + renders from cache)")
     except Exception as _ape:
-        print(f"  ⚠ analyst packet emission skipped: {_ape}")
+        if _analyst_mode:
+            print(f"  ❌ ANALYST-MODE FAIL CLOSED: analyst packet emission failed: {_ape}")
+            sys.exit(1)
+        print(f"  ⚠ analyst packet emission skipped (non-analyst mode): {_ape}")
 
     # v8.19.0 Chapter I: explicit input manifest + reproducibility (additive; a failure here
     # never blocks the report). Deterministic given the inputs/config; `generated_at` carries the

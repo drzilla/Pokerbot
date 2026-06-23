@@ -18,7 +18,9 @@ import base64, io, os, zipfile, hashlib, datetime
 import _build_bundle as BB
 
 REPO = BB.REPO
-LEAN_VERSION = 'v8.19.0-lean'
+# v8.20.0-rc candidate: the extracted runtime banner must NOT claim v8.19.0-lean (owner blocker #5). The
+# embedded git-independent identity lives in gem_build_identity.py (frozen by the package builder).
+LEAN_VERSION = 'v8.20.0-rc'
 
 # Excluded from the lean runtime (present in the full release bundle):
 #   - every QA harness (_qa_*.py) -- verification, not report generation

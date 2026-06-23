@@ -14239,24 +14239,47 @@ _rc_rd = {'final_truth': {'records': {'TMh': {'final_class': 'JUSTIFIED', 'verdi
 _rc_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', runtime_commit='c',
                            input_hashes={}, cache_identity='ci', optional_cap=8)
 _rc_dec = [d for d in _rc_pkt['required'] if d['hand_id'] == 'TMh'][0]
-check('T-RC-A1: a legacy required decision is an ATOMIC snapshot -- exact decision id, scalar action, street-exact board, action line ends at Hero, NO net_bb/prior leak',
+check('T-RC-A1: a legacy required decision is a CANONICALLY-RESOLVED atomic snapshot -- exact id, scalar action, street-exact board, action line ends at Hero, NO net_bb/prior leak',
       _rc_dec['decision_id'] == 'TMh:flop:0' and isinstance(_rc_dec['hero_action'], str)
-      and _rc_dec['hero_cards'] == ['Ah', 'Kd'] and _rc_dec['eff_stack_bb'] == 40.0
+      and _rc_dec.get('canonical_resolved') is True and _rc_dec.get('canonical_source') == 'gem_decision_snapshot'
+      and _rc_dec['hero_cards'] == ['Ah', 'Kd'] and isinstance(_rc_dec['eff_stack_bb'], (int, float))
       and len(_rc_dec['board']) == 3 and _rc_dec['made_hand_class']
       and _rc_dec['action_line_through_decision'][-1]['actor'] == 'Hero'
       and 'net_bb' not in _rc_dec and 'prior_final_class' not in _rc_dec and 'prior_verdict' not in _rc_dec)
-check('T-RC-A2: the semantic audit reports zero silently-incomplete AND zero future-information leaks',
-      _AP.semantic_audit(_rc_pkt)['zero_silently_incomplete'] is True
-      and _AP.semantic_audit(_rc_pkt)['zero_future_information_leaks'] is True
-      and _AP.decision_completeness(_rc_pkt)['zero_silently_incomplete'] is True)
-# Gate 1 mutation tests: every deliberate atomicity violation must be caught by the semantic audit.
 import copy as _rc_copy
+# A known-good, fully-canonical resolved record -- the portable base for the audit + injection tests.
+_rc_good = {
+    'decision_id': 'TG:flop:4', 'hand_id': 'TG', 'family': 'legacy_required_review',
+    'street': 'flop', 'hero_action': 'call', 'hero_cards': ['Ah', 'Kd'],
+    'board': ['As', '7d', '2c'], 'made_hand_class': 'pair', 'draw_profile': {},
+    'board_texture': 'unpaired rainbow', 'position': 'BB', 'ip_oop': False,
+    'active_players': 2, 'multiway': False,
+    'pot_before_bb': 10.0, 'contestable_pot_bb': 10.0,
+    'hero_stack_before_bb': 40.0, 'hero_street_committed_bb': 0.0, 'eff_stack_bb': 40.0,
+    'price_status': 'facing_bet', 'price_applicable': True,
+    'amount_to_call_bb': 3.0, 'required_equity_pct': 23.0, 'pot_after_call_bb': 13.0,
+    'chosen_incremental_bb': 3.0, 'chosen_total_bb': 3.0, 'raise_increment_bb': None,
+    'became_all_in': False, 'decision_risk_bb': 3.0, 'spr': 4.0,
+    'action_line_through_decision': [{'street': 'flop', 'action_index': 4, 'actor': 'Hero',
+                                      'position': 'BB', 'action': 'call', 'incremental_bb': 3.0,
+                                      'total_bb': 3.0, 'all_in': False}],
+    'canonical_resolved': True, 'canonical_source': 'gem_decision_snapshot',
+    'evidence_ref': None, 'evidence_tier': 'canonical_decision_point', 'detector_reason': 'x',
+    'allowed_verdicts': list(_AP.ALLOWED_VERDICTS), 'required_output_fields': list(_AP.REQUIRED_OUTPUT_FIELDS),
+}
+_rc_good_pkt = {'required': [_rc_good], 'optional': []}
+check('T-RC-A2: a fully-canonical record passes the audit -- zero silently-incomplete, zero future leaks, zero analyst calculations required',
+      _AP.semantic_audit(_rc_good_pkt)['zero_silently_incomplete'] is True
+      and _AP.semantic_audit(_rc_good_pkt)['zero_future_information_leaks'] is True
+      and _AP.semantic_audit(_rc_good_pkt)['zero_analyst_calculations_required'] is True
+      and _AP.decision_completeness(_rc_good_pkt)['zero_silently_incomplete'] is True)
+# Gate 1 + no-calc mutation tests: every deliberate atomicity / missing-operand violation must be caught.
 def _rc_mut_fails(_fn):
-    _p = _rc_copy.deepcopy(_rc_pkt)
-    _d = [x for x in _p['required'] if x['hand_id'] == 'TMh'][0]
-    _fn(_d)
+    _p = _rc_copy.deepcopy(_rc_good_pkt)
+    _fn(_p['required'][0])
     _sa = _AP.semantic_audit(_p)
-    return (not _sa['zero_silently_incomplete']) or (not _sa['zero_future_information_leaks'])
+    return (not _sa['zero_silently_incomplete']) or (not _sa['zero_future_information_leaks']) \
+        or (not _sa['zero_analyst_calculations_required'])
 check('T-RC-G1-01: mutation -- a turn card injected into a flop record fails the audit',
       _rc_mut_fails(lambda d: d.__setitem__('board', ['As', '7d', '2c', '9h'])))
 check('T-RC-G1-02: mutation -- a full board injected into a preflop record fails board-length',
@@ -14267,10 +14290,55 @@ check('T-RC-G1-03: mutation -- an opponent action appended after Hero fails trun
 check('T-RC-G1-04: mutation -- net_bb leak fails', _rc_mut_fails(lambda d: d.__setitem__('net_bb', -30)))
 check('T-RC-G1-05: mutation -- prior verdict leak fails', _rc_mut_fails(lambda d: d.__setitem__('prior_final_class', 'JUSTIFIED')))
 check('T-RC-G1-06: mutation -- a call with null amount_to_call fails',
-      _rc_mut_fails(lambda d: (d.__setitem__('hero_action', 'calls'), d.__setitem__('amount_to_call_bb', None))))
+      _rc_mut_fails(lambda d: d.__setitem__('amount_to_call_bb', None)))
 check('T-RC-G1-07: mutation -- a non-scalar Hero action fails', _rc_mut_fails(lambda d: d.__setitem__('hero_action', ['bets'])))
 check('T-RC-G1-08: mutation -- a preflop made-hand class (runout leak) fails',
       _rc_mut_fails(lambda d: (d.__setitem__('street', 'preflop'), d.__setitem__('board', []), d.__setitem__('made_hand_class', 'two pair'))))
+# T-RC-NC: no-calculation failure-injection per canonical operand class (owner blocker #2).
+check('T-RC-NC-01: a RAISE whose amount_to_call equals its full added (NOT the call component) fails',
+      _rc_mut_fails(lambda d: d.update({'hero_action': 'raise', 'price_status': 'facing_raise',
+                                        'chosen_incremental_bb': 9.0, 'amount_to_call_bb': 9.0, 'raise_increment_bb': 0.0})))
+check('T-RC-NC-02: missing canonical hero_stack_before fails', _rc_mut_fails(lambda d: d.__setitem__('hero_stack_before_bb', None)))
+check('T-RC-NC-03: missing canonical pot_before fails', _rc_mut_fails(lambda d: d.__setitem__('pot_before_bb', None)))
+check('T-RC-NC-04: missing canonical effective stack fails', _rc_mut_fails(lambda d: d.__setitem__('eff_stack_bb', None)))
+check('T-RC-NC-05: missing explicit price_status fails', _rc_mut_fails(lambda d: d.__setitem__('price_status', None)))
+check('T-RC-NC-06: decision risk exceeding the decision-time stack fails', _rc_mut_fails(lambda d: d.__setitem__('decision_risk_bb', 99.0)))
+check('T-RC-NC-07: an aggressive action without chosen_incremental fails',
+      _rc_mut_fails(lambda d: d.update({'hero_action': 'bet', 'price_status': 'first_in',
+                                        'amount_to_call_bb': 'NOT_APPLICABLE', 'chosen_incremental_bb': None})))
+check('T-RC-NC-08: missing active_players fails', _rc_mut_fails(lambda d: d.__setitem__('active_players', None)))
+check('T-RC-NC-09: a non-canonically-resolved record (without explicit unresolved flag) fails',
+      _rc_mut_fails(lambda d: d.__setitem__('canonical_resolved', False)))
+check('T-RC-NC-10: price applicable but required_equity missing fails',
+      _rc_mut_fails(lambda d: d.__setitem__('required_equity_pct', 'NOT_APPLICABLE')))
+# T-RC-BIND: git-independent build identity (B5) + real input/cache identities (B6).
+import gem_build_identity as _BID
+import gem_input_manifest as _GIM
+_bi = _BID.build_identity()
+check('T-RC-BIND-01: build_identity reports the v8.20.0-rc release candidate + a build id, git-independently',
+      _bi['release_candidate'] == 'v8.20.0-rc' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
+_rt = {'build_id': 'GEM-v8.20.0-rc-abc'}
+_ih1 = {'a.txt': 'h1'}
+_ci0 = _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1)
+check('T-RC-BIND-02: cache identity changes when an INPUT hash changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, {'a.txt': 'h2'}))
+check('T-RC-BIND-03: cache identity changes when the RUNTIME/build identity changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], {'build_id': 'GEM-other'}, _ih1))
+check('T-RC-BIND-04: cache identity changes when a HAND id changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'C'}], _rt, _ih1))
+check('T-RC-BIND-05: cache identity changes when QUEUE membership (_candidate_need_ids) changes',
+      _ci0 != _AP.artifact_cache_identity({'_candidate_need_ids': ['A']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1))
+check('T-RC-BIND-06: cache identity is STABLE under a final_truth RECORDS change (quick-render idempotency)',
+      _AP.artifact_cache_identity({'_candidate_need_ids': ['A'], 'final_truth': {'records': {'A': {'v': 1}}, 'counts': {'x': 1}}}, [{'id': 'A'}], _rt, _ih1)
+      == _AP.artifact_cache_identity({'_candidate_need_ids': ['A'], 'final_truth': {'records': {'A': {'v': 2}}, 'counts': {'x': 1}}}, [{'id': 'A'}], _rt, _ih1))
+_bind_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v8.19.0',
+                             cache_identity='cache_x', build_identity=_bi)
+check('T-RC-BIND-07: build_packet embeds build_identity in the manifest AND the packet hash still binds it',
+      _bind_pkt['manifest'].get('build_identity', {}).get('build_id') == _bi['build_id']
+      and _AP.recompute_packet_hash(json.loads(json.dumps(_bind_pkt, default=str))) == _bind_pkt['manifest']['packet_hash'])
+check('T-RC-BIND-08: canonical_input_hashes returns SHA-256 (64-hex) per file; empty/missing dir -> {} (no crash)',
+      _GIM.canonical_input_hashes('/no/such/dir/xyz') == {}
+      and callable(_GIM.canonical_input_hashes))
 _rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
 _rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
                            session_id='s', runtime_version='v')

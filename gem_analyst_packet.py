@@ -74,91 +74,147 @@ def _board_texture(board):
     return ' '.join(parts)
 
 
+def _normalize_kind(kind):
+    """A canonical Hero-action-kind ('call_vs_jam', 'postflop_call', 'open_raise', ...) -> one scalar
+    normalized verb (owner 1.2)."""
+    k = str(kind or '').strip().lower()
+    for base in ('check', 'fold', 'call', 'bet', 'raise', 'jam', 'shove', 'allin', 'all-in'):
+        if k == base or k.startswith(base) or ('_' + base) in k:
+            return {'shove': 'jam', 'allin': 'jam', 'all-in': 'jam'}.get(base, base)
+    return _normalize_action({'action': k})
+
+
 def atomic_snapshot(hand, street, action_index, family, *, evidence_ref=None, evidence_tier=None,
                     detector_reason='', eff_stack_bb=None, extra=None):
-    """A SEMANTICALLY ATOMIC, result-independent decision record (owner Gate 1): only information
-    available the moment Hero acts. The action line is truncated AT Hero's exact action (no opponent
-    response, no later street); the board is exactly the street's cards; made-hand/draw/texture are
-    computed from that board only; operands come from the pre-decision ledger state. NO net_bb, NO
-    showdown, NO prior verdict in the analyst-visible record (those live only in a separate oracle)."""
+    """A SEMANTICALLY ATOMIC, result-independent, NO-CALCULATION-SAFE decision record (owner Gate 1 + the
+    no-calc fix): every deterministic operand is CONSUMED from the canonical decision owners
+    (gem_decision_snapshot.build_decision_snapshot + build_action_sizing_contract -- the same owners the
+    visible report uses), never re-derived here. The action line is truncated AT Hero's exact action (no
+    opponent response, no later street); the board is the canonical street-exact board; made-hand/draw/
+    texture come from the canonical evaluators on that board. NO net_bb / showdown / prior verdict. When a
+    canonical operand is unavailable the record is an explicit fail-closed UNRESOLVED node -- the analyst
+    reconstructs nothing."""
     import gem_parser
     import gem_made_hands
+    import gem_decision_snapshot as _ds
+    hid = hand.get('id')
     al = hand.get('action_ledger') or []
     cards = hand.get('cards') or []
-    n = _STREET_BOARD_LEN.get(street, 0)
-    board = (hand.get('board') or [])[:n]      # EXACT as-of-decision board
-    ai = action_index if isinstance(action_index, int) and 0 <= action_index < len(al) else None
-    line = []
-    for i, a in enumerate(al):
-        if ai is not None and i > ai:
-            break                                # truncate AT the decision -- no future actions
-        line.append({'street': a.get('street'), 'action_index': i, 'actor': a.get('player'),
-                     'position': a.get('position'), 'action': _normalize_action(a),
-                     'incremental_bb': a.get('added_bb'), 'total_bb': a.get('amount_bb'),
-                     'all_in': bool(a.get('is_all_in'))})
-    dec = al[ai] if ai is not None else {}
-    hero_action = _normalize_action(dec)
-    pot_before = round(sum((al[i].get('added_bb') or 0) for i in range(ai or 0)), 2) if ai is not None else None
-    street_prior = [al[i] for i in range(ai or 0) if al[i].get('street') == street] if ai is not None else []
-    faced_aggression = any(_normalize_action(a) in _AGGRO for a in street_prior)
-    if hero_action in ('calls', 'call'):
-        amount_to_call = dec.get('added_bb')
-    elif hero_action in ('bets', 'raises', 'jam', 'jams') and not faced_aggression:
-        amount_to_call = 'NOT_APPLICABLE'        # first-in: explicit, not a misleading 0/null
-    elif hero_action in ('raises', 'jam', 'jams') and faced_aggression:
-        amount_to_call = dec.get('added_bb')
-    else:
-        amount_to_call = 'NOT_APPLICABLE'
-    made, draw = None, {}
-    if n >= 3:
+    # ---- canonical decision owners (do NOT recompute these) ----
+    try:
+        snap = _ds.build_decision_snapshot(hand, action_index)
+    except Exception:
+        snap = None
+    try:
+        sizing = _ds.build_action_sizing_contract(hand, action_index)
+    except Exception:
+        sizing = None
+    decision_id = '%s:%s:%s' % (hid, street, action_index)
+    base_meta = {'decision_id': decision_id, 'hand_id': hid, 'family': family,
+                 'evidence_ref': evidence_ref, 'evidence_tier': evidence_tier,
+                 'detector_reason': detector_reason,
+                 'allowed_verdicts': list(ALLOWED_VERDICTS),
+                 'required_output_fields': list(REQUIRED_OUTPUT_FIELDS)}
+    # FAIL CLOSED when the canonical owner reports no real Hero decision or omits a core operand.
+    if (snap is None or snap.get('no_hero_decision')
+            or snap.get('pot_before_action_bb') is None
+            or snap.get('hero_stack_before_action_bb') is None
+            or snap.get('canonical_effective_decision_depth_bb') is None):
+        rec = dict(base_meta)
+        rec.update({'street': street, 'hero_action': None, 'hero_cards': cards, 'board': [],
+                    'unresolved': True, 'canonical_resolved': False,
+                    'missing_assumptions': ['canonical decision snapshot unavailable or incomplete -- '
+                                            'do not reconstruct'],
+                    'unresolved_reason': ('no_canonical_decision'
+                                          if snap is None or snap.get('no_hero_decision')
+                                          else 'missing_canonical_operand')})
+        if extra:
+            rec.update(extra)
+        return rec
+    # ---- consume canonical operands ----
+    cst = snap.get('street') or street
+    board = list(snap.get('board_at_decision') or [])
+    hero_action = _normalize_kind(snap.get('hero_action_kind'))
+    pot_before = snap.get('pot_before_action_bb')
+    contestable = snap.get('contestable_pot_before_action_bb')
+    hero_stack_before = snap.get('hero_stack_before_action_bb')
+    hero_committed = snap.get('live_street_committed_before_bb')
+    eff_depth = snap.get('canonical_effective_decision_depth_bb')
+    price_applicable = bool(snap.get('price_applicable'))
+    price_status = snap.get('decision_facing_state')
+    callable_amt = snap.get('callable_amount_bb')
+    req_eq = snap.get('required_equity_pct')
+    active_list = snap.get('players_active_before_action') or []
+    active_players = len(active_list) + 1            # active opponents (folded excluded) + Hero
+    multiway = active_players >= 3
+    position = snap.get('hero_position') or hand.get('position')
+    # amount-to-call is ONLY the call component (callable_amount), never Hero's full added amount. It
+    # applies whenever Hero FACES a wager -- for a CALL or a RAISE-facing-aggression alike. First-in /
+    # check-option decisions are explicit NOT_APPLICABLE.
+    facing = str(price_status or '').startswith('facing')
+    amount_to_call = callable_amt if (facing and callable_amt is not None) else 'NOT_APPLICABLE'
+    # required equity is the canonical CALL/FOLD price -- only when the price contract is applicable.
+    required_equity = req_eq if (price_applicable and req_eq is not None) else 'NOT_APPLICABLE'
+    pot_after_call = (round(pot_before + callable_amt, 2)
+                      if (facing and pot_before is not None and callable_amt is not None)
+                      else 'NOT_APPLICABLE')
+    # sizing facts (incremental vs raise-to vs increment) from the canonical sizing contract.
+    chosen_inc = (sizing or {}).get('amount_added_bb')
+    chosen_total = (sizing or {}).get('live_betting_total_to_bb')
+    raise_increment = (sizing or {}).get('raise_increment_bb')
+    became_all_in = (sizing or {}).get('became_all_in')
+    # decision risk = chips Hero physically commits, BOUNDED by the decision-time stack.
+    decision_risk = chosen_inc if chosen_inc is not None else None
+    if decision_risk is not None and hero_stack_before is not None:
+        decision_risk = min(decision_risk, hero_stack_before)
+    spr = (round(eff_depth / contestable, 2)
+           if (contestable and eff_depth is not None and contestable > 0 and cst != 'preflop') else None)
+    # canonical hand/draw/texture from the canonical evaluators on the street-exact board.
+    made, draw, texture = None, {}, None
+    if len(board) >= 3:
         try:
             made = gem_parser.hand_strength_name(cards, board)
         except Exception:
             made = None
         try:
-            _dp = gem_made_hands.draw_profile(cards, board) or {}
-            draw = {k: _dp.get(k) for k in ('made_hand', 'straight_draw', 'flush_draw',
-                    'straight_outs', 'flush_outs', 'overcards') if k in _dp}
+            _dpf = gem_made_hands.draw_profile(cards, board) or {}
+            draw = {k: _dpf.get(k) for k in ('made_hand', 'straight_draw', 'flush_draw',
+                    'straight_outs', 'flush_outs', 'overcards') if k in _dpf}
         except Exception:
             draw = {}
-    active = len({a.get('player') for a in al[:(ai + 1 if ai is not None else 0)] if a.get('player')}) or None
-    # decision-time effective stack: prefer the caller's value, else the matching decision_point, else any
-    # decision_point on the hand (the effective stack is ~constant within a hand).
-    if eff_stack_bb is None:
-        _dps = hand.get('decision_points') or []
-        for _d in _dps:
-            if _d.get('street') == street and _d.get('action_index') == action_index \
-                    and isinstance(_d.get('eff_stack_bb'), (int, float)):
-                eff_stack_bb = _d.get('eff_stack_bb')
-                break
-        if eff_stack_bb is None:
-            for _d in _dps:
-                if isinstance(_d.get('eff_stack_bb'), (int, float)):
-                    eff_stack_bb = _d.get('eff_stack_bb')
-                    break
-    chosen_inc = dec.get('added_bb') if hero_action in _AGGRO else None
-    chosen_total = dec.get('amount_bb') if hero_action in _AGGRO else None
-    snap = {
-        'decision_id': '%s:%s:%s' % (hand.get('id'), street, action_index),
-        'hand_id': hand.get('id'), 'family': family, 'street': street,
-        'hero_action': hero_action,                       # SCALAR
-        'hero_cards': cards, 'board': board,              # street-exact (preflop -> [])
-        'made_hand_class': made, 'draw_profile': draw, 'board_texture': _board_texture(board),
-        'position': dec.get('position') or hand.get('position'),
-        'ip_oop': hand.get('hero_ip'),
-        'active_players': active,
-        'pot_before_bb': pot_before,
-        'amount_to_call_bb': amount_to_call,
+        texture = _board_texture(board)
+    # action line truncated AT Hero's exact ledger action (no future action/street).
+    ai = action_index if isinstance(action_index, int) and 0 <= action_index < len(al) else None
+    line = []
+    for i, a in enumerate(al):
+        if ai is not None and i > ai:
+            break
+        line.append({'street': a.get('street'), 'action_index': i, 'actor': a.get('player'),
+                     'position': a.get('position'), 'action': _normalize_action(a),
+                     'incremental_bb': a.get('added_bb'), 'total_bb': a.get('amount_bb'),
+                     'all_in': bool(a.get('is_all_in'))})
+    rec = dict(base_meta)
+    rec.update({
+        'street': cst, 'hero_action': hero_action,
+        'hero_cards': cards, 'board': board,
+        'made_hand_class': made, 'draw_profile': draw, 'board_texture': texture,
+        'position': position, 'ip_oop': hand.get('hero_ip'),
+        'active_players': active_players, 'multiway': multiway,
+        'pot_before_bb': pot_before, 'contestable_pot_bb': contestable,
+        'hero_stack_before_bb': hero_stack_before, 'hero_street_committed_bb': hero_committed,
+        'eff_stack_bb': eff_depth,
+        'price_status': price_status, 'price_applicable': price_applicable,
+        'amount_to_call_bb': amount_to_call, 'required_equity_pct': required_equity,
+        'pot_after_call_bb': pot_after_call,
         'chosen_incremental_bb': chosen_inc, 'chosen_total_bb': chosen_total,
-        'eff_stack_bb': eff_stack_bb,
+        'raise_increment_bb': raise_increment, 'became_all_in': became_all_in,
+        'decision_risk_bb': decision_risk, 'spr': spr,
         'action_line_through_decision': line,
-        'detector_reason': detector_reason,
-        'evidence_ref': evidence_ref, 'evidence_tier': evidence_tier,
-        'allowed_verdicts': list(ALLOWED_VERDICTS), 'required_output_fields': list(REQUIRED_OUTPUT_FIELDS),
-    }
+        'canonical_resolved': True, 'canonical_source': 'gem_decision_snapshot',
+    })
     if extra:
-        snap.update(extra)
-    return snap
+        rec.update(extra)
+    return rec
 
 
 def _norm_decision(c, hands_by_id=None):
@@ -230,15 +286,25 @@ _LEAK_KEYS = ('net_bb', 'prior_final_class', 'prior_verdict', 'showdown', 'resul
 _STREET_ORDER = {'preflop': 0, 'flop': 1, 'turn': 2, 'river': 3}
 
 
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
 def semantic_audit(packet):
-    """Owner Gate 1 audit -> ATOMIC_DECISION_PACKET_SEMANTIC_AUDIT.json. Per decision: exact id, scalar
-    Hero action, correct board length for street, action line terminates at Hero's decision with no future
-    action/street, no result/showdown/prior-verdict leakage, decision-time made-hand consistency, valid
-    call/raise operands, decision-time stacks/players, explicit unresolved fail-close. Returns the
-    invariants the release gates on."""
-    rows, failing, leaks = [], 0, 0
+    """Owner Gate 1 + no-calc audit -> ATOMIC_DECISION_PACKET_SEMANTIC_AUDIT.json. Per decision: exact id,
+    scalar Hero action, correct board length for street, action line terminates at Hero with no future
+    action/street, no result/showdown/prior-verdict leakage, decision-time made-hand consistency, and -- for
+    every RESOLVED decision -- EVERY applicable canonical operand present and self-consistent (so the analyst
+    calculates nothing): canonical-resolved flag, pot-before, Hero stack-before, effective stack, explicit
+    price status, active players, amount-to-call valid for calls AND raises-facing-aggression (the CALL
+    COMPONENT, strictly below the raise's chosen incremental), chosen sizing for aggressive actions, decision
+    risk bounded by stack, required equity when the price contract applies, SPR where applicable. A record
+    that cannot supply an operand must be explicitly unresolved (fail-closed). Returns the release invariants
+    incl. zero_analyst_calculations_required."""
+    rows, failing, leaks, calc_required = [], 0, 0, 0
+    req_ids = {d['decision_id'] for d in packet['required']}
     for d in (packet['required'] + packet['optional']):
-        issues = []
+        issues, calc_issues = [], []
         unresolved = bool(d.get('unresolved'))
         for k in _LEAK_KEYS:
             if k in d and d.get(k) not in (None, '', []):
@@ -275,21 +341,53 @@ def semantic_audit(packet):
                 issues.append('later-street action present in line')
         elif not unresolved and not line:
             issues.append('missing action_line_through_decision')
-        if d.get('hero_action') in ('calls', 'call') and d.get('amount_to_call_bb') in (None, 'NOT_APPLICABLE'):
-            issues.append('call decision with no amount_to_call')
-        if not unresolved and d.get('eff_stack_bb') in (None, ''):
-            issues.append('missing decision-time effective stack')
+        # ---- no-calc canonical-operand completeness (only resolved decisions) ----
+        if not unresolved:
+            facing = str(d.get('price_status') or '').startswith('facing')
+            atc = d.get('amount_to_call_bb')
+            if not d.get('canonical_resolved'):
+                calc_issues.append('not canonically resolved')
+            if not _num(d.get('pot_before_bb')):
+                calc_issues.append('missing canonical pot_before')
+            if not _num(d.get('hero_stack_before_bb')):
+                calc_issues.append('missing canonical hero_stack_before')
+            if not _num(d.get('eff_stack_bb')):
+                calc_issues.append('missing canonical effective stack')
+            if not d.get('price_status'):
+                calc_issues.append('missing explicit price_status')
+            if not isinstance(d.get('active_players'), int):
+                calc_issues.append('missing active_players count')
+            if d.get('hero_action') in ('call', 'calls') and not _num(atc):
+                calc_issues.append('call decision without numeric amount_to_call')
+            if facing and not _num(atc):
+                calc_issues.append('facing decision without numeric call-component amount_to_call')
+            if (facing and d.get('hero_action') == 'raise' and _num(atc)
+                    and _num(d.get('chosen_incremental_bb')) and atc >= d['chosen_incremental_bb']):
+                calc_issues.append('raise amount_to_call is not the call component (>= chosen_incremental)')
+            if d.get('hero_action') in ('bet', 'raise', 'jam') and not _num(d.get('chosen_incremental_bb')):
+                calc_issues.append('aggressive action without chosen_incremental')
+            if (_num(d.get('decision_risk_bb')) and _num(d.get('hero_stack_before_bb'))
+                    and d['decision_risk_bb'] > d['hero_stack_before_bb'] + 1e-6):
+                calc_issues.append('decision risk exceeds decision-time stack')
+            if d.get('price_applicable') and not _num(d.get('required_equity_pct')):
+                calc_issues.append('price applicable but required_equity missing')
+            if (st in ('flop', 'turn', 'river') and d.get('spr') is None
+                    and _num(d.get('contestable_pot_bb')) and d.get('contestable_pot_bb')):
+                calc_issues.append('postflop with contestable pot but no SPR')
+        issues += calc_issues
+        if calc_issues and d.get('decision_id') in req_ids:
+            calc_required += 1
         if issues:
             failing += 1
             if any(('leak' in i) or ('future' in i) or ('later-street' in i) or ('runout' in i) for i in issues):
                 leaks += 1
         rows.append({'decision_id': d.get('decision_id'), 'unresolved': unresolved,
-                     'pass': not issues, 'issues': issues})
+                     'pass': not issues, 'canonical_complete': not calc_issues, 'issues': issues})
     req = len(packet['required'])
     return {'decisions': len(rows), 'required': req, 'failing': failing,
-            'future_information_leaks': leaks,
+            'future_information_leaks': leaks, 'analyst_calculation_required_count': calc_required,
             'zero_silently_incomplete': failing == 0, 'zero_future_information_leaks': leaks == 0,
-            'zero_analyst_calculations_required': True, 'rows': rows}
+            'zero_analyst_calculations_required': calc_required == 0, 'rows': rows}
 
 
 def decision_completeness(packet):
@@ -338,6 +436,59 @@ def content_cache_identity(rd, hands):
     return 'cache_' + hashlib.sha256(json.dumps(fp, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
+def artifact_cache_identity(rd, hands, runtime_id=None, input_hashes=None):
+    """A cache identity derived from the ACTUAL deterministic cache CONTENTS bound to the input hashes and
+    runtime/build identity (owner blocker #6). It hashes the STABLE analytical core of the cache -- every
+    hand id, the full final-truth record set, the canonical required-review population, the reviewed-decision
+    refs, and the material-loss population -- which is identical whether read from the in-memory full run or
+    reloaded from the on-disk cache (so a fresh full->quick matches), yet changes when ANY input file, config/
+    runtime build, hand, decision/final-truth fact, or queue-membership byte changes (so a stale packet/cache
+    FAILS --quick). The volatile, post-emission-stamped keys (e.g. input_manifest) are deliberately excluded
+    so a clean cache is not spuriously rejected."""
+    import json
+    hand_ids = sorted(str(h.get('id') or '') for h in (hands or []) if h.get('id'))
+    rd = rd if isinstance(rd, dict) else {}
+    mlp = rd.get('material_loss_population')
+    ft = rd.get('final_truth') or {}
+    # The analytical core uses the STABLE deterministic-analysis facts: the required-review population, the
+    # per-hand reviewed-decision refs, the material-loss population, and the final-truth CLASS COUNTS. The
+    # full final_truth RECORDS are deliberately excluded -- the analyst-merge during a quick re-render
+    # rewrites them downstream of the seal, so including them would make --quick non-idempotent. The kept
+    # keys still change on any input / hand / queue-membership / classification-population mutation.
+    core = {
+        'candidate_need_ids': sorted(rd.get('_candidate_need_ids') or []),
+        'reviewed_decision_ref_by_hand': rd.get('reviewed_decision_ref_by_hand') or {},
+        'material_loss_keys': (sorted(k for k in mlp.keys() if not str(k).startswith('_'))
+                               if isinstance(mlp, dict) else []),
+        'final_truth_counts': ft.get('counts') if isinstance(ft, dict) else None,
+    }
+    core_hash = hashlib.sha256(json.dumps(core, sort_keys=True, ensure_ascii=False, default=str)
+                               .encode('utf-8')).hexdigest()
+    payload = {'n_hands': len(hand_ids), 'hand_ids': hand_ids, 'analytical_core_hash': core_hash,
+               'input_hashes': input_hashes or {}, 'runtime': runtime_id or {}}
+    blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    return 'cache_' + hashlib.sha256(blob.encode('utf-8')).hexdigest()[:16]
+
+
+def cache_identity_from_disk(rd_path, hands_path, runtime_id=None, input_hashes=None):
+    """Compute the cache identity from the ON-DISK cache artifacts (the exact files --quick reloads), so the
+    full-run seal and the --quick check read the SAME bytes and a fresh full->quick always matches (owner
+    blocker #6). The full run computes it from disk too (not from its in-memory objects), eliminating any
+    in-memory/on-disk drift."""
+    import json
+    try:
+        with open(rd_path, encoding='utf-8') as f:
+            rd = json.load(f)
+    except Exception:
+        rd = {}
+    try:
+        with open(hands_path, encoding='utf-8') as f:
+            hands = json.load(f)
+    except Exception:
+        hands = []
+    return artifact_cache_identity(rd, hands, runtime_id, input_hashes)
+
+
 def legacy_required_ids(rd):
     """The CANONICAL legacy mandatory review population (owner gap 3): the production required-review
     hands -- _candidate_need_ids plus every material-loss-population hand. NOT defined by the new packet."""
@@ -365,7 +516,7 @@ def _content_hash(payload):
 
 
 def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version='',
-                 runtime_commit='', cache_identity='', optional_cap=8):
+                 runtime_commit='', cache_identity='', optional_cap=8, build_identity=None):
     """Build the ONE sealed analyst packet. REQUIRED = the canonical legacy required-review population
     (preserved 100%) PLUS the accepted rule-backed findings (the KQs SB-flat). OPTIONAL = lower-confidence
     read-dependent candidates, capped. Each hand/decision appears once; nothing required is demoted. The
@@ -412,6 +563,7 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
         'schema': SCHEMA_VERSION, 'session_id': session_id,
         'input_hashes': input_hashes or {}, 'runtime_version': runtime_version,
         'runtime_commit': runtime_commit, 'cache_identity': cache_identity,
+        'build_identity': build_identity or {},
         'required_count': len(required), 'optional_count': len(optional), 'optional_cap': optional_cap,
         'evidence_keys': sorted(evidence.keys()), 'allowed_verdicts': list(ALLOWED_VERDICTS),
     }

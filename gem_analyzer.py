@@ -10748,6 +10748,50 @@ if __name__ == '__main__':
     _html_kb = os.path.getsize(html_path) // 1024
     print(f"\nReport (HTML, primary): {html_path} ({_html_kb}KB)")
     print(f"Report (MD,  secondary): {md_path}  ({os.path.getsize(md_path)//1024}KB)")
+    # v8.20 final RC: the canonical FULL run emits the ONE sealed analyst packet (every required decision
+    # hydrated with every fact + pre-completed calculation) bound to real input hashes + current commit +
+    # content-derived cache id. Emitted AFTER render so the canonical required-review population
+    # (_candidate_need_ids, stamped by compute_report_completeness) is present. --quick later validates
+    # that binding and renders from cache. Best-effort -- never breaks the run.
+    try:
+        import gem_analyst_packet as _ap_emit
+        import glob as _glob_emit
+        import subprocess as _sub_emit
+        _ap_out = '/mnt/user-data/outputs' if os.path.isdir('/mnt/user-data/outputs') else '/home/claude'
+        _ap_inputs = (_glob_emit.glob(os.path.join(SESSION_DIR, '*.txt'))
+                      if SESSION_DIR and os.path.isdir(SESSION_DIR) else [])
+        try:
+            _ap_commit = _sub_emit.check_output(
+                ['git', 'rev-parse', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
+                stderr=_sub_emit.DEVNULL).decode().strip()[:12]
+        except Exception:
+            _ap_commit = ''
+        try:
+            from gem_version import RUNTIME_VERSION as _ap_rv
+        except Exception:
+            _ap_rv = ''
+        _ap_cache = _ap_emit.content_cache_identity(report_data, hands)
+        _ap_pkt = _ap_emit.build_packet(
+            hands, report_data, session_id=str(_pname_file), runtime_version=str(_ap_rv),
+            runtime_commit=_ap_commit, input_hashes=_ap_emit.real_input_hashes(_ap_inputs),
+            cache_identity=_ap_cache, optional_cap=8)
+        _ap_base = os.path.join(_ap_out, f'analyst_packet_{_pname_file}')
+        for _ap_fn, _ap_obj in (('.json', _ap_pkt),
+                                ('_manifest.json', _ap_pkt['manifest']),
+                                ('_completeness.json', _ap_emit.decision_completeness(_ap_pkt)),
+                                ('_coverage.json', _ap_emit.build_coverage_reconciliation(report_data, _ap_pkt))):
+            with open(_ap_base + _ap_fn, 'w', encoding='utf-8') as _apf:
+                json.dump(_ap_obj, _apf, indent=2, ensure_ascii=False, default=str)
+        with open(os.path.join(_ap_out, f'analyst_cache_identity_{_pname_file}.txt'), 'w', encoding='utf-8') as _apf:
+            _apf.write(_ap_cache)
+        _ap_dc = _ap_emit.decision_completeness(_ap_pkt)
+        print(f"  ✓ Sealed analyst packet: {_ap_base}.json "
+              f"(required={_ap_pkt['manifest']['required_count']} optional={_ap_pkt['manifest']['optional_count']} "
+              f"hash={_ap_pkt['manifest']['packet_hash'][:12]} incomplete_required={_ap_dc['incomplete_required']})")
+        print(f"    1) review every required decision once -> save analyst JSON at {_ap_base}_analyst_output.json")
+        print(f"    2) python gem_analyzer.py {SESSION_DIR} --quick   (validates binding + renders from cache)")
+    except Exception as _ape:
+        print(f"  ⚠ analyst packet emission skipped: {_ape}")
 
     # v8.19.0 Chapter I: explicit input manifest + reproducibility (additive; a failure here
     # never blocks the report). Deterministic given the inputs/config; `generated_at` carries the

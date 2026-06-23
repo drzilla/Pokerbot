@@ -35,9 +35,28 @@ def _decision_id(hand_id, street, action_index):
     return '%s:%s:%s' % (hand_id, street or '?', action_index if action_index is not None else '?')
 
 
-def _risk(dp):
-    """Chips Hero put at risk at a decision node (canonical field; 0 when absent)."""
+def _raw_risk(dp):
+    """The raw canonical hero_risk_bb (cumulative; may double-count prior commitments / villain stack)."""
     return _num(dp.get('hero_risk_bb')) or _num(dp.get('hero_amount_bb')) or 0.0
+
+
+def _decision_risk(dp):
+    """B2: the decision-LEVEL chips Hero can lose because of THIS decision -- bounded by the decision-time
+    effective stack. The raw hero_risk_bb is cumulative and on some nodes exceeds the effective stack
+    (it is not a clean decision-level operand); a quantity labelled 'decision risk' must never exceed
+    what Hero can actually put at risk from the node, so it is capped at eff_stack_bb when known."""
+    raw = _raw_risk(dp)
+    eff = _num(dp.get('eff_stack_bb'))
+    if eff is not None and eff >= 0 and raw > eff:
+        return eff
+    return raw
+
+
+def _risk_reconciled(dp):
+    """True when the raw cumulative risk had to be capped to the effective stack (recorded for audit)."""
+    raw = _raw_risk(dp)
+    eff = _num(dp.get('eff_stack_bb'))
+    return bool(eff is not None and raw > eff)
 
 
 def _canonical_equity(dp):
@@ -57,14 +76,15 @@ def commitment_node(hand):
     dps = hand.get('decision_points') or []
     if not dps:
         return None, 'no canonical decision points'
-    best = max(dps, key=lambda d: (_risk(d), _STREET_ORDER.get(d.get('street'), 0),
+    # select on the BOUNDED decision risk (B2), ties to the later street / action index.
+    best = max(dps, key=lambda d: (_decision_risk(d), _STREET_ORDER.get(d.get('street'), 0),
                                    d.get('action_index') or 0))
     first = min(dps, key=lambda d: (_STREET_ORDER.get(d.get('street'), 0), d.get('action_index') or 0))
     if best is first or _STREET_ORDER.get(best.get('street'), 0) == _STREET_ORDER.get(first.get('street'), 0):
-        reason = 'single / earliest node carried the largest commitment'
+        reason = 'single / earliest node carried the largest decision-level commitment'
     else:
-        reason = ('commitment node moved later: %s (risk %.1fbb) over the earliest %s node'
-                  % (best.get('street'), _risk(best), first.get('street')))
+        reason = ('commitment node moved later: %s (decision risk %.1fbb) over the earliest %s node'
+                  % (best.get('street'), _decision_risk(best), first.get('street')))
     return best, reason
 
 
@@ -76,7 +96,10 @@ def _observed_facts(dp):
         'hero_action': dp.get('hero_action') or dp.get('hero_action_class'),
         'pot_facing_hero_bb': _num(dp.get('pot_facing_hero_bb')),
         'villain_bet_bb': _num(dp.get('villain_bet_bb')),
-        'hero_risk_bb': _risk(dp) or None,
+        # B2: the audited operands -- the raw cumulative field AND the bounded decision-level risk.
+        'raw_hero_risk_bb': _raw_risk(dp) or None,
+        'decision_risk_bb': _decision_risk(dp) or None,
+        'risk_capped_to_eff_stack': _risk_reconciled(dp) or None,
         'eff_stack_bb': _num(dp.get('eff_stack_bb')),
         'spr': _num(dp.get('spr')),
         'players_in_hand': dp.get('players_in_hand'),
@@ -156,15 +179,24 @@ def sizing_line_candidates(stats):
         signals = []
     out = []
     for sig in signals:
+        # B4: a sizing signal is an AGGREGATE across many opportunities, NOT a hand-level decision node.
+        # It carries example hand-ids/nodes for review but must never be counted as a per-hand node.
+        examples = (sig.get('example_hand_ids') or sig.get('hand_ids')
+                    or sig.get('contributing_hand_ids') or [])
         out.append({
-            'family': 'sizing_line', 'hand_id': sig.get('hand_id', ''),
-            'decision_id': sig.get('decision_id') or ('sizing:%s' % sig.get('trigger', '?')),
+            'family': 'sizing_line', 'is_aggregate': True,
+            'hand_id': '',                                   # aggregate: no single hand
+            'decision_id': 'aggregate:sizing:%s:%s' % (sig.get('archetype', '?'), sig.get('side', '?')),
+            'relationship': 'AGGREGATE_SIGNAL',
             'status': CANDIDATE, 'confidence': sig.get('confidence', 'tracking'),
-            'route': 'optional_review',
-            'detector_reason': sig.get('reason') or sig.get('trigger') or 'sizing pattern outside matched prescription',
+            'route': 'aggregate_review',
+            'detector_reason': (sig.get('reason') or sig.get('trigger')
+                                or 'aggregate sizing compliance below the matched texture/position/depth prescription'),
             'observed_facts': {k: sig.get(k) for k in ('archetype', 'side', 'opportunities',
                                'judged', 'sizing_compliance', 'depth_band') if k in sig},
-            'missing_assumptions': [],
+            'example_hand_ids': list(examples),
+            'missing_assumptions': ([] if examples else
+                                    ['concrete example hand ids / nodes for the aggregate signal']),
             'signal_type': sig.get('signal_type', 'aggregate_leak'),
         })
     return out
@@ -174,47 +206,56 @@ def sizing_line_candidates(stats):
 # 3.3 turn / river active-error candidates                                     #
 # --------------------------------------------------------------------------- #
 
+def _has_strength_input(dp):
+    """B3: true only when a CANONICAL street-time hand-strength / equity input exists on the node.
+    went_to_sd is an OUTCOME flag and is deliberately NOT consulted here."""
+    return any((dp.get(k) not in (None, '')) for k in
+               ('draw_profile', 'minimum_continue_hand', 'hero_equity_vs_range'))
+
+
 def turn_river_active_candidates(hands):
-    """River/turn active-error candidates from OBSERVED action + board facts only. Every candidate that
-    needs a villain range we don't canonically have records the missing assumption rather than asserting
-    a verdict. Patterns: weak river call facing material aggression; third-barrel with no showdown value;
-    river bet with showdown value (possible thin spot)."""
+    """River/turn active-error candidates from CANONICAL street-time inputs only -- never from the
+    outcome flag went_to_sd (B3). A label that needs hand strength (bluff vs value) is emitted only when
+    a canonical strength/equity input exists; otherwise the node is surfaced as INSUFFICIENT_INPUT rather
+    than a confident semantic claim. A river call facing material aggression is supportable from the
+    OBSERVED action alone (Hero called a large bet) and does not need a showdown flag."""
     out = []
     for h in hands:
         hid = h.get('id')
-        dps = h.get('decision_points') or []
-        for dp in dps:
+        for dp in (h.get('decision_points') or []):
             st = dp.get('street')
             if st not in ('turn', 'river'):
                 continue
             act = (dp.get('hero_action') or dp.get('hero_action_class') or '').lower()
             vbet = _num(dp.get('villain_bet_bb')) or 0.0
             pot = _num(dp.get('pot_facing_hero_bb')) or 0.0
-            last_agg = dp.get('hero_is_last_aggressor')
-            sd = h.get('went_to_sd')
-            cand = None
-            # (a) weak river call facing material aggression (>= ~0.66 pot) that lost.
-            if st == 'river' and 'call' in act and vbet >= 0.66 * pot and pot > 0 \
+            has_strength = _has_strength_input(dp)
+            label, conf, subfamily = None, 'candidate', None
+            # (a) river call facing material aggression -- OBSERVED action, no strength/showdown needed.
+            if st == 'river' and 'call' in act and pot > 0 and vbet >= 0.66 * pot \
                     and _num(h.get('net_bb')) is not None and h['net_bb'] < 0:
-                cand = ('weak river call facing material aggression (villain %.1fbb into ~%.1fbb)'
-                        % (vbet, pot))
-            # (b) third-barrel / river bet with no showdown value (pure bluff line).
-            elif st == 'river' and ('bet' in act or 'jam' in act) and last_agg and sd is False:
-                cand = 'river barrel as last aggressor with no showdown reached (bluff-shaped line)'
-            # (c) river bet WITH showdown value reached -- possible thin value / missed check spot.
-            elif st == 'river' and ('bet' in act or 'jam' in act) and sd is True:
-                cand = 'river bet that reached showdown -- review thin value vs check'
-            if not cand:
+                label = ('river call facing material aggression (villain %.1fbb into ~%.1fbb)'
+                         % (vbet, pot))
+                subfamily = 'river_call_vs_aggression'
+            # (b) a river BET -- bluff vs thin-value classification REQUIRES canonical hand strength.
+            elif st in ('turn', 'river') and ('bet' in act or 'jam' in act):
+                subfamily = 'river_bet_classification'
+                if has_strength:
+                    label = '%s bet -- review value vs bluff (canonical strength input present)' % st
+                else:
+                    # do NOT infer SDV / bluff from went_to_sd -- the strength input is absent.
+                    label = '%s bet -- hand-strength/range input absent, cannot classify value vs bluff' % st
+                    conf = 'insufficient_input'
+            if not label:
                 continue
             out.append({
-                'family': 'turn_river_active', 'hand_id': hid,
+                'family': 'turn_river_active', 'subfamily': subfamily, 'hand_id': hid,
                 'decision_id': _decision_id(hid, st, dp.get('action_index')),
-                'status': CANDIDATE, 'confidence': 'candidate',
-                'route': 'optional_review',
-                'detector_reason': cand,
-                'observed_facts': dict(_observed_facts(dp), net_bb=_num(h.get('net_bb')),
-                                       went_to_sd=sd),
-                'missing_assumptions': _missing_assumptions(dp, need_range=True),
+                'status': CANDIDATE, 'confidence': conf,
+                'route': 'optional_review' if conf == 'candidate' else 'needs_input',
+                'detector_reason': label,
+                'observed_facts': dict(_observed_facts(dp), net_bb=_num(h.get('net_bb'))),
+                'missing_assumptions': _missing_assumptions(dp, need_range=not has_strength),
             })
     return out
 
@@ -223,84 +264,217 @@ def turn_river_active_candidates(hands):
 # 3.4 yield metrics + analyst-ready queue                                      #
 # --------------------------------------------------------------------------- #
 
-_PENDING = 'pending'   # review-dependent fields are 'pending' BEFORE analyst review, never 0
+_PENDING = 'pending'   # only used when no review has been run
+
+# B1 candidate-vs-prior-truth relationships.
+NEW_UNREVIEWED = 'NEW_UNREVIEWED'
+RE_REVIEW_CHANGED_NODE = 'RE_REVIEW_CHANGED_NODE'
+ALREADY_REVIEWED_SAME_NODE = 'ALREADY_REVIEWED_SAME_NODE'
+AGGREGATE_SIGNAL = 'AGGREGATE_SIGNAL'
+# B6 terminal review outcomes.
+CONFIRMED_MISTAKE = 'CONFIRMED_MISTAKE'
+CLEARED = 'CLEARED'
+READ_DEPENDENT = 'READ_DEPENDENT'
+INSUFFICIENT_EVIDENCE = 'INSUFFICIENT_EVIDENCE'
+DETECTOR_OR_OPERAND_BUG = 'DETECTOR_OR_OPERAND_BUG'
 
 
-def _family_metrics(name, candidates, eligible, suppressed):
-    cands = [c for c in candidates if c['family'] == name]
+def _is_hand_level(c):
+    """A hand-level candidate with a concrete decision node (aggregate signals + node-less blockers are
+    NOT hand-level decision nodes -- B4)."""
+    if c.get('is_aggregate'):
+        return False
+    did = c.get('decision_id') or ''
+    return bool(did) and not did.endswith(':?:?') and not did.startswith('aggregate:')
+
+
+def reconcile_with_prior_truth(candidates, prior_records):
+    """B1: stamp each candidate with the prior canonical final class/verdict/node and its relationship to
+    prior analyst truth, so re-flagging an already-adjudicated hand is not miscounted as discovery."""
+    prior_records = prior_records or {}
+    out = []
+    for c in candidates:
+        c = dict(c)
+        if c.get('is_aggregate'):
+            c['relationship'] = AGGREGATE_SIGNAL
+            c.setdefault('prior_final_class', None)
+            out.append(c)
+            continue
+        rec = prior_records.get(c.get('hand_id'))
+        if not rec:
+            c.update({'relationship': NEW_UNREVIEWED, 'prior_final_class': None,
+                      'prior_verdict': None, 'prior_decision_id': None})
+        else:
+            prior_node = rec.get('decision_id') or ''
+            new_node = c.get('decision_id') or ''
+            c['prior_final_class'] = rec.get('final_class')
+            c['prior_verdict'] = rec.get('verdict')
+            c['prior_decision_id'] = prior_node or None
+            if prior_node and prior_node != new_node:
+                c['relationship'] = RE_REVIEW_CHANGED_NODE
+                c['node_diff'] = {'prior': prior_node, 'new': new_node}
+            else:
+                c['relationship'] = ALREADY_REVIEWED_SAME_NODE
+        out.append(c)
+    return out
+
+
+def _prior_outcome(prior_class):
+    return {'CONFIRMED_MISTAKE': CONFIRMED_MISTAKE, 'PUNT': CONFIRMED_MISTAKE,
+            'COOLER': CLEARED, 'JUSTIFIED': CLEARED, 'STANDARD': CLEARED,
+            'READ_DEPENDENT': READ_DEPENDENT, 'INSUFFICIENT': INSUFFICIENT_EVIDENCE}.get(
+        prior_class, CLEARED)
+
+
+def review_candidates(reconciled):
+    """B6: the bounded analyst review. ONE terminal outcome per candidate. Fail-closed: a candidate
+    lacking the canonical inputs to confirm is READ_DEPENDENT / INSUFFICIENT_EVIDENCE, never a confirmed
+    mistake. Already-adjudicated hands carry their prior terminal outcome and are NOT incremental."""
+    reviewed = []
+    for c in reconciled:
+        rel = c.get('relationship')
+        incremental = rel in (NEW_UNREVIEWED, RE_REVIEW_CHANGED_NODE)
+        if rel == ALREADY_REVIEWED_SAME_NODE:
+            outcome = _prior_outcome(c.get('prior_final_class'))
+            note = ('already adjudicated %s at the same / whole-hand node -- not incremental discovery'
+                    % c.get('prior_final_class'))
+        elif rel == AGGREGATE_SIGNAL:
+            outcome = INSUFFICIENT_EVIDENCE
+            note = 'aggregate signal -- needs concrete example nodes before a per-hand review'
+        elif c.get('confidence') == 'insufficient_input':
+            outcome = INSUFFICIENT_EVIDENCE
+            note = 'detector flagged missing canonical strength/range input -- cannot classify'
+        else:
+            # a genuinely new / re-review hand candidate. Without a canonical villain range or decision
+            # EV, a material loss / river-call candidate cannot be CONFIRMED a mistake here -- the read
+            # is required. This fails closed (no fabricated confirmation).
+            miss = c.get('missing_assumptions') or []
+            outcome = READ_DEPENDENT
+            note = ('review requires analyst read: %s' % '; '.join(miss)) if miss \
+                else 'no canonical range/EV to confirm a mistake; analyst read required'
+        reviewed.append({
+            'decision_id': c.get('decision_id'), 'hand_id': c.get('hand_id'),
+            'family': c.get('family'), 'subfamily': c.get('subfamily'),
+            'relationship': rel, 'incremental': incremental,
+            'prior_final_class': c.get('prior_final_class'),
+            'detector_reason': c.get('detector_reason'),
+            'terminal_outcome': outcome, 'review_note': note,
+        })
+    return reviewed
+
+
+def _family_metrics(name, reconciled, reviewed, eligible):
+    cands = [c for c in reconciled if c['family'] == name]
+    rev = [r for r in reviewed if r['family'] == name]
+    rel = {k: sum(1 for c in cands if c.get('relationship') == k)
+           for k in (NEW_UNREVIEWED, RE_REVIEW_CHANGED_NODE, ALREADY_REVIEWED_SAME_NODE, AGGREGATE_SIGNAL)}
+    incr = [r for r in rev if r['incremental']]
+    confirmed = sum(1 for r in incr if r['terminal_outcome'] == CONFIRMED_MISTAKE)
+    cleared = sum(1 for r in incr if r['terminal_outcome'] == CLEARED)
+    readdep = sum(1 for r in incr if r['terminal_outcome'] == READ_DEPENDENT)
+    insf = sum(1 for r in incr if r['terminal_outcome'] == INSUFFICIENT_EVIDENCE)
     bb = [abs(c['observed_facts'].get('net_bb')) for c in cands
-          if isinstance(c.get('observed_facts'), dict) and isinstance(c['observed_facts'].get('net_bb'), (int, float))]
+          if isinstance(c.get('observed_facts'), dict)
+          and isinstance(c['observed_facts'].get('net_bb'), (int, float))]
+    fps = sorted({(c.get('subfamily') or c.get('family')) for c in cands
+                  if any(r['hand_id'] == c['hand_id'] and r['incremental']
+                         and r['terminal_outcome'] in (CLEARED, INSUFFICIENT_EVIDENCE) for r in rev)})
     return {
         'family': name,
         'eligible_opportunities': eligible,
         'candidates_generated': len(cands),
-        'candidates_suppressed_by_guardrails': suppressed,
-        'candidates_reviewed': _PENDING,
-        'confirmed_mistakes': _PENDING,
-        'cleared_candidates': _PENDING,
-        'unresolved': _PENDING,
-        'precision_among_reviewed': _PENDING,
-        'incremental_confirmed_per_100_hands': _PENDING,
-        'canonical_material_bb_impact': round(sum(bb), 1) if bb else None,
-        'analyst_minutes_per_confirmed': _PENDING,
-        'top_false_positive_signatures': _PENDING,
+        'relationship_breakdown': rel,
+        'new_unreviewed': rel[NEW_UNREVIEWED] + rel[RE_REVIEW_CHANGED_NODE],
+        'suppressed_already_reviewed_same_node': rel[ALREADY_REVIEWED_SAME_NODE],
+        'aggregate_signals': rel[AGGREGATE_SIGNAL],
+        'incremental_reviewed': len(incr),
+        'confirmed_mistakes': confirmed,
+        'cleared_candidates': cleared,
+        'read_dependent': readdep,
+        'insufficient_evidence': insf,
+        'precision_among_reviewed': (round(confirmed / len(incr), 3) if incr else None),
+        # honestly named: realized whole-hand net exposed by the candidates -- NOT mistake impact / EV.
+        'gross_abs_hand_net_bb_exposed': round(sum(bb), 1) if bb else None,
+        'confirmed_mistake_ev_bb': None,   # only when canonical decision EV exists (none here)
+        'top_false_positive_signatures': fps or None,
     }
 
 
-def run_discovery_pilot(hands, stats, *, n_hands=None):
-    """Run all three families, returning {candidates, metrics, analyst_queue}. Pure; no side effects.
-    Nothing is promoted to a confirmed mistake."""
+def run_discovery_pilot(hands, stats, *, prior_records=None, n_hands=None, do_review=True):
+    """Run all three families, reconcile vs prior analyst truth, optionally run the bounded review, and
+    return {candidates, reconciled, reviewed, metrics, analyst_queue}. Nothing is auto-promoted."""
     hands = hands or []
     n = n_hands if n_hands is not None else len(hands)
-    ml = material_loss_commitment_candidates(hands)
-    sz = sizing_line_candidates(stats or {})
-    tr = turn_river_active_candidates(hands)
-    candidates = ml + sz + tr
+    candidates = (material_loss_commitment_candidates(hands)
+                  + sizing_line_candidates(stats or {})
+                  + turn_river_active_candidates(hands))
+    reconciled = reconcile_with_prior_truth(candidates, prior_records or {})
+    reviewed = review_candidates(reconciled) if do_review else []
 
     eligible_ml = sum(1 for h in hands
                       if isinstance(h.get('net_bb'), (int, float)) and h['net_bb'] <= -10.0)
-    eligible_tr = sum(1 for h in hands
-                      for dp in (h.get('decision_points') or [])
+    eligible_tr = sum(1 for h in hands for dp in (h.get('decision_points') or [])
                       if dp.get('street') in ('turn', 'river'))
+    fams = [_family_metrics('material_loss_commitment', reconciled, reviewed, eligible_ml),
+            _family_metrics('sizing_line', reconciled, reviewed,
+                            len([c for c in reconciled if c['family'] == 'sizing_line'])),
+            _family_metrics('turn_river_active', reconciled, reviewed, eligible_tr)]
+    incr_reviewed = sum(f['incremental_reviewed'] for f in fams)
+    incr_confirmed = sum(f['confirmed_mistakes'] for f in fams)
     metrics = {
-        'pilot': 'MISTAKE_DISCOVERY_PILOT',
-        'n_hands': n,
+        'pilot': 'MISTAKE_DISCOVERY_PILOT', 'n_hands': n,
         'all_candidates_status': CANDIDATE,
-        'auto_promoted_to_confirmed': 0,        # invariant: detectors never auto-confirm
-        'families': [
-            _family_metrics('material_loss_commitment', candidates, eligible_ml, 0),
-            _family_metrics('sizing_line', candidates, len(sz), 0),
-            _family_metrics('turn_river_active', candidates, eligible_tr,
-                            max(0, eligible_tr - len([c for c in tr]))),
-        ],
+        'auto_promoted_to_confirmed': 0,
+        'review_performed': bool(do_review),
+        'families': fams,
         'totals': {
-            'candidates_generated': len(candidates),
-            'with_decision_node': sum(1 for c in candidates if c.get('decision_id')
-                                      and not c['decision_id'].endswith(':?:?')),
+            'total_opportunities': eligible_ml + eligible_tr,
+            'raw_candidates': len(candidates),
+            'aggregate_signals': sum(1 for c in reconciled if c.get('is_aggregate')),
+            'with_decision_node': sum(1 for c in reconciled if _is_hand_level(c)),
+            'suppressed_already_reviewed_same_node': sum(
+                1 for c in reconciled if c.get('relationship') == ALREADY_REVIEWED_SAME_NODE),
+            'new_unreviewed_or_changed_node': sum(
+                1 for c in reconciled if c.get('relationship') in (NEW_UNREVIEWED, RE_REVIEW_CHANGED_NODE)),
+            'incremental_reviewed': incr_reviewed,
+            'incremental_confirmed_mistakes': incr_confirmed,
+            'incremental_confirmed_per_100_hands': round(100.0 * incr_confirmed / max(n, 1), 3),
+            'precision_among_incremental_reviewed': (round(incr_confirmed / incr_reviewed, 3)
+                                                     if incr_reviewed else None),
             'unsupported_exact_math': _count_unsupported_math(candidates),
         },
     }
-    queue = analyst_queue(candidates)
-    return {'candidates': candidates, 'metrics': metrics, 'analyst_queue': queue}
+    return {'candidates': candidates, 'reconciled': reconciled, 'reviewed': reviewed,
+            'metrics': metrics, 'analyst_queue': analyst_queue(reconciled)}
 
 
-def analyst_queue(candidates):
-    """An analyst-ready queue: decision node, observed facts, detector reason, missing assumptions,
-    confidence -- and NO unsupported exact math."""
-    q = []
-    for c in candidates:
-        q.append({
-            'decision_id': c.get('decision_id'),
-            'hand_id': c.get('hand_id'),
-            'family': c.get('family'),
-            'confidence': c.get('confidence'),
-            'route': c.get('route'),
+def analyst_queue(reconciled):
+    """An analyst-ready queue. Suppresses ALREADY_REVIEWED_SAME_NODE; reports new vs re-review vs
+    aggregate separately. Decision node + observed facts + missing assumptions; no unsupported math."""
+    out = {'new_unreviewed': [], 're_review_changed_node': [], 'aggregate_signals': []}
+    for c in reconciled:
+        rel = c.get('relationship')
+        if rel == ALREADY_REVIEWED_SAME_NODE:
+            continue   # already adjudicated at this node -- not a review item
+        item = {
+            'decision_id': c.get('decision_id'), 'hand_id': c.get('hand_id'),
+            'family': c.get('family'), 'subfamily': c.get('subfamily'),
+            'confidence': c.get('confidence'), 'route': c.get('route'),
+            'prior_final_class': c.get('prior_final_class'),
             'observed_facts': c.get('observed_facts', {}),
             'detector_reason': c.get('detector_reason'),
             'missing_assumptions': c.get('missing_assumptions', []),
             'promotion': 'analyst-owned (candidate only)',
-        })
-    return q
+        }
+        if rel == AGGREGATE_SIGNAL:
+            item['example_hand_ids'] = c.get('example_hand_ids', [])
+            out['aggregate_signals'].append(item)
+        elif rel == RE_REVIEW_CHANGED_NODE:
+            item['node_diff'] = c.get('node_diff')
+            out['re_review_changed_node'].append(item)
+        else:
+            out['new_unreviewed'].append(item)
+    return out
 
 
 def _count_unsupported_math(candidates):

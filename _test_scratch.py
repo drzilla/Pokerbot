@@ -13944,18 +13944,48 @@ check('T-W1A2A-T3-03: a turn/river candidate records the missing villain-range a
 #       and review-dependent yield fields are 'pending' (not 0) before analyst review.
 _pilot = _DP.run_discovery_pilot([_h_pf_flop, _h_nodp, _h_river], {})
 _pm = _pilot['metrics']
-check('T-W1A2A-T3-04: pilot never auto-promotes, all candidates carry a decision node, zero invented math',
+check('T-W1A2A-T3-04: pilot never auto-promotes; hand-level candidates carry a real node; zero invented math',
       _pm['auto_promoted_to_confirmed'] == 0
       and all(c['status'] == 'candidate' for c in _pilot['candidates'])
       and _pm['totals']['unsupported_exact_math'] == 0
-      and _pm['totals']['with_decision_node'] == len([c for c in _pilot['candidates']
-                                                      if not c['decision_id'].endswith(':?:?')]))
-check('T-W1A2A-T3-05: review-dependent yield fields are "pending" before analyst review (not zero)',
-      all(f['candidates_reviewed'] == 'pending' and f['confirmed_mistakes'] == 'pending'
-          and f['precision_among_reviewed'] == 'pending' for f in _pm['families']))
-check('T-W1A2A-T3-06: the analyst queue carries decision node + observed facts + missing assumptions',
-      all(q.get('decision_id') and 'observed_facts' in q and 'missing_assumptions' in q
-          and q['promotion'].startswith('analyst-owned') for q in _pilot['analyst_queue']))
+      and _pm['totals']['with_decision_node'] == sum(1 for c in _pilot['reconciled'] if _DP._is_hand_level(c)))
+# B6: the bounded review runs and returns one terminal outcome per candidate (no field left 'pending');
+# fail-closed -> nothing is confirmed without canonical inputs.
+check('T-W1A2A-T3-05: the bounded review runs, gives a terminal outcome per candidate, confirms none w/o inputs',
+      _pm['review_performed'] is True and len(_pilot['reviewed']) == len(_pilot['reconciled'])
+      and all(r['terminal_outcome'] in (_DP.CONFIRMED_MISTAKE, _DP.CLEARED, _DP.READ_DEPENDENT,
+              _DP.INSUFFICIENT_EVIDENCE, _DP.DETECTOR_OR_OPERAND_BUG) for r in _pilot['reviewed'])
+      and _pm['totals']['incremental_confirmed_mistakes'] == 0)
+check('T-W1A2A-T3-06: the analyst queue splits new / re-review / aggregate, with node+facts per item',
+      set(_pilot['analyst_queue'].keys()) == {'new_unreviewed', 're_review_changed_node', 'aggregate_signals'}
+      and all(q.get('decision_id') and 'observed_facts' in q
+              for q in _pilot['analyst_queue']['new_unreviewed']))
+# B1: a prior-reviewed hand re-flagged at a DIFFERENT node is RE_REVIEW_CHANGED_NODE (with node diff);
+# the same-node candidate is suppressed from the queue.
+_prior_tr = {'TMx': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMx:preflop:1'}}
+_rc_ch = _DP.reconcile_with_prior_truth(
+    [{'family': 'material_loss_commitment', 'hand_id': 'TMx', 'decision_id': 'TMx:turn:9',
+      'observed_facts': {}, 'status': 'candidate', 'confidence': 'candidate'}], _prior_tr)
+check('T-W1A2A-T3-07: prior-reviewed hand at a different node = RE_REVIEW_CHANGED_NODE with old/new node diff',
+      _rc_ch[0]['relationship'] == 'RE_REVIEW_CHANGED_NODE'
+      and _rc_ch[0]['node_diff']['prior'] == 'TMx:preflop:1' and _rc_ch[0]['node_diff']['new'] == 'TMx:turn:9')
+_q_same = _DP.analyst_queue(_DP.reconcile_with_prior_truth(
+    [{'family': 'material_loss_commitment', 'hand_id': 'TMx', 'decision_id': 'TMx:preflop:1',
+      'observed_facts': {}, 'status': 'candidate', 'confidence': 'candidate'}], _prior_tr))
+check('T-W1A2A-T3-08: an already-reviewed-same-node candidate is suppressed from the analyst queue',
+      not _q_same['new_unreviewed'] and not _q_same['re_review_changed_node'])
+# B2: decision risk is bounded by the decision-time effective stack; the raw cumulative field is kept + flagged.
+_dp_over = {'street': 'turn', 'action_index': 5, 'hero_risk_bb': 56.6, 'eff_stack_bb': 31.7, 'hero_action': 'calls'}
+check('T-W1A2A-T3-09: decision_risk is capped at eff_stack; raw cumulative risk recorded + capped flag set',
+      _DP._decision_risk(_dp_over) == 31.7 and _DP._raw_risk(_dp_over) == 56.6
+      and _DP._risk_reconciled(_dp_over) is True)
+# B3: a river bet with no canonical strength input is INSUFFICIENT_INPUT (not SDV/bluff inferred from went_to_sd).
+_h_bet = {'id': 'Z', 'net_bb': -5.0, 'went_to_sd': True,
+          'decision_points': [{'street': 'river', 'action_index': 3, 'hero_action': 'bets',
+                               'pot_facing_hero_bb': 10.0}]}
+_tr2 = _DP.turn_river_active_candidates([_h_bet])
+check('T-W1A2A-T3-10: a river bet without canonical strength input is INSUFFICIENT_INPUT, not from went_to_sd',
+      _tr2 and _tr2[0]['confidence'] == 'insufficient_input' and 'went_to_sd' not in _tr2[0]['observed_facts'])
 
 # ---- Track 2.2: tournament drilldowns expose every hand (no silent 60-hand cap) ----
 _st_src = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()

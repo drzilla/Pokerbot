@@ -94,6 +94,13 @@ def _emit_final_truth_artifact(report_data):
             out_dir = '/home/claude'
         if not os.path.isdir(out_dir):
             return
+        # Iter3 Track 1: emit the live Results finality reconciliation (the live render consumed the
+        # canonical event/bullet/exit owner during this render) as a sidecar.
+        lf = report_data.get('_live_results_finality')
+        if isinstance(lf, dict):
+            with io.open(os.path.join(out_dir, 'LIVE_RESULTS_FINALITY_RECONCILIATION.json'),
+                         'w', encoding='utf-8', newline='\n') as f:
+                json.dump(lf, f, indent=2, ensure_ascii=False)
         player = str(report_data.get('player') or report_data.get('hero') or 'session').replace(' ', '_')[:30]
         payload = {
             'artifact': 'FINAL_TRUTH_RECONCILIATION',

@@ -733,6 +733,7 @@ def _emit_tournament_tables(doc, s, rd, hands):
             _cards_by_hid[_hk[-8:]] = _h.get('cards') or []
     _dt_rows = []
     _top_pcts = []
+    _live_finality = []     # Iter3 Track 1: (eid, event, EventFinality) per row -> live reconciliation
     for e in events:
         ret = e.get('return') or {}
         prov = e.get('field_provenance') or {}
@@ -772,7 +773,15 @@ def _emit_tournament_tables(doc, s, rd, hands):
         _fin_lbl = fin.get('label') or finish_txt
         _fin_sort = fin.get('sort_key')
         _fin_sort = _fin_sort if _fin_sort is not None else 999
-        _exit = e.get('exit_hand')
+        # v8.20 Iter3 Track 1: the live Results Exit hand now derives from the canonical event/bullet/exit
+        # finality OWNER (gem_tournament_finality), not the raw event field. The owner returns the final
+        # event exit = the last resolved bullet's exit, and NEVER a final exit for an unresolved/advanced
+        # event -- so the live row can no longer show an invented exit. The per-event record is collected
+        # for the live reconciliation artifact.
+        import gem_tournament_finality as _TFIN
+        _ev_final = _TFIN.event_finality_for(e)
+        _live_finality.append((_eid, e, _ev_final))
+        _exit = _ev_final.final_event_exit or None
         _exit_cards = _cards_by_hid.get(str(_exit)[-8:]) if _exit else None
         # v8.18.0 final product-truth correction: return -- HH-only unresolved -> unresolved; satellite
         # seat -> ticket marker; a settled NON-CASH result reads "No cash" HERE (the finish keeps its
@@ -881,6 +890,23 @@ def _emit_tournament_tables(doc, s, rd, hands):
             # Track 2.2: no silent 60-hand cap — the drilldown carries every hand id for the event.
             'hand_ids': _hids_by_tid.get(tid, []),
         })
+
+    # Iter3 Track 1: stamp the live-render finality reconciliation. Each rendered Exit hand now equals the
+    # canonical EventFinality.final_event_exit (the live row consumes the owner), and an unresolved/
+    # advanced row carries NO final exit (the owner never invents one).
+    import gem_tournament_finality as _TFIN2
+    _lf_rows, _lf_invented = [], 0
+    for _eid_f, _ev_e, _ev_fin in _live_finality:
+        _rf = _TFIN2.render_fields(_ev_fin)
+        _invented = bool(_ev_fin.status in (_TFIN2.UNRESOLVED, _TFIN2.ADVANCED, _TFIN2.IN_PROGRESS)
+                         and _rf['exit_hand'])
+        if _invented:
+            _lf_invented += 1
+        _lf_rows.append({'event_id': _eid_f, 'status': _ev_fin.status,
+                         'rendered_exit': _rf['exit_hand'], 'finality_exit': _ev_fin.final_event_exit or None,
+                         'raw_event_exit': _ev_e.get('exit_hand'), 'invented_exit': _invented})
+    rd['_live_results_finality'] = {'events': len(_lf_rows), 'invented_exits': _lf_invented,
+                                    'consumes_owner': True, 'reconciles': _lf_invented == 0, 'rows': _lf_rows}
 
     # v8.18.0 Tournament Results redesign — the canonical typed DataTable Results surface. Exit hand is
     # the FINAL column rendered with PokerHandDisplay; Details/Drivers/SRC removed; totals row + average

@@ -14103,6 +14103,34 @@ check('T-IT3-V-04: the value gate is PASS with >=1 confirmed, FAIL at zero (no f
       _DC.run_value([_clean], {})['metrics']['product_value_gate'] == 'PASS'
       and _DC.run_value([_limp], {})['metrics']['product_value_gate'] == 'FAIL')
 
+# ---- Iteration 3, Track 1: the LIVE Results renderer consumes the finality owner ----
+_st_src_t1 = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-IT3-T1-01: the live Results Exit hand derives from the canonical finality owner (not the raw event field)',
+      '_ev_final = _TFIN.event_finality_for(e)' in _st_src_t1
+      and '_exit = _ev_final.final_event_exit or None' in _st_src_t1
+      and "rd['_live_results_finality']" in _st_src_t1)
+# the production render-field path (event -> finality -> render_fields) reconciles the seven fixtures
+# field-by-field, and an unresolved/advanced live event NEVER renders a final exit.
+_fx_raw, _fx_exp = _TF.seven_fixtures()
+_t1_ok = True
+for _r in _fx_raw:
+    _evf = _TF.event_finality_for({'name': _r['tournament_identity'], 'tournament_id': _r.get('tournament_id'),
+                                   'finish': {'state': ('in_play' if _r.get('status') == _TF.UNRESOLVED else 'done'),
+                                              'advanced_day2': _r.get('status') == _TF.ADVANCED,
+                                              'place': _r.get('finish_place'), 'total_players': _r.get('total_players'),
+                                              'top_percent': _r.get('percentile'), 'is_satellite': _r.get('is_satellite')},
+                                   'exit_hand': (_r.get('bullets') or [{}])[-1].get('exit_hand') if _r.get('bullets') else None,
+                                   'bullets': len(_r.get('bullets') or []) or 1,
+                                   'return': {'value': _r.get('return'), 'ticket_value': _r.get('ticket_return')},
+                                   'cost': _r.get('cost'), 'net': _r.get('net')})
+    _rf = _TF.render_fields(_evf)
+    if _evf.status in (_TF.UNRESOLVED, _TF.ADVANCED) and _rf['exit_hand']:
+        _t1_ok = False     # an unresolved/advanced live event must never render a final exit
+check('T-IT3-T1-02: the production render-field path consumes the finality owner; unresolved/advanced rows never render a final exit',
+      _t1_ok is True and _TF.render_fields(_TF.event_finality_for(
+          {'name': 'R', 'finish': {'state': 'done', 'place': 5, 'total_players': 100},
+           'exit_hand': 'HX', 'bullets': 1}))['exit_hand'] == 'HX')
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

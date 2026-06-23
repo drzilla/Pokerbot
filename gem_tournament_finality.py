@@ -152,6 +152,54 @@ def build_finality_model(raw_events):
     return [build_event_finality(by_identity[k]) for k in order]
 
 
+def event_to_finality_raw(e):
+    """Map a LIVE Tournament-Results event dict (gem_tournament_model shape) into the EventFinality raw
+    input, so the production renderer consumes the SAME owner as the fixtures. Live events carry a bullet
+    COUNT + an event-level exit hand; we synthesize bullets and attach the exit to the last resolved one."""
+    fin = e.get('finish') or {}
+    ret = e.get('return') or {}
+    state = (fin.get('state') or '').lower()
+    if fin.get('advanced_day2'):
+        status = ADVANCED
+    elif state in ('in_play', 'unresolved', 'running'):
+        status = UNRESOLVED
+    else:
+        status = RESOLVED
+    nb = e.get('bullets')
+    nb = nb if isinstance(nb, int) else (len(nb) if isinstance(nb, list) else 1)
+    nb = max(nb, 1)
+    base = str(e.get('tournament_id') or e.get('event_id') or 'ev')
+    bullets = [{'bullet_id': '%s-b%d' % (base, i + 1),
+                'exit_hand': (str(e.get('exit_hand')) if (i == nb - 1 and status == RESOLVED
+                                                          and e.get('exit_hand')) else ''),
+                'resolved': bool(status == RESOLVED and i == nb - 1)} for i in range(nb)]
+    return {
+        'event_id': e.get('event_id') or e.get('tournament_id'),
+        'tournament_identity': e.get('name') or e.get('tournament_id'),
+        'tournament_id': e.get('tournament_id'),
+        'status': status, 'exit_hand': e.get('exit_hand') if status == RESOLVED else None,
+        'bullets': bullets,
+        'cost': e.get('cost') or 0.0, 'return': ret.get('value') or 0.0, 'net': e.get('net') or 0.0,
+        'ticket_return': ret.get('ticket_value') or 0.0,
+        'finish_place': fin.get('place'), 'total_players': fin.get('total_players'),
+        'percentile': fin.get('top_percent'), 'is_satellite': fin.get('is_satellite'),
+    }
+
+
+def render_fields(ev):
+    """The canonical Results render fields derived from ONE EventFinality -- the single source the live
+    row, drilldown and exit cell read."""
+    return {'exit_hand': ev.final_event_exit or None, 'status': ev.status, 'cost': ev.cost,
+            'return': ev.return_, 'net': ev.net, 'ticket_return': ev.ticket_return,
+            'finish_place': ev.finish_place, 'percentile': ev.percentile,
+            'is_satellite': ev.is_satellite}
+
+
+def event_finality_for(e):
+    """Build the EventFinality for ONE live event (the renderer's per-row entry point)."""
+    return build_event_finality(event_to_finality_raw(e))
+
+
 def reconcile(model):
     """Verify the finality invariants over the typed model. Returns a dict of counts + a pass flag."""
     bullet_exits = []

@@ -14225,6 +14225,39 @@ check('T-RV-04: validator fail-closes on stale cache, other-packet hash, unknown
           'verdicts': [{'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'a'},
                        {'decision_id': _rv_pkt['required'][0]['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'b'}]})['valid'] is False)
 
+# ---- Final RC execution A/B: hydrated self-contained required decisions + real identities ----
+_rc_hand = {'id': 'TMh', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
+            'board': ['As', '7d', '2c', '9h', '3s'],
+            'action_ledger': [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'amount_bb': 3}],
+            'decision_points': [{'street': 'flop', 'action_index': 5, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+                                 'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
+                                 'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}
+_rc_rd = {'final_truth': {'records': {'TMh': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMh:flop:5'}}},
+          '_candidate_need_ids': ['TMh'], 'reviewed_decision_ref_by_hand': {'TMh': 'TMh:flop:5'},
+          '_candidate_need_bucket': {'TMh': 10}}
+_rc_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', runtime_commit='c',
+                           input_hashes={}, cache_identity='ci', optional_cap=8)
+_rc_dec = [d for d in _rc_pkt['required'] if d['hand_id'] == 'TMh'][0]
+check('T-RC-A1: a legacy required decision is HYDRATED -- exact decision id + cards/board/stacks/action line, no hand:required placeholder',
+      _rc_dec['decision_id'] == 'TMh:flop:5' and not _rc_dec['decision_id'].endswith(':required')
+      and _rc_dec['hero_cards'] == ['Ah', 'Kd'] and _rc_dec['eff_stack_bb'] == 40.0
+      and _rc_dec.get('made_hand_class') and _rc_dec.get('action_line') is not None)
+check('T-RC-A2: decision_completeness reports zero silently-incomplete required records',
+      _AP.decision_completeness(_rc_pkt)['zero_silently_incomplete'] is True)
+_rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
+_rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
+                           session_id='s', runtime_version='v')
+_rc_ud = [d for d in _rc_unp['required'] if d['hand_id'] == 'TMu'][0]
+check('T-RC-A3: a hand with no canonical decision node -> explicit UNRESOLVED record (flagged), never an invented node',
+      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved'))
+open('/tmp/_rc_inp.txt', 'w').write('abc')
+_ih = _AP.real_input_hashes(['/tmp/_rc_inp.txt'])
+check('T-RC-B1: real_input_hashes are actual file SHA-256; content_cache_identity is content-derived',
+      len(list(_ih.values())[0]) == 64 and _AP.content_cache_identity({}, [{'id': 'x'}]).startswith('cache_'))
+_hb0 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', cache_identity='A')['manifest']['packet_hash']
+_hb1 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', cache_identity='B')['manifest']['packet_hash']
+check('T-RC-B2: packet_hash binds the cache identity (changing it changes the hash)', _hb0 != _hb1)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

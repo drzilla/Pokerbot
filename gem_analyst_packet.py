@@ -76,23 +76,108 @@ def _norm_decision(c):
     }
 
 
-def _legacy_required_decision(hand_id, rd):
-    """A required-review decision for a hand from the CANONICAL legacy required population. Carries its
-    prior reviewed decision ref + prior verdict so accepted analyst verdicts remain reproducible."""
+# the genuinely review-enabling fields, applicable to BOTH preflop and postflop decisions. Street-
+# dependent facts (board / pot_before_bb / made_hand) and informational fields (prior_final_class --
+# legitimately absent for a NEW finding) are not universal completeness blockers.
+REQUIRED_DECISION_FIELDS = ('decision_id', 'hand_id', 'street', 'hero_action', 'hero_cards',
+                            'eff_stack_bb', 'action_line', 'detector_reason', 'evidence_tier',
+                            'allowed_verdicts')
+
+
+def _legacy_required_decision(hand_id, rd, hands_by_id=None):
+    """A FULLY HYDRATED required-review decision (owner A): the exact material-commitment / required
+    decision node populated from canonical production data (cards, board, street, action, stacks, pot,
+    SPR, made-hand, action line) -- independently reviewable with no fetching. No `hand:required`
+    fallback when a node exists; an unresolved hand gets an explicit unresolved record with all available
+    facts and INSUFFICIENT_EVIDENCE eligibility (never an invented node)."""
+    import gem_discovery_context as _dc
+    import gem_discovery_pilot as _dp     # commitment_node + decision-risk live here
     ft = (rd.get('final_truth') or {}).get('records', {}) or {}
     rec = ft.get(hand_id) or {}
-    ref = (rd.get('reviewed_decision_ref_by_hand') or {}).get(hand_id)
+    prior_ref = (rd.get('reviewed_decision_ref_by_hand') or {}).get(hand_id)
     bucket = (rd.get('_candidate_need_bucket') or {}).get(hand_id)
-    return {
-        'decision_id': ref or ('%s:required' % hand_id),
-        'hand_id': hand_id, 'family': 'legacy_required_review', 'street': None,
-        'detector_reason': 'canonical required-review hand (need bucket %s)' % bucket,
-        'evidence_ref': None, 'evidence_tier': 'canonical_required_population',
+    hand = (hands_by_id or {}).get(hand_id)
+    base = {
+        'hand_id': hand_id, 'family': 'legacy_required_review',
+        'evidence_ref': None, 'evidence_tier': 'canonical_decision_point',
         'prior_final_class': rec.get('final_class'), 'prior_verdict': rec.get('verdict'),
-        'prior_decision_id': ref, 'relationship': 'REQUIRED_REVIEW',
-        'missing_assumptions': [], 'allowed_verdicts': list(ALLOWED_VERDICTS),
-        'required_output_fields': list(REQUIRED_OUTPUT_FIELDS),
+        'prior_decision_id': prior_ref, 'relationship': 'REQUIRED_REVIEW',
+        'need_bucket': bucket, 'missing_assumptions': [],
+        'allowed_verdicts': list(ALLOWED_VERDICTS), 'required_output_fields': list(REQUIRED_OUTPUT_FIELDS),
     }
+    if not hand:
+        base.update({'decision_id': prior_ref or ('%s:unresolved' % hand_id), 'unresolved': True,
+                     'street': None, 'detector_reason': 'required-review hand; canonical hand data unavailable',
+                     'missing_assumptions': ['hand record not available to hydrate the decision']})
+        return base
+    dp, reason = _dp.commitment_node(hand)
+    if dp is None:
+        base.update({'decision_id': '%s:unresolved' % hand_id, 'unresolved': True, 'street': None,
+                     'hero_cards': hand.get('cards'), 'board': hand.get('board'),
+                     'detector_reason': 'required-review hand with no canonical decision node (%s)' % reason,
+                     'missing_assumptions': ['no canonical decision point to anchor the review']})
+        return base
+    street, ai = dp.get('street'), dp.get('action_index')
+    sf = _dc._street_facts(hand, street)
+    base.update({
+        'decision_id': '%s:%s:%s' % (hand_id, street, ai),     # EXACT decision id, not :required
+        'street': street, 'hero_action': dp.get('hero_action') or dp.get('hero_action_class'),
+        'hero_cards': hand.get('cards'), 'board': sf.get('board') or hand.get('board'),
+        'made_hand_class': sf.get('made_hand_class'), 'draw_profile': sf.get('draw_profile'),
+        'board_texture': sf.get('board_texture'),
+        'position': hand.get('position'), 'active_players': sf.get('active_players'),
+        'eff_stack_bb': _dp._num(dp.get('eff_stack_bb')), 'pot_before_bb': sf.get('pot_before_bb'),
+        'facing_amount_bb': _dp._num(dp.get('pot_facing_hero_bb')), 'spr': _dp._num(dp.get('spr')),
+        'decision_risk_bb': _dp._decision_risk(dp), 'action_line': sf.get('action_line'),
+        'net_bb': _dp._num(hand.get('net_bb')),
+        'detector_reason': 'review the material commitment decision: %s' % reason,
+        'node_select_reason': reason,
+    })
+    return base
+
+
+def decision_completeness(packet):
+    """Owner A audit: per required decision, the exact missing fields (strict). A required decision passes
+    when the analyst can decide -- or fail closed -- from that record ALONE (an unresolved record passes
+    iff it is explicitly flagged + INSUFFICIENT_EVIDENCE-eligible)."""
+    rows, incomplete = [], 0
+    for d in packet['required']:
+        if d.get('unresolved'):
+            ok = bool(d.get('decision_id') and d.get('hand_id') and d.get('missing_assumptions'))
+            missing = [] if ok else ['unresolved record missing id/flag']
+        else:
+            missing = [f for f in REQUIRED_DECISION_FIELDS
+                       if d.get(f) in (None, '', []) and f != 'board']
+            if str(d['decision_id']).endswith(':required'):
+                missing.append('placeholder hand:required decision id')
+            ok = not missing
+        if not ok:
+            incomplete += 1
+        rows.append({'decision_id': d['decision_id'], 'hand_id': d['hand_id'],
+                     'unresolved': bool(d.get('unresolved')), 'complete': ok, 'missing_fields': missing})
+    return {'required': len(packet['required']), 'incomplete_required': incomplete,
+            'zero_silently_incomplete': incomplete == 0, 'rows': rows}
+
+
+def real_input_hashes(input_files):
+    """Actual SHA-256 of every raw input file (owner B) -- not a session-name placeholder."""
+    import os
+    out = {}
+    for p in (input_files or []):
+        if os.path.isfile(p):
+            with open(p, 'rb') as f:
+                out[os.path.basename(p)] = hashlib.sha256(f.read()).hexdigest()
+    return out
+
+
+def content_cache_identity(rd, hands):
+    """A content-DERIVED deterministic cache identity (owner B) -- a hash of the canonical hands/stats
+    fingerprint, not a generic name."""
+    import json
+    fp = {'n_hands': len(hands or []),
+          'hand_ids': sorted((h.get('id') for h in (hands or []) if h.get('id')))[:64],
+          'final_truth_counts': (rd.get('final_truth') or {}).get('counts')}
+    return 'cache_' + hashlib.sha256(json.dumps(fp, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
 def legacy_required_ids(rd):
@@ -129,6 +214,7 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     packet_hash binds all contents + input/runtime/cache identity."""
     import gem_discovery_context as _dc
     prior = (rd.get('final_truth') or {}).get('records', {}) if isinstance(rd, dict) else {}
+    hands_by_id = {h.get('id'): h for h in (hands or []) if h.get('id')}
     val = _dc.run_value(hands, prior)
     confirmed_ids = {r['decision_id'] for r in val['confirmed']}
     discovery = {c.get('decision_id'): _norm_decision(c) for c in val['candidates']}
@@ -136,11 +222,11 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
                      if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
 
     required, optional, by_hand = [], [], {}
-    # 1. the canonical legacy required population FIRST (parity) -- one decision per hand.
+    # 1. the canonical legacy required population FIRST (parity) -- ONE hydrated decision per hand.
     for hid in legacy_required_ids(rd):
         if hid in by_hand:
             continue
-        rec = _legacy_required_decision(hid, rd)
+        rec = _legacy_required_decision(hid, rd, hands_by_id)
         by_hand[hid] = rec['decision_id']
         required.append(rec)
     # 2. add the accepted rule-backed findings (KQs) if not already covered by the legacy hand.

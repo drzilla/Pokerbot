@@ -1,4 +1,9 @@
-# V03 Bet-Sizing / Line-Pattern Pilot — Implementation & Measurement Package
+> ⚠️ **SUPERSEDED by the deep-validation run.** The product-value claims below (the "1 confirmed mistake"
+> `TM91000015`, "EXPAND cautiously") are **retracted** — `TM91000015` was a fixture 3-bet-pot all-in
+> chart-misapplication. See `V03_DEEP_VALIDATION_PACKAGE.md`, `V03_DEEP_AUDIT_OF_63B00E7.md`, and
+> `CORRECTED_CLAIM_MATRIX.md`. Real-data result: **0 confirmed mistakes / 3,609 hands → RECALIBRATE.**
+
+# V03 Bet-Sizing / Line-Pattern Pilot — Implementation & Measurement Package (run 1, superseded)
 
 Pokerbot **v8.21**, branch `feature/v8.21-sizing-line-pilot`, from RC commit `f11a9caea665`.
 **Not merged, tagged, released, deployed, or pushed to Claude Chat.** One family implemented:

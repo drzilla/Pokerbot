@@ -140,6 +140,30 @@ def _flop_cbet_sizing_pct(hand):
     return None
 
 
+def _flop_cbet_is_all_in(hand):
+    """True iff Hero's flop c-bet action is all-in. An all-in c-bet is a commitment / stack-off
+    decision, not a free sizing choice, so it is out of scope for a c-bet SIZING comparison."""
+    for a in (hand.get('action_ledger') or []):
+        if (isinstance(a, dict) and a.get('street') == 'flop' and a.get('player') == 'Hero'
+                and (a.get('action') in ('bets', 'raises'))):
+            return bool(a.get('is_all_in'))
+    return False
+
+
+def _chart_applies(hand):
+    """The gto_texture_archetypes.json bands are calibrated for HEADS-UP, SINGLE-RAISED-POT range
+    c-bets. The chart is NOT applicable to 3-bet/4-bet pots or multiway flops, so the detector must
+    FAIL CLOSED there rather than judging an off-chart node against an inapplicable band. Returns
+    (applies: bool, reason: str)."""
+    if (hand.get('pot_type') or '') != 'SRP':
+        return False, 'pot_type_not_srp'
+    if hand.get('multiway_flop') or (hand.get('players_at_flop') or 2) > 2:
+        return False, 'multiway_flop'
+    if _flop_cbet_is_all_in(hand):
+        return False, 'all_in_cbet'
+    return True, ''
+
+
 def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_PP):
     """Per-hand flop c-bet SIZING assessment vs the canonical board-archetype band
     (gto_texture_archetypes.json via gem_textures). Returns an assessment dict ONLY when Hero's flop
@@ -156,13 +180,19 @@ def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_P
       'moderate' -> outside tolerance but not gross, or a dual-strategy band      -> analyst-judged.
 
     Returns None (no candidate, fail closed) when ANY of: Hero is not the preflop aggressor; Hero did
-    not c-bet the flop; fewer than 3 board cards; archetype unknown; chart confidence != 'complete';
-    no applicable depth band; band empty; the size is within tolerance; or the comparison is unjudgeable.
+    not c-bet the flop; the pot is not single-raised (3BP/4BP), the flop is multiway, or the c-bet is
+    all-in (the chart applies only to HU SRP non-all-in c-bets); fewer than 3 board cards; archetype
+    unknown; chart confidence != 'complete'; no applicable depth band; band empty; the size is within
+    tolerance; or the comparison is unjudgeable.
     """
     if not hand.get('pfr'):
         return None
     actual = _flop_cbet_sizing_pct(hand)
     if actual is None:
+        return None
+    # chart applicability: HU single-raised-pot, non-all-in only (fail closed otherwise).
+    applies, _why = _chart_applies(hand)
+    if not applies:
         return None
     board = (hand.get('board') or [])[:3]
     if len(board) < 3:
@@ -189,6 +219,12 @@ def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_P
     within = gem_textures.sizing_within_target(actual, targets, tolerance_pp)
     if within is None or within is True:
         return None                                   # unjudgeable or compliant -> no candidate
+    # A multi-size band (e.g. [50,100] or [100,125,150]) sanctions a SPREAD of sizes for the range; a
+    # size BETWEEN the smallest and largest sanctioned size is inside that spread and is NOT a deviation
+    # (the discrete-point +/-10 test over-nominates an in-between compromise size). Only a size outside
+    # the whole sanctioned spread is a real off-band deviation. Precision fix (deep-validation).
+    if len(targets) >= 2 and min(targets) <= actual <= max(targets):
+        return None
     # --- a real off-band deviation: classify severity ---
     nearest = min(targets, key=lambda t: abs(actual - t))
     deviation_pp = round(abs(actual - nearest), 1)
@@ -199,6 +235,9 @@ def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_P
     severity = 'gross' if gross else 'moderate'
     return {
         'family': 'flop_cbet_sizing',
+        'pot_type': 'SRP',
+        'heads_up': True,
+        'all_in_cbet': False,
         'board_archetype': arch,
         'cbet_side': side,
         'depth_band': tgt['depth_band'],

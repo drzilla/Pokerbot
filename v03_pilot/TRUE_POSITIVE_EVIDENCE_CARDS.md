@@ -1,4 +1,8 @@
-# TRUE_POSITIVE_EVIDENCE_CARDS
+> ⚠️ **SUPERSEDED / RETRACTED.** Card 1 (`TM91000015`) is a **fixture, 3-bet-pot, all-in** c-bet — the SRP
+> range-c-bet chart did not apply. It is **not** a confirmed mistake. Real-data review found **0** confirmed
+> mistakes. See `REAL_SESSION_FINDINGS.md` and `V03_DEEP_VALIDATION_PACKAGE.md`.
+
+# TRUE_POSITIVE_EVIDENCE_CARDS (run 1, retracted)
 
 Bounded one-pass analyst review of the genuinely-new `flop_cbet_sizing` candidates, using **only** each
 emitted atomic decision record and its referenced chart excerpt (no raw files reopened, no operand

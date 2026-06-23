@@ -573,23 +573,22 @@ def review_value(candidates):
             verdict, tier, note, better = READ_DEPENDENT, '', \
                 'a genuine non-BB short-stack flat with chips behind -- needs the canonical short-stack calling chart to confirm/clear', None
         elif fam == 'flop_cbet_sizing':
+            # The detector NOMINATES an off-band c-bet; it does NOT own the terminal verdict. A single
+            # c-bet sizing deviation -- even a gross one -- can be a deliberate mix/exploit, so confirming
+            # a mistake is reserved for the analyst's one-pass review of the sealed record (the aggregate
+            # owner's contract: "a single off-size c-bet is never auto-graded"). Gross = high-confidence
+            # nomination (routed to REQUIRED review by build_packet); moderate = lower-confidence (optional).
             a = (c.get('context') or {}).get('sizing_assessment') or {}
             _band = '/'.join('%d%%' % t for t in (a.get('target_sizings_pct') or []))
-            if a.get('severity') == 'gross':
-                verdict, tier = CONFIRMED_MISTAKE, CHART_BACKED
-                note = ('flop c-bet size %.0f%% of pot grossly deviates from the canonical complete %s %s '
-                        'band %s (%s-size by %.0fpp) -- a result-independent sizing error'
-                        % (a.get('actual_sizing_pct', 0), a.get('board_archetype', ''),
-                           (a.get('cbet_side') or '').upper(), _band, a.get('direction', ''),
-                           a.get('deviation_pp', 0)))
-                better = c.get('proposed_alternative')
-            else:
-                verdict, tier = READ_DEPENDENT, CHART_BACKED
-                note = ('flop c-bet size %.0f%% of pot is off the %s %s band %s but within a range a '
-                        'deliberate mix/exploit could justify -- analyst confirms vs the canonical band'
-                        % (a.get('actual_sizing_pct', 0), a.get('board_archetype', ''),
-                           (a.get('cbet_side') or '').upper(), _band))
-                better = c.get('proposed_alternative')
+            conf = 'high' if a.get('severity') == 'gross' else 'moderate'
+            verdict, tier = READ_DEPENDENT, CHART_BACKED
+            note = ('flop c-bet %.0f%% of pot is off the canonical complete %s %s SRP band %s (%s-size by '
+                    '%.0fpp; %s-confidence nomination) -- analyst confirms or clears vs the band, the '
+                    'detector does not auto-grade a single c-bet'
+                    % (a.get('actual_sizing_pct', 0), a.get('board_archetype', ''),
+                       (a.get('cbet_side') or '').upper(), _band, a.get('direction', ''),
+                       a.get('deviation_pp', 0), conf))
+            better = c.get('proposed_alternative')
         elif fam == 'river_value':
             verdict, tier = CONFIRMED_MISTAKE, 'canonical_made_hand_class'
             note = 'strong made hand took no value on the river (decision error, result-independent)'

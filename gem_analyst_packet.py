@@ -542,9 +542,21 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     hands_by_id = {h.get('id'): h for h in (hands or []) if h.get('id')}
     val = _dc.run_value(hands, prior)
     confirmed_ids = {r['decision_id'] for r in val['confirmed']}
+
+    def _force_required(c):
+        # Accepted owner-rule finding (KQs SB flat) OR a confirmed finding OR a HIGH-CONFIDENCE
+        # (gross) chart-backed sizing NOMINATION. The sizing nomination is force-reviewed once but is
+        # NOT pre-confirmed -- its terminal verdict stays owned by the analyst's one-pass review.
+        if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids:
+            return True
+        if c.get('family') == 'flop_cbet_sizing':
+            sev = ((c.get('context') or {}).get('sizing_assessment') or {}).get('severity')
+            return sev == 'gross'
+        return False
+
     discovery = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']}
     rule_required = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']
-                     if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
+                     if _force_required(c)}
 
     required, optional, by_hand = [], [], {}
     # 1. the canonical legacy required population FIRST (parity) -- ONE hydrated decision per hand.

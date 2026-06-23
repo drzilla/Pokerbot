@@ -14313,6 +14313,25 @@ check('T-RC-G2-06: --quick analyst-output validation fails closed on a stale cac
           'verdicts': [{'decision_id': d['decision_id'], 'verdict': sorted(_AP.ALLOWED_VERDICTS)[0]}
                        for d in _rc_pkt['required']]}, cache_ok=False)['valid'] is False)
 
+# v8.20 RC render bug: the Tournament Results finish-outcome stacked bar's CSS leaked as literal text.
+# Root cause: the body markdown converter escapes inline <style> blocks (they are excluded from its
+# passthrough allowlist by design), so emitting the CSS via doc.w() printed it as visible text. The fix
+# routes the CSS to doc._extra_css (the head <style>). These pin BOTH the converter behavior that makes
+# the routing necessary AND the routing itself.
+from gem_report_draft._html import Doc as _RC_Doc, _md_to_html as _rc_md
+from gem_report_draft.sections_tournaments import _emit_distribution_chart as _rc_emit, _OUTCOME_CSS as _rc_oc
+check('T-RC-G3-01: the body markdown converter ESCAPES an inline <style> block (so it must NOT be emitted in the body)',
+      '&lt;style&gt;' in _rc_md('<style>.x{color:red}</style>') and '<style>' not in _rc_md('<style>.x{color:red}</style>'))
+check('T-RC-G3-02: the same converter PASSES a <div> block through as real HTML (the bar markup is fine in the body)',
+      "<div class='tt-outcome-bar'>" in _rc_md("<div class='tt-outcome-bar'>x</div>"))
+_rc_doc = _RC_Doc()
+_rc_emit(_rc_doc, [{'final_place': 1, 'field_size': 100}, {'final_place': 90, 'field_size': 100}])
+_rc_body = ''.join(_rc_doc.lines)
+check('T-RC-G3-03: the outcome-bar CSS is routed to the HEAD (doc._extra_css), never an inline <style> in the body',
+      _rc_oc in _rc_doc._extra_css and '<style>' not in _rc_body and '<style>' not in _rc_oc)
+check('T-RC-G3-04: the stacked-bar MARKUP is still emitted into the body as real HTML (the bar itself renders)',
+      "tt-outcome-bar" in _rc_body and "tt-outcome-seg" in _rc_body)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

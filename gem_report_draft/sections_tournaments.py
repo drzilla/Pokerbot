@@ -377,15 +377,19 @@ def outcome_distribution(events):
     return {'total': total, 'buckets': buckets}
 
 
+# v8.20 RC fix: RAW CSS rules (no <style> wrapper) injected into the HEAD stylesheet via doc._extra_css --
+# matching the established sections_issue_explorer pattern. The body markdown converter (_md_to_html in
+# _html.py) DELIBERATELY escapes inline <style>/<script>, so emitting this via doc.w() printed the raw CSS
+# as literal text on the page instead of styling the finish-outcome stacked bar.
 _OUTCOME_CSS = (
-    "<style>.tt-outcome-dist{margin:.5rem 0 1rem}.tt-outcome-bar{display:flex;width:100%;height:26px;"
+    ".tt-outcome-dist{margin:.5rem 0 1rem}.tt-outcome-bar{display:flex;width:100%;height:26px;"
     "border-radius:4px;overflow:hidden;border:1px solid var(--border,#ccc)}.tt-outcome-seg{display:flex;"
     "align-items:center;justify-content:center;font-size:11px;color:#10240f;white-space:nowrap;min-width:0;"
     "overflow:hidden}.tt-oc-top1{background:#1b7837;color:#fff}.tt-oc-top10{background:#5aae61}"
     ".tt-oc-itm{background:#a6dba0}.tt-oc-nocash{background:#d9d9d9}.tt-oc-unresolved{background:#bdbdbd}"
     ".tt-outcome-legend{margin-top:.4rem;font-size:11px;display:flex;flex-wrap:wrap;gap:.6rem}"
     ".tt-oc-legend{display:inline-flex;align-items:center;gap:.25rem}.tt-oc-sw{width:11px;height:11px;"
-    "border-radius:2px;display:inline-block}</style>")
+    "border-radius:2px;display:inline-block}")
 
 
 def _emit_distribution_chart(doc, events):
@@ -397,7 +401,8 @@ def _emit_distribution_chart(doc, events):
     dataset. Zero-count buckets are omitted from the bar but stay defined in the model + legend."""
     import json as _json
     model = outcome_distribution(events)
-    doc.w(_OUTCOME_CSS)
+    if _OUTCOME_CSS not in doc._extra_css:        # head stylesheet -- inline <style> in body would escape
+        doc._extra_css.append(_OUTCOME_CSS)
     doc.w("<div class='tt-outcome-dist' data-outcome-buckets='%s'>"
           % _esc_tt(_json.dumps(model, separators=(',', ':'))))
     doc.w("<div class='tt-chart-head'><span class='tt-chart-title'>Finish-outcome distribution</span> "

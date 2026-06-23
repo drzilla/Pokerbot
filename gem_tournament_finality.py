@@ -25,13 +25,22 @@ class Bullet:
     bullet_id: str
     first_hand: str = ''
     last_hand: str = ''
-    exit_hand: str = ''          # '' => this bullet is unresolved (advanced / in progress)
+    exit_hand: str = ''          # '' => this bullet is unresolved OR its exit is unavailable from source
     net: float = 0.0
     resolved: bool = True
+    exit_unavailable: bool = False   # owner 0.1: source could not identify this bullet's exit -> NOT invented
 
     def to_dict(self):
         return {'bullet_id': self.bullet_id, 'first_hand': self.first_hand, 'last_hand': self.last_hand,
-                'exit_hand': self.exit_hand or None, 'net': self.net, 'resolved': self.resolved}
+                'exit_hand': self.exit_hand or None, 'net': self.net, 'resolved': self.resolved,
+                'exit_unavailable': self.exit_unavailable}
+
+    def exit_display(self):
+        """The honest exit label: the hand id, or 'Unavailable from source' when the source could not
+        identify it (never a fabricated/synthetic exit)."""
+        if self.exit_hand:
+            return self.exit_hand
+        return 'Unavailable from source' if self.exit_unavailable else None
 
 
 @dataclass(frozen=True)
@@ -77,7 +86,8 @@ def _bullet(b):
         last_hand=str(b.get('last_hand') or ''),
         exit_hand=str(b.get('exit_hand') or ''),
         net=float(b.get('net') or 0.0),
-        resolved=bool(b.get('exit_hand')) if b.get('resolved') is None else bool(b.get('resolved')))
+        resolved=bool(b.get('exit_hand')) if b.get('resolved') is None else bool(b.get('resolved')),
+        exit_unavailable=bool(b.get('exit_unavailable')))
 
 
 def build_event_finality(raw):
@@ -169,10 +179,22 @@ def event_to_finality_raw(e):
     nb = nb if isinstance(nb, int) else (len(nb) if isinstance(nb, list) else 1)
     nb = max(nb, 1)
     base = str(e.get('tournament_id') or e.get('event_id') or 'ev')
-    bullets = [{'bullet_id': '%s-b%d' % (base, i + 1),
-                'exit_hand': (str(e.get('exit_hand')) if (i == nb - 1 and status == RESOLVED
-                                                          and e.get('exit_hand')) else ''),
-                'resolved': bool(status == RESOLVED and i == nb - 1)} for i in range(nb)]
+    # owner 0.1: do NOT attach the event exit to a synthetic last bullet and fabricate the rest. The
+    # event-level exit is the FINAL (last resolved) bullet's exit -- factual. For a multi-bullet event the
+    # earlier re-entry bullets' exits are NOT in this count-only source, so they are marked UNAVAILABLE
+    # (never invented). A single-bullet event's only exit IS the event exit (factual).
+    bullets = []
+    for i in range(nb):
+        is_last = (i == nb - 1)
+        if is_last and status == RESOLVED and e.get('exit_hand'):
+            bullets.append({'bullet_id': '%s-b%d' % (base, i + 1),
+                            'exit_hand': str(e.get('exit_hand')), 'resolved': True})
+        elif nb > 1 and not is_last:
+            bullets.append({'bullet_id': '%s-b%d' % (base, i + 1), 'exit_hand': '',
+                            'resolved': False, 'exit_unavailable': True})
+        else:
+            bullets.append({'bullet_id': '%s-b%d' % (base, i + 1), 'exit_hand': '',
+                            'resolved': bool(status == RESOLVED and is_last)})
     return {
         'event_id': e.get('event_id') or e.get('tournament_id'),
         'tournament_identity': e.get('name') or e.get('tournament_id'),
@@ -227,17 +249,43 @@ def reconcile(model):
     final_exits = [ev.final_event_exit for ev in model if ev.final_event_exit]
     final_in_bullets = all(fe in [b.exit_hand for ev in model for b in ev.bullets] or not [b for ev in model for b in ev.bullets if b.exit_hand]
                            for fe in final_exits)
+    unavailable = sum(1 for ev in model for b in ev.bullets if b.exit_unavailable)
     return {
         'events': len(model),
         'unique_tournament_identities': len(one_row_ids),
         'duplicate_identity_rows': dup_identity,
         'bullet_exits': len(bullet_exits),
+        'unavailable_bullet_exits': unavailable,     # owner 0.1: marked unavailable, NOT fabricated
         'final_event_exits': len(final_exits),
         'invented_final_exits': invented,
         'final_exit_reachable_in_bullets': bool(final_in_bullets),
         'totals_reconcile': totals_ok == len(model),
         'invariants_pass': bool(dup_identity == 0 and invented == 0 and final_in_bullets
                                 and totals_ok == len(model)),
+    }
+
+
+def bullet_lineage_reconciliation(model):
+    """Owner 0.1 artifact: per-event bullet lineage with each bullet's exit OR an explicit
+    'unavailable from source' label -- proving no intermediate bullet exit is fabricated."""
+    rows = []
+    for ev in model:
+        rows.append({
+            'event_id': ev.event_id, 'tournament_identity': ev.tournament_identity,
+            'status': ev.status, 'bullet_count': len(ev.bullets),
+            'final_event_exit': ev.final_event_exit or None,
+            'bullets': [{'bullet_id': b.bullet_id, 'exit': b.exit_display(),
+                         'exit_hand': b.exit_hand or None, 'exit_unavailable': b.exit_unavailable,
+                         'resolved': b.resolved} for b in ev.bullets],
+        })
+    fabricated = sum(1 for ev in model for b in ev.bullets
+                     if b.exit_unavailable and b.exit_hand)   # must be 0: unavailable never has a hand
+    return {
+        'events': len(rows),
+        'fabricated_bullet_exits': fabricated,
+        'unavailable_bullet_exits': sum(1 for ev in model for b in ev.bullets if b.exit_unavailable),
+        'no_fabrication': fabricated == 0,
+        'rows': rows,
     }
 
 

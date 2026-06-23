@@ -14131,6 +14131,38 @@ check('T-IT3-T1-02: the production render-field path consumes the finality owner
           {'name': 'R', 'finish': {'state': 'done', 'place': 5, 'total_players': 100},
            'exit_hand': 'HX', 'bullets': 1}))['exit_hand'] == 'HX')
 
+# ---- Iteration 4, Track 0: release-safety corrections ----
+# 0.2 packet-completeness is a STRICT boolean (not a hand-code string); present-fields is a separate list.
+_c4 = {'family': 'sb_flat_vs_late_open', 'decision_id': 'd', 'detector_reason': 'r',
+       'context': {'hero_cards': ['Ah', 'Kd'], 'eff_stack_bb': 30, 'hand_code': 'AKo'}}
+check('T-IT4-T0-01: packet-completeness is a strict boolean (not a hand-code string); present-fields is a list',
+      _DC._packet_complete(_c4) is True and isinstance(_DC._packet_complete(_c4), bool)
+      and isinstance(_DC.packet_present_fields(_c4), list))
+# 0.2 deep_preflop_stackoff is READ_DEPENDENT (no auto-justify, no result inference).
+_rev_ds = _DC.review_value([{'family': 'deep_preflop_stackoff', 'hand_id': 'H', 'decision_id': 'H:preflop:1',
+                            'detector_reason': 'x', 'context': {'hand_code': 'JJ'}, 'relationship': 'NEW_UNREVIEWED'}])
+check('T-IT4-T0-02: deep_preflop_stackoff reviews as READ_DEPENDENT, not auto-justified',
+      _rev_ds[0]['terminal_verdict'] == _DC.READ_DEPENDENT)
+# 0.2 short_stack_coldcall keeps a genuine flat (chips behind), excludes the all-in call; "outside the BB".
+def _ssc(eff, call_amt, allin=False):
+    return {'id': 'S', 'position': 'BTN', 'cards': ['Ah', '9d'], 'eff_stack_bb': eff,
+            'action_ledger': [{'street': 'preflop', 'player': 'x', 'action': 'raises', 'amount_bb': 2.2},
+                              {'street': 'preflop', 'player': 'Hero', 'action': 'calls',
+                               'amount_bb': call_amt, 'is_all_in': allin}]}
+_ssc_flat = _DC.family_short_stack_coldcall([_ssc(12, 2.2)])
+check('T-IT4-T0-03: short_stack_coldcall keeps a genuine flat (chips behind), excludes the all-in call; uses "outside the BB"',
+      len(_ssc_flat) == 1 and len(_DC.family_short_stack_coldcall([_ssc(4, 15.0)])) == 0
+      and 'outside the BB' in _ssc_flat[0]['detector_reason'])
+# 0.1 bullet lineage: a count-only multi-bullet live event marks intermediate exits unavailable -- NOT fabricated.
+_mbl = _TF.event_finality_for({'name': 'MB', 'tournament_id': 'MB',
+                               'finish': {'state': 'done', 'place': 5, 'total_players': 100},
+                               'exit_hand': 'HX', 'bullets': 3})
+check('T-IT4-T0-04: a count-only multi-bullet event marks intermediate bullet exits Unavailable; final exit factual; none fabricated',
+      len(_mbl.bullets) == 3 and _mbl.bullets[-1].exit_hand == 'HX' and _mbl.final_event_exit == 'HX'
+      and _mbl.bullets[0].exit_unavailable is True and not _mbl.bullets[0].exit_hand
+      and _mbl.bullets[0].exit_display() == 'Unavailable from source'
+      and _TF.bullet_lineage_reconciliation([_mbl])['no_fabrication'] is True)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

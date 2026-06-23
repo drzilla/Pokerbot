@@ -449,26 +449,50 @@ def family_short_stack_coldcall(hands, prior_records=None):
         if not (e and e < 15):
             continue
         pf = _preflop(h)
-        if not [a for a in pf if a.get('player') == 'Hero' and a.get('action') == 'calls']:
+        hero_calls = [a for a in pf if a.get('player') == 'Hero' and a.get('action') == 'calls']
+        if not hero_calls:
             continue
         if not [a for a in pf if a.get('player') != 'Hero' and a.get('action') == 'raises']:
             continue
+        # owner 0.2: distinguish a GENUINE flat (chips behind) from an all-in call (remaining stack below
+        # the raise). An all-in call is push/fold, NOT the cold-call leak -- exclude it from the family,
+        # do not classify the whole family by one template.
+        max_call = max((a.get('amount_bb') or 0) for a in hero_calls)
+        all_in_call = bool(any(a.get('is_all_in') for a in hero_calls) or max_call >= e)
+        if all_in_call:
+            continue
         facts = {'street': 'preflop', 'hero_cards': cards, 'eff_stack_bb': round(e, 1),
                  'hand_code': hand_code(cards), 'position': h.get('position'),
+                 'all_in_call': False, 'chips_behind': True,
                  'action_line': [(a.get('player'), a.get('position'), a.get('action')) for a in pf]}
         out.append(_record(h, 'preflop', 'short_stack_coldcall',
-                           'cold-called a raise at %.0fbb out of the BB (%s)' % (e, hand_code(cards)),
-                           facts, prior_records))
+                           'flat-called a raise at %.0fbb outside the BB with chips behind (%s)'
+                           % (e, hand_code(cards)), facts, prior_records))
     return out
 
 
+def packet_present_fields(c):
+    """The list of required packet fields that are actually PRESENT for this candidate (owner 0.2: a
+    separate present-fields list, distinct from the strict boolean verdict)."""
+    f = c.get('context', {}) or {}
+    base = [k for k in ('decision_id',) if c.get(k)] + \
+           [k for k in ('hero_cards',) if f.get(k)] + \
+           [k for k in ('detector_reason',) if c.get(k)]
+    if c['family'] in ('sb_flat_vs_late_open', 'deep_preflop_stackoff', 'short_stack_coldcall'):
+        base += [k for k in ('eff_stack_bb', 'hand_code') if f.get(k) is not None and f.get(k) != '']
+    else:
+        base += [k for k in ('made_hand_class', 'board') if f.get(k)]
+    return base
+
+
 def _packet_complete(c):
-    """A one-pass-ready packet must carry the decision id + hero hand + the canonical decision context."""
-    f = c.get('context', {})
+    """STRICT boolean (owner 0.2): a one-pass-ready packet carries the decision id + hero hand + detector
+    reason + the canonical decision context for its family. Always returns a real bool."""
+    f = c.get('context', {}) or {}
     base = bool(c.get('decision_id') and f.get('hero_cards') and c.get('detector_reason'))
     if c['family'] in ('sb_flat_vs_late_open', 'deep_preflop_stackoff', 'short_stack_coldcall'):
-        return base and f.get('eff_stack_bb') is not None and f.get('hand_code')
-    return base and f.get('made_hand_class') and f.get('board')
+        return bool(base and f.get('eff_stack_bb') is not None and f.get('hand_code'))
+    return bool(base and f.get('made_hand_class') and f.get('board'))
 
 
 def review_value(candidates):
@@ -484,11 +508,16 @@ def review_value(candidates):
                     '3-bet-or-fold rule at 20-40bb; %s is a 3-bet-or-fold hand, not an OOP flat' % c['context'].get('hand_code'))
             better = c.get('proposed_alternative')
         elif fam == 'deep_preflop_stackoff':
-            verdict, tier, note, better = JUSTIFIED, OWNER_RULE_BACKED, \
-                'a >40bb all-in with a strong non-AA/KK holding is a standard stack-off here; not a confirmed leak', None
+            # owner 0.2: do NOT auto-justify a >40bb non-AA/KK stack-off. The accepted rule is to avoid
+            # it; confirming or clearing the exact spot needs the canonical jam/4-bet range or a chart/
+            # forced-action exception, which is not available here -> read-dependent (never inferred from
+            # the result). e.g. JJ calling a 4-bet jam off 43bb is genuinely range-dependent.
+            verdict, tier, note, better = READ_DEPENDENT, '', \
+                ('a >40bb non-AA/KK preflop stack-off goes against the accepted rule; confirming/clearing '
+                 'this exact spot needs the canonical opponent jam range or a chart/forced exception'), None
         elif fam == 'short_stack_coldcall':
             verdict, tier, note, better = READ_DEPENDENT, '', \
-                'needs the canonical short-stack calling chart for this exact spot to confirm/clear', None
+                'a genuine non-BB short-stack flat with chips behind -- needs the canonical short-stack calling chart to confirm/clear', None
         elif fam == 'river_value':
             verdict, tier = CONFIRMED_MISTAKE, 'canonical_made_hand_class'
             note = 'strong made hand took no value on the river (decision error, result-independent)'

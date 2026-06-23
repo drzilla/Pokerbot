@@ -371,6 +371,11 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     read-dependent candidates, capped. Each hand/decision appears once; nothing required is demoted. The
     packet_hash binds all contents + input/runtime/cache identity."""
     import gem_discovery_context as _dc
+    try:
+        import gem_stage_meter as _sm
+        _sm.tick('packet')              # forbidden in --quick (Gate 2.2)
+    except Exception:
+        pass
     prior = (rd.get('final_truth') or {}).get('records', {}) if isinstance(rd, dict) else {}
     hands_by_id = {h.get('id'): h for h in (hands or []) if h.get('id')}
     val = _dc.run_value(hands, prior)
@@ -413,6 +418,17 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional}
     manifest['packet_hash'] = _content_hash(packet)   # over contents that exclude packet_hash itself
     return packet
+
+
+def recompute_packet_hash(packet):
+    """Recompute the content hash EXACTLY as build_packet did -- over the contents with manifest.packet_hash
+    excluded -- so a reloaded packet can be verified against its stored hash (owner Gate 2.2 quick binding).
+    A serialize/reload round-trip is hash-stable because _content_hash itself canonicalizes via json.dumps."""
+    import copy
+    p = copy.deepcopy(packet)
+    if isinstance(p.get('manifest'), dict):
+        p['manifest'].pop('packet_hash', None)
+    return _content_hash(p)
 
 
 def validate_analyst_output(packet, analyst, cache_ok=True):

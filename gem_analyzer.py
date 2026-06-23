@@ -46,6 +46,7 @@ v7.14: J33-J37 detection wired in (jam blocker, ICM MP flat, reshove
 """
 
 import re, os, json, sys, csv
+import gem_stage_meter as _stage_meter   # Gate 2.2: per-process heavy-stage meter (proves --quick is clean)
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception: pass
@@ -9016,6 +9017,52 @@ if __name__ == '__main__':
         print(f"\n⚡ Quick re-render in {_t_render:.1f}s")
         print(f"  HTML: {html_path} ({os.path.getsize(html_path)//1024}KB)")
         print(f"  MD:   {md_path}")
+        # ---- Gate 2.2: PROVE this quick render did zero forbidden work + validate packet binding ----
+        # This branch loaded cached data and rendered; it NEVER reached parse/reference/analyze/detector/
+        # worklist/packet (all gated behind `if not _quick_mode`, after this sys.exit). The stage meter
+        # proves it; a non-zero forbidden count is a release-blocking bug and fails closed. When the sealed
+        # packet + analyst output are present, their binding is validated (fail-closed) before delivery.
+        try:
+            import gem_stage_meter as _sm_q
+            _fcounts = _sm_q.forbidden_quick_counts()
+            _ap_out_q = '/mnt/user-data/outputs' if os.path.isdir('/mnt/user-data/outputs') else '/home/claude'
+            _pkt_path_q = os.path.join(_ap_out_q, f'analyst_packet_{_pname_file}.json')
+            _ao_path_q = os.path.join(_ap_out_q, f'analyst_packet_{_pname_file}_analyst_output.json')
+            _bind_q = {'packet_present': os.path.exists(_pkt_path_q),
+                       'analyst_output_present': os.path.exists(_ao_path_q)}
+            if os.path.exists(_pkt_path_q):
+                import gem_analyst_packet as _apq
+                with open(_pkt_path_q, encoding='utf-8') as _pf:
+                    _pkt_q = json.load(_pf)
+                _recomputed = _apq.recompute_packet_hash(_pkt_q)   # binds inputs/runtime/cache/contents
+                _bind_q['packet_hash_matches'] = (_recomputed == (_pkt_q.get('manifest') or {}).get('packet_hash'))
+                if not _bind_q['packet_hash_matches']:
+                    print("  ERROR: --quick packet hash mismatch — the sealed packet was modified since the "
+                          "full run. Re-run: python gem_analyzer.py <SESSION_DIR>")
+                    sys.exit(1)
+                if os.path.exists(_ao_path_q):
+                    with open(_ao_path_q, encoding='utf-8') as _af:
+                        _ao_q = json.load(_af)
+                    _val_q = _apq.validate_analyst_output(_pkt_q, _ao_q, cache_ok=True)
+                    _bind_q['analyst_output_valid'] = bool(_val_q.get('valid'))
+                    if not _val_q.get('valid'):
+                        print(f"  ERROR: --quick analyst output failed validation: {_val_q.get('errors')}. "
+                              "Fix the analyst JSON, then re-run --quick.")
+                        sys.exit(1)
+            _tele_q = {'mode': 'quick', 'forbidden_quick_counts': _fcounts,
+                       'zero_forbidden_quick_work': _sm_q.quick_is_clean(),
+                       'all_stage_counts': _sm_q.snapshot(), 'binding': _bind_q}
+            with open(os.path.join(_ap_out_q, f'analyst_packet_{_pname_file}_quick_stage_telemetry.json'),
+                      'w', encoding='utf-8') as _tf:
+                json.dump(_tele_q, _tf, indent=2, default=str)
+            if not _sm_q.quick_is_clean():
+                print(f"  ERROR: --quick performed FORBIDDEN work {_fcounts} — release-blocking. Aborting.")
+                sys.exit(1)
+            print(f"  ✓ quick stage telemetry: zero forbidden work {_fcounts} | binding={_bind_q}")
+        except SystemExit:
+            raise
+        except Exception as _qse:
+            print(f"  ⚠ quick stage telemetry skipped: {_qse}")
         _print_completeness(_rc_q, where='quick')
         # v8.12.10 (pipeline-learnings Fix 5): --quick used to SKIP all
         # validation, but the final delivered report usually comes from a
@@ -9526,6 +9573,7 @@ if __name__ == '__main__':
     else:
         # Parse
         _t0 = _time.perf_counter()
+        _stage_meter.tick('parse')          # forbidden in --quick (Gate 2.2)
         hands, tournaments, n_files, errors = parse_session(SESSION_DIR)
         _t_parse = _time.perf_counter() - _t0
         print(f"Parsed: {len(hands)} hands, {len(tournaments)} tournaments, "
@@ -9626,6 +9674,7 @@ if __name__ == '__main__':
     targets = {}
     for rp in range_paths:
         if os.path.exists(rp):
+            _stage_meter.tick('reference')   # forbidden in --quick (external chart/range load)
             ranges = load_ranges(rp)
             targets = load_targets(rp)  # v7.32: parallel target-band loader
             if ranges: print(f"Loaded {len(ranges)} range charts from {rp}"); break
@@ -9656,6 +9705,7 @@ if __name__ == '__main__':
 
     # Analyze
     _t0 = _time.perf_counter()
+    _stage_meter.tick('analyze')        # forbidden in --quick (evaluators + analyst grading run here)
     stats = analyze_session(hands, tournaments, n_files, errors, ranges, targets=targets)
     _t_analyze = _time.perf_counter() - _t0
     _log_profile('analyze')
@@ -10215,6 +10265,7 @@ if __name__ == '__main__':
         'render_s': None,
         'pipeline_start': _t_pipeline_start,
     }
+    _stage_meter.tick('detector')       # forbidden in --quick (Gate 2.2): candidate/detector sweep
     candidates = _build_coverage(
         stats, hands, report_data, _pname_file, SESSION_DIR,
         ranges=ranges, timing=_coverage_timing)
@@ -10635,6 +10686,7 @@ if __name__ == '__main__':
     # artifact; does NOT affect the report. Never fatal.
     try:
         from gem_analyst_worklist import build_analyst_worklist
+        _stage_meter.tick('worklist')   # forbidden in --quick (Gate 2.2)
         _wl_dc = stats.get('volume', {}).get('date_range', 'session')
         _wl = build_analyst_worklist(candidates, stats, report_data, hands,
                                      _wl_dc,

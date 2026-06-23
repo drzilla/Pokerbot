@@ -14285,6 +14285,34 @@ _hb0 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v',
 _hb1 = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', cache_identity='B')['manifest']['packet_hash']
 check('T-RC-B2: packet_hash binds the cache identity (changing it changes the hash)', _hb0 != _hb1)
 
+# Gate 2.2: cache-only --quick binding + stage meter.
+import json as _rc_json
+_rc_pkt_rt = _rc_json.loads(_rc_json.dumps(_rc_pkt, default=str))      # serialize/reload round-trip
+check('T-RC-G2-01: recompute_packet_hash matches the stored hash across a serialize/reload round-trip',
+      _AP.recompute_packet_hash(_rc_pkt_rt) == _rc_pkt['manifest']['packet_hash'])
+_rc_pkt_tampered = _rc_copy.deepcopy(_rc_pkt_rt)
+_rc_pkt_tampered['required'][0]['pot_before_bb'] = 999.0
+check('T-RC-G2-02: tampering any packet fact breaks the recomputed hash (fail-closed binding)',
+      _AP.recompute_packet_hash(_rc_pkt_tampered) != _rc_pkt['manifest']['packet_hash'])
+import gem_stage_meter as _rc_sm
+_rc_sm.reset()
+check('T-RC-G2-03: a fresh process (no heavy stage) has zero forbidden quick counts -> quick_is_clean',
+      _rc_sm.quick_is_clean() is True and all(v == 0 for v in _rc_sm.forbidden_quick_counts().values()))
+_rc_sm.tick('parse')
+check('T-RC-G2-04: once a forbidden stage ticks, quick_is_clean is False (the meter actually detects work)',
+      _rc_sm.quick_is_clean() is False and _rc_sm.forbidden_quick_counts()['parse'] == 1)
+_rc_sm.reset()
+_rc_ao_bad = {'session_id': _rc_pkt['manifest']['session_id'], 'packet_hash': 'deadbeef',
+              'verdicts': [{'decision_id': d['decision_id'], 'verdict': sorted(_AP.ALLOWED_VERDICTS)[0]}
+                           for d in _rc_pkt['required']]}
+check('T-RC-G2-05: --quick analyst-output validation rejects a wrong packet_hash binding (fail-closed)',
+      _AP.validate_analyst_output(_rc_pkt, _rc_ao_bad, cache_ok=True)['valid'] is False)
+check('T-RC-G2-06: --quick analyst-output validation fails closed on a stale cache (cache_ok=False)',
+      _AP.validate_analyst_output(_rc_pkt, {'session_id': _rc_pkt['manifest']['session_id'],
+          'packet_hash': _rc_pkt['manifest']['packet_hash'],
+          'verdicts': [{'decision_id': d['decision_id'], 'verdict': sorted(_AP.ALLOWED_VERDICTS)[0]}
+                       for d in _rc_pkt['required']]}, cache_ok=False)['valid'] is False)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

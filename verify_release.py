@@ -1277,8 +1277,8 @@ CANARIES = [
      "v8.18.0: single canonical Results DataTable (exit hand last via PokerHandDisplay; Details/Drivers removed)"),
     ("gem_report_draft/sections_tournaments.py", "def _tt_status(",
      "v8.17 Epic 4: canonical deep-run/Day2/ITM status from finish fields"),
-    ("gem_report_draft/sections_tournaments.py", "_dthand(_RES_COLS[-1]",
-     "v8.18.0: the exit hand is the FINAL Results column rendered via the canonical PokerHandDisplay hand cell"),
+    ("gem_report_draft/sections_tournaments.py", "_dthand(_C['exit']",
+     "v8.18.0: the exit hand is the FINAL Results column rendered via the canonical PokerHandDisplay hand cell (v8.20 A1: columns keyed by name)"),
     ("gem_report_draft/sections_tournaments.py", "included in Cash return",
      "v8.17 Epic 4: PKO/bounty return reconciliation (bounty folded into cash, never inferred)"),
     # ── v8.18.0 FINAL product-truth correction ──

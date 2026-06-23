@@ -14022,6 +14022,34 @@ check('T-W1A2A-A2-03: the outcome bar recomputes from a filtered subset (counts 
           {'top1': 1, 'top10': 1}
       and all(b['pct'] == 50.0 for b in _od_filt['buckets'] if b['count']))
 
+# ---- Iteration 2, Outcome 2: context-rich discovery (no fabricated pass) ----
+import gem_discovery_context as _DC
+# the genuine-value guard rejects board two-pair (paired board); accepts a real two pair on an unpaired board.
+check('T-IT2-O2-01: genuine-value guard rejects board two-pair (paired board), accepts a real two pair',
+      _DC._genuine_value_hand(['Jc', 'Qc'], ['9h', 'Ah', 'Ac', '9s', '4h']) is None
+      and _DC._genuine_value_hand(['Ah', 'Kd'], ['As', 'Kc', '7d', '2h', '9s']) is not None)
+# a genuine strong hand (set, hole cards used) checked through the river IS a confirmed missed-value mistake.
+_h_val = {'id': 'V1', 'cards': ['Ah', 'Ad'], 'board': ['As', 'Kc', '7d', '2h', '9s'],
+          'position': 'CO', 'hero_ip': True,
+          'action_ledger': [{'street': 'river', 'player': 'X', 'action': 'checks', 'amount_bb': 0},
+                            {'street': 'river', 'player': 'Hero', 'action': 'checks', 'amount_bb': 0}]}
+_rv = _DC.family_river_value([_h_val])
+_rev_v = _DC.review(_rv)
+check('T-IT2-O2-02: a genuine strong hand checked through the river is a CONFIRMED missed-value mistake (confirm path works)',
+      _rv and _rev_v and _rev_v[0]['terminal_verdict'] == _DC.CONFIRMED_MISTAKE and _rev_v[0]['better_action'])
+# the aggression / curiosity families fail closed to READ_DEPENDENT (no canonical opponent range).
+check('T-IT2-O2-03: over-barrel + curiosity-call families review as READ_DEPENDENT (no canonical range)',
+      all(r['terminal_verdict'] == _DC.READ_DEPENDENT for r in _DC.review([
+          {'family': 'turn_overbarrel', 'hand_id': 'A', 'decision_id': 'A:turn:1', 'context': {},
+           'detector_reason': 'x', 'relationship': 'NEW_UNREVIEWED'},
+          {'family': 'river_curiosity', 'hand_id': 'B', 'decision_id': 'B:river:1', 'context': {},
+           'detector_reason': 'y', 'relationship': 'NEW_UNREVIEWED'}])))
+# the product-value gate is honest: FAIL with zero confirmed, PASS with >=1 -- never fabricated.
+check('T-IT2-O2-04: product-value gate is FAIL at zero confirmed, PASS at >=1 (no fabricated pass)',
+      _DC.value_metrics({'candidates': [], 'suppressed': [], 'engineering_debt': []}, [], 844)['product_value_gate'] == 'FAIL'
+      and _DC.value_metrics({'candidates': [{'family': 'river_value'}], 'suppressed': [], 'engineering_debt': []},
+                            [{'family': 'river_value', 'terminal_verdict': _DC.CONFIRMED_MISTAKE}], 844)['product_value_gate'] == 'PASS')
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

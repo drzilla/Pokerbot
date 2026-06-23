@@ -1070,7 +1070,7 @@ def _is_non_nlh_candidate(_c):
     return isinstance(_cards, (list, tuple)) and len(_cards) >= 4
 
 
-def canonical_required_review_ids(candidates, auto_resolved_ids=None, non_nlh_ids=None):
+def canonical_required_review_ids(candidates, auto_resolved_ids=None, non_nlh_ids=None, hands_by_id=None):
     """v8.19.0 RC3 (P2-1): the ONE canonical required-review population, shared verbatim by the
     analyst COVERAGE GATE (gem_analyzer __main__) and the COMPLETENESS owner
     (compute_report_completeness). A hand requires analyst review iff it is a candidate in a
@@ -1096,10 +1096,22 @@ def canonical_required_review_ids(candidates, auto_resolved_ids=None, non_nlh_id
             if _cid and _cid not in _auto and _cid not in _non_nlh:
                 _need.add(_cid)
                 _need_bucket.setdefault(_cid, _bk)
-    return {'need': _need, 'need_bucket': _need_bucket, 'non_nlh': _non_nlh}
+    # QA-DET-001: a required-review candidate with NO canonical decision node is not a gradable canonical
+    # decision -- it is unresolved/engineering debt. Identify the SAME no-node set the analyst packet routes
+    # to its 'unresolved' population (via the canonical owner gem_discovery_pilot.commitment_node), so the
+    # gradable required-review and the unresolved/debt population reconcile exactly. Computed only when the
+    # hands are supplied (full run); the --quick path reads the persisted rd['_ungraded_ids'].
+    _ungraded = set()
+    if hands_by_id:
+        import gem_discovery_pilot as _dp_ung
+        for _cid in _need:
+            _h = hands_by_id.get(_cid)
+            if _h is None or _dp_ung.commitment_node(_h)[0] is None:
+                _ungraded.add(_cid)
+    return {'need': _need, 'need_bucket': _need_bucket, 'non_nlh': _non_nlh, 'ungraded': _ungraded}
 
 
-def compute_report_completeness(rd, candidates=None):
+def compute_report_completeness(rd, candidates=None, hands_by_id=None):
     """v8.12.10 (pipeline trust contract): classify the report as
     AUTO_ONLY / ANALYST_PARTIAL / ANALYST_COMPLETE and stamp the counts the
     TL;DR banner + CLI + manifest read. Single owner so all three render
@@ -1130,7 +1142,7 @@ def compute_report_completeness(rd, candidates=None):
         # provably implies completeness has no unreviewed required hand. It excludes auto-resolved
         # and unsupported non-NLH hands (the latter via rd['_non_nlh_ids'] PLUS a per-candidate
         # game_type/4-card fallback), keeps SUPPRESS-noise candidates, and never folds in blindspot.
-        _canon = canonical_required_review_ids(candidates, _auto, rd.get('_non_nlh_ids'))
+        _canon = canonical_required_review_ids(candidates, _auto, rd.get('_non_nlh_ids'), hands_by_id)
         _non_nlh = _canon['non_nlh']
         rd['_non_nlh_ids'] = sorted(_non_nlh)   # persist the resolved set for --quick
 
@@ -1145,21 +1157,31 @@ def compute_report_completeness(rd, candidates=None):
 
         need = _canon['need']
         need_bucket = _canon['need_bucket']    # id -> bucket, persisted for --quick
-        rd['_candidate_need_ids'] = sorted(need)  # persist for --quick
+        rd['_candidate_need_ids'] = sorted(need)  # FULL need (gradable + ungraded) -- the analyst packet
+                                                  # reads this and splits it into required + unresolved.
         rd['_candidate_need_bucket'] = need_bucket
+        # QA-DET-001: the no-canonical-node subset is unresolved/engineering DEBT, not gradable required
+        # review. Persist it so --quick + the packet + the coverage gate all agree, then exclude it from the
+        # gradable required-review population used by the state machine below.
+        _ungraded = (_canon.get('ungraded') or set()) & need
+        rd['_ungraded_ids'] = sorted(_ungraded)
         # v8.13.1 P0: critical-coverage + significant-loss sets (persist for --quick)
         critical_need = _ids_for(_CRITICAL_NEED_BUCKETS)
         significant_loss = _ids_for(_SIGNIFICANT_LOSS_BUCKETS)
         rd['_critical_need_ids'] = sorted(critical_need)
         rd['_significant_loss_ids'] = sorted(significant_loss)
+        need = need - _ungraded                         # required review = gradable canonical decisions ONLY
+        critical_need = critical_need - _ungraded
+        significant_loss = significant_loss - _ungraded
     else:
         # RC3 P0-1: the --quick path subtracts the persisted non-NLH set too (idempotent if the
         # cached sets were already filtered, but guarantees consistency across full/--quick).
         _non_nlh = set(rd.get('_non_nlh_ids') or [])
-        need = set(rd.get('_candidate_need_ids', []) or []) - _non_nlh
+        _ungraded = set(rd.get('_ungraded_ids') or [])   # QA-DET-001: persisted unresolved/debt subset
+        need = (set(rd.get('_candidate_need_ids', []) or []) - _non_nlh) - _ungraded
         need_bucket = rd.get('_candidate_need_bucket', {}) or {}
-        critical_need = set(rd.get('_critical_need_ids', []) or []) - _non_nlh
-        significant_loss = set(rd.get('_significant_loss_ids', []) or []) - _non_nlh
+        critical_need = (set(rd.get('_critical_need_ids', []) or []) - _non_nlh) - _ungraded
+        significant_loss = (set(rd.get('_significant_loss_ids', []) or []) - _non_nlh) - _ungraded
 
     awaiting = sorted(need - reviewed_ids)
     # v8.12.12 Obj-D: per-bucket breakdown of what is still awaiting review, so
@@ -1244,6 +1266,11 @@ def compute_report_completeness(rd, candidates=None):
         'significant_loss_reviewed': sig_reviewed,
         'critical_coverage_ok': not critical_unreviewed,
         'coverage_line': coverage_line,
+        # QA-DET-001: explicit unresolved/engineering-debt population — required-review hands with no
+        # canonical decision node. They are NOT counted in the gradable required-review (candidate_need) and
+        # never block ANALYST_COMPLETE; they are surfaced as debt so coverage + completeness reconcile.
+        'ungraded_debt': len(_ungraded),
+        'ungraded_ids': sorted(_ungraded)[:50],
     }
     rd['report_completeness'] = rc
     return rc

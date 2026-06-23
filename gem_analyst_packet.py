@@ -303,7 +303,9 @@ def semantic_audit(packet):
     incl. zero_analyst_calculations_required."""
     rows, failing, leaks, calc_required = [], 0, 0, 0
     req_ids = {d['decision_id'] for d in packet['required']}
-    for d in (packet['required'] + packet['optional']):
+    # QA-PACKET-001: audit the unresolved/debt records too (their `unresolved` flag short-circuits the
+    # operand checks below) so the no-calc audit accounts for every sealed record, not only required+optional.
+    for d in (packet['required'] + packet['optional'] + packet.get('unresolved', [])):
         issues, calc_issues = [], []
         unresolved = bool(d.get('unresolved'))
         for k in _LEAK_KEYS:
@@ -539,14 +541,20 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     rule_required = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']
                      if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
 
-    required, optional, by_hand = [], [], {}
+    required, optional, unresolved, by_hand = [], [], [], {}
     # 1. the canonical legacy required population FIRST (parity) -- ONE hydrated decision per hand.
+    #    QA-PACKET-001: a hand with no canonical decision node is NOT a gradable canonical decision -- route
+    #    it to the explicit `unresolved`/debt population so REQUIRED holds only decisions the analyst can
+    #    actually verdict. REQUIRED + UNRESOLVED together preserve 100% of the legacy population (parity).
     for hid in legacy_required_ids(rd):
         if hid in by_hand:
             continue
         rec = _legacy_required_decision(hid, rd, hands_by_id)
         by_hand[hid] = rec['decision_id']
-        required.append(rec)
+        if rec.get('unresolved'):
+            unresolved.append(rec)
+        else:
+            required.append(rec)
     # 2. add the accepted rule-backed findings (KQs) if not already covered by the legacy hand.
     for did, rec in rule_required.items():
         if rec['hand_id'] in by_hand:
@@ -569,9 +577,11 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
         'runtime_commit': runtime_commit, 'cache_identity': cache_identity,
         'build_identity': build_identity or {},
         'required_count': len(required), 'optional_count': len(optional), 'optional_cap': optional_cap,
+        'unresolved_count': len(unresolved),   # QA-PACKET-001: explicit no-canonical-node debt population
         'evidence_keys': sorted(evidence.keys()), 'allowed_verdicts': list(ALLOWED_VERDICTS),
     }
-    packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional}
+    packet = {'manifest': manifest, 'evidence': evidence, 'required': required, 'optional': optional,
+              'unresolved': unresolved}
     manifest['packet_hash'] = _content_hash(packet)   # over contents that exclude packet_hash itself
     return packet
 
@@ -699,23 +709,32 @@ def build_coverage_reconciliation(rd, packet):
     legacy required-review population. The invariant is legacy_required - sealed_required == empty."""
     legacy = legacy_required_ids(rd)
     sealed_required_hands = sorted({d['hand_id'] for d in packet['required']})
+    sealed_unresolved_hands = sorted({d['hand_id'] for d in packet.get('unresolved', [])})
     sealed_optional_hands = sorted({d['hand_id'] for d in packet['optional']})
-    missing = sorted(set(legacy) - set(sealed_required_hands))
+    # QA-PACKET-001: REQUIRED (gradable canonical decisions) + UNRESOLVED (no-canonical-node debt) together
+    # preserve 100% of the legacy required population (parity); neither is demoted to optional.
+    sealed_all = set(sealed_required_hands) | set(sealed_unresolved_hands)
+    missing = sorted(set(legacy) - sealed_all)
     demoted = sorted(set(legacy) & set(sealed_optional_hands))
-    # one decision per hand (no duplicate)
+    # one decision per hand across required + unresolved (no duplicate)
     from collections import Counter
-    dup = [h for h, n in Counter(d['hand_id'] for d in packet['required']).items() if n > 1]
-    kqs = 'TM6084610450'
-    kqs_present_required = any(d['hand_id'] == kqs for d in packet['required'])
+    dup = [h for h, n in Counter([d['hand_id'] for d in packet['required']]
+                                 + [d['hand_id'] for d in packet.get('unresolved', [])]).items() if n > 1]
+    # QA-META-001: removed the hardcoded fixture-hand dependency (was 'TM6084610450'). Session-agnostic
+    # invariant: a rule-backed sb_flat finding, when the session produces one, is sealed AS REQUIRED and
+    # never demoted to optional. Vacuously satisfied when the session has no such finding.
+    rule_backed_demoted = sorted({d['hand_id'] for d in packet['optional']
+                                  if d.get('family') == 'sb_flat_vs_late_open'})
     return {
         'session': packet['manifest'].get('session_id'),
         'legacy_required_count': len(legacy),
         'sealed_required_count': len(sealed_required_hands),
+        'sealed_unresolved_count': len(sealed_unresolved_hands),
         'legacy_minus_sealed_required': missing,
         'required_demoted_to_optional': demoted,
         'duplicate_required_hands': dup,
-        'kqs_sb_flat_present_and_required': kqs_present_required,
+        'rule_backed_sb_flat_demoted': rule_backed_demoted,
         'optional_count': len(sealed_optional_hands), 'optional_cap': packet['manifest'].get('optional_cap'),
         'parity_pass': bool(not missing and not demoted and not dup),
-        'invariants_pass': bool(not missing and not demoted and not dup and kqs_present_required),
+        'invariants_pass': bool(not missing and not demoted and not dup and not rule_backed_demoted),
     }

@@ -10471,7 +10471,13 @@ if __name__ == '__main__':
     # auto-classifier's hint, not an analyst waiver); the blindspot-audit sample is a SEPARATE
     # coverage signal (reported just after), never folded into the required-review identity.
     from gem_report_data import canonical_required_review_ids as _canon_rri
-    _need_verdict_ids = _canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']
+    # QA-DET-001: the gate and the completeness owner exclude the SAME no-canonical-node (ungraded/debt) set
+    # so "Full coverage" provably implies the gradable required-review is complete; the debt is reported
+    # separately, never as an uncovered gradable hand.
+    _canon_main = _canon_rri(candidates, _auto_res, _non_nlh_ids_main,
+                             {h['id']: h for h in hands if h.get('id')})
+    _ungraded_main = _canon_main.get('ungraded') or set()
+    _need_verdict_ids = _canon_main['need'] - _ungraded_main
     # v8.9.8 P2-C: production-safe PLO quarantine invariant — the canonical owner already excludes
     # non-NLH, so this stays as a fail-loud guard that the shared set never carries a PLO leak.
     _plo_leak = _need_verdict_ids & _non_nlh_ids_main
@@ -10485,6 +10491,9 @@ if __name__ == '__main__':
     if _auto_res:
         print(f"  Chart-match auto-resolved: {len(_auto_res)} "
               f"(excluded from coverage requirement)")
+    if _ungraded_main:
+        print(f"  Unresolved/debt (no canonical decision node): {len(_ungraded_main)} hand(s) "
+              f"— engineering debt, NOT required analyst review.")
     if not _need_verdict_ids:
         print("  No hands require analyst verdicts this session.")
     elif not _uncovered:
@@ -10753,7 +10762,10 @@ if __name__ == '__main__':
     # the TL;DR banner + filename + CLI reflect analyst coverage, AND the
     # need-set persists into the cached rd below for later --quick renders.
     from gem_report_data import compute_report_completeness as _crc_full
-    _rc_full = _crc_full(report_data, candidates=candidates)
+    # QA-DET-001: supply the hands so the completeness owner can split the no-canonical-node (ungraded/debt)
+    # hands out of the gradable required-review population, matching the analyst packet's unresolved split.
+    _rc_full = _crc_full(report_data, candidates=candidates,
+                         hands_by_id={h['id']: h for h in hands if h.get('id')})
 
     # v8.12.11 (Slice E): emit the analyst worklist — a prioritized triage
     # queue (proposals, not verdicts) for the LLM analyst pass. Write-only

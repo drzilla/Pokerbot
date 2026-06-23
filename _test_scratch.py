@@ -13636,9 +13636,10 @@ _crc_p21(_rd_p21, candidates=dict(_cand_p21))
 check('T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)',
       set(_rd_p21['_candidate_need_ids']) == _canon_p21['need'])
 _ga_p21 = open('gem_analyzer.py', encoding='utf-8').read()
-check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set)',
+check('T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set), excluding the no-node debt',
       'canonical_required_review_ids as _canon_rri' in _ga_p21
-      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main)['need']" in _ga_p21
+      and "_canon_rri(candidates, _auto_res, _non_nlh_ids_main," in _ga_p21
+      and "_canon_main['need'] - _ungraded_main" in _ga_p21
       and "_need_verdict_ids.add(_sid)" not in _ga_p21)   # blindspot no longer folded into required set
 
 # RC3 COND-3a: deterministic mixed NLH/PLO finality + quarantine regression (real corpus is NLH-only,
@@ -14255,19 +14256,35 @@ check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unknown i
       and any('missing required packet_hash' in e for e in _v_bad['errors']))
 
 # ---- Release validation: coverage parity + binding hardening (owner gaps 3/4/5) ----
-_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:preflop:1'}}},
-          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:preflop:1'},
+# QA-PACKET-001: TMa has a canonical decision node (gradable -> REQUIRED); TMb + TMc have no hand data,
+# so they are no-canonical-node records routed to the explicit UNRESOLVED/debt population. REQUIRED +
+# UNRESOLVED together preserve 100% of the legacy population (parity).
+_rv_hands = [{'id': 'TMa', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
+              'board': ['As', '7d', '2c', '9h', '3s'],
+              'action_ledger': [{'street': 'flop', 'player': 'Hero', 'position': 'CO', 'action': 'bets',
+                                 'amount_bb': 3, 'added_bb': 3, 'is_all_in': False}],
+              'decision_points': [{'street': 'flop', 'action_index': 0, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+                                   'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
+                                   'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}]
+_rv_rd = {'final_truth': {'records': {'TMa': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMa:flop:0'}}},
+          '_candidate_need_ids': ['TMa', 'TMb'], 'reviewed_decision_ref_by_hand': {'TMa': 'TMa:flop:0'},
           '_candidate_need_bucket': {'TMa': 10, 'TMb': 9}, 'material_loss_population': {'TMc': {}}}
-_rv_pkt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+_rv_pkt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
                            input_hashes={'x': '1'}, cache_identity='ci', optional_cap=8)
 _cov = _AP.build_coverage_reconciliation(_rv_rd, _rv_pkt)
-check('T-RV-01: the sealed required queue preserves 100% of the legacy required population (parity, no demotion/dup)',
+check('T-RV-01: REQUIRED (gradable) + UNRESOLVED (no-node debt) preserve 100% of the legacy population (parity, no demotion/dup)',
       _cov['legacy_minus_sealed_required'] == [] and _cov['required_demoted_to_optional'] == []
       and _cov['duplicate_required_hands'] == [] and _cov['legacy_required_count'] == 3 and _cov['parity_pass'] is True)
+check('T-RV-01b (QA-PACKET-001): no-canonical-node hands are split OUT of required into the explicit unresolved population',
+      _cov['sealed_required_count'] == 1 and _cov['sealed_unresolved_count'] == 2
+      and _rv_pkt['manifest']['unresolved_count'] == 2 and _rv_pkt['manifest']['required_count'] == 1
+      and all(r.get('unresolved') for r in _rv_pkt['unresolved'])
+      and not any(r.get('unresolved') for r in _rv_pkt['required'])
+      and _cov['invariants_pass'] is True and 'kqs_sb_flat_present_and_required' not in _cov)
 _h0 = _rv_pkt['manifest']['packet_hash']
-_h_rt = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
+_h_rt = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='DIFF',
                          input_hashes={'x': '1'}, cache_identity='ci')['manifest']['packet_hash']
-_h_in = _AP.build_packet([], _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
+_h_in = _AP.build_packet(_rv_hands, _rv_rd, session_id='s', runtime_version='v', runtime_commit='c',
                          input_hashes={'x': '2'}, cache_identity='ci')['manifest']['packet_hash']
 check('T-RV-02: packet_hash is content-bound -- changes with runtime commit and with input hashes',
       len(_h0) == 64 and _h0 != _h_rt and _h0 != _h_in)
@@ -14446,9 +14463,10 @@ check('T-QA1-07: validate_analyst_output rejects an INCOMPLETE output (missing a
 _rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
 _rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
                            session_id='s', runtime_version='v')
-_rc_ud = [d for d in _rc_unp['required'] if d['hand_id'] == 'TMu'][0]
-check('T-RC-A3: a hand with no canonical decision node -> explicit UNRESOLVED record (flagged), never an invented node',
-      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved'))
+_rc_ud = [d for d in _rc_unp['unresolved'] if d['hand_id'] == 'TMu'][0]
+check('T-RC-A3 (QA-PACKET-001): a hand with no canonical decision node -> explicit UNRESOLVED/debt record (flagged), NEVER in required, never an invented node',
+      _rc_ud.get('unresolved') is True and str(_rc_ud['decision_id']).endswith(':unresolved')
+      and not any(d['hand_id'] == 'TMu' for d in _rc_unp['required']))
 open('/tmp/_rc_inp.txt', 'w').write('abc')
 _ih = _AP.real_input_hashes(['/tmp/_rc_inp.txt'])
 check('T-RC-B1: real_input_hashes are actual file SHA-256; content_cache_identity is content-derived',

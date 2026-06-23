@@ -1,3 +1,7 @@
+> ⚠️ **SUPERSEDED (per-hand pilot era).** False-positive analysis of the rejected per-hand sizing detector.
+> The accepted feature is the **aggregate** flop c-bet sizing-leak detector (no per-hand verdicts). Current
+> authority: `v821_sync/V821_SIZING_LINES_FINAL_SCOPE.md`. Kept for audit.
+
 # FALSE_POSITIVE_REGISTER
 
 A false positive (FP) for this detector means a `flop_cbet_sizing` candidate that is a **detector error** —

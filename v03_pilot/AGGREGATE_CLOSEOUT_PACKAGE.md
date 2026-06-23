@@ -17,7 +17,16 @@ leak signal**.
 
 The per-hand sizing family is **fully removed** from the analyst pipeline. `gem_discovery_context.py` and
 `gem_analyst_packet.py` are now **byte-identical to pre-pilot `f11a9ca`** (the discovery families and packet
-are unchanged). The **entire net production change is `+235` lines in `gem_sizing_detector.py`**:
+are unchanged).
+
+> ⚠️ **Footprint corrected.** The `+235` figure below was the closeout-era `summarize_offband_sizing`
+> aggregate, which was **removed as a dead duplicate** in the production-path fix `78780bb` (its gates were
+> folded into the existing `build_sizing_leak_signals`). The **surviving** production footprint is the gate
+> only — **+41 lines** — finalized at **+92 / −19 across 3 files** (`gem_analyzer.py +8`,
+> `gem_sizing_detector.py +67/−10`, `gem_report_draft/draft.py +17/−9`) after the v8.21 closeout
+> report-wording polish. See `v821_sync/V821_SIZING_LINES_FINAL_SCOPE.md`.
+
+Closeout-era detail (historical) — the net change was `+235` lines in `gem_sizing_detector.py`:
 
 - the safety-corrected per-hand assessment (`applicable_band` + `assess_flop_cbet_sizing`) — SRP-only,
   heads-up-only, non-all-in-only, within-band-spread compliant, analyst-owned verdicts, no result/equity;
@@ -30,7 +39,7 @@ no future/result leakage · no alternate calculations.
 
 | File | vs `f11a9ca` | Note |
 |---|---|---|
-| `gem_sizing_detector.py` | +235 | assess (safe) + aggregate summary; existing `build_sizing_leak_signals` untouched |
+| `gem_sizing_detector.py` | +235 → **superseded** | closeout-era `summarize_offband_sizing` (removed in `78780bb`); surviving = the gate only |
 | `gem_discovery_context.py` | **0 (reverted)** | per-hand family removed; baseline family set restored |
 | `gem_analyst_packet.py` | **0 (reverted)** | sizing evidence/routing removed; packet restored to baseline |
 

@@ -1,0 +1,75 @@
+{
+  "archive_zip": "V821_SIZING_LINES_EVIDENCE_ARCHIVE.zip",
+  "archive_zip_location_outside_repo": "C:\\Users\\ron\\OneDrive\\Desktop\\V821_SIZING_LINES_EVIDENCE_ARCHIVE.zip",
+  "purpose": "Audit archive of obsolete per-hand pilot evidence; no longer active product authority.",
+  "accepted_feature": "AGGREGATE flop c-bet sizing-leak detector (heads-up single-raised-pot non-all-in).",
+  "source_repository": "drzilla/Pokerbot",
+  "source_branch": "feature/v8.21-sizing-line-pilot",
+  "source_commit": "122a5ae251548d663706b90d685c61692bbef521",
+  "file_count": 10,
+  "total_bytes": 320435,
+  "files": [
+    {
+      "repo_path": "v03_pilot/REAL_CANDIDATE_QUEUE.json",
+      "bytes": 272030,
+      "sha256": "ccdb2c36f91cc35ea03d5550308b25efa3e74d7cd129d105ef125f6332fe2965"
+    },
+    {
+      "repo_path": "v03_pilot/REAL_REVIEWED_QUEUE.json",
+      "bytes": 27506,
+      "sha256": "0ad8bc9924a98e0cf4e0b9e5112668a1685a75581431e9d1f8b30fd284505890"
+    },
+    {
+      "repo_path": "v03_pilot/REAL_CORPUS_PROVENANCE.json",
+      "bytes": 15284,
+      "sha256": "3a84dd26f5d28cc4d775827d0fa133d0884d8f866da8532d962eb8064756f4b5"
+    },
+    {
+      "repo_path": "v03_pilot/REAL_OPPORTUNITY_BASELINE.json",
+      "bytes": 1475,
+      "sha256": "4e5fa312bc18d16c052fb1bb9837876031d917657176ab8a8540d001915922e4"
+    },
+    {
+      "repo_path": "v03_pilot/REAL_PRODUCT_VALUE_METRICS.json",
+      "bytes": 1450,
+      "sha256": "6592bfec603077d2b3cfff0b861ae8f84736ff06ffc5bc9f59b232106d64838d"
+    },
+    {
+      "repo_path": "v03_pilot/PILOT_CANDIDATE_QUEUE.json",
+      "bytes": 205,
+      "sha256": "ab1f3d9c020d8b605c92f30372916eaf296e5a0991af3827c53de0164036ce1a"
+    },
+    {
+      "repo_path": "v03_pilot/PILOT_REVIEWED_QUEUE.json",
+      "bytes": 66,
+      "sha256": "8c311c52b634b53fc81597fccbb394c7e08e614b2235150c16290cb0fb4388dc"
+    },
+    {
+      "repo_path": "v03_pilot/PILOT_PRODUCT_VALUE_METRICS.json",
+      "bytes": 1137,
+      "sha256": "58b833303e655fa0bcc5b94f18680b95c5ab127315df31d336275ac0ce3dde86"
+    },
+    {
+      "repo_path": "v03_pilot/PILOT_COST_COMPARISON.json",
+      "bytes": 592,
+      "sha256": "9cf7213310b363d9cc341bd50275552d00bf09b36405c15637c09a7d6f8dd988"
+    },
+    {
+      "repo_path": "v03_pilot/OPPORTUNITY_BASELINE.json",
+      "bytes": 690,
+      "sha256": "737336c9aac8ebb197f46ed7e9700831fe113aee2fb25235d992be3ebd35b598"
+    }
+  ],
+  "removed_from_repo": true,
+  "retained_in_repo_for_understanding": [
+    "v03_pilot/CORRECTED_CLAIM_MATRIX.md",
+    "v03_pilot/V03_DEEP_VALIDATION_PACKAGE.md",
+    "v03_pilot/SECOND_FAMILY_SAFETY_ASSESSMENT.md",
+    "v03_pilot/PRODUCTION_PATH_VERIFICATION.md",
+    "v03_pilot/PRODUCTION_REPORT_EXCERPT.md",
+    "v03_pilot/AGGREGATE_CLOSEOUT_PACKAGE.md",
+    "v03_pilot/DEFERRED_FINDINGS.md",
+    "v821_sync/ (sync + closeout reports)"
+  ],
+  "archive_zip_sha256": "f2d18af1f4b53b6406925524805933176bdaffc1dddd5c5c536da5ee42d901f6"
+}

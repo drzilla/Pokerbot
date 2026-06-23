@@ -718,30 +718,38 @@ def _emit_sizing_lines(doc, s, rd, hands):
     if not sigs:
         _n_excl = sum(v for v in excl.values() if isinstance(v, (int, float)))
         doc.w("<div style='margin:8px 0;padding:10px 14px;border:1px solid #e5e7eb;border-radius:12px;"
-              "background:#f9fafb;color:#6b7280'>No high-confidence repeated sizing or line pattern was "
-              "found this session. This does <strong>not</strong> imply perfect play — "
+              "background:#f9fafb;color:#6b7280'>No repeated flop c-bet sizing leak was found this session. "
+              "This judges only your <strong>heads-up, single-raised-pot, non-all-in</strong> flop c-bets "
+              "against the proven sizing bands — multiway pots, 3-bet/4-bet pots and all-in bets are "
+              "excluded. It does <strong>not</strong> imply perfect play — "
               f"{_n_excl} board class(es) had too thin a sample to judge and were set aside.</div>")
         return
-    doc.w("*Repeated bet-sizing patterns surfaced this session. Each is an AGGREGATE pattern across a "
-          "whole board class — not a per-hand verdict; the example hands are evidence, not graded "
-          "mistakes.*")
+    doc.w("*Each item below is a repeated flop c-bet sizing habit across a whole board class — an AGGREGATE "
+          "pattern, not a per-hand verdict. The example hands are evidence, not graded mistakes.*")
+    doc.w("*Judged only on **heads-up, single-raised-pot, non-all-in** flop c-bets. Multiway pots, 3-bet and "
+          "4-bet pots, and all-in bets are excluded from sizing judgment (no proven reference band applies).*")
     for sig in sigs:
         ev = sig.get('evidence') or {}
         _ch = sig.get('contributing_hands') or []
         _ex = _rcc(len(_ch), _ch, sig.get('pattern_label') or 'Example hands')
         _conf = sig.get('confidence', 'high')
+        _dirtxt = {'under': 'bets too small', 'over': 'bets too large',
+                   'mixed': 'inconsistent sizing'}.get(sig.get('direction'), '')
+        _dirtag = ("<span style='margin-left:6px;padding:2px 8px;border-radius:10px;background:#fef3c7;"
+                   f"color:#92400e;font-size:.78em;font-weight:700'>{_dirtxt}</span>") if _dirtxt else ''
+        _off = ev.get('off_band_c_bets', len(_ch))
         doc.w(
             "<div style='margin:10px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;"
             "background:#fff'>"
             f"<div style='font-weight:700;color:#111827'>{sig.get('pattern_label', 'Sizing pattern')}"
             "<span style='margin-left:8px;padding:2px 8px;border-radius:10px;background:#eef2ff;"
-            f"color:#3730a3;font-size:.78em;font-weight:700'>{_conf} confidence · aggregate</span></div>"
+            f"color:#3730a3;font-size:.78em;font-weight:700'>{_conf} confidence · aggregate</span>{_dirtag}</div>"
             f"<div style='margin-top:4px;color:#374151'><strong>What:</strong> {sig.get('what_happened', '')}</div>"
             f"<div style='color:#374151'><strong>Why it matters:</strong> {sig.get('why_it_matters', '')}</div>"
             f"<div style='color:#374151'><strong>Adjustment:</strong> {sig.get('adjustment', '')}</div>"
-            "<div style='margin-top:4px;color:#6b7280;font-size:.92em'>Sizing compliance "
-            f"{ev.get('sizing_compliance_pct', '?')}% on {ev.get('judged_c_bets', '?')} sized c-bets · "
-            f"example hands: {_ex}</div>"
+            "<div style='margin-top:4px;color:#6b7280;font-size:.92em'>"
+            f"Off-size on {_off} of {ev.get('judged_c_bets', '?')} eligible flop c-bets "
+            f"({ev.get('sizing_compliance_pct', '?')}% within the band) · example hands: {_ex}</div>"
             "</div>")
 
 

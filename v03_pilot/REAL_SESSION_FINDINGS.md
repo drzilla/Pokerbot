@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED (per-hand pilot era).** Real-session findings of the rejected per-hand sizing review
+> (0 confirmed mistakes / 3,609 hands). The accepted feature is the **aggregate** sizing-leak detector. The
+> raw `REAL_*.json` queues referenced here were moved to the external audit archive
+> (`V821_SIZING_LINES_EVIDENCE_ARCHIVE.zip`; see `v821_sync/V821_SIZING_LINES_ARCHIVE_MANIFEST.json`).
+> Current authority: `v821_sync/V821_SIZING_LINES_FINAL_SCOPE.md`. Kept for audit.
+
 # REAL_SESSION_FINDINGS
 
 Real corpus: **3 approved raw sessions, 3,609 hands** (`_session_live_test` 943h / 2026-06-04,

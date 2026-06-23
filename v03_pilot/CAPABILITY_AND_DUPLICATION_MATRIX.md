@@ -1,3 +1,7 @@
+> ⚠️ **SUPERSEDED (per-hand pilot era).** This matrix evaluated per-hand sizing/line families. The per-hand
+> approach was rejected (0 confirmed mistakes / 3,609 real hands); the accepted feature is the **aggregate**
+> flop c-bet sizing-leak detector. Current authority: `v821_sync/V821_SIZING_LINES_FINAL_SCOPE.md`. Kept for audit.
+
 # CAPABILITY_AND_DUPLICATION_MATRIX
 
 Each charter family classified against what already exists in the runtime. The goal is to pick a

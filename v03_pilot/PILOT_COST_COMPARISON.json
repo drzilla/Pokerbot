@@ -1,0 +1,11 @@
+{
+  "session": "in_worktree_fixture_corpus",
+  "n_hands": 58,
+  "discovery_runtime_v820_families_s": 0.004021,
+  "discovery_runtime_with_sizing_family_s": 0.003907,
+  "incremental_runtime_s": -0.000114,
+  "incremental_runtime_pct": -2.84,
+  "incremental_packet_bytes": 10022,
+  "incremental_packet_bytes_per_candidate": 5011,
+  "note": "v8.20 full-run resource baseline not reproducible locally (raw 844-hand inputs absent); this measures the bounded INCREMENTAL deterministic cost of the new family, which is what the charter scopes (\"incremental deterministic runtime and packet size\")."
+}

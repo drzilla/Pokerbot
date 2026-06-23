@@ -22,6 +22,16 @@ import gem_textures
 MIN_JUDGED = 3
 COMPLIANCE_FLOOR = 60.0
 
+# ── v8.21 per-hand flop c-bet sizing assessment (pilot Family A) ──────────────────────────────
+# Per-DECISION complement to the aggregate leak signal above: one assessment per individual flop
+# c-bet, judged against the SAME canonical band (gem_textures get_gto_target / sizing_within_target).
+# It re-implements no sizing math: the chosen % of pot is CONSUMED from hand['hero_bets'] (the field
+# gem_analyzer feeds to aggregate_compliance); the band and the deviation test are canonical owners.
+TOLERANCE_PP = 10        # within +/-10pp of a sanctioned size = compliant (canonical default tolerance)
+GROSS_PP = 25            # a deviation this large (percentage points) is beyond a plausible mixing artifact
+GROSS_OVER_MULT = 2.0    # actual >= 2x the largest sanctioned size  -> a clear over-size
+GROSS_UNDER_MULT = 0.5   # actual <= 0.5x the smallest sanctioned size -> a clear under-size
+
 
 def _arch_human(arch):
     return str(arch or '').replace('_', ' ')
@@ -115,3 +125,95 @@ def build_sizing_leak_signals(texture_gto_findings, *, min_judged=MIN_JUDGED,
                               % (_arch_human(arch), side.upper(), ref_str),
             })
     return {'signals': signals, 'excluded_counts': excluded}
+
+
+def _flop_cbet_sizing_pct(hand):
+    """The canonical flop c-bet size (% of pot) Hero chose, CONSUMED from hand['hero_bets']
+    (the same per-hand field gem_analyzer feeds to gem_textures.aggregate_compliance). Returns None
+    when Hero did not c-bet the flop or the size is unparseable."""
+    for b in (hand.get('hero_bets') or []):
+        if isinstance(b, (list, tuple)) and len(b) >= 3 and b[0] == 'flop' and b[2] == 'cbet':
+            try:
+                return float(b[1])
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_PP):
+    """Per-hand flop c-bet SIZING assessment vs the canonical board-archetype band
+    (gto_texture_archetypes.json via gem_textures). Returns an assessment dict ONLY when Hero's flop
+    c-bet size deviates from an APPLICABLE, COMPLETE band; otherwise returns None (fail closed).
+
+    No parallel math: the chosen % of pot is consumed from hand['hero_bets']; the board archetype is the
+    parser-stamped canonical field (fallback: the same gem_textures.classify_archetype owner); the band
+    and the deviation test are gem_textures.get_gto_target / sizing_within_target. The result is
+    result-independent (no runout / showdown / net).
+
+    severity:
+      'gross'    -> deviation_pp >= gross_pp AND (actual >= 2x the largest, or <= 0.5x the smallest,
+                    sanctioned size) AND a single-target (non-dual) COMPLETE band -> a sizing ERROR.
+      'moderate' -> outside tolerance but not gross, or a dual-strategy band      -> analyst-judged.
+
+    Returns None (no candidate, fail closed) when ANY of: Hero is not the preflop aggressor; Hero did
+    not c-bet the flop; fewer than 3 board cards; archetype unknown; chart confidence != 'complete';
+    no applicable depth band; band empty; the size is within tolerance; or the comparison is unjudgeable.
+    """
+    if not hand.get('pfr'):
+        return None
+    actual = _flop_cbet_sizing_pct(hand)
+    if actual is None:
+        return None
+    board = (hand.get('board') or [])[:3]
+    if len(board) < 3:
+        return None
+    # canonical archetype: prefer the parser-stamped field, fall back to the SAME canonical owner.
+    arch = hand.get('board_archetype') or ''
+    if not arch or arch == 'unknown':
+        arch = gem_textures.classify_archetype(board)
+    if not arch or arch == 'unknown':
+        return None
+    meta = gem_textures.archetype_meta(arch) or {}
+    if meta.get('confidence') != 'complete':
+        return None                                   # fail closed on a non-complete chart
+    side = 'ip' if hand.get('hero_ip') else 'oop'
+    depth = hand.get('eff_stack_bb') or hand.get('stack_bb') or 100   # same depth source as the aggregate path
+    try:
+        depth = float(depth)
+    except (TypeError, ValueError):
+        return None
+    tgt = gem_textures.get_gto_target(arch, side, depth)
+    if not tgt or not tgt.get('sizings_pct'):
+        return None                                   # no applicable band -> cannot judge -> fail closed
+    targets = [float(t) for t in tgt['sizings_pct']]
+    within = gem_textures.sizing_within_target(actual, targets, tolerance_pp)
+    if within is None or within is True:
+        return None                                   # unjudgeable or compliant -> no candidate
+    # --- a real off-band deviation: classify severity ---
+    nearest = min(targets, key=lambda t: abs(actual - t))
+    deviation_pp = round(abs(actual - nearest), 1)
+    direction = 'over' if actual > nearest else 'under'
+    dual = bool(tgt.get('dual_strategy'))
+    gross = (deviation_pp >= gross_pp and not dual
+             and (actual >= GROSS_OVER_MULT * max(targets) or actual <= GROSS_UNDER_MULT * min(targets)))
+    severity = 'gross' if gross else 'moderate'
+    return {
+        'family': 'flop_cbet_sizing',
+        'board_archetype': arch,
+        'cbet_side': side,
+        'depth_band': tgt['depth_band'],
+        'eff_stack_bb_flop': round(depth, 1),
+        'actual_sizing_pct': round(actual, 1),
+        'target_sizings_pct': [int(t) if float(t).is_integer() else round(t, 1) for t in targets],
+        'nearest_target_pct': int(nearest) if float(nearest).is_integer() else round(nearest, 1),
+        'deviation_pp': deviation_pp,
+        'direction': direction,
+        'tolerance_pp': tolerance_pp,
+        'dual_strategy': dual,
+        'chart_confidence': meta.get('confidence'),
+        'chart_freq_pct': tgt.get('freq_pct'),
+        'chart_notes': (tgt.get('notes') or '')[:240],
+        'chart_source': 'gto_texture_archetypes.json (%s)' % (meta.get('source') or 'Dave sessions'),
+        'severity': severity,
+        'proposed_sizing_pct': int(nearest) if float(nearest).is_integer() else round(nearest, 1),
+    }

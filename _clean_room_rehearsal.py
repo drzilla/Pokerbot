@@ -1,22 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""GEM v8.20.0-rc clean-room rehearsal -- ONE-COMMAND release dress rehearsal.
+"""GEM v8.20.0-rc clean-room rehearsal -- ONE-COMMAND release dress rehearsal RUN FROM THE SEALED RUNTIME.
 
-ADDITIVE orchestrator (modifies NO production module). It builds the RC ZIP, proves the package SHA was
-sealed AFTER hashing, extracts to a fresh empty dir + self-verifies, proves the bundled phevaluator runtime
-is self-contained (no pip/site-packages), runs the canonical FULL pipeline on the June-16 session, generates
-the deterministic 24-verdict analyst output, runs ONE --quick, proves it is analyst-integrated (not
-AUTO_ONLY), proves ZERO forbidden quick-stage work via the stage meter, and TAMPERS each of the five
-fail-closed bindings proving --quick exits non-zero with the report NEVER overwritten -- restoring the good
-artifacts between every tamper case so each is isolated.
+ADDITIVE orchestrator (modifies NO production module). It builds the RC ZIP exactly once and treats THAT
+sealed ZIP as authoritative, proves the package SHA was sealed AFTER hashing, extracts to a fresh empty dir +
+self-verifies, proves the bundled phevaluator runtime is self-contained (no pip/site-packages), EXTRACTS the
+gem_lean_runtime.py self-extracting payload to a fresh runtime dir and runs the ENTIRE remaining pipeline
+FROM THAT EXTRACTED RUNTIME (not the repo checkout), asserts up-front that the RC package MANIFEST
+runtime_commit, the extracted runtime's build_identity() source commit, and the expected branch commit
+b1233f38015c all reconcile (12-char short, full 40 recorded), runs the canonical FULL pipeline (emitting the
+AUTO_ONLY report) from the extracted runtime, generates the deterministic 24-verdict analyst output, runs ONE
+--quick from the extracted runtime, proves the analyst-integrated report's footer carries
+`commit b1233f38015c` and is ANALYST_COMPLETE (not AUTO_ONLY), proves ZERO forbidden quick-stage work via the
+stage meter, and TAMPERS each of the five fail-closed bindings AGAINST THE EXACT EXTRACTED RUNTIME proving
+--quick exits non-zero with the report NEVER overwritten -- restoring the good artifacts between every tamper
+case so each is isolated.
 
 Run:  PYTHONUTF8=1 python _clean_room_rehearsal.py
 Writes: C:/mnt/user-data/outputs/v820_wave1a2a/CLEAN_ROOM_REHEARSAL_TRANSCRIPT.{json,md}
-Exit 0 iff ALL 10 steps pass.
+Exit 0 iff ALL steps pass.
 """
-import io, os, sys, json, time, shutil, hashlib, zipfile, tempfile, subprocess
+import io, os, sys, re, json, time, shutil, hashlib, zipfile, tempfile, subprocess
 
 REPO = os.path.dirname(os.path.abspath(__file__))
+
+# The frozen branch commit this RC must reconcile to (the embedded runtime froze THIS HEAD).
+EXPECTED_COMMIT_SHORT = 'b1233f38015c'
 
 # canonical, git-independent paths (match the production pipeline's resolution on this host)
 OUT_RELEASE = os.path.abspath('/mnt/user-data/outputs/release_v8200rc')
@@ -24,6 +33,15 @@ ZIP_NAME = 'GEM_v8.20.0-rc_CLAUDE_CHAT.zip'
 ZIP_PATH = os.path.join(OUT_RELEASE, ZIP_NAME)
 SHA_SIDECAR = ZIP_PATH + '.sha256'
 BUILDER = os.path.join(REPO, '_build_v8200rc_release.py')
+
+# ---- the EXTRACTED RC RUNTIME the whole pipeline runs from (populated in step 0b; NOT the repo) ----
+# A persistent fresh dir holding the gem_lean_runtime.py self-extraction (gem_analyzer + every production
+# module + phevaluator + the renderer). Every pipeline/quick/tamper subprocess below runs `python
+# <EXT_RT>/gem_analyzer.py ...` with cwd=EXT_RT so sys.path[0]==EXT_RT and imports resolve to the runtime.
+EXT_RT = None              # set by step0b_extract_runtime()
+EXT_RT_BASE = None         # parent temp dir (cleaned at the very end)
+EXT_ANALYZER = None        # os.path.join(EXT_RT, 'gem_analyzer.py')
+EXPECTED_COMMIT_FULL = ''  # 40-char form recorded for the transcript (from git, best-effort)
 
 SESSION_SRC = os.path.abspath('/mnt/user-data/outputs/iter0/june16_src')
 PLAYER = 'Knockman'
@@ -64,6 +82,53 @@ def run(cmd, **kw):
     kw.setdefault('env', ENV)
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           encoding='utf-8', errors='replace', **kw)
+
+
+def run_rt(args, session=None):
+    """Run gem_analyzer.py FROM THE EXTRACTED RC RUNTIME (NOT the repo). cwd=EXT_RT so sys.path[0]==EXT_RT
+    and every sibling import (gem_*, phevaluator, the renderer) resolves under the extracted dir. The data
+    paths the analyzer uses (/home/claude cache, /mnt/user-data/outputs packet+report) are absolute on this
+    host, so the runtime CODE comes from EXT_RT while the canonical artifacts stay where production writes
+    them. `args` is the analyzer arg list AFTER gem_analyzer.py (e.g. [session, '--quick'])."""
+    assert EXT_ANALYZER and os.path.isfile(EXT_ANALYZER), 'extracted runtime analyzer missing'
+    return subprocess.run([sys.executable, EXT_ANALYZER] + list(args),
+                          cwd=EXT_RT, env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          encoding='utf-8', errors='replace')
+
+
+def probe_runtime_module_paths():
+    """In a subprocess whose sys.path[0] is EXT_RT, import the runtime modules and report their __file__ +
+    build_identity(), proving they load from UNDER the extracted dir (never the repo). The probe script is
+    written INTO EXT_RT so the interpreter prepends EXT_RT to sys.path (cwd alone is NOT on sys.path)."""
+    probe = os.path.join(EXT_RT, '_cleanroom_modpaths_probe.py')
+    io.open(probe, 'w', encoding='utf-8').write(
+        "import os, json\n"
+        "import gem_analyzer, gem_build_identity, phevaluator\n"
+        "bi = gem_build_identity.build_identity()\n"
+        "print(json.dumps({\n"
+        "  'gem_analyzer_file': os.path.abspath(gem_analyzer.__file__),\n"
+        "  'gem_build_identity_file': os.path.abspath(gem_build_identity.__file__),\n"
+        "  'phevaluator_file': os.path.abspath(phevaluator.__file__),\n"
+        "  'build_identity': bi,\n"
+        "  'cwd': os.getcwd()}))\n")
+    r = subprocess.run([sys.executable, probe], cwd=EXT_RT, env=ENV,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace')
+    try:
+        parsed = json.loads(r.stdout.strip().splitlines()[-1])
+    except Exception:
+        parsed = {'parse_error': r.stdout[-800:]}
+    try:
+        os.remove(probe)
+    except Exception:
+        pass
+    rt_norm = os.path.normcase(os.path.normpath(EXT_RT))
+
+    def _under(p):
+        return bool(p) and os.path.normcase(os.path.normpath(p)).startswith(rt_norm)
+    parsed['_all_under_runtime'] = all(_under(parsed.get(k)) for k in
+                                       ('gem_analyzer_file', 'gem_build_identity_file', 'phevaluator_file'))
+    parsed['_returncode'] = r.returncode
+    return parsed
 
 
 def report_snapshot():
@@ -254,11 +319,117 @@ def step4_phevaluator_selfcontained():
     return ok
 
 
+def step0b_extract_runtime():
+    """Extract gem_lean_runtime.py from the SEALED RC ZIP into a FRESH empty dir, then self-extract the full
+    runtime there. EVERY subsequent pipeline/quick/tamper step runs from THIS dir (not the repo). Capture the
+    extracted runtime dir + the imported module paths + build_identity() so the transcript proves the code
+    ran from the sealed runtime."""
+    global EXT_RT, EXT_RT_BASE, EXT_ANALYZER
+    EXT_RT_BASE = tempfile.mkdtemp(prefix='gem_cleanroom_pipeline_rt_')
+    with zipfile.ZipFile(ZIP_PATH) as z:
+        z.extract('gem_lean_runtime.py', EXT_RT_BASE)
+    lean = os.path.join(EXT_RT_BASE, 'gem_lean_runtime.py')
+    EXT_RT = os.path.join(EXT_RT_BASE, 'rt')                 # fresh empty target for the self-extraction
+    ex = run([sys.executable, lean, EXT_RT])
+    EXT_ANALYZER = os.path.join(EXT_RT, 'gem_analyzer.py')
+    mp = probe_runtime_module_paths()
+    cmd = (f'unzip {ZIP_NAME}:gem_lean_runtime.py -> <base> ; '
+           f'python gem_lean_runtime.py <EXT_RT> ; import gem_analyzer/gem_build_identity/phevaluator @ EXT_RT')
+    ok = (ex.returncode == 0 and os.path.isfile(EXT_ANALYZER) and mp.get('_returncode') == 0
+          and mp.get('_all_under_runtime') is True)
+    ev = {'extracted_runtime_dir': EXT_RT,
+          'extract_returncode': ex.returncode,
+          'gem_analyzer_file': mp.get('gem_analyzer_file'),
+          'gem_build_identity_file': mp.get('gem_build_identity_file'),
+          'phevaluator_file': mp.get('phevaluator_file'),
+          'all_modules_under_extracted_runtime_not_repo': mp.get('_all_under_runtime'),
+          'repo_dir_for_contrast': REPO,
+          'runtime_build_identity': mp.get('build_identity'),
+          'probe_returncode': mp.get('_returncode')}
+    record('0b', 'Extract gem_lean_runtime -> fresh runtime dir; modules load from there (not repo)',
+           ok, cmd, ev)
+    return ok
+
+
+def step0c_commit_reconciliation():
+    """EARLY ASSERTION (before any pipeline work): the RC package MANIFEST runtime_commit AND
+    build_identity.source_commit, the EXTRACTED RUNTIME's build_identity() source commit, and the expected
+    branch commit b1233f38015c must ALL reconcile on the 12-char short form. Record the full 40-char too.
+    If they do not all reconcile, FAIL before the pipeline starts (this is exactly the identity mismatch that
+    rejected the prior sealed RC)."""
+    global EXPECTED_COMMIT_FULL
+    # (a) MANIFEST identity from the sealed package
+    with zipfile.ZipFile(ZIP_PATH) as z:
+        man = json.loads(z.read('MANIFEST.json').decode('utf-8'))
+    man_runtime_commit = (man.get('runtime_commit') or '')
+    man_bi_commit = ((man.get('build_identity') or {}).get('source_commit') or '')
+    man_bi_commit_short = ((man.get('build_identity') or {}).get('source_commit_short') or '')
+    # (b) the EXTRACTED RUNTIME's own build_identity()
+    mp = probe_runtime_module_paths()
+    rt_bi = mp.get('build_identity') or {}
+    rt_commit = rt_bi.get('source_commit') or ''
+    rt_commit_short = rt_bi.get('source_commit_short') or ''
+    # (c) expected branch commit (short is the contract; record the full 40 from git best-effort)
+    try:
+        EXPECTED_COMMIT_FULL = subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], cwd=REPO, stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        EXPECTED_COMMIT_FULL = ''
+    exp_short = EXPECTED_COMMIT_SHORT
+
+    def short(x):
+        return (x or '')[:12]
+    shorts = {
+        'manifest_runtime_commit': short(man_runtime_commit),
+        'manifest_build_identity_source_commit': short(man_bi_commit or man_bi_commit_short),
+        'extracted_runtime_build_identity_source_commit': short(rt_commit or rt_commit_short),
+        'expected_branch_commit': short(exp_short),
+    }
+    all_match = len(set(shorts.values())) == 1 and next(iter(set(shorts.values()))) == exp_short[:12]
+    # the expected full 40 must also start with the agreed short (guards a full-vs-short false negative)
+    full_consistent = (not EXPECTED_COMMIT_FULL) or EXPECTED_COMMIT_FULL.startswith(exp_short)
+    ok = all_match and mp.get('_returncode') == 0 and full_consistent
+    ev = {'short_form_reconciliation (12-char)': shorts,
+          'all_three_reconcile': all_match,
+          'reconciled_short_commit': next(iter(set(shorts.values()))) if all_match else None,
+          'expected_branch_commit_full_40': EXPECTED_COMMIT_FULL or '(git unavailable)',
+          'manifest_full_source_commit_recorded': man_bi_commit,
+          'extracted_runtime_full_source_commit_recorded': rt_commit,
+          'extracted_runtime_git_independent': rt_bi.get('git_independent'),
+          'note': 'short-form compare avoids full-vs-short false negatives; full 40 recorded for audit'}
+    record('0c', 'Commit reconciliation: MANIFEST == extracted-runtime build_identity == b1233f38015c',
+           ok, 'compare MANIFEST.runtime_commit / extracted build_identity().source_commit / expected', ev)
+    return ok
+
+
+REPORTS = {}  # {'auto_only': path, 'analyst_integrated': path, ...} -- captured for the reviewer/transcript
+
+
 def step5_full_pipeline():
-    """Run the canonical FULL pipeline; assert exit 0, sealed packet required=24 unresolved=3, semantic
-    audit zero_analyst_calculations_required True."""
-    cmd = f'PYTHONUTF8=1 python gem_analyzer.py {SESSION_SRC}'
-    r = run([sys.executable, os.path.join(REPO, 'gem_analyzer.py'), SESSION_SRC])
+    """Run the canonical FULL pipeline FROM THE EXTRACTED RUNTIME; assert exit 0, sealed packet required=24
+    unresolved=3, semantic audit zero_analyst_calculations_required True. This plain full run (no analyst
+    output) emits the AUTO_ONLY report kept for the reviewer; we capture its path + footer commit."""
+    cmd = f'PYTHONUTF8=1 python <EXT_RT>/gem_analyzer.py {SESSION_SRC}'
+    # remove any stale analyst output so this plain full run is unambiguously analyst-free -> AUTO_ONLY
+    if os.path.isfile(AO_PATH):
+        try:
+            os.remove(AO_PATH)
+        except Exception:
+            pass
+    before = report_snapshot()
+    r = run_rt([SESSION_SRC])
+    after = report_snapshot()
+    new, _modified = diff_snapshots(before, after)
+    new_html = [f for f in new if f.endswith('.html')]
+    # the plain full run (no analyst output) tags its report AUTO_ONLY
+    auto_only = [f for f in new_html if 'AUTO_ONLY' in f]
+    ao_report = os.path.join(OUT_DATA, sorted(auto_only)[-1]) if auto_only else None
+    REPORTS['auto_only'] = ao_report
+    ao_footer = ''
+    if ao_report and os.path.isfile(ao_report):
+        _h = io.open(ao_report, encoding='utf-8').read()
+        mm = re.search(r'Release:.{0,200}?commit\s+([0-9a-f]{6,40})', _h)
+        ao_footer = mm.group(0)[:180] if mm else ''
     pkt_ok = os.path.isfile(PKT)
     m = json.load(io.open(PKT, encoding='utf-8'))['manifest'] if pkt_ok else {}
     sa = json.load(io.open(PKT_SEMAUDIT, encoding='utf-8')) if os.path.isfile(PKT_SEMAUDIT) else {}
@@ -266,16 +437,23 @@ def step5_full_pipeline():
     unresolved = m.get('unresolved_count')
     zero_calc = sa.get('zero_analyst_calculations_required')
     sealed_line = next((l for l in r.stdout.splitlines() if 'Sealed atomic analyst packet' in l), '')
+    # the AUTO_ONLY report's footer must ALSO carry the frozen commit (rendered by the extracted runtime)
+    ao_footer_has_commit = (f'commit {EXPECTED_COMMIT_SHORT}' in ao_footer) if ao_footer else False
     ok = (r.returncode == 0 and pkt_ok and required == 24 and unresolved == 3 and zero_calc is True
-          and sa.get('zero_silently_incomplete') is True and sa.get('zero_future_information_leaks') is True)
+          and sa.get('zero_silently_incomplete') is True and sa.get('zero_future_information_leaks') is True
+          and ao_report is not None and ao_footer_has_commit)
     ev = {'returncode': r.returncode, 'packet_path': PKT, 'required_count': required,
           'unresolved_count': unresolved, 'optional_count': m.get('optional_count'),
           'packet_hash16': (m.get('packet_hash') or '')[:16],
           'zero_analyst_calculations_required': zero_calc,
           'zero_silently_incomplete': sa.get('zero_silently_incomplete'),
           'zero_future_information_leaks': sa.get('zero_future_information_leaks'),
+          'AUTO_ONLY_report_path': ao_report,
+          'AUTO_ONLY_footer_line': ao_footer,
+          'AUTO_ONLY_footer_carries_frozen_commit': ao_footer_has_commit,
           'sealed_line': sealed_line.strip()}
-    record(5, 'Full pipeline: sealed packet required=24 unresolved=3 zero-calc', ok, cmd, ev)
+    record(5, 'Full pipeline from extracted runtime: sealed packet 24/3, AUTO_ONLY report + footer commit',
+           ok, cmd, ev)
     return ok
 
 
@@ -296,16 +474,17 @@ def step7_8_9_quick():
     """Run exactly ONE --quick. Assert exit 0 + a NEW report written (step 7); analyst-integrated /
     not-AUTO_ONLY with verdicts present (step 8); zero forbidden quick-stage work via telemetry (step 9)."""
     before = report_snapshot()
-    cmd = f'PYTHONUTF8=1 python gem_analyzer.py {SESSION_SRC} --quick'
-    r = run([sys.executable, os.path.join(REPO, 'gem_analyzer.py'), SESSION_SRC, '--quick'])
+    cmd = f'PYTHONUTF8=1 python <EXT_RT>/gem_analyzer.py {SESSION_SRC} --quick'
+    r = run_rt([SESSION_SRC, '--quick'])
     after = report_snapshot()
     new, _modified = diff_snapshots(before, after)
-    new_html = [f for f in new if f.endswith('.html')]
+    new_html = [f for f in new if f.endswith('.html') and 'AUTO_ONLY' not in f]
     # ---- step 7: exit 0 + report written
     s7_ok = (r.returncode == 0 and len(new_html) >= 1)
-    report_path = os.path.join(OUT_DATA, new_html[0]) if new_html else None
-    record(7, 'Run exactly ONE --quick (exit 0 + report written)', s7_ok, cmd, {
-        'returncode': r.returncode, 'new_report_html': new_html,
+    report_path = os.path.join(OUT_DATA, sorted(new_html)[-1]) if new_html else None
+    REPORTS['analyst_integrated'] = report_path
+    record(7, 'Run exactly ONE --quick from extracted runtime (exit 0 + report written)', s7_ok, cmd, {
+        'returncode': r.returncode, 'new_report_html': new_html, 'analyst_integrated_report': report_path,
         'integrated_line': next((l for l in r.stdout.splitlines() if 'analyst output integrated' in l), '').strip()})
 
     # ---- step 8: analyst-integrated, NOT AUTO_ONLY, verdicts appear in the report.
@@ -343,14 +522,29 @@ def step7_8_9_quick():
     reviewed_marker_matches = topline_equals_graded and coverage_row_equals_graded and all_within_graded
     # (4) NOT the auto-only awaiting-analyst shell
     no_awaiting_shell = ('AUTO_ONLY' not in html) and ('awaiting analyst' not in html.lower())
-    s8_ok = (state_ok and filename_not_auto_only and reviewed_marker_matches and no_awaiting_shell)
+    # (5) FROZEN-COMMIT FOOTER: the rendered footer must carry `commit b1233f38015c` -- proving the report was
+    #     rendered by the EXTRACTED runtime (whose build_identity is frozen to that commit), NOT the repo.
+    footer_m = _re8.search(r'Release:.{0,200}?commit\s+([0-9a-f]{6,40})', html)
+    footer_line = footer_m.group(0)[:200] if footer_m else ''
+    footer_commit = footer_m.group(1) if footer_m else ''
+    footer_carries_frozen = (f'commit {EXPECTED_COMMIT_SHORT}' in footer_line)
+    # (6) state is explicitly ANALYST_COMPLETE (not AUTO_ONLY, not merely non-auto)
+    state_is_analyst_complete = (state == 'ANALYST_COMPLETE')
+    s8_ok = (state_ok and state_is_analyst_complete and filename_not_auto_only and reviewed_marker_matches
+             and no_awaiting_shell and footer_carries_frozen)
     # quote the top-line coverage marker as evidence
     midx = html.find('analyst-reviewed')
     snippet = html[max(0, midx - 70):midx + 30].replace('\n', ' ').strip() if midx >= 0 else ''
-    record(8, 'Quick report is ANALYST-INTEGRATED (not AUTO_ONLY); verdicts present', s8_ok,
-           'inspect rendered report state + visible analyst-reviewed coverage marker', {
-               'runtime_report_state': state, 'filename_not_AUTO_ONLY': filename_not_auto_only,
+    record(8, 'Quick report ANALYST_COMPLETE (not AUTO_ONLY); footer carries frozen commit; verdicts present',
+           s8_ok, 'inspect rendered report state + footer commit + visible analyst-reviewed coverage marker', {
+               'runtime_report_state': state,
+               'state_is_ANALYST_COMPLETE': state_is_analyst_complete,
+               'filename_not_AUTO_ONLY': filename_not_auto_only,
                'report_basename': os.path.basename(report_path) if report_path else None,
+               'analyst_integrated_report_path': report_path,
+               'footer_line': footer_line,
+               'footer_commit': footer_commit,
+               'footer_carries_frozen_commit_b1233f38015c': footer_carries_frozen,
                'graded_required_count': n_required,
                'inline_analyst_reviewed_numbers': inline_nums,
                'coverage_row_numbers': coverage_row_nums,
@@ -383,8 +577,8 @@ def _tamper_case(label, mutate, restore_targets, hands_cache_for_id):
     saved = backup(restore_targets)
     before = report_snapshot()
     detail = mutate()                                      # perform the isolated mutation
-    r = run([sys.executable, os.path.join(REPO, 'gem_analyzer.py'),
-             detail.get('session_dir', SESSION_SRC), '--quick'])
+    # run the tampered --quick AGAINST THE EXACT EXTRACTED RC RUNTIME (not the repo)
+    r = run_rt([detail.get('session_dir', SESSION_SRC), '--quick'])
     after = report_snapshot()
     new, modified = diff_snapshots(before, after)
     restore(saved)                                          # ISOLATE: undo the mutation
@@ -493,12 +687,12 @@ def step10_tamper():
 
 
 def _post_tamper_restore_and_verify():
-    """After the tamper suite, the good artifacts were restored per-case. Re-run ONE clean --quick to PROVE
-    the rehearsal left the pipeline in a working, analyst-integrated state (belt-and-suspenders)."""
+    """After the tamper suite, the good artifacts were restored per-case. Re-run ONE clean --quick FROM THE
+    EXTRACTED RUNTIME to PROVE the rehearsal left the pipeline in a working, analyst-integrated state."""
     # ensure the good analyst output exists (case b restored it; regenerate defensively)
     if not os.path.isfile(AO_PATH):
         write_analyst_output(PKT, AO_PATH)
-    r = run([sys.executable, os.path.join(REPO, 'gem_analyzer.py'), SESSION_SRC, '--quick'])
+    r = run_rt([SESSION_SRC, '--quick'])
     return r.returncode == 0
 
 
@@ -508,6 +702,7 @@ def main():
     print('GEM v8.20.0-rc CLEAN-ROOM REHEARSAL')
     print('=' * 78)
 
+    # ---- build the FINAL RC exactly once; THAT sealed ZIP + its post-seal SHA are authoritative ----
     s1_ok, pkg_sha = step1_build()
     s2_ok = step2_sha_after_seal(pkg_sha) if s1_ok else record(
         2, 'Verify package SHA after sealing', False, '(skipped: build failed)', {})
@@ -515,31 +710,56 @@ def main():
         3, 'Extract + self_verify', False, '(skipped: build failed)', {})
     s4_ok = step4_phevaluator_selfcontained() if s1_ok else record(
         4, 'phevaluator self-contained', False, '(skipped: build failed)', {})
-    s5_ok = step5_full_pipeline()
-    s6_ok = step6_generate_analyst_output() if s5_ok else record(
-        6, 'Generate analyst JSON', False, '(skipped: full pipeline failed)', {})
-    if s6_ok:
-        s7_ok, s8_ok, s9_ok = step7_8_9_quick()
-    else:
-        s7_ok = record(7, 'Run one --quick', False, '(skipped)', {})
-        s8_ok = record(8, 'Quick analyst-integrated', False, '(skipped)', {})
-        s9_ok = record(9, 'Zero forbidden quick work', False, '(skipped)', {})
-    s10_ok = step10_tamper() if s6_ok else False
-    if not s6_ok:
-        STEPS.append({'step': 10, 'name': 'Tamper suite', 'passed': False,
-                      'command': '(skipped: prerequisites failed)', 'evidence': {}})
 
-    # leave the pipeline clean + working
-    post_ok = _post_tamper_restore_and_verify() if s6_ok else False
+    # ---- extract the runtime the ENTIRE remaining pipeline runs from (NOT the repo) ----
+    s0b_ok = step0b_extract_runtime() if s1_ok else record(
+        '0b', 'Extract runtime', False, '(skipped: build failed)', {})
+    # ---- EARLY commit reconciliation (before any pipeline work); FAIL here stops the pipeline ----
+    s0c_ok = step0c_commit_reconciliation() if s0b_ok else record(
+        '0c', 'Commit reconciliation', False, '(skipped: runtime extraction failed)', {})
+
+    runtime_ready = s0b_ok and s0c_ok
+    if not runtime_ready:
+        # do NOT run the pipeline against the repo as a fallback -- the contract is run-from-runtime or fail
+        for n, nm in ((5, 'Full pipeline'), (6, 'Generate analyst JSON'), (7, 'Run one --quick'),
+                      (8, 'Quick ANALYST_COMPLETE'), (9, 'Zero forbidden quick work')):
+            record(n, nm, False, '(skipped: extracted runtime not ready / commit reconciliation failed)', {})
+        STEPS.append({'step': 10, 'name': 'Tamper suite', 'passed': False,
+                      'command': '(skipped: extracted runtime not ready)', 'evidence': {}})
+        s5_ok = s6_ok = s7_ok = s8_ok = s9_ok = s10_ok = post_ok = False
+    else:
+        s5_ok = step5_full_pipeline()
+        s6_ok = step6_generate_analyst_output() if s5_ok else record(
+            6, 'Generate analyst JSON', False, '(skipped: full pipeline failed)', {})
+        if s6_ok:
+            s7_ok, s8_ok, s9_ok = step7_8_9_quick()
+        else:
+            s7_ok = record(7, 'Run one --quick', False, '(skipped)', {})
+            s8_ok = record(8, 'Quick ANALYST_COMPLETE', False, '(skipped)', {})
+            s9_ok = record(9, 'Zero forbidden quick work', False, '(skipped)', {})
+        s10_ok = step10_tamper() if s6_ok else False
+        if not s6_ok:
+            STEPS.append({'step': 10, 'name': 'Tamper suite', 'passed': False,
+                          'command': '(skipped: prerequisites failed)', 'evidence': {}})
+        # leave the pipeline clean + working
+        post_ok = _post_tamper_restore_and_verify() if s6_ok else False
 
     all_pass = all(s['passed'] for s in STEPS)
     summary = {
-        'package': 'GEM v8.20.0-rc clean-room rehearsal',
+        'package': 'GEM v8.20.0-rc clean-room rehearsal (run from sealed runtime)',
         'all_steps_passed': all_pass,
+        'final_rc_zip_path': ZIP_PATH,
+        'final_rc_zip_size_bytes': os.path.getsize(ZIP_PATH) if os.path.isfile(ZIP_PATH) else None,
+        'final_rc_sha256_after_sealing': pkg_sha,
         'package_sha256': pkg_sha,
         'zip_path': ZIP_PATH,
+        'expected_commit_short': EXPECTED_COMMIT_SHORT,
+        'expected_commit_full_40': EXPECTED_COMMIT_FULL,
+        'extracted_runtime_dir': EXT_RT,
         'session_source': SESSION_SRC,
         'player': PLAYER,
+        'auto_only_report_path': REPORTS.get('auto_only'),
+        'analyst_integrated_report_path': REPORTS.get('analyst_integrated'),
         'post_rehearsal_clean_quick_ok': post_ok,
         'steps': STEPS,
         'generated_at_epoch': int(time.time()),
@@ -547,8 +767,19 @@ def main():
     io.open(TRANSCRIPT_JSON, 'w', encoding='utf-8').write(json.dumps(summary, indent=2, default=str))
     _write_md(summary)
 
+    # tidy the extracted-runtime temp tree (artifacts/reports live under the canonical out dirs, not here)
+    if EXT_RT_BASE and os.path.isdir(EXT_RT_BASE):
+        try:
+            shutil.rmtree(EXT_RT_BASE)
+        except Exception:
+            pass
+
     print('=' * 78)
     print(f"OVERALL: {'PASS' if all_pass else 'FAIL'}  ({sum(s['passed'] for s in STEPS)}/{len(STEPS)} steps)")
+    print(f"FINAL RC SHA-256 (after sealing): {pkg_sha}")
+    print(f"extracted runtime dir:           {EXT_RT}")
+    print(f"AUTO_ONLY report:                {REPORTS.get('auto_only')}")
+    print(f"analyst-integrated report:       {REPORTS.get('analyst_integrated')}")
     print(f"transcript JSON: {TRANSCRIPT_JSON}")
     print(f"transcript MD:   {TRANSCRIPT_MD}")
     print('=' * 78)
@@ -560,10 +791,18 @@ def _write_md(summary):
     L.append('# GEM v8.20.0-rc — Clean-Room Rehearsal Transcript\n')
     L.append(f"**Result:** {'PASS ✅' if summary['all_steps_passed'] else 'FAIL ❌'}  "
              f"({sum(s['passed'] for s in summary['steps'])}/{len(summary['steps'])} steps)\n")
-    L.append(f"- Package SHA-256: `{summary['package_sha256']}`")
-    L.append(f"- ZIP: `{summary['zip_path']}`")
+    L.append(f"- FINAL RC ZIP: `{summary.get('final_rc_zip_path')}`  "
+             f"({summary.get('final_rc_zip_size_bytes')} bytes)")
+    L.append(f"- FINAL RC SHA-256 (after sealing): `{summary.get('final_rc_sha256_after_sealing')}`")
+    L.append(f"- Expected frozen commit: `{summary.get('expected_commit_short')}`  "
+             f"(full `{summary.get('expected_commit_full_40')}`)")
+    L.append(f"- Extracted RC runtime dir (pipeline ran from here, NOT the repo): "
+             f"`{summary.get('extracted_runtime_dir')}`")
+    L.append(f"- AUTO_ONLY report: `{summary.get('auto_only_report_path')}`")
+    L.append(f"- Analyst-integrated report: `{summary.get('analyst_integrated_report_path')}`")
     L.append(f"- Session source: `{summary['session_source']}`  (player `{summary['player']}`)")
-    L.append(f"- Post-rehearsal clean `--quick` ok: `{summary['post_rehearsal_clean_quick_ok']}`\n")
+    L.append(f"- Post-rehearsal clean `--quick` (from extracted runtime) ok: "
+             f"`{summary['post_rehearsal_clean_quick_ok']}`\n")
     L.append('| Step | Name | Result |')
     L.append('|---|---|---|')
     for s in summary['steps']:

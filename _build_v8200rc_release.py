@@ -214,9 +214,24 @@ def _build_body(c):
         full = os.path.join(STAGE, rel)
         if os.path.isfile(full):
             files[rel] = {'sha256': sha256(full), 'size': os.path.getsize(full)}
+    # QA-BLOCK-002: LABEL the three distinct SHAs so they reconcile rather than read as contradictory.
+    # (1) source_commit = the frozen build commit; (2) lean_payload_sha256 = the gem_lean_runtime.py embedded
+    # zip payload; (3) package_zip_sha256 = the sealed RC ZIP, written to the sibling <zip>.sha256 AFTER
+    # sealing (it cannot live inside the file it hashes).
+    _lean_payload_sha = ''
+    _lean_p = os.path.join(STAGE, 'gem_lean_runtime.py')
+    if os.path.isfile(_lean_p):
+        import re as _re_lp
+        _m = _re_lp.search(r'zip sha256\[:16\]:\s*([0-9a-f]+)', io.open(_lean_p, encoding='utf-8').read())
+        _lean_payload_sha = _m.group(1) if _m else ''
     manifest = {'package': 'GEM %s Claude Chat candidate' % PKG_ID, 'runtime_base': 'v8.19.0',
                 'runtime_commit': c, 'release_candidate': PKG_ID, 'build_identity': _idy,
                 'report_schema': _idy.get('report_schema'), 'packet_schema': ap.SCHEMA_VERSION,
+                'sha_reconciliation': {
+                    'source_commit': _idy.get('source_commit'),
+                    'lean_payload_sha256_16': _lean_payload_sha,
+                    'package_zip_sha256': 'see %s.sha256 (computed AFTER sealing)' % ZIP_NAME,
+                },
                 'files': files}
     io.open(os.path.join(STAGE, 'MANIFEST.json'), 'w', encoding='utf-8', newline='\n').write(
         json.dumps(manifest, indent=2, ensure_ascii=False))

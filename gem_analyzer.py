@@ -11063,6 +11063,12 @@ if __name__ == '__main__':
                        __import__('gem_version', fromlist=['RUNTIME_VERSION']).RUNTIME_VERSION,
             'report_format_version':
                        __import__('gem_report_draft.draft', fromlist=['VERSION']).VERSION,
+            # QA-BLOCK-002 / QA-META-001: the run manifest carries the FULL canonical build identity so it
+            # reconciles with the report footer, the sealed analyst packet, and the package MANIFEST. 'version'
+            # stays the runtime base (semantically accurate); the release candidate + commit + build id are
+            # peer fields -- each identity layer is distinct, never collapsed to one string.
+            'build_identity': (lambda: __import__('gem_build_identity',
+                                                  fromlist=['build_identity']).build_identity())(),
             'timestamp': str(stats.get('volume', {}).get('date', '')),
             'session_dir': SESSION_DIR,
             'player': _pname_display,

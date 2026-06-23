@@ -93,10 +93,37 @@ def runtime_names():
     return names
 
 
+def vendor_phevaluator(z):
+    """QA-BLOCK-003 (self-containment): bundle the EXACT evaluator dependency (phevaluator) INTO the package
+    so the extracted Chat runtime computes exact equity with NO pip install / network fetch. phevaluator's
+    __init__ uses lazy (PEP-562) submodule imports, so `import phevaluator` + `evaluate_cards(...)` (the only
+    surface the NLH-only report uses) works WITHOUT the two large Omaha lookup tables (omaha_*.dat, ~30 MB) --
+    those are excluded to keep the upload lean. Vendored from the build env's installed package; fails LOUD
+    if phevaluator is absent at build time so a release can never ship a half-bundled evaluator."""
+    import phevaluator as _pv
+    pv_dir = os.path.dirname(os.path.abspath(_pv.__file__))
+    bundled = []
+    for root, _dirs, files in os.walk(pv_dir):
+        if '__pycache__' in root:
+            continue
+        for f in sorted(files):
+            if f.endswith(('.pyc', '.dat', '.pyo')):
+                continue   # .dat = the multi-MB Omaha tables the NLH report never touches
+            src = os.path.join(root, f)
+            arc = 'phevaluator/' + os.path.relpath(src, pv_dir).replace(os.sep, '/')
+            with open(src, 'rb') as fh:
+                z.writestr(arc, fh.read())
+            bundled.append(arc)
+    ver = getattr(_pv, '__version__', '?')
+    print('  vendored phevaluator %s: %d files (Omaha .dat excluded)' % (ver, len(bundled)))
+    return bundled
+
+
 def build():
     buf = io.BytesIO()
     chosen, excluded = [], []
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        chosen += vendor_phevaluator(z)   # bundle the exact evaluator dependency (no pip in Chat)
         for n in sorted(runtime_names()):
             arc = ('gem_report_draft/%s' % n) if n in BB.PKG else n
             src = os.path.join(REPO, 'gem_report_draft', n) if n in BB.PKG else os.path.join(REPO, n)
@@ -112,16 +139,17 @@ def build():
                  "RETAINS reviewed-decision provenance past reviewed-hand exclusion; non-NLH (PLO/Omaha) hands\n"
                  "are quarantined from every required-review + finality surface; biggest-loss screens are\n"
                  "populated before the candidate contract is written and never auto-resolved; an invalid\n"
-                 "analyst street falls back safely instead of crashing the render; the runtime imports without\n"
-                 "phevaluator (postflop equity bucketing degrades loud). Carried-forward canonical owners:\n"
+                 "analyst street falls back safely instead of crashing the render. v8.20.0-rc bundles the EXACT\n"
+                 "evaluator dependency (phevaluator, NLH tables; Omaha .dat excluded) INSIDE this package, so the\n"
+                 "Chat runtime computes exact postflop equity with NO pip install / network fetch. Carried-forward owners:\n"
                  "gem_final_status, gem_report_draft/_cards (PokerHandDisplay), gem_commentary_capsule,\n"
                  "gem_tournament_model, gem_villain_teaching. DEFERRED to v8.20: the preflop/exploit universal\n"
                  "eligibility-owner (steals/squeezes/3-bets/4-bets/exploit).\n"
                  "Verification apparatus (acceptance/, _qa_*, _test_scratch) is NOT in this package -- run\n"
                  "the full release bundle to verify a release.\n"
                  "STEP0: python /mnt/project/gem_lean_runtime.py /home/claude/gem && cd /home/claude/gem\n"
-                 "  && cp /mnt/project/session_*.csv . && python -c \"import gem_report_draft, gem_analyzer;"
-                 " print('runtime OK')\"\n")
+                 "  && cp /mnt/project/session_*.csv . && python -c \"import gem_report_draft, gem_analyzer,"
+                 " phevaluator; print('runtime OK; exact equity:', phevaluator.evaluate_cards('Ah','As','Kd','Kc','2c'))\"\n")
         z.writestr('RELEASE_NOTES_v8.19.0.txt', notes.encode())
         chosen.append('RELEASE_NOTES_v8.19.0.txt')
     raw = buf.getvalue()

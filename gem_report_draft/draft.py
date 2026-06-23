@@ -69,7 +69,47 @@ def render_both(stats, report_data, hands, sections=None,
     doc = _build(stats, report_data, hands, sections=sections)
     stats['_hands_ref'] = hands
     _lint_phase(doc, strict_lint, qa_block, stats=stats, report_data=report_data)
+    # v8.20 W1A.2A Track 1.2: now that every section has rendered (and registered the hand-ids it
+    # actually emitted), stamp the rendered-ID reconciliation onto final_truth + drop a sidecar
+    # artifact so the evidence uses REAL emitted IDs, not a static intended-consumer list.
+    _emit_final_truth_artifact(report_data)
     return doc.render_html(), doc.render_md()
+
+
+def _emit_final_truth_artifact(report_data):
+    """Stamp the rendered-ID reconciliation onto report_data['final_truth'] and write a
+    FINAL_TRUTH_RECONCILIATION sidecar to the outputs dir. Best-effort: never breaks a render."""
+    try:
+        import os
+        import io
+        import json
+        import gem_final_truth as _ft
+        ft = report_data.get('final_truth')
+        if not isinstance(ft, dict):
+            return
+        rr = _ft.reconcile_rendered(report_data)
+        ft['rendered_reconciliation'] = rr
+        out_dir = '/mnt/user-data/outputs'
+        if not os.path.isdir(out_dir):
+            out_dir = '/home/claude'
+        if not os.path.isdir(out_dir):
+            return
+        player = str(report_data.get('player') or report_data.get('hero') or 'session').replace(' ', '_')[:30]
+        payload = {
+            'artifact': 'FINAL_TRUTH_RECONCILIATION',
+            'owner': 'gem_final_truth.build_final_truth',
+            'reviewed_hands': ft.get('reconciliation', {}).get('reviewed_hands'),
+            'counts_by_class': ft.get('counts'),
+            'reconciliation': ft.get('reconciliation'),
+            'rendered_reconciliation': rr,
+            'records': ft.get('records'),
+            'populations': ft.get('populations'),
+        }
+        with io.open(os.path.join(out_dir, f'FINAL_TRUTH_RECONCILIATION_{player}.json'),
+                     'w', encoding='utf-8', newline='\n') as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def _resolve_gtow_flag(report_data, gtow_links=None):

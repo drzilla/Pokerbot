@@ -13882,7 +13882,36 @@ check('T-W1A2A-FT-14: thin accessors read the owner populations (delegation, not
 _sm_pick_src = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
 check('T-W1A2A-QA005-01: the Picks surface gates confirmed picks on the canonical positive final class',
       '_pick_eligible_canonical(hid)' in _sm_pick_src
-      and "rec.get('final_class') in ('WELL_PLAYED', 'STANDARD')" in _sm_pick_src)
+      and "rec.get('final_class') not in ('WELL_PLAYED', 'STANDARD')" in _sm_pick_src)
+
+# ---- Track 1: row-level closeout (rendered-ID reconciliation, stronger Pick, attribute escaping) ----
+# (1.2) rendered-ID reconciliation flags a row the owner expects but a surface omitted (or added).
+_rdrr = {'analyst_commentary': {'A': {'verdict': 'III.2 Mistake'}, 'B': {'verdict': 'III.2 Mistake'}},
+         'reviewed_mistakes': {}}
+_FT.build_final_truth(_rdrr, {'mistakes': [], 'punts': {'hands': []}},
+                      [{'id': 'h%d' % i} for i in range(50)])  # stamps _rdrr['final_truth']
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A'], _FC.CONFIRMED_MISTAKE)   # B omitted
+_rr = _FT.reconcile_rendered(_rdrr)
+check('T-W1A2A-T1-12a: rendered reconciliation flags a row the owner expects but the surface omitted',
+      _rr['surfaces']['confirmed_mistakes']['missing'] == ['B'] and _rr['rendered_reconciles'] is False)
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A', 'B'], _FC.CONFIRMED_MISTAKE)  # now complete
+check('T-W1A2A-T1-12b: a surface emitting exactly the owner population reconciles (0 missing/extra/dupes)',
+      _FT.reconcile_rendered(_rdrr)['rendered_reconciles'] is True)
+_FT.register_rendered(_rdrr, 'confirmed_mistakes', ['A', 'B', 'B'], _FC.CONFIRMED_MISTAKE)  # dup
+check('T-W1A2A-T1-12c: rendered reconciliation flags a duplicated row id',
+      _FT.reconcile_rendered(_rdrr)['total_duplicates'] == 1)
+
+# (1.3) Pick eligibility requires positive evidence and rejects hedged arguments — not just the III.8 tag.
+_sm_pick2 = open('gem_report_draft/sections_mistakes.py', encoding='utf-8').read()
+check('T-W1A2A-T1-13: confirmed-Pick eligibility requires positive evidence + rejects hedged arguments',
+      '_PICK_HEDGE_WORDS' in _sm_pick2 and 'if not arg:' in _sm_pick2
+      and 'read-dependent' in _sm_pick2)
+
+# (1.4) the dynamic verdict-pill data attribute is escaped via the canonical escape_attr helper.
+_helpers_src_esc = open('gem_report_draft/_helpers.py', encoding='utf-8').read()
+check('T-W1A2A-T1-14: the verdict-pill data attribute is escaped via the canonical escape_attr helper',
+      "data-verdict='{_esc_attr(label)}'" in _helpers_src_esc
+      and 'from gem_final_truth import escape_attr' in _helpers_src_esc)
 
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.

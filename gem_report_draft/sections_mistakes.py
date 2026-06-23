@@ -413,6 +413,14 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
     hands_by_id_ix = {h.get('id', ''): h for h in hands}
 
     auto_punt_by_id = {ph.get('id'): ph for ph in auto_punt_hands_filtered}
+    # v8.20 W1A.2A Track 1.2: register the hand-ids this Punts table ACTUALLY renders (auto-detected
+    # punts the analyst did not override, plus analyst III.1 verdicts) so the rendered-ID reconciliation
+    # compares them to the owner's canonical PUNT population — a punt that leaked into the Confirmed
+    # Mistakes table (or vice-versa) would surface as a missing/extra ID, not pass silently.
+    import gem_final_truth as _ftmod_p
+    _ftmod_p.register_rendered(rd, 'punts',
+                              sorted(auto_punt_ids | set(analyst_iii1_ids)),
+                              _ftmod_p.FinalClass.PUNT)
 
     # B148 (v7.71, Ron 2026-05-23): the punt detector is a backend efficiency
     # process — it surfaces candidates, it is NOT the user-facing verdict.
@@ -603,25 +611,37 @@ def _emit_iii_punts_mistakes(doc, s, rd, hands):
         _m2_hdr = "| Hand Reference | Cards | What went wrong | Hand net | Source |"
         _m2_sep = "|---|---|---|---|---|"
         _m2_rows = []
-        for m in _cm_clear:
-            href = _href(m, s['_hands_by_id'])
-            ev = m.get('estimated_ev_bb', m.get('ev', '—'))
-            ev_str = f"{ev:+.1f} BB" if isinstance(ev, (int, float)) else str(ev)
-            _m2_rows.append(f"| {href} | {_real_cards_pills(m, s['_hands_by_id'])} | {m.get('type','—')} | "
-                  f"{ev_str} | detector |")
-        for hid, c in _cm_analyst_only:
-            h = (s.get('_hands_by_id', {}) or {}).get(hid, {})
-            href = _href(h, s['_hands_by_id']) if h else f"`{hid[-8:]}`"
-            cards = (_cards_str_to_pills(''.join(h.get('cards', []) or []))
-                     if h else '—')
-            ev = h.get('net_bb') if h else None
-            ev_str = f"{ev:+.1f} BB" if isinstance(ev, (int, float)) else '—'
-            # B211 (Ron 2026-05-25): show the concise human label, not the
-            # bare "III.1"/"III.2" verdict code — "III.2" is not a description.
-            _what = c.get('label') or {
-                'III.1': 'Punt', 'III.2': 'Strategic leak'}.get(
-                (c.get('verdict', '') or '')[:5], c.get('verdict', '—'))
-            _m2_rows.append(f"| {href} | {cards} | {_what} | {ev_str} | analyst |")
+        # v8.20 W1A.2A Track 1.1: source the ROW membership from the ONE final-truth owner's
+        # CONFIRMED_MISTAKE population (not a local _cm_clear ∪ analyst-III.1/III.2 recompute), so the
+        # rows can never disagree with the disjoint header count — a III.1 punt now renders in the Punts
+        # table, never here. Row CONTENT still comes from the detector/analyst/hand records; only the
+        # membership is owner-owned. Register the emitted IDs for the rendered-ID reconciliation (1.2).
+        import gem_final_truth as _ftmod
+        _cm_pop = _ftmod.population_ids(rd, _ftmod.FinalClass.CONFIRMED_MISTAKE)
+        _cm_by_detector = {m.get('id'): m for m in _cm_clear}
+        for hid in _cm_pop:
+            m = _cm_by_detector.get(hid)
+            if m is not None:
+                href = _href(m, s['_hands_by_id'])
+                ev = m.get('estimated_ev_bb', m.get('ev', '—'))
+                ev_str = f"{ev:+.1f} BB" if isinstance(ev, (int, float)) else str(ev)
+                _m2_rows.append(f"| {href} | {_real_cards_pills(m, s['_hands_by_id'])} | "
+                                f"{m.get('type','—')} | {ev_str} | detector |")
+            else:
+                c = ((_cm_analyst.get(hid) if isinstance(_cm_analyst, dict) else {}) or {})
+                h = (s.get('_hands_by_id', {}) or {}).get(hid, {})
+                href = _href(h, s['_hands_by_id']) if h else f"`{hid[-8:]}`"
+                cards = (_cards_str_to_pills(''.join(h.get('cards', []) or []))
+                         if h else '—')
+                ev = h.get('net_bb') if h else None
+                ev_str = f"{ev:+.1f} BB" if isinstance(ev, (int, float)) else '—'
+                # B211: concise human label, not the bare "III.2" verdict code.
+                _what = c.get('label') or {
+                    'III.1': 'Punt', 'III.2': 'Strategic leak'}.get(
+                    (c.get('verdict', '') or '')[:5], c.get('verdict', '—'))
+                _m2_rows.append(f"| {href} | {cards} | {_what} | {ev_str} | analyst |")
+        _ftmod.register_rendered(rd, 'confirmed_mistakes', _cm_pop,
+                                 _ftmod.FinalClass.CONFIRMED_MISTAKE)
         _m2_blk = hand_evidence_table_block("iii2-confirmed", _m2_hdr, _m2_sep, _m2_rows)
         doc.write_block(_m2_blk)
         doc.w("")
@@ -2002,9 +2022,25 @@ def _emit_sub_picks(doc, s, rd, hands):
     # contradicts its own conditional/insufficient state" defect. Defensive: if the owner record is
     # absent (owner not built), defer to the III.8 analyst tag rather than dropping the pick.
     _pick_records = (rd.get('final_truth') or {}).get('records', {})
+    _PICK_HEDGE_WORDS = ('insufficient', 'read-dependent', 'read dependent', 'read-dep',
+                         'not sure', 'unclear', 'unresolved', 'depends on', 'if villain')
     def _pick_eligible_canonical(hid):
+        # (a) owner gate: the canonical final class must be POSITIVE (well-played / standard) -- a hand
+        #     the owner classes as mistake / punt / read-dependent / insufficient can never be a Pick.
         rec = _pick_records.get(hid)
-        return True if rec is None else rec.get('final_class') in ('WELL_PLAYED', 'STANDARD')
+        if rec is not None and rec.get('final_class') not in ('WELL_PLAYED', 'STANDARD'):
+            return False
+        # (b) v8.20 W1A.2A Track 1.3: independent positive evidence is REQUIRED -- do not infer
+        #     eligibility from the III.8 verdict prefix alone. The analyst entry must carry actual
+        #     reasoning, and must not be hedged as insufficient / read-dependent / conditional. A pick
+        #     that fails this is a candidate/learning example, not a confirmed award.
+        cmt = analyst_all.get(hid) or {}
+        arg = ((cmt.get('argument', '') or '') + ' ' + (cmt.get('spot', '') or '')).strip().lower()
+        if not arg:
+            return False
+        if any(w in arg for w in _PICK_HEDGE_WORDS):
+            return False
+        return True
     analyst_picks = [(hid, cmt) for hid, cmt in analyst_picks if _pick_eligible_canonical(hid)]
     _analyst_pick_ids = {hid for hid, _ in analyst_picks}
 

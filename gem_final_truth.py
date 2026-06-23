@@ -370,3 +370,52 @@ def escape_attr(value):
     """Correct HTML escaping for a dynamic data-attribute payload -- apostrophe, quote, ampersand and
     angle brackets (V820-QA-030). Use for every data-* attribute built from session data."""
     return _html.escape('' if value is None else str(value), quote=True).replace("'", '&#x27;')
+
+
+# --------------------------------------------------------------------------- #
+# rendered-surface reconciliation -- surfaces register the IDs they ACTUALLY   #
+# emit, so the artifact compares emitted IDs to the canonical populations.     #
+# --------------------------------------------------------------------------- #
+
+def register_rendered(rd, surface, hand_ids, final_class=None):
+    """A coaching surface calls this with the hand-ids it ACTUALLY renders (a row table, a pill list,
+    a Pick grid). The reconciliation then compares emitted IDs to the owner's canonical population for
+    that class -- catching a row that the count owner excluded but a surface still drew, or vice-versa.
+    Idempotent per (surface): the last registration for a surface wins (renderers may re-emit)."""
+    store = rd.setdefault('_rendered_truth', {})
+    fc = final_class.value if isinstance(final_class, FinalClass) else final_class
+    store[surface] = {'ids': [str(h) for h in hand_ids if h is not None], 'final_class': fc}
+    return store[surface]
+
+
+def reconcile_rendered(rd):
+    """Compare every registered surface's emitted IDs to the owner's canonical population for its class.
+    Returns per-surface {rendered, expected, missing, extra, duplicates, final_class} plus a roll-up.
+    A surface with no declared final_class is reported (rendered/duplicates) but not diffed against a
+    population (e.g. a mixed table)."""
+    pops = populations(rd)
+    rendered = rd.get('_rendered_truth', {}) or {}
+    surfaces = {}
+    total_missing = total_extra = total_dupes = 0
+    for name, rec in rendered.items():
+        ids = rec.get('ids', [])
+        fc = rec.get('final_class')
+        dupes = sorted({x for x in ids if ids.count(x) > 1})
+        total_dupes += len(dupes)
+        entry = {'rendered_count': len(ids), 'duplicates': dupes, 'final_class': fc}
+        if fc and fc in pops:
+            expected = set(pops.get(fc, []))
+            got = set(ids)
+            missing = sorted(expected - got)
+            extra = sorted(got - expected)
+            total_missing += len(missing)
+            total_extra += len(extra)
+            entry.update({'expected_count': len(expected), 'missing': missing, 'extra': extra})
+        surfaces[name] = entry
+    return {
+        'surfaces': surfaces,
+        'total_missing': total_missing,
+        'total_extra': total_extra,
+        'total_duplicates': total_dupes,
+        'rendered_reconciles': bool(total_missing == 0 and total_extra == 0 and total_dupes == 0),
+    }

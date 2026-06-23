@@ -3999,7 +3999,10 @@ _MODAL_HTML = r"""
       b.addEventListener('click',function(){
         ch.setAttribute('data-metric',b.getAttribute('data-metric'));
         Array.prototype.forEach.call(ch.querySelectorAll('.tt-metric'),function(x){x.classList.toggle('active',x===b);});
-        window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
+        /* QA-RES (shared state): a metric change re-renders from the CURRENT canonical filtered set (not the
+           full-session window.ttChart values) and never alters the active filter. */
+        if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();
+        else window.ttRenderChart(null,ch.getAttribute('data-tab')||'buyin');});});
     var tip=ch.querySelector('.tt-tooltip');
     function show(ev){var row=ev.target.closest?ev.target.closest('.tt-bar-row'):null;if(!row||!tip)return;
       tip.textContent=row.getAttribute('data-tip')||'';tip.hidden=false;
@@ -4101,24 +4104,49 @@ _MODAL_HTML = r"""
     function renderChart(evs){var ch=document.querySelector('.tt-chart');if(!ch||!window.ttChart)return;
       var tab=ch.getAttribute('data-tab')||'buyin';var metric=ch.getAttribute('data-metric')||'net';
       var cats=(window.ttChart[tab]||{}).cats||[];var body=ch.querySelector('.tt-chart-body');if(!body)return;
+      /* QA-RES (shared state): chart VALUES are ALWAYS re-aggregated from the current filtered events +
+         active tab/metric -- never the precomputed full-session window.ttChart values. window.ttChart is
+         used only for the category list + colours. */
       var aggByCat={};cats.forEach(function(c){aggByCat[c.key]=_ttAggregate(evs.filter(function(e){return _ttEvKey(e,tab)===c.key;}));});
       var shares=_ttDist(aggByCat,metric,cats);var h='';
       cats.forEach(function(c){h+=_ttChartBar(c,shares[c.key],metric);});
-      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';}
+      body.innerHTML=h||'<p class="tt-coverage-note">No data for this metric.</p>';
+      var ttl=ch.querySelector('[data-tt-chart-title]');
+      if(ttl){var tl=String(tab).charAt(0).toUpperCase()+String(tab).slice(1).replace(/_/g,' ');
+        var ml={net:'Net',cost:'Cost',return:'Cash Return'}[metric]||metric;
+        ttl.textContent='Distribution — '+tl+' · '+ml;}}
     function render(){var evs=filtered();var ids={};evs.forEach(function(e){ids[e.id]=1;});
       renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);
       var clr=filters&&filters.querySelector('[data-tt-clear]');
       var any=false;for(var d in state){if(state[d]&&state[d].length){any=true;break;}}
       if(clr)clr.hidden=!any;}
     window.ttApplyFilters=render;
-    /* RES-007 (v8.19.0): ONE canonical filter state. The Results-table (DataTable) filter is the
-       single driver — when it changes, the sticky summary, grouped aggregate and distribution chart
-       re-render from the SAME visible event set (keyed by ttModel id). Passing null restores the
-       grouped/chart filter's own state. */
-    window.ttApplyFiltersForIds=function(idset){
-      var evs=(idset==null)?filtered():model.filter(function(e){return idset[String(e.id)];});
-      renderSticky(evs);renderGrouped(evs);renderChart(evs);
-    };
+    /* QA-RES (FINAL shared-state correction): ONE canonical Results state, owned by the DataTable filter
+       and stored as window.__ttFilteredIds (null => all events). ONE canonical render function,
+       renderResultsFromCurrentState(), re-renders EVERY surface (sticky, grouped rows+footer, coverage,
+       chart) from that same filtered set + the active grouping tab + active metric. The DataTable filter
+       bridge, the metric selector, the grouping-tab handler, reset and reload/restoration ALL call it, so
+       no Results interaction ever renders from the full-session population or an empty private state. */
+    window.__ttFilteredIds=null;
+    function _ttCurrentEvents(){
+      /* Canonical source of truth = the Results DataTable's currently-VISIBLE rows. Deriving the event set
+         from the DOM (rather than an id-set the bridge has to push) makes every caller order-independent:
+         the DataTable filters its own #tt-results rows first (on click AND on reload/restoration), so the
+         metric, grouping-tab, reset and init renders all read the SAME population the table shows -- even
+         when initDataTable runs before this controller defines the bridge. __ttFilteredIds is a fallback. */
+      var t=document.getElementById('tt-results');
+      if(t){var vis={},any=false;
+        Array.prototype.forEach.call(t.querySelectorAll('tbody tr[data-event-id]'),function(r){
+          if(r.style.display!=='none'){vis[r.getAttribute('data-event-id')]=1;any=true;}});
+        if(any)return model.filter(function(e){return vis[String(e.id)];});}
+      var s=window.__ttFilteredIds;
+      return (s==null)?model.slice():model.filter(function(e){return s[String(e.id)];});}
+    window.ttCurrentFilteredIds=function(){return _ttCurrentEvents().map(function(e){return e.id;}).sort();};
+    function renderResultsFromCurrentState(){var evs=_ttCurrentEvents();var ids={};
+      evs.forEach(function(e){ids[e.id]=1;});
+      renderSticky(evs);renderRows(ids);renderGrouped(evs);renderChart(evs);}
+    window.renderResultsFromCurrentState=renderResultsFromCurrentState;
+    window.ttApplyFiltersForIds=function(idset){window.__ttFilteredIds=idset||null;renderResultsFromCurrentState();};
     if(filters){
       Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         b.addEventListener('click',function(){var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
@@ -4139,7 +4167,13 @@ _MODAL_HTML = r"""
       Array.prototype.forEach.call(filters.querySelectorAll('.tt-filter-chip'),function(b){
         var dim=b.getAttribute('data-dim'),val=b.getAttribute('data-val');
         if(state[dim]&&state[dim].indexOf(val)>=0)b.classList.add('active');else b.classList.remove('active');});}
-    render();
+    /* QA-RES (reload/restoration parity): the INITIAL render must reflect the ONE canonical state
+       (window.__ttFilteredIds), NOT this controller's own empty state. Otherwise, when the DataTable
+       restores a saved filter on reload and bridges the filtered id-set, this end-of-init render() would
+       clobber the restored sticky/grouped/chart back to the full population. Order-independent: if the
+       DataTable has already bridged, we render its filtered set; if not, __ttFilteredIds is null => all,
+       and the DataTable's later bridge becomes the final word. */
+    renderResultsFromCurrentState();
   };
   function openTournamentDetail(eventId){
     var evs=window.tournamentEvents||[];

@@ -1042,8 +1042,12 @@ def _emit_tournament_tables(doc, s, rd, hands):
             "b.classList.toggle('active',b===btn);});"
             "g.querySelectorAll('.tt-tabpane').forEach(function(p){"
             "p.style.display=(p.getAttribute('data-tabpane')===tab)?'':'none';});"
-            "if(window.ttRenderChart)window.ttRenderChart(g,tab);"
-            "if(window.ttApplyFilters)window.ttApplyFilters();});});});})();")
+            # QA-RES (shared state): the grouping tab follows on the chart too, then EVERY surface re-renders
+            # through the ONE canonical render (current filtered set + active metric) -- never the old
+            # full-session ttRenderChart / empty-state ttApplyFilters paths. The active filter is preserved.
+            "var ch=document.querySelector('.tt-chart');if(ch)ch.setAttribute('data-tab',tab);"
+            "if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();"
+            "else if(window.ttRenderChart)window.ttRenderChart(g,tab);});});});})();")
     except Exception:
         pass
 

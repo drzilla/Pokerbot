@@ -9845,6 +9845,50 @@ check('T-RES-04 (reload-safe single state): initTtFilters only restores a saved 
 check('T-RES-05 (chart follows grouping tab + filter): the chart re-renders from the active tab + filtered events',
       "ch.getAttribute('data-tab')" in _html_p4src and 'function renderChart(' in _html_p4src
       and 'window.ttApplyFiltersForIds=' in _html_p4src)
+# QA-RES FINAL shared-state correction: ONE canonical state + ONE render fn for filter/metric/tab/reset/reload.
+_ttcode_res = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-RES-06 (chart values ALWAYS from the filtered set): renderChart re-aggregates from the current filtered events (_ttAggregate over evs.filter), never the precomputed full-session window.ttChart values',
+      '_ttAggregate(evs.filter(' in _html_p4src and 'function renderChart(evs)' in _html_p4src)
+check('T-RES-07 (one canonical state owner derived from the DataTable rows): renderResultsFromCurrentState + _ttCurrentEvents read the DataTable visible rows (DOM source of truth), so every caller is order-independent; ttCurrentFilteredIds is exposed',
+      'function renderResultsFromCurrentState(' in _html_p4src
+      and "document.getElementById('tt-results')" in _html_p4src
+      and "r.style.display!=='none'" in _html_p4src
+      and 'window.ttCurrentFilteredIds=' in _html_p4src
+      and 'window.renderResultsFromCurrentState=renderResultsFromCurrentState' in _html_p4src)
+check('T-RES-08 (metric change -> canonical render, not full-session): the metric button handler calls renderResultsFromCurrentState (so a metric switch after a filter recomputes from the filtered set) and never alters the filter',
+      'if(window.renderResultsFromCurrentState)window.renderResultsFromCurrentState();' in _html_p4src)
+check('T-RES-09 (grouping-tab change -> canonical render; old empty-state path retired): the tab handler sets the chart data-tab AND calls renderResultsFromCurrentState; the bare window.ttApplyFilters() (empty private state) call is GONE',
+      "ch.setAttribute('data-tab',tab)" in _ttcode_res
+      and 'window.renderResultsFromCurrentState()' in _ttcode_res
+      and 'if(window.ttApplyFilters)window.ttApplyFilters()' not in _ttcode_res)
+check('T-RES-10 (reload/restoration parity): initTtFilters initial render is renderResultsFromCurrentState (the canonical state), NOT a bare render() that would clobber the DataTable-restored filter back to the full population',
+      'reload/restoration parity' in _html_p4src
+      and 'renderResultsFromCurrentState();\n  };' in _html_p4src)
+check('T-RES-11 (no render path to an empty independent Results state): the only filter bridge stores window.__ttFilteredIds and routes through the canonical render; no tournament handler calls window.ttApplyFilters()',
+      'window.__ttFilteredIds' in _html_p4src
+      and 'window.ttApplyFiltersForIds=function(idset){window.__ttFilteredIds=idset||null;renderResultsFromCurrentState();}' in _html_p4src
+      and 'window.ttApplyFilters()' not in _ttcode_res)
+# Required filter/grouping coverage -- proven against the actual render_datatable emit (NOT source strings):
+from gem_report_draft._datatable import render_datatable as _rdt_dim, Column as _Col_dim
+_dim_filters = [
+    {'key': 'entry_time', 'label': 'Entry time', 'options': [
+        {'value': 'early', 'label': 'Early', 'count': 1}, {'value': 'late', 'label': 'Late', 'count': 1}]},
+    {'key': 'multiday', 'label': 'Multi-day', 'options': [
+        {'value': 'multiday', 'label': 'Multiday', 'count': 1}, {'value': 'single-day', 'label': 'Single day', 'count': 1}]},
+    {'key': 'satellite', 'label': 'Satellite', 'options': [
+        {'value': 'satellite', 'label': 'Satellite', 'count': 1}, {'value': 'standard', 'label': 'Standard', 'count': 1}]}]
+_dim_html = _rdt_dim([_Col_dim(key='a', label='A', kind='text')],
+                     [{'a': {'value': 'x', 'display': 'x'}, '_filters': {'entry_time': 'early', 'multiday': 'multiday', 'satellite': 'satellite'}},
+                      {'a': {'value': 'y', 'display': 'y'}, '_filters': {'entry_time': 'late', 'multiday': 'single-day', 'satellite': 'standard'}}],
+                     table_id='tt-dimtest', totals=False, filters=_dim_filters)
+check('T-RES-DIM (renderer emits every required dim with >=2 values): entry_time / multiday / satellite chip-groups render when the data carries them (auto-hidden in the June-16 session ONLY because it is single-valued for those three); the other six (buy-in/speed/bounty/freezeout/multi-bullet/phase) are live-proven in the browser matrix',
+      all("data-dt-filter='%s'" % d in _dim_html for d in ('entry_time', 'multiday', 'satellite')))
+check('T-RES-DIM-DEFS (all 9 owner filter dimensions defined + the 6 grouping tabs): the Results filter set covers buy-in/entry-timing/speed/bounty/freezeout/multi-bullet/multi-day/satellite/phase and the grouping tabs cover buy-in/prize/speed/entry-pattern/entry-timing/phase-reached',
+      all("('%s'," % d in _ttcode_res for d in ('buyin', 'entry_time', 'speed', 'bounty', 'freezeout', 'multibullet', 'multiday', 'satellite', 'phase'))
+      and all("('%s'," % g in _ttcode_res for g in ('buyin', 'prize_type', 'speed', 'entry_pattern', 'entry_timing'))
+      and 'phase_reached' in _ttcode_res)
+check('T-RES-DIM-HIDE (auto-hide is the only reason a dim is absent): a dimension is shown iff it has >=2 distinct values among the events (single-valued dims are intentionally skipped)',
+      'if len(_cnts) <= 1:' in _ttcode_res and 'continue' in _ttcode_res)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like

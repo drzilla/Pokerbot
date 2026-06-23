@@ -14163,6 +14163,35 @@ check('T-IT4-T0-04: a count-only multi-bullet event marks intermediate bullet ex
       and _mbl.bullets[0].exit_display() == 'Unavailable from source'
       and _TF.bullet_lineage_reconciliation([_mbl])['no_fabrication'] is True)
 
+# ---- Iteration 4, Tracks 1-2: sealed one-pass analyst packet + fail-closed validator ----
+import gem_analyst_packet as _AP
+_pk_hand = {'id': 'TMX', 'position': 'SB', 'cards': ['Kc', 'Qc'], 'eff_stack_bb': 30,
+            'action_ledger': [{'street': 'preflop', 'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+                              {'street': 'preflop', 'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+                              {'street': 'preflop', 'player': 'bb', 'position': 'BB', 'action': 'folds', 'amount_bb': 0}]}
+_pkt = _AP.build_packet([_pk_hand], {}, session_id='t', runtime_version='v', optional_cap=8)
+check('T-IT4-T1-01: the sealed packet holds the high-confidence SB-flat as required, keyed evidence, manifest binds session+hash',
+      _pkt['manifest']['required_count'] >= 1 and _pkt['manifest']['session_id'] == 't'
+      and _pkt['manifest']['packet_hash']
+      and any(d['family'] == 'sb_flat_vs_late_open' for d in _pkt['required'])
+      and _pkt['required'][0]['evidence_ref'] in _pkt['evidence']
+      and _pkt['required'][0]['allowed_verdicts'] == list(_AP.ALLOWED_VERDICTS))
+_aout = {'session_id': 't', 'packet_hash': _pkt['manifest']['packet_hash'],
+         'verdicts': [{'decision_id': d['decision_id'], 'verdict': 'CONFIRMED_MISTAKE', 'reason': 'OOP flat'}
+                      for d in _pkt['required']]}
+_v_ok = _AP.validate_analyst_output(_pkt, _aout)
+check('T-IT4-T2-01: the fail-closed validator accepts a complete one-pass output (100% required coverage, 0 errors)',
+      _v_ok['valid'] is True and _v_ok['required_coverage'] == 1.0 and _v_ok['errors'] == [])
+_v_bad = _AP.validate_analyst_output(_pkt, {'session_id': 'WRONG',
+         'verdicts': [{'decision_id': _pkt['required'][0]['decision_id'], 'verdict': 'MAGIC', 'reason': '~28% equity'},
+                      {'decision_id': 'unknown:x', 'verdict': 'JUSTIFIED', 'reason': 'ok'}]})
+check('T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unpacketed numeric + unknown id + wrong session',
+      _v_bad['valid'] is False and len(_v_bad['errors']) >= 4
+      and any('outside allowed enum' in e for e in _v_bad['errors'])
+      and any('not in packet' in e for e in _v_bad['errors'])
+      and any('unknown decision' in e for e in _v_bad['errors'])
+      and any('wrong session' in e for e in _v_bad['errors']))
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

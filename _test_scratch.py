@@ -14194,6 +14194,22 @@ check('T-IT3-T1-02: the production render-field path consumes the finality owner
           {'name': 'R', 'finish': {'state': 'done', 'place': 5, 'total_players': 100},
            'exit_hand': 'HX', 'bullets': 1}))['exit_hand'] == 'HX')
 
+# ---- v8.20 Wave-1A.2A Area 4: seven-fixture Tournament Results acceptance harness (8 dimensions) ----
+# Deterministic: drives the REAL Doc/_emit_tournament_tables render path over the SEVEN canonical
+# scenario fixtures and asserts all 7 fixtures x 8 dimensions PASS (no network, no Date.now).
+import _qa_seven_fixture_results as _Q7FIX
+_q7 = _Q7FIX.run()
+_q7_dims = list(_Q7FIX.DIMENSIONS)
+_q7_fix = list(_Q7FIX.FIXTURE_ORDER)
+check('T-7FIX-01: seven-fixture Results acceptance -- all 7 fixtures x 8 dimensions present and True',
+      _q7['all_pass'] is True
+      and len(_q7['fixtures']) == 7
+      and set(_q7['fixtures'].keys()) == set(_q7_fix)
+      and len(_q7_dims) == 8
+      and all(set(_q7['fixtures'][_n].keys()) == set(_q7_dims) for _n in _q7_fix)
+      and all(_q7['fixtures'][_n][_d] is True for _n in _q7_fix for _d in _q7_dims),
+      'matrix=%s' % {_n: {_d: _q7['fixtures'][_n][_d] for _d in _q7_dims} for _n in _q7_fix})
+
 # ---- Iteration 4, Track 0: release-safety corrections ----
 # 0.2 packet-completeness is a STRICT boolean (not a hand-code string); present-fields is a separate list.
 _c4 = {'family': 'sb_flat_vs_late_open', 'decision_id': 'd', 'detector_reason': 'r',

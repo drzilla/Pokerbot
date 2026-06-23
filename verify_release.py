@@ -20,7 +20,7 @@ MANIFEST = {
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("84e64cdc08885c7eb3445f87e1ff907ec283b2bd0558293a2018ae192d329012", 911667, "v8.18.1: + T-VT181-01..07 (cue-first classify, word-boundary, no-truncation, provenance, alignment, 7 mutation classes, thin-no-future); T-VT-02/T-VS3-04a updated for cue-first projection + provenance keys"),
+    "_test_scratch.py": ("4d31b1059520808bec7e33e34f9881060b20ed194fe880de4a9c603239192de6", 912611, "v8.18.1: + T-VT181-01..07 (cue-first classify, word-boundary, no-truncation, provenance, alignment, 7 mutation classes, thin-no-future); T-VT-02/T-VS3-04a updated for cue-first projection + provenance keys"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("49704978649e916c650564d181199dd92ecd68c8d04090deb66bc0ebd0a1e5ad", 68592, "v8.17.1 Iter-1 REV10 A1/B8: exported decision_node is serialize_reviewed_decision_node (canonical ReviewedDecisionView) + reviewed_decision_view; legacy builder retired to a stack-less fallback"),

@@ -9,9 +9,9 @@ manifest and Chat package manifest all read their runtime identity from here.
 import os
 
 # ---- frozen at package build time (the builder overwrites these three lines) ----
-RELEASE_CANDIDATE = 'v8.20.0-rc'
+RELEASE_CANDIDATE = 'v8.20.0'   # FINAL release (the -rc candidate passed the private Claude Chat retest)
 SOURCE_COMMIT = ''            # full commit frozen at build; empty in the dev tree (git fallback)
-BUILD_ID = ''                # e.g. 'GEM-v8.20.0-rc-<commit12>'; derived when empty
+BUILD_ID = ''                # e.g. 'GEM-v8.20.0-<commit12>'; derived when empty
 # ----------------------------------------------------------------------------------
 
 

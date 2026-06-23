@@ -15,12 +15,12 @@ VERSION = "v8.19.0"   # v8.19.0 Product Closure & Trust Baseline: canonical requ
 # Manifest: relative_path -> (sha256, size_bytes, one-line purpose)
 # Generated from the release folder. If a file doesn't match, the copy is stale.
 MANIFEST = {
-    "GEM_Changelog.txt": ("4a0085d8ba2936671e16ed1abda9ea9eb1512e94c1ae114d4e9bbfc9e466fc10", 138144, "v8.16.4 Review Precision & Decision-Trust Hotfix entry (+ DTI live-path blockers 1+2)"),
+    "GEM_Changelog.txt": ("188986c40696178d035f217db6975cd7e986aa22f9d706381c316764031f87d7", 141201, "v8.20.0 final release entry (required-review split, self-contained package, mobile Results)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
     "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
-    "_test_scratch.py": ("5d63ff51cfb1f6e1679f19234f665ebd8e2216ea45eb0ae11ffd1beb8aedaeac", 913626, "v8.18.1: + T-VT181-01..07 (cue-first classify, word-boundary, no-truncation, provenance, alignment, 7 mutation classes, thin-no-future); T-VT-02/T-VS3-04a updated for cue-first projection + provenance keys"),
+    "_test_scratch.py": ("9deafded15c3e17ab5a437c9028885c3af89ab7e1ea57cbaf456ceb2728941a5", 913613, "v8.20.0: T-RC-BIND-01 asserts the v8.20.0 FINAL release identity (dropped -rc)"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),
     "gem_analyst_villain.py": ("a1f16e0a81caeff7212561f71e01b10884cb28fca35e15dc55d90368107f54c7", 22675, "v8.14.1 hotfix: worksheet pipeline_version from RUNTIME_VERSION"),
     "gem_analyst_worklist.py": ("49704978649e916c650564d181199dd92ecd68c8d04090deb66bc0ebd0a1e5ad", 68592, "v8.17.1 Iter-1 REV10 A1/B8: exported decision_node is serialize_reviewed_decision_node (canonical ReviewedDecisionView) + reviewed_decision_view; legacy builder retired to a stack-less fallback"),

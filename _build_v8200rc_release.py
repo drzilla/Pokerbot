@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Build the actual GEM v8.20.0-rc Claude Chat release candidate ZIP and emit its SHA-256.
+"""Build the FINAL GEM v8.20.0 Claude Chat release ZIP and emit its SHA-256.
 
-The package identity is v8.20.0-rc (a release CANDIDATE), distinct from the released v8.19.0 runtime: the
-runtime base is v8.19.0 plus this branch's atomic-packet + cache-only-quick work (current HEAD). Contents:
-the self-extracting runtime (gem_lean_runtime.py -- every production module incl. gem_analyst_packet.py +
-gem_stage_meter.py), the verifier + suite for clean-room proof, STEP0, the one-pass analyst contract, the
-packet schema, the upload manifest, dry-run prompts, rollback, and a MANIFEST.json of sha256 + sizes.
+The package identity is v8.20.0 (the -rc candidate passed the private retest), distinct from the released
+v8.19.0 runtime: the runtime base is v8.19.0 plus this branch's atomic-packet + cache-only-quick work
+(release HEAD). Contents: the self-extracting runtime (gem_lean_runtime.py -- every production module incl.
+gem_analyst_packet.py + gem_stage_meter.py), the verifier + suite for clean-room proof, STEP0, the one-pass
+analyst contract, the packet schema, the upload manifest, prompts, rollback, and a MANIFEST.json of
+sha256 + sizes.
 
-No tag, no deploy. Output: C:/mnt/user-data/outputs/release_v8200rc/.
+Build only (the caller tags/pushes/uploads). Output: C:/mnt/user-data/outputs/release_v8200/.
 """
 import io, os, sys, json, shutil, hashlib, zipfile, subprocess
 
 REPO = os.path.dirname(os.path.abspath(__file__))
-OUT = r'C:/mnt/user-data/outputs/release_v8200rc'
+OUT = r'C:/mnt/user-data/outputs/release_v8200'
 STAGE = os.path.join(OUT, 'pkg')
-ZIP_NAME = 'GEM_v8.20.0-rc_CLAUDE_CHAT.zip'
-PKG_ID = 'v8.20.0-rc'
+ZIP_NAME = 'GEM_v8.20.0_CLAUDE_CHAT.zip'   # FINAL release artifact (dropped -rc after the retest PASS)
+PKG_ID = 'v8.20.0'
 
 
 def sha256(path):
@@ -37,7 +38,7 @@ def commit():
 STEP0 = """# STEP0 — GEM {pkg} setup (Claude Chat + local clean-room)
 
 This package's runtime base is the released v8.19.0 runtime PLUS the v8.20 atomic analyst-packet and
-cache-only quick-render work (commit {commit}). Package identity: {pkg} (release CANDIDATE — not deployed).
+cache-only quick-render work (commit {commit}). Package identity: {pkg} (FINAL release — not auto-deployed; upload manually).
 
 ## Extract the runtime (always first)
 ```
@@ -109,24 +110,24 @@ Save your reply locally as `analyst_packet_<player>_analyst_output.json`.
 
 ROLLBACK = """# Rollback
 
-This package is a release CANDIDATE ({pkg}, commit {commit}); nothing is deployed by installing it.
+This is the FINAL release {pkg} (commit {commit}); nothing is deployed merely by installing it.
 
 - To stop using it: delete the extracted `/home/claude/gem` runtime and re-extract the prior
-  released v8.19.0 runtime. The released v8.19.0 Claude Chat project is unchanged by this candidate.
+  released v8.19.0 runtime. The production Claude Chat project is unchanged until you upload this package.
 - The analyst packet + quick-render flow are additive: a full run without the analyst step still
   produces the standard report. Removing the packet files has no effect on a fresh full run.
-- No production branch, tag, or Claude Chat project was modified to build this candidate.
+- No production branch, tag, or Claude Chat project was modified to build this package.
 """
 
-PROMOTION = """# Promotion (only after a passing private dry run)
+PROMOTION = """# Promotion (final release — the private retest already passed)
 
-If the private Claude Chat dry run passes the checklist, the EXACT unchanged ZIP
-({zip} sha256 {zsha}) may be promoted: upload its four Chat files to the production project, replacing the
-prior runtime. Do not rebuild or re-extract; promote the identical bytes. If the dry run fails, make ONE
-bounded fix based only on the observed failure and rebuild.
+The private Claude Chat retest PASSED on a real session, so the EXACT unchanged ZIP
+({zip} sha256 {zsha}) is the deployable v8.20.0 release: upload its four Chat files to the production
+project, replacing the prior runtime. Do not rebuild or re-extract; promote the identical bytes. The
+checklist below can be re-run as a pre-upload sanity check.
 """
 
-CHECKLIST = """# Pass/fail checklist (private dry run)
+CHECKLIST = """# Pass/fail checklist (pre-upload sanity check)
 
 - [ ] STEP0 extracts the runtime with no import errors.
 - [ ] `python gem_analyzer.py <SESSION_DIR>` exits 0 and prints "Sealed atomic analyst packet ... semantic_failing=0 future_leaks=0".
@@ -140,7 +141,7 @@ CHECKLIST = """# Pass/fail checklist (private dry run)
 
 def _freeze_identity(c):
     """Bake the git-independent build identity into gem_build_identity.py so the EXTRACTED runtime knows it
-    is v8.20.0-rc @ <commit> WITHOUT git (owner blocker #5)."""
+    is v8.20.0 @ <commit> WITHOUT git (owner blocker #5)."""
     import re
     p = os.path.join(REPO, 'gem_build_identity.py')
     src = io.open(p, encoding='utf-8').read()
@@ -168,7 +169,7 @@ def main():
     c = commit()
     _freeze_identity(c)          # bake the git-independent identity, then bundle it
     try:
-        _regen_lean()            # gem_lean_runtime.py now carries the frozen v8.20.0-rc identity
+        _regen_lean()            # gem_lean_runtime.py now carries the frozen v8.20.0 identity
         _build_body(c)
     finally:
         _restore_identity()      # leave the repo clean (dev identity restored)
@@ -224,7 +225,7 @@ def _build_body(c):
         import re as _re_lp
         _m = _re_lp.search(r'zip sha256\[:16\]:\s*([0-9a-f]+)', io.open(_lean_p, encoding='utf-8').read())
         _lean_payload_sha = _m.group(1) if _m else ''
-    manifest = {'package': 'GEM %s Claude Chat candidate' % PKG_ID, 'runtime_base': 'v8.19.0',
+    manifest = {'package': 'GEM %s Claude Chat release' % PKG_ID, 'runtime_base': 'v8.19.0',
                 'runtime_commit': c, 'release_candidate': PKG_ID, 'build_identity': _idy,
                 'report_schema': _idy.get('report_schema'), 'packet_schema': ap.SCHEMA_VERSION,
                 'sha_reconciliation': {
@@ -251,7 +252,7 @@ def _build_body(c):
 
 SELF_VERIFY = r'''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Self-verify this candidate from a FRESH extraction: re-check every MANIFEST hash, then re-extract +
+"""Self-verify this release package from a FRESH extraction: re-check every MANIFEST hash, then re-extract +
 import the packaged runtime and confirm gem_analyst_packet + gem_stage_meter are present. Exit 0 if OK."""
 import io, os, sys, json, hashlib, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))

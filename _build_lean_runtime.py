@@ -18,9 +18,9 @@ import base64, io, os, zipfile, hashlib, datetime
 import _build_bundle as BB
 
 REPO = BB.REPO
-# v8.20.0-rc candidate: the extracted runtime banner must NOT claim v8.19.0-lean (owner blocker #5). The
+# v8.20.0 FINAL: the extracted runtime banner must NOT claim v8.19.0-lean (owner blocker #5). The
 # embedded git-independent identity lives in gem_build_identity.py (frozen by the package builder).
-LEAN_VERSION = 'v8.20.0-rc'
+LEAN_VERSION = 'v8.20.0'
 
 # Excluded from the lean runtime (present in the full release bundle):
 #   - every QA harness (_qa_*.py) -- verification, not report generation
@@ -139,7 +139,7 @@ def build():
                  "RETAINS reviewed-decision provenance past reviewed-hand exclusion; non-NLH (PLO/Omaha) hands\n"
                  "are quarantined from every required-review + finality surface; biggest-loss screens are\n"
                  "populated before the candidate contract is written and never auto-resolved; an invalid\n"
-                 "analyst street falls back safely instead of crashing the render. v8.20.0-rc bundles the EXACT\n"
+                 "analyst street falls back safely instead of crashing the render. v8.20.0 bundles the EXACT\n"
                  "evaluator dependency (phevaluator, NLH tables; Omaha .dat excluded) INSIDE this package, so the\n"
                  "Chat runtime computes exact postflop equity with NO pip install / network fetch. Carried-forward owners:\n"
                  "gem_final_status, gem_report_draft/_cards (PokerHandDisplay), gem_commentary_capsule,\n"

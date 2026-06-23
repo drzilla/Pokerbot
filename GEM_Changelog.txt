@@ -1,3 +1,52 @@
+v8.20.0 (2026-06-24) -- TRUST EFFICIENCY: REQUIRED-REVIEW SPLIT + SELF-CONTAINED PACKAGE
+================================================================================
+Final v8.20.0 release (the v8.20.0-rc candidate PASSED the private Claude Chat
+retest on a real 2026-06-22/23 session: 1127 hands / 10 events -> 17 gradable
+required + 10 unresolved, ANALYST_COMPLETE, zero forbidden quick-stage work, 0
+invented exits, 0 dead anchors, 0 page-level mobile overflow, identity reconciled).
+Runtime base stays v8.19.0; this release adds trust + packaging + mobile fixes.
+
+REQUIRED-REVIEW POPULATION (QA-DET-001 / QA-PACKET-001)
+  - A required-review hand with NO canonical decision node is no longer forced
+    into the analyst's gradable queue: the sealed packet routes those records into
+    an explicit `unresolved`/engineering-debt population, so `required` holds only
+    gradable canonical decisions. The completeness owner + coverage gate exclude
+    the same no-node set (rd['_ungraded_ids']); coverage reconciliation proves
+    parity (legacy == required + unresolved) and the debt never blocks
+    ANALYST_COMPLETE.
+
+PACKAGE SELF-CONTAINMENT + IDENTITY (QA-BLOCK-002/003 / QA-META-001)
+  - The lean Chat runtime BUNDLES the exact evaluator dependency (phevaluator, NLH
+    tables; ~30 MB Omaha .dat excluded), so the extracted runtime computes exact
+    equity with NO pip install / network fetch (proven with site-packages stripped).
+  - The run manifest, report footer, sealed packet and package MANIFEST reconcile
+    to one build identity, each field semantically distinct (release != runtime
+    base != report schema), with a labelled three-SHA reconciliation.
+
+PRODUCTION INVARIANTS / METADATA (QA-META-001/002)
+  - Removed the hardcoded fixture-hand id from coverage reconciliation (now a
+    session-agnostic sb_flat invariant). Fixed the dead sec-SL (Sizing & Lines)
+    nav anchors. Report identity line carries release/runtime/schema/commit/build.
+
+MOBILE RESULTS
+  - The grouped-aggregate table stays a compact horizontally-scrollable table on
+    mobile (was a ~410px tall stacked-card blow-up). The .od-row grid mobile track
+    is minmax(0,1fr) so the decision cards no longer push a 3px page overflow at
+    360px. Six-viewport proof: docOverflow=0 at 1280/1440/1920/360/390/430.
+
+VERIFICATION
+  - Seven-fixture Results acceptance (7 scenarios x 8 dimensions), one-command
+    clean-room rehearsal run FROM the extracted RC runtime (build -> SHA-after-seal
+    -> self-verify -> phevaluator self-contained -> full pipeline -> deterministic
+    analyst output -> one --quick ANALYST_COMPLETE -> zero forbidden work -> five
+    fail-closed tamper bindings), deterministic mobile-360 overflow harness.
+
+DEFERRED (v8.21+)
+  - Per-hand bet-sizing/line mistake discovery: the v8.21 sizing-line pilot found
+    0 confirmed per-hand mistakes on 3609 real hands -> kept aggregate-only.
+  - Universal preflop forced/involuntary all-in eligibility owner + exhaustive
+    steal/3bet/4bet/squeeze/exploit integration (carried from v8.19 RC3).
+
 v8.19.0 (2026-06-23) -- PRODUCT CLOSURE & TRUST BASELINE
 ================================================================================
 Closes the v8.19 product-contract + analyst-core work behind one trust baseline.

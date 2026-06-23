@@ -14417,9 +14417,9 @@ check('T-RC-NC-10: price applicable but required_equity missing fails',
 import gem_build_identity as _BID
 import gem_input_manifest as _GIM
 _bi = _BID.build_identity()
-check('T-RC-BIND-01: build_identity reports the v8.20.0-rc release candidate + a build id, git-independently',
-      _bi['release_candidate'] == 'v8.20.0-rc' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
-_rt = {'build_id': 'GEM-v8.20.0-rc-abc'}
+check('T-RC-BIND-01: build_identity reports the v8.20.0 FINAL release + a build id, git-independently',
+      _bi['release_candidate'] == 'v8.20.0' and bool(_bi['build_id']) and 'build_id' in _bi and 'source_commit' in _bi)
+_rt = {'build_id': 'GEM-v8.20.0-abc'}
 _ih1 = {'a.txt': 'h1'}
 _ci0 = _AP.artifact_cache_identity({'_candidate_need_ids': ['A', 'B']}, [{'id': 'A'}, {'id': 'B'}], _rt, _ih1)
 check('T-RC-BIND-02: cache identity changes when an INPUT hash changes',

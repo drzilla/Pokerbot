@@ -33,14 +33,6 @@ EVIDENCE = {
     'concept.missed_river_value':
         'A genuinely strong made hand (trips+ using hole cards) that checks the river through or bets a '
         'materially small size forfeits value worse made hands would pay -- a result-independent error.',
-    'chart.flop_cbet_sizing_band':
-        'Canonical flop c-bet sizing comes from gto_texture_archetypes.json (Dave coaching sessions '
-        '2026-05-04..05-13): each COMPLETE board archetype x side (IP/OOP) x depth band carries a '
-        'sanctioned c-bet sizing band (sizings_pct, % of pot). A c-bet size outside that band by more than '
-        'the 10pp tolerance is off-reference; a GROSS deviation (>=25pp AND >=2x the largest or <=0.5x the '
-        'smallest sanctioned size) on a single-target complete band is a result-independent sizing error. '
-        'A dual-strategy band sanctions more than one size, so an off-band size there is analyst-judged, not '
-        'auto-confirmed.',
 }
 
 # board cards visible AT each street's decision (owner 1.1: exact board length per street).
@@ -233,8 +225,7 @@ def _norm_decision(c, hands_by_id=None):
     ev_key = {'sb_flat_vs_late_open': 'owner_rule.sb_3bet_or_fold',
               'deep_preflop_stackoff': 'owner_rule.deep_stackoff',
               'short_stack_coldcall': 'owner_rule.short_stack_coldcall',
-              'river_value': 'concept.missed_river_value',
-              'flop_cbet_sizing': 'chart.flop_cbet_sizing_band'}.get(fam)
+              'river_value': 'concept.missed_river_value'}.get(fam)
     did = c.get('decision_id') or ''
     parts = did.rsplit(':', 2)
     hand = (hands_by_id or {}).get(c.get('hand_id'))
@@ -244,9 +235,7 @@ def _norm_decision(c, hands_by_id=None):
                                evidence_tier=c.get('evidence_tier'), detector_reason=c.get('detector_reason'),
                                eff_stack_bb=ctx.get('eff_stack_bb'),
                                extra={'missing_assumptions': c.get('missing_assumptions', []),
-                                      'proposed_alternative': c.get('proposed_alternative'),
-                                      # detector-supplied canonical FACTS the analyst may cite (no calc).
-                                      **(ctx.get('packet_facts') or {})})
+                                      'proposed_alternative': c.get('proposed_alternative')})
     # aggregate / non-hand candidate -> minimal record (no board/action line, cannot leak future info).
     return {'decision_id': did or ('%s:aggregate' % c.get('hand_id')), 'hand_id': c.get('hand_id'),
             'family': fam, 'street': None, 'hero_action': None, 'hero_cards': None, 'board': [],
@@ -542,21 +531,9 @@ def build_packet(hands, rd, *, session_id='', input_hashes=None, runtime_version
     hands_by_id = {h.get('id'): h for h in (hands or []) if h.get('id')}
     val = _dc.run_value(hands, prior)
     confirmed_ids = {r['decision_id'] for r in val['confirmed']}
-
-    def _force_required(c):
-        # Accepted owner-rule finding (KQs SB flat) OR a confirmed finding OR a HIGH-CONFIDENCE
-        # (gross) chart-backed sizing NOMINATION. The sizing nomination is force-reviewed once but is
-        # NOT pre-confirmed -- its terminal verdict stays owned by the analyst's one-pass review.
-        if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids:
-            return True
-        if c.get('family') == 'flop_cbet_sizing':
-            sev = ((c.get('context') or {}).get('sizing_assessment') or {}).get('severity')
-            return sev == 'gross'
-        return False
-
     discovery = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']}
     rule_required = {c.get('decision_id'): _norm_decision(c, hands_by_id) for c in val['candidates']
-                     if _force_required(c)}
+                     if c.get('family') == 'sb_flat_vs_late_open' or c.get('decision_id') in confirmed_ids}
 
     required, optional, by_hand = [], [], {}
     # 1. the canonical legacy required population FIRST (parity) -- ONE hydrated decision per hand.

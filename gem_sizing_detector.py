@@ -22,11 +22,13 @@ import gem_textures
 MIN_JUDGED = 3
 COMPLIANCE_FLOOR = 60.0
 
-# ── v8.21 per-hand flop c-bet sizing assessment (pilot Family A) ──────────────────────────────
-# Per-DECISION complement to the aggregate leak signal above: one assessment per individual flop
-# c-bet, judged against the SAME canonical band (gem_textures get_gto_target / sizing_within_target).
-# It re-implements no sizing math: the chosen % of pot is CONSUMED from hand['hero_bets'] (the field
-# gem_analyzer feeds to aggregate_compliance); the band and the deviation test are canonical owners.
+# ── v8.21 flop c-bet sizing -> AGGREGATE leak summary (deep-validation recalibration) ─────────
+# The per-hand sizing assessment below found 0 confirmed mistakes across 3,609 real hands, so it is NOT
+# wired into the per-hand analyst queue. Instead `assess_flop_cbet_sizing` (with all safety gates: SRP-only,
+# heads-up, non-all-in, within-band-spread compliant) is the INPUT to `summarize_offband_sizing`, an
+# aggregate coaching-leak rollup (counts/rates by texture/side/depth/direction; representative hands are
+# EXAMPLES, never confirmed mistakes; zero mandatory reviews). It re-implements no sizing math: the chosen
+# % of pot is CONSUMED from hand['hero_bets']; the band + deviation test are canonical gem_textures owners.
 TOLERANCE_PP = 10        # within +/-10pp of a sanctioned size = compliant (canonical default tolerance)
 GROSS_PP = 25            # a deviation this large (percentage points) is beyond a plausible mixing artifact
 GROSS_OVER_MULT = 2.0    # actual >= 2x the largest sanctioned size  -> a clear over-size
@@ -164,95 +166,187 @@ def _chart_applies(hand):
     return True, ''
 
 
-def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_PP):
-    """Per-hand flop c-bet SIZING assessment vs the canonical board-archetype band
-    (gto_texture_archetypes.json via gem_textures). Returns an assessment dict ONLY when Hero's flop
-    c-bet size deviates from an APPLICABLE, COMPLETE band; otherwise returns None (fail closed).
-
-    No parallel math: the chosen % of pot is consumed from hand['hero_bets']; the board archetype is the
-    parser-stamped canonical field (fallback: the same gem_textures.classify_archetype owner); the band
-    and the deviation test are gem_textures.get_gto_target / sizing_within_target. The result is
-    result-independent (no runout / showdown / net).
-
-    severity:
-      'gross'    -> deviation_pp >= gross_pp AND (actual >= 2x the largest, or <= 0.5x the smallest,
-                    sanctioned size) AND a single-target (non-dual) COMPLETE band -> a sizing ERROR.
-      'moderate' -> outside tolerance but not gross, or a dual-strategy band      -> analyst-judged.
-
-    Returns None (no candidate, fail closed) when ANY of: Hero is not the preflop aggressor; Hero did
-    not c-bet the flop; the pot is not single-raised (3BP/4BP), the flop is multiway, or the c-bet is
-    all-in (the chart applies only to HU SRP non-all-in c-bets); fewer than 3 board cards; archetype
-    unknown; chart confidence != 'complete'; no applicable depth band; band empty; the size is within
-    tolerance; or the comparison is unjudgeable.
-    """
+def applicable_band(hand):
+    """Chart-applicable flop c-bet OPPORTUNITY descriptor, or None. Encapsulates every safety gate so the
+    chart is only ever consulted where it actually holds: Hero is the preflop aggressor, the pot is
+    SINGLE-RAISED, the flop is HEADS-UP, the c-bet is NOT all-in, >=3 board cards, a classified archetype,
+    a COMPLETE chart, and an applicable depth band. Uses only canonical decision-time inputs (no results /
+    showdown / range / equity). Returns a dict (archetype, side, depth, band) when the hand is a judgeable
+    opportunity, else None (fail closed)."""
     if not hand.get('pfr'):
         return None
     actual = _flop_cbet_sizing_pct(hand)
     if actual is None:
         return None
-    # chart applicability: HU single-raised-pot, non-all-in only (fail closed otherwise).
-    applies, _why = _chart_applies(hand)
+    applies, _why = _chart_applies(hand)         # HU single-raised-pot, non-all-in only
     if not applies:
         return None
     board = (hand.get('board') or [])[:3]
     if len(board) < 3:
         return None
-    # canonical archetype: prefer the parser-stamped field, fall back to the SAME canonical owner.
-    arch = hand.get('board_archetype') or ''
+    arch = hand.get('board_archetype') or ''     # canonical parser field, fallback to the same owner
     if not arch or arch == 'unknown':
         arch = gem_textures.classify_archetype(board)
     if not arch or arch == 'unknown':
         return None
     meta = gem_textures.archetype_meta(arch) or {}
     if meta.get('confidence') != 'complete':
-        return None                                   # fail closed on a non-complete chart
+        return None
     side = 'ip' if hand.get('hero_ip') else 'oop'
-    depth = hand.get('eff_stack_bb') or hand.get('stack_bb') or 100   # same depth source as the aggregate path
+    depth = hand.get('eff_stack_bb') or hand.get('stack_bb') or 100
     try:
         depth = float(depth)
     except (TypeError, ValueError):
         return None
     tgt = gem_textures.get_gto_target(arch, side, depth)
     if not tgt or not tgt.get('sizings_pct'):
-        return None                                   # no applicable band -> cannot judge -> fail closed
-    targets = [float(t) for t in tgt['sizings_pct']]
+        return None
+    return {'archetype': arch, 'side': side, 'depth_bb': round(depth, 1), 'depth_band': tgt['depth_band'],
+            'targets': [float(t) for t in tgt['sizings_pct']], 'dual_strategy': bool(tgt.get('dual_strategy')),
+            'actual_pct': float(actual), 'freq_pct': tgt.get('freq_pct'), 'notes': (tgt.get('notes') or '')[:240],
+            'source': meta.get('source') or 'Dave sessions', 'chart_confidence': meta.get('confidence')}
+
+
+def _classify_deviation(actual, targets, dual, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_PP):
+    """(off_band, direction, nearest, deviation_pp, severity) for an actual size vs a sanctioned band.
+    Compliant (off_band False) when within +/-tolerance of a sanctioned size OR within the [min,max]
+    spread of a multi-size band (the band sanctions a spread; an in-between compromise size is not a
+    deviation). 'gross' only when a single-target band is missed by >=gross_pp and >=2x/<=0.5x the band."""
     within = gem_textures.sizing_within_target(actual, targets, tolerance_pp)
     if within is None or within is True:
-        return None                                   # unjudgeable or compliant -> no candidate
-    # A multi-size band (e.g. [50,100] or [100,125,150]) sanctions a SPREAD of sizes for the range; a
-    # size BETWEEN the smallest and largest sanctioned size is inside that spread and is NOT a deviation
-    # (the discrete-point +/-10 test over-nominates an in-between compromise size). Only a size outside
-    # the whole sanctioned spread is a real off-band deviation. Precision fix (deep-validation).
+        return (False, None, None, None, None)
     if len(targets) >= 2 and min(targets) <= actual <= max(targets):
-        return None
-    # --- a real off-band deviation: classify severity ---
+        return (False, None, None, None, None)
     nearest = min(targets, key=lambda t: abs(actual - t))
     deviation_pp = round(abs(actual - nearest), 1)
     direction = 'over' if actual > nearest else 'under'
-    dual = bool(tgt.get('dual_strategy'))
     gross = (deviation_pp >= gross_pp and not dual
              and (actual >= GROSS_OVER_MULT * max(targets) or actual <= GROSS_UNDER_MULT * min(targets)))
-    severity = 'gross' if gross else 'moderate'
+    return (True, direction, nearest, deviation_pp, 'gross' if gross else 'moderate')
+
+
+def assess_flop_cbet_sizing(hand, *, tolerance_pp=TOLERANCE_PP, gross_pp=GROSS_PP):
+    """SAFE per-hand flop c-bet SIZING assessment vs the canonical band -- the INPUT to the aggregate
+    summary (it is NOT wired into the per-hand analyst queue; see the deep-validation closeout). Returns an
+    assessment dict only when Hero's c-bet deviates from an applicable COMPLETE band, else None (fail
+    closed). No parallel math, no result/showdown/range/equity; severity is informational, never a verdict."""
+    ab = applicable_band(hand)
+    if ab is None:
+        return None
+    off, direction, nearest, deviation_pp, severity = _classify_deviation(
+        ab['actual_pct'], ab['targets'], ab['dual_strategy'], tolerance_pp=tolerance_pp, gross_pp=gross_pp)
+    if not off:
+        return None
+    _fmt = lambda t: int(t) if float(t).is_integer() else round(t, 1)
     return {
-        'family': 'flop_cbet_sizing',
-        'pot_type': 'SRP',
-        'heads_up': True,
-        'all_in_cbet': False,
-        'board_archetype': arch,
-        'cbet_side': side,
-        'depth_band': tgt['depth_band'],
-        'eff_stack_bb_flop': round(depth, 1),
-        'actual_sizing_pct': round(actual, 1),
-        'target_sizings_pct': [int(t) if float(t).is_integer() else round(t, 1) for t in targets],
-        'nearest_target_pct': int(nearest) if float(nearest).is_integer() else round(nearest, 1),
-        'deviation_pp': deviation_pp,
-        'direction': direction,
-        'tolerance_pp': tolerance_pp,
-        'dual_strategy': dual,
-        'chart_confidence': meta.get('confidence'),
-        'chart_freq_pct': tgt.get('freq_pct'),
-        'chart_notes': (tgt.get('notes') or '')[:240],
-        'chart_source': 'gto_texture_archetypes.json (%s)' % (meta.get('source') or 'Dave sessions'),
-        'severity': severity,
-        'proposed_sizing_pct': int(nearest) if float(nearest).is_integer() else round(nearest, 1),
+        'family': 'flop_cbet_sizing', 'pot_type': 'SRP', 'heads_up': True, 'all_in_cbet': False,
+        'board_archetype': ab['archetype'], 'cbet_side': ab['side'], 'depth_band': ab['depth_band'],
+        'eff_stack_bb_flop': ab['depth_bb'], 'actual_sizing_pct': round(ab['actual_pct'], 1),
+        'target_sizings_pct': [_fmt(t) for t in ab['targets']], 'nearest_target_pct': _fmt(nearest),
+        'deviation_pp': deviation_pp, 'direction': direction, 'tolerance_pp': tolerance_pp,
+        'dual_strategy': ab['dual_strategy'], 'chart_confidence': ab['chart_confidence'],
+        'chart_freq_pct': ab['freq_pct'], 'chart_notes': ab['notes'],
+        'chart_source': 'gto_texture_archetypes.json (%s)' % ab['source'],
+        'severity': severity, 'proposed_sizing_pct': _fmt(nearest),
+    }
+
+
+def _depth_tier(bb):
+    if bb < 25:
+        return '<25BB'
+    if bb < 40:
+        return '25-40BB'
+    if bb < 100:
+        return '40-100BB'
+    return '100BB+'
+
+
+def summarize_offband_sizing(hands, *, min_opps_for_leak=6, leak_rate_floor=0.5, dominant_floor=0.7,
+                             examples_per_bucket=3):
+    """AGGREGATE flop c-bet sizing-leak summary built from the SAFE per-hand assessments.
+
+    This is the recalibrated home for the sizing signal: it emits NO per-hand analyst candidates, creates
+    ZERO mandatory reviews, and labels NO individual hand a confirmed mistake. It counts opportunities and
+    off-band rates by texture/side/depth/direction so a recurring sizing leak can be COACHED. Representative
+    hands are EXAMPLES only. Uses only canonical decision-time inputs; fails closed where the chart does not
+    apply (those hands are simply not opportunities). Returns a JSON-safe dict."""
+    opps, offs = [], []
+    for h in hands:
+        ab = applicable_band(h)
+        if ab is None:
+            continue
+        opps.append((h, ab))
+        off, direction, nearest, dev_pp, severity = _classify_deviation(
+            ab['actual_pct'], ab['targets'], ab['dual_strategy'])
+        if off:
+            offs.append((h, ab, {'direction': direction, 'deviation_pp': dev_pp, 'severity': severity}))
+
+    def _b():
+        return {'opps': 0, 'off': 0, 'under': 0, 'over': 0, 'examples': []}
+
+    by_arch_side, by_side, by_depth, by_arch = {}, {}, {}, {}
+
+    def _keys(ab):
+        return ((('%s|%s' % (ab['archetype'], ab['side'])), by_arch_side), (ab['side'], by_side),
+                (_depth_tier(ab['depth_bb']), by_depth), (ab['archetype'], by_arch))
+
+    for _h, ab in opps:
+        for key, d in _keys(ab):
+            d.setdefault(key, _b())['opps'] += 1
+    for h, ab, dev in offs:
+        ex = {'hand_id': h.get('id'), 'session': h.get('_session'), 'board': (h.get('board') or [])[:3],
+              'actual_pct': round(ab['actual_pct'], 1),
+              'targets': [int(t) if float(t).is_integer() else round(t, 1) for t in ab['targets']],
+              'direction': dev['direction'], 'deviation_pp': dev['deviation_pp']}
+        for key, d in _keys(ab):
+            b = d.setdefault(key, _b())
+            b['off'] += 1
+            b[dev['direction']] += 1
+            if len(b['examples']) < examples_per_bucket:
+                b['examples'].append(ex)
+
+    def _rate(d):
+        out = {}
+        for k, b in sorted(d.items()):
+            b = dict(b)
+            b['off_band_rate'] = round(b['off'] / b['opps'], 3) if b['opps'] else 0.0
+            out[k] = b
+        return out
+
+    by_arch_side, by_side, by_depth, by_arch = _rate(by_arch_side), _rate(by_side), _rate(by_depth), _rate(by_arch)
+
+    leak_signals = []
+    for key, b in by_arch_side.items():
+        if b['opps'] < min_opps_for_leak or b['off_band_rate'] < leak_rate_floor or b['off'] == 0:
+            continue
+        dom_dir, dom_n = ('under', b['under']) if b['under'] >= b['over'] else ('over', b['over'])
+        if dom_n / b['off'] < dominant_floor:
+            continue
+        arch, side = key.split('|')
+        band = b['examples'][0]['targets'] if b['examples'] else None
+        leak_signals.append({
+            'pattern': 'flop c-bet %s-sizing on %s boards (%s)' % (dom_dir, arch.replace('_', ' '), side.upper()),
+            'archetype': arch, 'side': side, 'opportunities': b['opps'], 'off_band': b['off'],
+            'off_band_rate': b['off_band_rate'], 'dominant_direction': dom_dir,
+            'dominant_share': round(dom_n / b['off'], 3), 'sanctioned_band_pct': band,
+            'coaching': ('Hero %s-sized %d of %d c-bets (%.0f%%) on %s boards %s vs the sanctioned %s band; '
+                         'move sizing toward the band.'
+                         % (dom_dir, b['off'], b['opps'], 100 * b['off_band_rate'], arch.replace('_', ' '),
+                            side.upper(), band)),
+            'representative_hands': [e['hand_id'] for e in b['examples']],
+            'note': 'aggregate coaching leak -- representative hands are EXAMPLES, not confirmed mistakes',
+        })
+    leak_signals.sort(key=lambda s: (-s['off_band'], -s['off_band_rate']))
+
+    n_opp, n_off = len(opps), len(offs)
+    return {
+        'family': 'flop_cbet_sizing_aggregate', 'street': 'flop', 'pot_type': 'SRP',
+        'table': 'heads_up', 'cbet_kind': 'non_all_in',
+        'opportunities': n_opp, 'off_band': n_off, 'off_band_rate': round(n_off / n_opp, 3) if n_opp else 0.0,
+        'under_sized': sum(1 for _h, _a, d in offs if d['direction'] == 'under'),
+        'over_sized': sum(1 for _h, _a, d in offs if d['direction'] == 'over'),
+        'by_archetype_side': by_arch_side, 'by_side': by_side, 'by_depth_band': by_depth,
+        'by_archetype': by_arch, 'leak_signals': leak_signals,
+        'creates_mandatory_analyst_reviews': 0, 'labels_confirmed_mistakes': False,
+        'uses_results_or_equity': False,
     }

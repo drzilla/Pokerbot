@@ -1,10 +1,11 @@
-"""v8.21 pilot — contract + ADVERSARIAL tests for the per-hand flop c-bet SIZING detector (Family A),
-post deep-audit corrections (SRP-only / HU-only / non-all-in chart applicability; detector NOMINATES,
-analyst owns the terminal verdict).
+"""v8.21 AGGREGATE-ONLY closeout — tests for the recalibrated flop c-bet sizing signal.
+
+The per-hand sizing family is REMOVED from the analyst queue; the safe assessment now feeds only the
+aggregate coaching-leak summary. Covers: applicability gates, deviation classification, the aggregate
+rollup, removal from run_value / build_packet, and the no-mandatory-review / no-confirmed-label contract.
 
 Run:  PYTHONUTF8=1 python test_sizing_line_pilot.py    (standalone PASS/FAIL; exit 1 on any failure)
 """
-import re
 import gem_parser
 import gem_textures
 import gem_sizing_detector as SD
@@ -26,17 +27,14 @@ def check(label, cond):
 
 def mk(pfr=True, sizing=None, arch='ace_high_dry', ip=True, eff=100.0, board=('Ah', '7d', '2c'),
        pot_type='SRP', multiway=False, players_at_flop=2, allin=False):
-    """Minimal hand carrying only the canonical fields assess_flop_cbet_sizing consumes."""
     hb = [['flop', sizing, 'cbet', 'IP' if ip else 'OOP']] if sizing is not None else []
-    led = []
-    if sizing is not None:
-        led = [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'is_all_in': allin}]
+    led = [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'is_all_in': allin}] if sizing is not None else []
     return {'pfr': pfr, 'hero_bets': hb, 'board': list(board), 'board_archetype': arch, 'hero_ip': ip,
             'eff_stack_bb': eff, 'pot_type': pot_type, 'multiway_flop': multiway,
             'players_at_flop': players_at_flop, 'action_ledger': led}
 
 
-_HH_TMPL = """Poker Hand #%(hid)s: Tournament #888888, SRP Test Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:01
+_HH = """Poker Hand #%(hid)s: Tournament #888888, SRP Test Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:01
 Table '1' 8-max Seat #1 is the button
 Seat 1: Hero (25000 in chips)
 Seat 2: Villain1 (25000 in chips)
@@ -61,159 +59,84 @@ Seat 1: Hero (button) collected (1250)"""
 
 
 def srp_hand(hid, bet, hole='Ah Kd', flop='As 7d 2c'):
-    """A real-ledger HU single-raised-pot IP c-bet hand (flop pot = 1375 chips = 5.5bb)."""
-    return gem_parser.parse_one_hand(_HH_TMPL % {'hid': hid, 'hole': hole, 'flop': flop, 'bet': bet},
-                                     'GG20260407 - Test.txt')
+    return gem_parser.parse_one_hand(_HH % {'hid': hid, 'hole': hole, 'flop': flop, 'bet': bet}, 'GG - Test.txt')
 
 
-def load(path):
-    text = open(path, encoding='utf-8', errors='replace').read()
-    out = []
-    for chunk in re.split(r'\n\n+(?=Poker Hand #)', text):
-        if chunk.strip().startswith('Poker Hand'):
-            h = gem_parser.parse_one_hand(chunk, 'GG20260407-000000 - Test.txt')
-            if h:
-                out.append(h)
-    return out
+# ─────────────────────── 1. applicability + deviation gates ───────────────────────
+print('[1] applicability gates (applicable_band / assess)')
+check('valid SRP HU hand is an opportunity', SD.applicable_band(mk(sizing=75)) is not None)
+check('3-bet pot -> not an opportunity', SD.applicable_band(mk(sizing=75, pot_type='3BP')) is None)
+check('4-bet pot -> not an opportunity', SD.applicable_band(mk(sizing=75, pot_type='4BP')) is None)
+check('multiway -> not an opportunity', SD.applicable_band(mk(sizing=75, multiway=True)) is None)
+check('3 players at flop -> not an opportunity', SD.applicable_band(mk(sizing=75, players_at_flop=3)) is None)
+check('all-in c-bet -> not an opportunity', SD.applicable_band(mk(sizing=75, allin=True)) is None)
+check('not PFR -> not an opportunity', SD.applicable_band(mk(pfr=False, sizing=75)) is None)
+check('no flop c-bet -> not an opportunity', SD.applicable_band(mk(sizing=None)) is None)
+check('board < 3 -> not an opportunity', SD.applicable_band(mk(sizing=75, board=('Ah', '7d'))) is None)
 
-
-# ─────────────────────────── 1. severity classification (SRP) ───────────────────────────
-print('[1] severity classification')
-a = SD.assess_flop_cbet_sizing(mk(sizing=80, arch='ace_high_dry', ip=True))
-check('gross over (80% vs [25])', a and a['severity'] == 'gross' and a['direction'] == 'over')
-a = SD.assess_flop_cbet_sizing(mk(sizing=10, arch='low_connected', ip=True, board=('6h', '5d', '4c')))
-check('gross under (10% vs [50,66])', a and a['severity'] == 'gross' and a['direction'] == 'under')
-a = SD.assess_flop_cbet_sizing(mk(sizing=40, arch='ace_high_dry', ip=True))
-check('moderate (40% vs [25])', a and a['severity'] == 'moderate')
-a = SD.assess_flop_cbet_sizing(mk(sizing=300, arch='broadway_disconnected', ip=True, board=('Kd', '9s', '4h')))
-check('dual-strategy never gross (300% vs [33,85,100])', a and a['severity'] == 'moderate')
-a = SD.assess_flop_cbet_sizing(mk(sizing=300, arch='middling_disconnected', ip=False, board=('Js', '7h', '5c')))
-check('OOP side judged (300% vs [85])', a and a['cbet_side'] == 'oop' and a['severity'] == 'gross')
-
-# ─────────────────────────── 2. fail-closed: chart applicability (deep-audit fixes) ───────────────────────────
-print('[2] chart-applicability fail-closed (SRP / HU / non-all-in)')
-check('3-bet pot -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, pot_type='3BP')) is None)
-check('4-bet pot -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, pot_type='4BP')) is None)
-check('multiway flop (flag) -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, multiway=True)) is None)
-check('multiway flop (3 players) -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, players_at_flop=3)) is None)
-check('all-in c-bet -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, allin=True)) is None)
-
-# ─────────────────────────── 3. fail-closed: missing canonical input ───────────────────────────
-print('[3] fail-closed on missing canonical input')
+print('[1b] deviation classification (assess)')
+check('gross over (80% vs [25])', (SD.assess_flop_cbet_sizing(mk(sizing=80)) or {}).get('severity') == 'gross')
+check('gross under (10% vs [50,66])',
+      (SD.assess_flop_cbet_sizing(mk(sizing=10, arch='low_connected', board=('6h', '5d', '4c'))) or {}).get('severity') == 'gross')
+check('moderate (40% vs [25])', (SD.assess_flop_cbet_sizing(mk(sizing=40)) or {}).get('severity') == 'moderate')
+check('dual band never gross (300% vs [33,85,100])',
+      (SD.assess_flop_cbet_sizing(mk(sizing=300, arch='broadway_disconnected', board=('Kd', '9s', '4h'))) or {}).get('severity') == 'moderate')
 check('within tolerance -> None', SD.assess_flop_cbet_sizing(mk(sizing=30)) is None)
-check('not PFR -> None', SD.assess_flop_cbet_sizing(mk(pfr=False, sizing=80)) is None)
-check('no flop c-bet -> None', SD.assess_flop_cbet_sizing(mk(sizing=None)) is None)
-check('board < 3 -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, board=('Ah', '7d'))) is None)
-_oc = gem_textures.classify_archetype
-gem_textures.classify_archetype = lambda b: 'unknown'
-try:
-    check('unknown archetype -> None', SD.assess_flop_cbet_sizing(mk(sizing=80, arch='unknown')) is None)
-finally:
-    gem_textures.classify_archetype = _oc
+check('within multi-size spread (75% in [50,100]) -> None',
+      SD.assess_flop_cbet_sizing(mk(sizing=75, arch='ace_high_coordinated', board=('Ah', 'Kd', '9s'))) is None)
 _om = gem_textures.archetype_meta
 gem_textures.archetype_meta = lambda aid: {'confidence': 'partial'}
 try:
-    check('incomplete chart -> None', SD.assess_flop_cbet_sizing(mk(sizing=80)) is None)
+    check('incomplete chart -> None', SD.applicable_band(mk(sizing=75)) is None)
 finally:
     gem_textures.archetype_meta = _om
-_ot = gem_textures.get_gto_target
-gem_textures.get_gto_target = lambda a, s, d: {'sizings_pct': [], 'depth_band': '0-999BB'}
-try:
-    check('no sanctioned band -> None', SD.assess_flop_cbet_sizing(mk(sizing=80)) is None)
-finally:
-    gem_textures.get_gto_target = _ot
 
-# ─────────────────────────── 4. real-ledger pipeline (synthetic SRP hands) ───────────────────────────
-print('[4] pipeline on real-ledger SRP hands')
-h_gross = srp_hand('TM99000001', 1030)   # ~74.9% vs [25]  -> gross
-h_within = srp_hand('TM99000002', 412)   # ~30.0% vs [25]  -> within tolerance
-h_mod = srp_hand('TM99000003', 600)      # ~43.6% vs [25]  -> moderate
-fam = DC.family_flop_cbet_sizing([h_gross, h_within, h_mod], {})
-ids = {c['hand_id']: c for c in fam}
-check('gross + moderate fire, within cleared', set(ids) == {'TM99000001', 'TM99000003'})
-check('gross severity correct', ids['TM99000001']['context']['sizing_assessment']['severity'] == 'gross')
-# decision_id action index == the flop c-bet
-hbi = {h['id']: h for h in [h_gross, h_within, h_mod]}
-ok = True
-for c in fam:
-    ai = int(c['decision_id'].rsplit(':', 1)[-1])
-    led = hbi[c['hand_id']]['action_ledger'][ai]
-    ok = ok and led.get('player') == 'Hero' and led.get('street') == 'flop' and led.get('action') == 'bets'
-check('decision_id == the flop c-bet node', ok)
+# ─────────────────────── 2. aggregate summary ───────────────────────
+print('[2] aggregate summary')
+hands = []
+for i in range(6):                                    # 6 gross over-sized ace_high_dry IP c-bets
+    hands.append(srp_hand('TM700000%02d' % i, 1030))
+for i in range(2):                                    # 2 compliant (~30%) ace_high_dry IP c-bets
+    hands.append(srp_hand('TM710000%02d' % i, 412))
+hands.append(srp_hand('TM72000001', 1030))            # would be off-band but...
+hands[-1]['pot_type'] = '3BP'                         # ...3BP -> excluded from opportunities
+s = SD.summarize_offband_sizing(hands)
+check('opportunities exclude the 3BP hand (8 not 9)', s['opportunities'] == 8)
+check('off_band counts the 6 over-sized', s['off_band'] == 6)
+check('over_sized = 6, under_sized = 0', s['over_sized'] == 6 and s['under_sized'] == 0)
+check('off_band_rate = 0.75', s['off_band_rate'] == 0.75)
+check('by_side[ip] present and counted', s['by_side'].get('ip', {}).get('off') == 6)
+check('one actionable leak signal', len(s['leak_signals']) == 1)
+L = s['leak_signals'][0] if s['leak_signals'] else {}
+check('leak signal is ace_high_dry IP over-sizing',
+      L.get('archetype') == 'ace_high_dry' and L.get('side') == 'ip' and L.get('dominant_direction') == 'over')
+check('leak signal carries representative EXAMPLE hands', len(L.get('representative_hands', [])) >= 1)
+check('zero mandatory analyst reviews', s['creates_mandatory_analyst_reviews'] == 0)
+check('labels no confirmed mistakes', s['labels_confirmed_mistakes'] is False)
+check('uses no results/equity', s['uses_results_or_equity'] is False)
+import json as _json
+check('summary carries no result/leak keys',
+      not any(k in _json.dumps(s) for k in ('net_bb', 'went_to_sd', 'showdown', '"won"')))
 
-# ─────────────────────────── 5. terminal-verdict ownership (detector does NOT auto-confirm) ───────────────────────────
-print('[5] terminal-verdict ownership')
-rev = {r['decision_id']: r for r in DC.review_value(fam)}
-check('gross -> READ_DEPENDENT (NOT confirmed by detector)',
-      rev[ids['TM99000001']['decision_id']]['terminal_verdict'] == 'READ_DEPENDENT')
-val = DC.run_value([h_gross, h_within, h_mod], {})
-check('run_value confirms ZERO sizing mistakes', len(val['confirmed']) == 0)
-check('family present in by_family', 'flop_cbet_sizing' in val['metrics']['by_family'])
-
-# ─────────────────────────── 6. atomic record + semantic audit (no leak / no calc) ───────────────────────────
-print('[6] atomic record + semantic audit')
-recs = [AP._norm_decision(c, hbi) for c in fam]
-rg = next(r for r in recs if r['hand_id'] == 'TM99000001')
-check('atomic record resolved', rg.get('canonical_resolved') is True)
-check('hero_action is a scalar bet', rg.get('hero_action') == 'bet')
-check('evidence_ref bound to chart', rg.get('evidence_ref') == 'chart.flop_cbet_sizing_band')
-check('sizing_assessment fact present', isinstance(rg.get('sizing_assessment'), dict))
-check('no result/future leak', not any(k in rg for k in ('net_bb', 'won', 'went_to_sd', 'showdown', 'prior_verdict')))
-sa = AP.semantic_audit({'required': recs, 'optional': []})
-check('semantic audit 0 failing', sa['failing'] == 0)
-check('semantic audit 0 leaks', sa['future_information_leaks'] == 0)
-check('semantic audit zero analyst calc', sa['zero_analyst_calculations_required'] is True)
-
-# ─────────────────────────── 7. build_packet routing (gross required NOT confirmed; moderate optional) ───────────────────────────
-print('[7] build_packet routing')
+# ─────────────────────── 3. removed from the per-hand analyst pipeline ───────────────────────
+print('[3] removed from per-hand required/optional review')
+val = DC.run_value(hands, {})
+check('run_value emits ZERO flop_cbet_sizing candidates',
+      not any(c['family'] == 'flop_cbet_sizing' for c in val['candidates']))
+check('flop_cbet_sizing absent from by_family', 'flop_cbet_sizing' not in val['metrics']['by_family'])
 rd = {'final_truth': {'records': {}}, 'material_loss_population': {}, '_candidate_need_ids': []}
-pkt = AP.build_packet([h_gross, h_within, h_mod], rd, session_id='pilot', optional_cap=8)
-req = {d['hand_id'] for d in pkt['required']}
-opt = {d['hand_id'] for d in pkt['optional']}
-check('gross nomination in REQUIRED', 'TM99000001' in req)
-check('moderate nomination in OPTIONAL', 'TM99000003' in opt)
-check('chart evidence excerpt in packet', 'chart.flop_cbet_sizing_band' in pkt['evidence'])
-check('packet semantic audit clean', AP.semantic_audit(pkt)['failing'] == 0)
+pkt = AP.build_packet(hands, rd, session_id='closeout', optional_cap=8)
+allrecs = pkt['required'] + pkt['optional']
+check('packet has ZERO sizing decisions',
+      not any(d.get('family') == 'flop_cbet_sizing' for d in allrecs))
+check('packet evidence has no sizing chart excerpt', 'chart.flop_cbet_sizing_band' not in pkt['evidence'])
 
-# ─────────────────────────── 8. dedup / duplicate nomination ───────────────────────────
-print('[8] dedup')
-val_dup = DC.run_value([h_gross, h_gross], {})   # same hand twice
-check('duplicate (hand,street,family) collapses to one',
-      sum(1 for c in val_dup['candidates'] if c['family'] == 'flop_cbet_sizing') == 1)
+# ─────────────────────── 4. fully reverted pipeline state ───────────────────────
+print('[4] discovery + packet pipeline unchanged from baseline')
+check('no family_flop_cbet_sizing in discovery module', not hasattr(DC, 'family_flop_cbet_sizing'))
+check('EVIDENCE has no flop_cbet_sizing key', 'chart.flop_cbet_sizing_band' not in AP.EVIDENCE)
 
-# ─────────────────────────── 9. analyst OWNS the verdict (validate_analyst_output) ───────────────────────────
-print('[9] validate_analyst_output (analyst confirms; binding enforced)')
-m = pkt['manifest']
-gross_did = next(d['decision_id'] for d in pkt['required'] if d['hand_id'] == 'TM99000001')
-verdicts = []
-for d in pkt['required']:
-    if d['decision_id'] == gross_did:
-        verdicts.append({'decision_id': gross_did, 'verdict': 'CONFIRMED_MISTAKE',
-                         'reason': 'c-bet 75% vs the 25% band', 'better_action': 'size toward 25%',
-                         'evidence_refs': ['chart.flop_cbet_sizing_band'], 'fact_refs': ['sizing_assessment']})
-    else:
-        verdicts.append({'decision_id': d['decision_id'], 'verdict': 'JUSTIFIED', 'reason': 'r'})
-good = {'session_id': m['session_id'], 'packet_hash': m['packet_hash'], 'verdicts': verdicts}
-res = AP.validate_analyst_output(pkt, good, cache_ok=True)
-check('analyst CONFIRMED accepted (analyst owns verdict)', res['valid'] is True and res['required_coverage'] == 1.0)
-bad = dict(good); bad_v = [dict(v) for v in verdicts]
-bad_v[0] = {'decision_id': gross_did, 'verdict': 'CONFIRMED_MISTAKE', 'reason': 'r', 'fact_refs': ['net_bb']}
-bad = {'session_id': m['session_id'], 'packet_hash': m['packet_hash'], 'verdicts': bad_v}
-check('unbound fact_ref (net_bb) rejected', AP.validate_analyst_output(pkt, bad, cache_ok=True)['valid'] is False)
-
-# ─────────────────────────── 10. mutation: unsafe records fail closed ───────────────────────────
-print('[10] mutation / fail-closed')
-# a deep 3BP fixture hand must NOT be nominated even though it is an off-band c-bet
-check('fixture 3-bet pots produce ZERO candidates',
-      len(DC.family_flop_cbet_sizing(load('test_hands.txt') + load('test_hands_detectors.txt'), {})) == 0)
-# a hand with no resolvable Hero decision fails closed (unresolved), never fabricates operands
-bad_rec = AP.atomic_snapshot({'id': 'TMWALK', 'cards': ['Ah', 'Kd'], 'action_ledger': []},
-                             'flop', 0, 'flop_cbet_sizing')
-check('no canonical Hero decision -> unresolved (fail closed)', bad_rec.get('unresolved') is True
-      and bad_rec.get('canonical_resolved') is False)
-
-# ─────────────────────────── summary ───────────────────────────
 print('\nRESULTS: %d passed, %d failed, %d total' % (_passed, _failed, _passed + _failed))
 if _failed:
     raise SystemExit(1)
-print('ALL SIZING-LINE PILOT TESTS PASSED')
+print('ALL AGGREGATE-ONLY CLOSEOUT TESTS PASSED')

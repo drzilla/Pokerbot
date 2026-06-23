@@ -1,3 +1,8 @@
+> ➡️ **Followed by the aggregate-only closeout.** This package recommended `RECALIBRATE`; that recalibration
+> is now executed — the per-hand family is removed and the sizing signal kept in aggregate form only. Final
+> disposition: `AGGREGATE_CLOSEOUT_PACKAGE.md` (verdict `KEEP_AGGREGATE_ONLY`). The real-population evidence
+> below remains valid and is what drove the closeout.
+
 # V03 Deep Validation, Real-Population Proof & Safe-Expansion Package
 
 Pokerbot v8.21 · branch `feature/v8.21-sizing-line-pilot` · continued from `63b00e7`.

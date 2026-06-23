@@ -1,4 +1,9 @@
-# PILOT_DETECTOR_SPEC (as built)
+> ⚠️ **SUPERSEDED.** This describes the per-hand `flop_cbet_sizing` family, which was **removed from the
+> analyst pipeline** in the aggregate-only closeout (0 confirmed mistakes on 3,609 real hands). The discovery
+> + packet wiring described here is reverted to baseline. The sizing signal now lives only as an aggregate
+> rollup. See `AGGREGATE_CLOSEOUT_PACKAGE.md`.
+
+# PILOT_DETECTOR_SPEC (run 1, superseded — per-hand family removed)
 
 Family **`flop_cbet_sizing`** — per-hand flop c-bet sizing mismatch vs the canonical board-archetype band.
 

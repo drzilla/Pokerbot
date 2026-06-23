@@ -17,7 +17,6 @@ Families:
 """
 import gem_parser
 import gem_made_hands
-import gem_sizing_detector
 
 # terminal review verdicts (one per candidate).
 CONFIRMED_MISTAKE = 'CONFIRMED_MISTAKE'
@@ -472,59 +471,6 @@ def family_short_stack_coldcall(hands, prior_records=None):
     return out
 
 
-def family_flop_cbet_sizing(hands, prior_records=None):
-    """v8.21 pilot Family A: per-hand flop c-bet SIZING mismatch vs the canonical board-archetype band.
-
-    Chart-backed and result-independent. Consumes only canonical inputs (hand['hero_bets'] sizing %,
-    hand['board_archetype'], hand['hero_ip'], hand['eff_stack_bb']) and the gem_textures GTO band via
-    gem_sizing_detector.assess_flop_cbet_sizing -- it invents no sizing math and no range. Fails closed
-    (emits nothing) on any missing canonical input. The graded node is a CLEAN single flop c-bet (Hero's
-    last flop action is the c-bet), so the decision_id action_index resolves to the c-bet itself."""
-    out = []
-    for h in hands:
-        cards = h.get('cards') or []
-        if len(cards) != 2:
-            continue
-        hflop = _hero_acts(h, 'flop')
-        # only grade a clean single flop c-bet: exactly one Hero flop action and it is the bet. A
-        # later flop action (call/fold facing a raise) is a different decision and is excluded.
-        if len(hflop) != 1 or (hflop[0].get('action') or '') != 'bets':
-            continue
-        a = gem_sizing_detector.assess_flop_cbet_sizing(h)
-        if not a:
-            continue
-        board = (h.get('board') or [])[:3]
-        try:
-            made = gem_parser.hand_strength_name(cards, board)
-        except Exception:
-            made = None
-        if not made:
-            continue                                   # postflop packet-completeness needs a made-hand class
-        facts = {
-            'street': 'flop', 'hero_cards': cards, 'board': board,
-            'made_hand_class': made, 'position': h.get('position'), 'hero_ip': h.get('hero_ip'),
-            'eff_stack_bb': a['eff_stack_bb_flop'], 'pot_before_bb': _pot_before(h, 'flop'),
-            'sizing_assessment': a,
-            # merged VERBATIM into the sealed atomic record (via _norm_decision) so the analyst can cite
-            # the exact canonical sizing numbers (fact_refs: ['sizing_assessment']) with no calculation.
-            'packet_facts': {'sizing_assessment': a},
-            'action_line': [(x.get('player'), x.get('action'), x.get('amount_bb'))
-                            for x in _street_acts(h, 'flop')],
-        }
-        reason = ('flop c-bet %.0f%% of pot on a %s board %s at %.0fbb; the canonical complete band is %s '
-                  '(%s-size by %.0fpp, %s)'
-                  % (a['actual_sizing_pct'], a['board_archetype'].replace('_', ' '), a['cbet_side'].upper(),
-                     a['eff_stack_bb_flop'], '/'.join('%d%%' % t for t in a['target_sizings_pct']),
-                     a['direction'], a['deviation_pp'], a['severity']))
-        alt = ('size the flop c-bet toward %d%% of pot (the canonical %s %s band)'
-               % (a['proposed_sizing_pct'], a['board_archetype'].replace('_', ' '), a['cbet_side'].upper()))
-        out.append(_rule_record(
-            h, 'flop', 'flop_cbet_sizing', reason, facts, prior_records, CHART_BACKED,
-            'gto_texture_archetypes.json sizing band for %s %s %s'
-            % (a['board_archetype'], a['cbet_side'].upper(), a['depth_band']), alt))
-    return out
-
-
 def packet_present_fields(c):
     """The list of required packet fields that are actually PRESENT for this candidate (owner 0.2: a
     separate present-fields list, distinct from the strict boolean verdict)."""
@@ -572,23 +518,6 @@ def review_value(candidates):
         elif fam == 'short_stack_coldcall':
             verdict, tier, note, better = READ_DEPENDENT, '', \
                 'a genuine non-BB short-stack flat with chips behind -- needs the canonical short-stack calling chart to confirm/clear', None
-        elif fam == 'flop_cbet_sizing':
-            # The detector NOMINATES an off-band c-bet; it does NOT own the terminal verdict. A single
-            # c-bet sizing deviation -- even a gross one -- can be a deliberate mix/exploit, so confirming
-            # a mistake is reserved for the analyst's one-pass review of the sealed record (the aggregate
-            # owner's contract: "a single off-size c-bet is never auto-graded"). Gross = high-confidence
-            # nomination (routed to REQUIRED review by build_packet); moderate = lower-confidence (optional).
-            a = (c.get('context') or {}).get('sizing_assessment') or {}
-            _band = '/'.join('%d%%' % t for t in (a.get('target_sizings_pct') or []))
-            conf = 'high' if a.get('severity') == 'gross' else 'moderate'
-            verdict, tier = READ_DEPENDENT, CHART_BACKED
-            note = ('flop c-bet %.0f%% of pot is off the canonical complete %s %s SRP band %s (%s-size by '
-                    '%.0fpp; %s-confidence nomination) -- analyst confirms or clears vs the band, the '
-                    'detector does not auto-grade a single c-bet'
-                    % (a.get('actual_sizing_pct', 0), a.get('board_archetype', ''),
-                       (a.get('cbet_side') or '').upper(), _band, a.get('direction', ''),
-                       a.get('deviation_pp', 0), conf))
-            better = c.get('proposed_alternative')
         elif fam == 'river_value':
             verdict, tier = CONFIRMED_MISTAKE, 'canonical_made_hand_class'
             note = 'strong made hand took no value on the river (decision error, result-independent)'
@@ -616,8 +545,7 @@ def run_value(hands, prior_records=None, n_hands=None, session='june16_844'):
     n = n_hands if n_hands is not None else len(hands)
     raw = (family_turn_overbarrel(hands, prior_records) + family_river_curiosity(hands, prior_records)
            + family_river_value(hands, prior_records) + family_sb_flat_vs_late_open(hands, prior_records)
-           + family_deep_preflop_stackoff(hands, prior_records) + family_short_stack_coldcall(hands, prior_records)
-           + family_flop_cbet_sizing(hands, prior_records))    # v8.21 pilot Family A (chart-backed sizing)
+           + family_deep_preflop_stackoff(hands, prior_records) + family_short_stack_coldcall(hands, prior_records))
     candidates, suppressed, debt = [], [], []
     seen = set()
     for c in raw:

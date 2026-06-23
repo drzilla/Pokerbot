@@ -1,4 +1,9 @@
-# BET_SIZING_LINE_PATTERN_PRODUCT_REQUIREMENTS
+> ⚠️ **SUPERSEDED.** These requirements specified a per-hand confirmed-mistake sizing detector. Real-data
+> validation found **0 confirmed mistakes / 3,609 hands**, so the per-hand path was rejected and removed; the
+> sizing signal is retained as an **aggregate** coaching leak only. Final disposition:
+> `AGGREGATE_CLOSEOUT_PACKAGE.md` (verdict `KEEP_AGGREGATE_ONLY`).
+
+# BET_SIZING_LINE_PATTERN_PRODUCT_REQUIREMENTS (run 1, superseded)
 
 Product contract for the v8.21 bounded pilot. Written **before** production code (the spec below was the
 build target; `PILOT_DETECTOR_SPEC.md` is its as-built mirror).

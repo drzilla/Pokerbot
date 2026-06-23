@@ -1,0 +1,13 @@
+{
+  "recalibrated_leak_signals": 1,
+  "existing_aggregate_leak_signals": 3,
+  "shared_archetype_side_buckets": [
+    "middling_disconnected|ip"
+  ],
+  "only_in_recalibrated": [],
+  "only_in_existing": [
+    "middling_disconnected|oop",
+    "paired_coordinated|oop"
+  ],
+  "note": "The existing build_sizing_leak_signals (over texture_gto_findings) does NOT gate SRP/heads-up/non-all-in and matches discrete points; the recalibrated summary applies the deep-validation safety gates + within-spread compliance, so it is the corrected, safer refinement of the same aggregate signal. Recommend the existing aggregate adopt these gates."
+}

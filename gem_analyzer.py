@@ -10776,18 +10776,26 @@ if __name__ == '__main__':
             runtime_commit=_ap_commit, input_hashes=_ap_emit.real_input_hashes(_ap_inputs),
             cache_identity=_ap_cache, optional_cap=8)
         _ap_base = os.path.join(_ap_out, f'analyst_packet_{_pname_file}')
+        _ap_sa = _ap_emit.semantic_audit(_ap_pkt)            # owner Gate 1 semantic audit
         for _ap_fn, _ap_obj in (('.json', _ap_pkt),
                                 ('_manifest.json', _ap_pkt['manifest']),
+                                ('_semantic_audit.json', _ap_sa),
                                 ('_completeness.json', _ap_emit.decision_completeness(_ap_pkt)),
-                                ('_coverage.json', _ap_emit.build_coverage_reconciliation(report_data, _ap_pkt))):
+                                ('_coverage.json', _ap_emit.build_coverage_reconciliation(report_data, _ap_pkt)),
+                                ('_oracle.json', _ap_emit.build_oracle(report_data, _ap_pkt))):
             with open(_ap_base + _ap_fn, 'w', encoding='utf-8') as _apf:
                 json.dump(_ap_obj, _apf, indent=2, ensure_ascii=False, default=str)
         with open(os.path.join(_ap_out, f'analyst_cache_identity_{_pname_file}.txt'), 'w', encoding='utf-8') as _apf:
             _apf.write(_ap_cache)
-        _ap_dc = _ap_emit.decision_completeness(_ap_pkt)
-        print(f"  ✓ Sealed analyst packet: {_ap_base}.json "
+        # In analyst/release mode a semantically non-atomic packet must FAIL CLOSED (owner Gate 2.1).
+        if not (_ap_sa['zero_silently_incomplete'] and _ap_sa['zero_future_information_leaks']):
+            raise RuntimeError('analyst packet NOT semantically atomic: %d failing, %d future-info leaks '
+                               '-- see %s_semantic_audit.json' % (_ap_sa['failing'],
+                               _ap_sa['future_information_leaks'], _ap_base))
+        print(f"  ✓ Sealed atomic analyst packet: {_ap_base}.json "
               f"(required={_ap_pkt['manifest']['required_count']} optional={_ap_pkt['manifest']['optional_count']} "
-              f"hash={_ap_pkt['manifest']['packet_hash'][:12]} incomplete_required={_ap_dc['incomplete_required']})")
+              f"hash={_ap_pkt['manifest']['packet_hash'][:12]} "
+              f"semantic_failing={_ap_sa['failing']} future_leaks={_ap_sa['future_information_leaks']})")
         print(f"    1) review every required decision once -> save analyst JSON at {_ap_base}_analyst_output.json")
         print(f"    2) python gem_analyzer.py {SESSION_DIR} --quick   (validates binding + renders from cache)")
     except Exception as _ape:

@@ -14228,22 +14228,49 @@ check('T-RV-04: validator fail-closes on stale cache, other-packet hash, unknown
 # ---- Final RC execution A/B: hydrated self-contained required decisions + real identities ----
 _rc_hand = {'id': 'TMh', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'net_bb': -30.0,
             'board': ['As', '7d', '2c', '9h', '3s'],
-            'action_ledger': [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'amount_bb': 3}],
-            'decision_points': [{'street': 'flop', 'action_index': 5, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
+            'action_ledger': [{'street': 'flop', 'player': 'Hero', 'position': 'CO', 'action': 'bets',
+                               'amount_bb': 3, 'added_bb': 3, 'is_all_in': False}],
+            'decision_points': [{'street': 'flop', 'action_index': 0, 'hero_risk_bb': 40.0, 'eff_stack_bb': 40.0,
                                  'hero_action': 'bets', 'pot_facing_hero_bb': 20.0, 'spr': 2.0,
                                  'board': ['As', '7d', '2c'], 'players_in_hand': 2}]}
-_rc_rd = {'final_truth': {'records': {'TMh': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMh:flop:5'}}},
-          '_candidate_need_ids': ['TMh'], 'reviewed_decision_ref_by_hand': {'TMh': 'TMh:flop:5'},
+_rc_rd = {'final_truth': {'records': {'TMh': {'final_class': 'JUSTIFIED', 'verdict': 'III.5', 'decision_id': 'TMh:flop:0'}}},
+          '_candidate_need_ids': ['TMh'], 'reviewed_decision_ref_by_hand': {'TMh': 'TMh:flop:0'},
           '_candidate_need_bucket': {'TMh': 10}}
 _rc_pkt = _AP.build_packet([_rc_hand], _rc_rd, session_id='s', runtime_version='v', runtime_commit='c',
                            input_hashes={}, cache_identity='ci', optional_cap=8)
 _rc_dec = [d for d in _rc_pkt['required'] if d['hand_id'] == 'TMh'][0]
-check('T-RC-A1: a legacy required decision is HYDRATED -- exact decision id + cards/board/stacks/action line, no hand:required placeholder',
-      _rc_dec['decision_id'] == 'TMh:flop:5' and not _rc_dec['decision_id'].endswith(':required')
+check('T-RC-A1: a legacy required decision is an ATOMIC snapshot -- exact decision id, scalar action, street-exact board, action line ends at Hero, NO net_bb/prior leak',
+      _rc_dec['decision_id'] == 'TMh:flop:0' and isinstance(_rc_dec['hero_action'], str)
       and _rc_dec['hero_cards'] == ['Ah', 'Kd'] and _rc_dec['eff_stack_bb'] == 40.0
-      and _rc_dec.get('made_hand_class') and _rc_dec.get('action_line') is not None)
-check('T-RC-A2: decision_completeness reports zero silently-incomplete required records',
-      _AP.decision_completeness(_rc_pkt)['zero_silently_incomplete'] is True)
+      and len(_rc_dec['board']) == 3 and _rc_dec['made_hand_class']
+      and _rc_dec['action_line_through_decision'][-1]['actor'] == 'Hero'
+      and 'net_bb' not in _rc_dec and 'prior_final_class' not in _rc_dec and 'prior_verdict' not in _rc_dec)
+check('T-RC-A2: the semantic audit reports zero silently-incomplete AND zero future-information leaks',
+      _AP.semantic_audit(_rc_pkt)['zero_silently_incomplete'] is True
+      and _AP.semantic_audit(_rc_pkt)['zero_future_information_leaks'] is True
+      and _AP.decision_completeness(_rc_pkt)['zero_silently_incomplete'] is True)
+# Gate 1 mutation tests: every deliberate atomicity violation must be caught by the semantic audit.
+import copy as _rc_copy
+def _rc_mut_fails(_fn):
+    _p = _rc_copy.deepcopy(_rc_pkt)
+    _d = [x for x in _p['required'] if x['hand_id'] == 'TMh'][0]
+    _fn(_d)
+    _sa = _AP.semantic_audit(_p)
+    return (not _sa['zero_silently_incomplete']) or (not _sa['zero_future_information_leaks'])
+check('T-RC-G1-01: mutation -- a turn card injected into a flop record fails the audit',
+      _rc_mut_fails(lambda d: d.__setitem__('board', ['As', '7d', '2c', '9h'])))
+check('T-RC-G1-02: mutation -- a full board injected into a preflop record fails board-length',
+      _rc_mut_fails(lambda d: (d.__setitem__('street', 'preflop'), d.__setitem__('board', ['As', '7d', '2c', '9h', '3s']))))
+check('T-RC-G1-03: mutation -- an opponent action appended after Hero fails truncation',
+      _rc_mut_fails(lambda d: d['action_line_through_decision'].append(
+          {'actor': 'V', 'action': 'calls', 'action_index': 99, 'street': 'flop'})))
+check('T-RC-G1-04: mutation -- net_bb leak fails', _rc_mut_fails(lambda d: d.__setitem__('net_bb', -30)))
+check('T-RC-G1-05: mutation -- prior verdict leak fails', _rc_mut_fails(lambda d: d.__setitem__('prior_final_class', 'JUSTIFIED')))
+check('T-RC-G1-06: mutation -- a call with null amount_to_call fails',
+      _rc_mut_fails(lambda d: (d.__setitem__('hero_action', 'calls'), d.__setitem__('amount_to_call_bb', None))))
+check('T-RC-G1-07: mutation -- a non-scalar Hero action fails', _rc_mut_fails(lambda d: d.__setitem__('hero_action', ['bets'])))
+check('T-RC-G1-08: mutation -- a preflop made-hand class (runout leak) fails',
+      _rc_mut_fails(lambda d: (d.__setitem__('street', 'preflop'), d.__setitem__('board', []), d.__setitem__('made_hand_class', 'two pair'))))
 _rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
 _rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
                            session_id='s', runtime_version='v')

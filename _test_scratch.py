@@ -13913,6 +13913,50 @@ check('T-W1A2A-T1-14: the verdict-pill data attribute is escaped via the canonic
       "data-verdict='{_esc_attr(label)}'" in _helpers_src_esc
       and 'from gem_final_truth import escape_attr' in _helpers_src_esc)
 
+# ---- Track 3: mistake-discovery pilot (candidate families, never auto-confirm, no invented math) ----
+import gem_discovery_pilot as _DP
+# (3.1) the commitment node moves to the later large stack-off, not the preflop defend (live BUG-4 class).
+_h_pf_flop = {'id': 'H1', 'net_bb': -50.0, 'board': ['As', 'Kd', '2c'], 'went_to_sd': True,
+              'decision_points': [
+                  {'street': 'preflop', 'action_index': 3, 'hero_risk_bb': 3.0, 'hero_action': 'calls'},
+                  {'street': 'flop', 'action_index': 7, 'hero_risk_bb': 47.0, 'hero_action': 'calls',
+                   'pot_facing_hero_bb': 40.0, 'eff_stack_bb': 47.0}]}
+_node, _why = _DP.commitment_node(_h_pf_flop)
+check('T-W1A2A-T3-01: commitment node selects the later large flop stack-off over the preflop defend',
+      _node['street'] == 'flop' and _node['action_index'] == 7 and 'later' in _why)
+# (3.1) a material loss with no reviewable decision becomes an explicit ungraded blocker, not a mistake.
+_h_nodp = {'id': 'H2', 'net_bb': -30.0, 'board': [], 'decision_points': []}
+_mlc = _DP.material_loss_commitment_candidates([_h_pf_flop, _h_nodp])
+_blk = [c for c in _mlc if c['hand_id'] == 'H2']
+check('T-W1A2A-T3-02: a material loss with no decision node is an ungraded blocker (candidate, not mistake)',
+      _blk and _blk[0]['route'] == 'ungraded_blocker' and _blk[0]['status'] == 'candidate'
+      and all(c['status'] == 'candidate' for c in _mlc))
+# (3.3) a turn/river active candidate records the missing villain-range assumption (no invented equity).
+_h_river = {'id': 'H3', 'net_bb': -20.0, 'went_to_sd': False,
+            'board': ['As', 'Kd', '2c', '7h', '3d'],
+            'decision_points': [{'street': 'river', 'action_index': 9, 'hero_action': 'bets',
+                                 'hero_is_last_aggressor': True, 'pot_facing_hero_bb': 20.0}]}
+_tr = _DP.turn_river_active_candidates([_h_river])
+check('T-W1A2A-T3-03: a turn/river candidate records the missing villain-range assumption (no invented math)',
+      _tr and 'villain' in ' '.join(_tr[0]['missing_assumptions']).lower()
+      and _tr[0]['status'] == 'candidate' and 'hero_equity_vs_range' not in _tr[0]['observed_facts'])
+# (3.4) the full pilot: never auto-promotes, every candidate has a decision node, no unsupported math,
+#       and review-dependent yield fields are 'pending' (not 0) before analyst review.
+_pilot = _DP.run_discovery_pilot([_h_pf_flop, _h_nodp, _h_river], {})
+_pm = _pilot['metrics']
+check('T-W1A2A-T3-04: pilot never auto-promotes, all candidates carry a decision node, zero invented math',
+      _pm['auto_promoted_to_confirmed'] == 0
+      and all(c['status'] == 'candidate' for c in _pilot['candidates'])
+      and _pm['totals']['unsupported_exact_math'] == 0
+      and _pm['totals']['with_decision_node'] == len([c for c in _pilot['candidates']
+                                                      if not c['decision_id'].endswith(':?:?')]))
+check('T-W1A2A-T3-05: review-dependent yield fields are "pending" before analyst review (not zero)',
+      all(f['candidates_reviewed'] == 'pending' and f['confirmed_mistakes'] == 'pending'
+          and f['precision_among_reviewed'] == 'pending' for f in _pm['families']))
+check('T-W1A2A-T3-06: the analyst queue carries decision node + observed facts + missing assumptions',
+      all(q.get('decision_id') and 'observed_facts' in q and 'missing_assumptions' in q
+          and q['promotion'].startswith('analyst-owned') for q in _pilot['analyst_queue']))
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

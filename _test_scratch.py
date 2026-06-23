@@ -14339,6 +14339,48 @@ check('T-RC-BIND-07: build_packet embeds build_identity in the manifest AND the 
 check('T-RC-BIND-08: canonical_input_hashes returns SHA-256 (64-hex) per file; empty/missing dir -> {} (no crash)',
       _GIM.canonical_input_hashes('/no/such/dir/xyz') == {}
       and callable(_GIM.canonical_input_hashes))
+
+# QA-BLOCK-001: the one-pass analyst output integrates into the final report.
+import gem_final_truth as _QA_FT
+import gem_report_data as _QA_RD
+_qa_dist = [('CONFIRMED_MISTAKE', 3), ('JUSTIFIED', 17), ('READ_DEPENDENT', 6),
+            ('INSUFFICIENT_EVIDENCE', 10), ('DETECTOR_BUG', 6)]
+_qa_req, _qa_verds, _qa_i = [], [], 0
+for _e, _n in _qa_dist:
+    for _ in range(_n):
+        _hid = 'TM7770%03d' % _qa_i
+        _did = '%s:flop:0' % _hid
+        _qa_req.append({'decision_id': _did, 'hand_id': _hid})
+        _qa_verds.append({'decision_id': _did, 'verdict': _e})
+        _qa_i += 1
+_qa_pkt = {'manifest': {'session_id': 'dryrun', 'packet_hash': 'h'}, 'required': _qa_req, 'optional': []}
+_qa_ao = {'session_id': 'dryrun', 'packet_hash': 'h', 'verdicts': _qa_verds}
+_qa_comm, _qa_summ = _AP.analyst_commentary_from_output(_qa_pkt, _qa_ao)
+check('T-QA1-01: one-pass output -> exact per-decision verdict totals (3/17/6/10/6) + 42 reviewed decisions',
+      _qa_summ['reviewed_decisions'] == 42 and _qa_summ['reviewed_hands'] == 42
+      and _qa_summ['verdict_counts'] == {'confirmed_mistakes': 3, 'justified': 17, 'read_dependent': 6,
+                                         'insufficient_evidence': 10, 'detector_bugs': 6})
+_qa_ft = _QA_FT.build_final_truth({}, {}, [], analyst_commentary=_qa_comm)['counts']
+check('T-QA1-02: final-truth recomputes ownership from the analyst verdicts (CONFIRMED_MISTAKE=3, JUSTIFIED=17, READ_DEPENDENT=6, INSUFFICIENT=10, cleared=6)',
+      _qa_ft.get('CONFIRMED_MISTAKE') == 3 and _qa_ft.get('JUSTIFIED') == 17 and _qa_ft.get('READ_DEPENDENT') == 6
+      and _qa_ft.get('INSUFFICIENT') == 10 and _qa_ft.get('STANDARD') == 6)
+_qa_rd = {'analyst_commentary': _qa_comm, '_candidate_need_ids': [r['hand_id'] for r in _qa_req]}
+check('T-QA1-03: merging analyst commentary clears AUTO_ONLY (report becomes analyst-integrated)',
+      _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['state'] != 'AUTO_ONLY'
+      and _QA_RD.compute_report_completeness(_qa_rd, candidates=None)['reviewed_hands'] == 42)
+check('T-QA1-04: an EMPTY analyst output keeps the report AUTO_ONLY (auto candidates are never relabelled as confirmed mistakes)',
+      _QA_RD.compute_report_completeness({'analyst_commentary': {}, '_candidate_need_ids': ['X']},
+                                         candidates=None)['state'] == 'AUTO_ONLY')
+check('T-QA1-05: the one-pass enum maps to the report taxonomy so only CONFIRMED_MISTAKE is a mistake class',
+      _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['CONFIRMED_MISTAKE']) == _QA_FT.FinalClass.CONFIRMED_MISTAKE
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['JUSTIFIED']) == _QA_FT.FinalClass.JUSTIFIED
+      and _QA_FT.class_from_verdict(_AP.ONEPASS_TO_REPORT_VERDICT['DETECTOR_BUG']) != _QA_FT.FinalClass.CONFIRMED_MISTAKE)
+check('T-QA1-06: validate_analyst_output rejects a DUPLICATE required verdict (fail-closed in --quick)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds + [dict(_qa_verds[0])]}, cache_ok=True)['valid'] is False)
+check('T-QA1-07: validate_analyst_output rejects an INCOMPLETE output (missing a required verdict)',
+      _AP.validate_analyst_output(_qa_pkt, {'session_id': 'dryrun', 'packet_hash': 'h',
+          'verdicts': _qa_verds[3:]}, cache_ok=True)['valid'] is False)
 _rc_nohand = {'id': 'TMu', 'cards': ['2c', '7d'], 'net_bb': -20.0, 'decision_points': []}
 _rc_unp = _AP.build_packet([_rc_nohand], {'_candidate_need_ids': ['TMu'], 'final_truth': {'records': {}}},
                            session_id='s', runtime_version='v')

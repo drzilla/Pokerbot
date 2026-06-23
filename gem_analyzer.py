@@ -9005,10 +9005,18 @@ if __name__ == '__main__':
             if not os.path.exists(_ao_path_q):
                 _quick_fail(f"analyst output missing ({os.path.basename(_ao_path_q)}) -- review the packet "
                             "and save the analyst JSON there")
-            with open(_pkt_path_q, encoding='utf-8') as _pf:
-                _pkt_q = json.load(_pf)
-            with open(_ao_path_q, encoding='utf-8') as _af:
-                _ao_q = json.load(_af)
+            try:
+                with open(_pkt_path_q, encoding='utf-8') as _pf:
+                    _pkt_q = json.load(_pf)
+            except Exception as _pe:
+                _quick_fail(f"sealed packet is malformed JSON ({_pe}) -- re-run the full pipeline")
+            try:
+                with open(_ao_path_q, encoding='utf-8') as _af:
+                    _ao_q = json.load(_af)
+            except Exception as _ae:
+                _quick_fail(f"analyst output is malformed JSON ({_ae}) -- fix the analyst JSON and re-run --quick")
+            if not isinstance(_ao_q, dict) or not isinstance(_ao_q.get('verdicts'), list):
+                _quick_fail("analyst output has no 'verdicts' array -- fix the analyst JSON and re-run --quick")
             _m_q = _pkt_q.get('manifest', {})
             if _apq.recompute_packet_hash(_pkt_q) != _m_q.get('packet_hash'):
                 _quick_fail("sealed packet hash mismatch -- the packet was modified; re-run the full pipeline")
@@ -9035,6 +9043,18 @@ if __name__ == '__main__':
                                              'coverage': _val_q.get('required_coverage'), 'cache_ok': _cache_ok}
             print(f"  ✓ --quick pre-render validation PASSED (packet+analyst+cache+identity bound; "
                   f"coverage {_val_q.get('required_coverage')})")
+            # ---- QA-BLOCK-001: CONSUME the validated analyst output. Merge its verdicts into the canonical
+            # hand-keyed analyst_commentary, then recompute the analyst-dependent owners (completeness +
+            # final-truth) BEFORE render, so the final report is analyst-integrated: the AUTO_ONLY banner
+            # disappears, the reviewed count + verdict totals reconcile exactly with the JSON, and each
+            # analyst verdict OVERRIDES any stale automatic nomination (final-truth analyst override).
+            _commentary_q, _onepass_q = _apq.analyst_commentary_from_output(_pkt_q, _ao_q)
+            report_data['analyst_commentary'] = _commentary_q
+            report_data['analyst_onepass'] = _onepass_q
+            _rc_q = compute_report_completeness(report_data, candidates=None)
+            _refresh_discipline_tier(report_data, stats, hands)
+            print(f"  ✓ analyst output integrated: state={_rc_q['state']} "
+                  f"reviewed_hands={_rc_q['reviewed_hands']} verdicts={_onepass_q['verdict_counts']}")
 
         # Re-render
         from gem_report_draft import render_both

@@ -741,6 +741,23 @@ def _emit_opening_dashboard(doc, s, rd):
                  if _rc.get('coverage_line') else "")
               + "</div>")
         doc.w("")
+    # v8.20 QA-BLOCK-001: the ONE-PASS analyst verdict breakdown -- the EXACT per-decision totals from the
+    # consumed analyst JSON, so the integrated report reconciles visibly with the analyst output (no
+    # AUTO_ONLY masquerade; verdict totals match the JSON; auto labels overridden where the analyst graded).
+    _op = rd.get('analyst_onepass') or {}
+    _opc = _op.get('verdict_counts') or {}
+    if _op.get('reviewed_decisions'):
+        doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px solid #c7d2fe;"
+              "border-radius:12px;background:#eef2ff;color:#3730a3'>"
+              f"🧠 One-pass analyst review — <b>{_op.get('reviewed_decisions')}</b> decisions reviewed "
+              f"({_op.get('reviewed_hands', '?')} hands): "
+              f"<b>{_opc.get('confirmed_mistakes', 0)}</b> confirmed mistake(s) · "
+              f"<b>{_opc.get('justified', 0)}</b> justified · "
+              f"<b>{_opc.get('read_dependent', 0)}</b> read-dependent · "
+              f"<b>{_opc.get('insufficient_evidence', 0)}</b> insufficient-evidence · "
+              f"<b>{_opc.get('detector_bugs', 0)}</b> detector-bug."
+              "</div>")
+        doc.w("")
     # v8.20 W1A: the canonical MATERIAL-LOSS completeness surface. Every materially important loss is
     # visible in exactly ONE state (none silently dropped), with clickable counts to the hands. One
     # owner: rd['material_loss_summary'] (gem_material_loss); loss hands are P0-priority so they render.

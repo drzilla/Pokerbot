@@ -460,8 +460,12 @@ def artifact_cache_identity(rd, hands, runtime_id=None, input_hashes=None):
         'reviewed_decision_ref_by_hand': rd.get('reviewed_decision_ref_by_hand') or {},
         'material_loss_keys': (sorted(k for k in mlp.keys() if not str(k).startswith('_'))
                                if isinstance(mlp, dict) else []),
-        'final_truth_counts': ft.get('counts') if isinstance(ft, dict) else None,
+        # NOTE: final_truth counts/records are deliberately EXCLUDED -- the analyst-output merge during the
+        # quick render legitimately changes the final-truth classification (e.g. CONFIRMED_MISTAKE 0->3), so
+        # including them would break --quick idempotency. The required population + reviewed refs + material-
+        # loss keys + hand ids already detect any input / queue-membership / hand mutation.
     }
+    _ = ft  # retained for clarity; final_truth is intentionally not part of the cache identity
     core_hash = hashlib.sha256(json.dumps(core, sort_keys=True, ensure_ascii=False, default=str)
                                .encode('utf-8')).hexdigest()
     payload = {'n_hands': len(hand_ids), 'hand_ids': hand_ids, 'analytical_core_hash': core_hash,
@@ -581,6 +585,62 @@ def recompute_packet_hash(packet):
     if isinstance(p.get('manifest'), dict):
         p['manifest'].pop('packet_hash', None)
     return _content_hash(p)
+
+
+# The one-pass analyst enum -> the canonical report verdict taxonomy (class_from_verdict in gem_final_truth).
+# Only CONFIRMED_MISTAKE maps to a mistake class, so the rebuilt final-truth confirmed-mistake count equals
+# the analyst's CONFIRMED_MISTAKE count; the analyst verdict OVERRIDES any prior automatic nomination.
+ONEPASS_TO_REPORT_VERDICT = {
+    'CONFIRMED_MISTAKE': 'III.2 Confirmed mistake',
+    'JUSTIFIED': 'III.5 Justified',
+    'READ_DEPENDENT': 'III.4 Read-dependent',
+    'INSUFFICIENT_EVIDENCE': 'Insufficient evidence',
+    'DETECTOR_BUG': 'III.0 Detector bug (cleared)',
+}
+
+
+def analyst_commentary_from_output(packet, analyst_output):
+    """Transform a validated ONE-PASS analyst output (decision-keyed verdicts) into the canonical
+    hand-keyed `analyst_commentary` the report consumes, plus a one-pass verdict-count summary
+    (QA-BLOCK-001). The one-pass enum is mapped to the report taxonomy so the final-truth owner recomputes
+    terminal ownership from the analyst verdicts (a CONFIRMED_MISTAKE overrides any automatic nomination;
+    a DETECTOR_BUG clears it). Returns (commentary_by_hand, onepass_summary)."""
+    by_decision = {d.get('decision_id'): d
+                   for d in (packet.get('required') or []) + (packet.get('optional') or [])}
+    commentary, counts = {}, {k: 0 for k in ONEPASS_TO_REPORT_VERDICT}
+    for v in (analyst_output.get('verdicts') or []):
+        did = v.get('decision_id')
+        enum = v.get('verdict')
+        if enum not in ONEPASS_TO_REPORT_VERDICT:
+            continue
+        dec = by_decision.get(did) or {}
+        hid = dec.get('hand_id') or (str(did).rsplit(':', 2)[0] if did else None)
+        if not hid:
+            continue
+        counts[enum] = counts.get(enum, 0) + 1
+        commentary[hid] = {
+            'verdict': ONEPASS_TO_REPORT_VERDICT[enum],
+            'onepass_verdict': enum,
+            'decision_id': did,
+            'reason': v.get('reason', ''),
+            'better_action': v.get('better_action', ''),
+            'source': 'one_pass_analyst',
+        }
+    summary = {
+        'reviewed_decisions': len([v for v in (analyst_output.get('verdicts') or [])
+                                   if v.get('verdict') in ONEPASS_TO_REPORT_VERDICT]),
+        'reviewed_hands': len(commentary),
+        'verdict_counts': {
+            'confirmed_mistakes': counts['CONFIRMED_MISTAKE'],
+            'justified': counts['JUSTIFIED'],
+            'read_dependent': counts['READ_DEPENDENT'],
+            'insufficient_evidence': counts['INSUFFICIENT_EVIDENCE'],
+            'detector_bugs': counts['DETECTOR_BUG'],
+        },
+        'packet_hash': (packet.get('manifest') or {}).get('packet_hash'),
+        'session_id': (packet.get('manifest') or {}).get('session_id'),
+    }
+    return commentary, summary
 
 
 def validate_analyst_output(packet, analyst, cache_ok=True):

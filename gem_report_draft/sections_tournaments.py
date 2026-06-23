@@ -399,7 +399,10 @@ def _emit_performance(doc, events, hids_by_tid):
             _cevc = ("<td data-sort-value='%s'>%s</td>"
                      % ((cv if cv is not None else ''), (('%.2f' % cv) if cv is not None else EMDASH)))
         drv = '; '.join(e.get('drivers') or []) or EMDASH
-        _hids = (hids_by_tid.get(tid) or [])[:60]
+        # v8.20 W1A.2A Track 2.2: every hand in the event must be reachable from its drilldown -- the old
+        # [:60] silently capped the popup while the "X/Y reviewed" count showed the true total, so events
+        # with >60 hands hid hands behind a count that did not match. No cap: the popup lists all hands.
+        _hids = (hids_by_tid.get(tid) or [])
         rv_n = rev.get('reviewed', 0) or 0
         rv_m = rev.get('total', hd or 0) or 0
         if _hids:
@@ -791,7 +794,8 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'return_breakdown': _rb,
             'drivers': list(e.get('drivers') or []),
             'notes': ' · '.join(_notes),
-            'hand_ids': _hids_by_tid.get(tid, [])[:60],
+            # Track 2.2: no silent 60-hand cap — the drilldown carries every hand id for the event.
+            'hand_ids': _hids_by_tid.get(tid, []),
         })
 
     # v8.18.0 Tournament Results redesign — the canonical typed DataTable Results surface. Exit hand is

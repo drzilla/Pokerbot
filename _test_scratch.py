@@ -13957,6 +13957,12 @@ check('T-W1A2A-T3-06: the analyst queue carries decision node + observed facts +
       all(q.get('decision_id') and 'observed_facts' in q and 'missing_assumptions' in q
           and q['promotion'].startswith('analyst-owned') for q in _pilot['analyst_queue']))
 
+# ---- Track 2.2: tournament drilldowns expose every hand (no silent 60-hand cap) ----
+_st_src = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-W1A2A-T2-02: tournament drilldown hand-id lists carry no silent [:60] cap (every hand reachable)',
+      '(hids_by_tid.get(tid) or [])[:60]' not in _st_src
+      and '_hids_by_tid.get(tid, [])[:60]' not in _st_src)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

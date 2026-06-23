@@ -1,4 +1,10 @@
-# V03 Aggregate-Only Recalibration — Closeout Package (FINAL)
+> ➡️ **Production-path follow-up applied.** This package's standalone `summarize_offband_sizing()` was a
+> parallel aggregate that the canonical report pipeline never called. Its SRP/HU/non-all-in gates are now
+> **folded into the real production path** (`gem_analyzer._gto_sizing_pct` → `build_sizing_leak_signals` →
+> "Sizing & Line Patterns" report section) and the standalone duplicate is **removed**. Final disposition:
+> `PRODUCTION_PATH_VERIFICATION.md` + `PRODUCTION_REPORT_EXCERPT.md`. The `KEEP_AGGREGATE_ONLY` verdict stands.
+
+# V03 Aggregate-Only Recalibration — Closeout Package
 
 Pokerbot v8.21 · branch `feature/v8.21-sizing-line-pilot` · continued from `c813797`.
 **Not merged, pushed, tagged, released, deployed, or sent to Claude Chat.**

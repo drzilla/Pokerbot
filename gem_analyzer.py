@@ -2619,7 +2619,15 @@ def analyze_session(hands, tournaments, n_files, parse_errors, ranges=None, targ
             return any(b[0] == 'flop' and b[2] == 'cbet'
                        for b in h.get('hero_bets', []))
 
+        import gem_sizing_detector as _sizedet
         def _gto_sizing_pct(h):
+            # v8.21 safety gate: the gto_texture_archetypes sizing bands are calibrated for HEADS-UP,
+            # SINGLE-RAISED-POT, non-all-in c-bets. Only JUDGE sizing where the chart applies, so a 3BP /
+            # multiway / all-in c-bet contributes to the c-bet FREQUENCY (n_cbet, denominator unchanged)
+            # but never to the sizing-leak judgment. (Folds the deep-validation gate into the one canonical
+            # aggregate sizing path: aggregate_compliance -> build_sizing_leak_signals.)
+            if not _sizedet.cbet_chart_applies(h):
+                return None
             for b in h.get('hero_bets', []):
                 if b[0] == 'flop' and b[2] == 'cbet':
                     return b[1]

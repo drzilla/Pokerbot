@@ -166,7 +166,12 @@ def _emit_one_aggregate_table(doc, _TM, key, groups, ordered, n_events):
     """Render ONE grouped-aggregate table for a tab: pooled ROI on the covered
     subset, settled-only ITM/Top denominators, hand-weighted BB/100·cEV/100, and a
     deterministic legend-square colour per group (the table IS the chart legend)."""
-    doc.w("<div class='table-shell'><div class='table-scroll'>")
+    # QA mobile-chart fix: this 11-column numeric aggregate must stay a COMPACT horizontally-scrollable
+    # table on mobile. Without data-mobile-mode the .table-shell falls into the stacked-card layout
+    # (.data-table tr -> display:block), which blew every group row up to ~410px tall blank panels at
+    # 360/390/430. data-mobile-mode='scroll' keeps one compact row per group + horizontal swipe, exactly
+    # like the per-event Results table. Pure responsive layout -- no data/filter/grouping/chart-state change.
+    doc.w("<div class='table-shell' data-mobile-mode='scroll'><div class='table-scroll'>")
     doc.w("<table class='data-table tt-aggregate'>")
     doc.w("<thead><tr><th>Group</th><th>Events</th><th>Bullets</th>"
           "<th title='Final financial results available for X of Y events; the "

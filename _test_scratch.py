@@ -9889,6 +9889,10 @@ check('T-RES-DIM-DEFS (all 9 owner filter dimensions defined + the 6 grouping ta
       and 'phase_reached' in _ttcode_res)
 check('T-RES-DIM-HIDE (auto-hide is the only reason a dim is absent): a dimension is shown iff it has >=2 distinct values among the events (single-valued dims are intentionally skipped)',
       'if len(_cnts) <= 1:' in _ttcode_res and 'continue' in _ttcode_res)
+import re as _re_mob
+check('T-MOBCHART-01 (mobile usability): the grouped-aggregate table stays a COMPACT horizontally-scrollable table on mobile (its .table-shell carries data-mobile-mode=scroll), never the tall stacked-card layout that blew group rows up to ~410px blank panels at 360/390/430',
+      bool(_re_mob.search(r"table-shell['\"] +data-mobile-mode=['\"]scroll['\"][^>]*>\s*<div class=['\"]table-scroll['\"]>\s*<table class=['\"]data-table tt-aggregate", _md_p4s))
+      and "data-mobile-mode='scroll'" in _ttcode_res)
 
 # v8.17.1 release verification: a COMPLETE all-sections synthetic report renders.
 # (The earlier full-render gap — missing canonical results_attribution fields like

@@ -571,6 +571,20 @@ def _emit_filters_and_sticky(doc, events):
     doc.w("")
 
 
+# =====================================================================================================
+# FROZEN_AFTER_V820_CLOSURE -- Tournament Results passed its v8.20 Iteration-2 closure:
+#   * combined Date + Tournament identity (A1); ONE stacked finish-outcome bar, no metric toggle (A2);
+#   * no silent hand-count cap (Track 2.2);
+#   * canonical event/bullet/exit finality model (gem_tournament_finality) with all SEVEN deterministic
+#     fixtures passing + reconciliation invariants (one row per tournament; Day-1 flights merge; bullet
+#     exits reachable; unresolved/advanced never invents a final exit; totals reconcile).
+# Future changes to this section require a DEMONSTRATED data/correctness defect (a failing acceptance
+# test) or an explicit new owner decision -- no further redesign. (Browser screenshot capture is the only
+# deferred item, left for the release-candidate run per the closure brief.)
+# =====================================================================================================
+RESULTS_FROZEN = 'FROZEN_AFTER_V820_CLOSURE'
+
+
 def _emit_tournament_tables(doc, s, rd, hands):
     """Additive S-section: render the event-level Tournament Tables from the
     SP-1 model. Fail-soft: with no canonical overlay it emits a diagnostic line

@@ -14050,6 +14050,29 @@ check('T-IT2-O2-04: product-value gate is FAIL at zero confirmed, PASS at >=1 (n
       and _DC.value_metrics({'candidates': [{'family': 'river_value'}], 'suppressed': [], 'engineering_debt': []},
                             [{'family': 'river_value', 'terminal_verdict': _DC.CONFIRMED_MISTAKE}], 844)['product_value_gate'] == 'PASS')
 
+# ---- Iteration 2, Outcome 1: Tournament Results event/bullet/exit finality model + 7 fixtures + freeze ----
+import gem_tournament_finality as _TF
+_fx = _TF.run_fixtures()
+check('T-IT2-O1-01: all seven deterministic finality fixtures pass (HH / summary / unresolved / multi-bullet / multi-day / satellite / >60)',
+      _fx['all_pass'] is True and len(_fx['fixtures']) == 7 and all(r['pass'] for r in _fx['fixtures'].values()))
+check('T-IT2-O1-02: finality reconciliation -- one row per tournament, no invented exits, exits reachable, totals reconcile',
+      _fx['reconciliation']['invariants_pass'] is True and _fx['reconciliation']['invented_final_exits'] == 0
+      and _fx['reconciliation']['duplicate_identity_rows'] == 0
+      and _fx['reconciliation']['final_exit_reachable_in_bullets'] is True)
+_md = [ev for ev in _TF.build_finality_model(_TF.seven_fixtures()[0]) if ev.tournament_identity == 'FIXTURE-MultiDay']
+check('T-IT2-O1-03: multi-day flights merge into ONE event row; both bullets remain individually inspectable',
+      len(_md) == 1 and len(_md[0].bullets) == 2 and _md[0].final_event_exit == 'E55')
+_unres = _TF.build_event_finality({'tournament_identity': 'U', 'status': _TF.UNRESOLVED, 'exit_hand': 'X9',
+                                   'bullets': [{'bullet_id': 'u1', 'exit_hand': '', 'resolved': False}]})
+check('T-IT2-O1-04: an unresolved event never invents a final exit (source exit dropped + warning recorded)',
+      (_unres.final_event_exit or None) is None and any('never invented' in w for w in _unres.warnings))
+_rt_src_o1 = open('gem_report_draft/sections_tournaments.py', encoding='utf-8').read()
+check('T-IT2-O1-05: responsive structure -- the stacked outcome bar is width:100% flex (scales to every viewport, no fixed-width overflow)',
+      'width:100%;height:26px' in _rt_src_o1 and 'display:flex' in _rt_src_o1
+      and '_hids_by_tid.get(tid, [])[:60]' not in _rt_src_o1)
+check('T-IT2-O1-06: Tournament Results carries the FROZEN_AFTER_V820_CLOSURE marker after passing closure',
+      "RESULTS_FROZEN = 'FROZEN_AFTER_V820_CLOSURE'" in _rt_src_o1)
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

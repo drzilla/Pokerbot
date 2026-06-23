@@ -165,10 +165,15 @@ def family_turn_overbarrel(hands, prior_records=None):
         dpr = f.get('draw_profile') or {}
         strong_draw = dpr.get('flush_draw') or (dpr.get('straight_outs') or 0) >= 8
         weak = any(w in made for w in _WEAK_MADE) or made in ('', 'none')
+        # owner correction #2: a hand the CANONICAL betting class calls 'value' (top pair / overpair /
+        # two pair) is NOT a weak-pair over-barrel -- suppress it unless a separate explicit runout/range
+        # condition makes betting questionable (none available without a range -> suppress).
+        if (f.get('betting_class') or '').lower() == 'value':
+            continue
         if weak and not strong_draw:
             out.append(_record(h, 'turn', 'turn_overbarrel',
-                               'bet flop and turn with a weak made hand (%s) and no strong draw' % (made or 'n/a'),
-                               f, prior_records))
+                               'bet flop and turn with a weak made hand (%s, betting_class=%s) and no strong draw'
+                               % (made or 'n/a', f.get('betting_class')), f, prior_records))
     return out
 
 
@@ -317,3 +322,237 @@ def run(hands, prior_records=None, n_hands=None):
     reviewed = review(disc['candidates'])
     metrics = value_metrics(disc, reviewed, n)
     return {'discovery': disc, 'reviewed': reviewed, 'metrics': metrics}
+
+
+# =========================================================================================== #
+# Iteration-3 rule-backed high-precision sweep (the only added families). Confirmable WITHOUT a #
+# range: each finding is backed by an existing canonical chart or an accepted owner rule.       #
+# =========================================================================================== #
+
+CHART_BACKED = 'CHART_BACKED'
+OWNER_RULE_BACKED = 'OWNER_RULE_BACKED'
+_PREMIUM_CODES = {'AA', 'KK', 'QQ', 'AKs', 'AKo'}
+
+
+def _preflop(h):
+    return [a for a in (h.get('action_ledger') or []) if isinstance(a, dict) and a.get('street') == 'preflop']
+
+
+def _hero_eff_stack(h):
+    for k in ('eff_stack_bb', 'effective_stack_bb', 'hero_eff_stack_bb', 'stack_bb', 'hero_stack_bb'):
+        if isinstance(h.get(k), (int, float)):
+            return h[k]
+    return None
+
+
+def hand_code(cards):
+    if len(cards) != 2:
+        return ''
+    order = '23456789TJQKA'
+    a, b = cards[0][0], cards[1][0]
+    if order.index(a) < order.index(b):
+        a, b = b, a
+    if a == b:
+        return a + b
+    return a + b + ('s' if cards[0][1] == cards[1][1] else 'o')
+
+
+def _is_premium(cards):
+    return hand_code(cards) in _PREMIUM_CODES
+
+
+def _rule_record(hand, street, family, reason, facts, prior_records, tier, source, alt):
+    rec = _record(hand, street, family, reason, facts, prior_records)
+    rec['evidence_tier'] = tier
+    rec['rule_source'] = source
+    rec['proposed_alternative'] = alt
+    rec['missing_assumptions'] = []     # rule-backed: nothing missing
+    return rec
+
+
+def family_sb_flat_vs_late_open(hands, prior_records=None):
+    """F3: Hero in the SB, 20-40bb, a SINGLE BTN/CO open, Hero FLATS (a genuine call of a raise -- NOT a
+    limp-complete), HEADS-UP (no other voluntary player), non-premium. The accepted owner rule is
+    3-bet-or-fold from the SB versus a late open at this depth, so an OOP flat is the leak."""
+    out = []
+    for h in hands:
+        if (h.get('position') or '') != 'SB':
+            continue
+        e = _hero_eff_stack(h)
+        if not (e and 20 <= e <= 40):
+            continue
+        cards = h.get('cards') or []
+        if len(cards) != 2 or _is_premium(cards):
+            continue
+        pf = _preflop(h)
+        raises = [a for a in pf if a.get('action') == 'raises' and a.get('player') != 'Hero']
+        if len(raises) != 1:                              # exactly one opener (no 3-bet, no limp-raise)
+            continue
+        opener = raises[0]
+        if (opener.get('position') or '') not in ('BTN', 'CO'):
+            continue
+        if not [a for a in pf if a.get('player') == 'Hero' and a.get('action') == 'calls']:
+            continue                                       # Hero must FLAT (genuine call of the raise)
+        others = [a for a in pf if a.get('player') not in ('Hero', opener.get('player'))
+                  and a.get('action') in ('calls', 'raises') and (a.get('amount_bb') or 0) > 0.6]
+        if others:                                         # heads-up only (no multiway / limpers)
+            continue
+        facts = {'street': 'preflop', 'hero_cards': cards, 'position': 'SB',
+                 'eff_stack_bb': round(e, 1), 'opener_position': opener.get('position'),
+                 'hand_code': hand_code(cards), 'active_players': 2,
+                 'action_line': [(a.get('player'), a.get('position'), a.get('action')) for a in pf]}
+        out.append(_rule_record(
+            h, 'preflop', 'sb_flat_vs_late_open',
+            'SB flat-called a %s open heads-up at %.0fbb with %s -- the accepted rule is 3-bet-or-fold from the SB'
+            % (opener.get('position'), e, hand_code(cards)), facts, prior_records,
+            OWNER_RULE_BACKED, 'owner-rule: SB vs a single late (BTN/CO) open at 20-40bb is 3-bet-or-fold; no OOP flat',
+            '3-bet, or fold -- never flat out of position from the SB at this depth'))
+    return out
+
+
+def family_deep_preflop_stackoff(hands, prior_records=None):
+    """F1: eff > 40bb, Hero commits all-in preflop, not AA/KK. Surfaced for review (chart/forced
+    exceptions are resolved in the review, not asserted by the detector)."""
+    out = []
+    for h in hands:
+        cards = h.get('cards') or []
+        if len(cards) != 2:
+            continue
+        e = _hero_eff_stack(h)
+        if not (e and e > 40):
+            continue
+        pf = _preflop(h)
+        if not (h.get('pf_allin') or any(a.get('player') == 'Hero' and a.get('is_all_in') for a in pf)):
+            continue
+        if hand_code(cards) in ('AA', 'KK'):
+            continue
+        facts = {'street': 'preflop', 'hero_cards': cards, 'eff_stack_bb': round(e, 1),
+                 'hand_code': hand_code(cards), 'position': h.get('position'),
+                 'action_line': [(a.get('player'), a.get('position'), a.get('action')) for a in pf]}
+        out.append(_record(h, 'preflop', 'deep_preflop_stackoff',
+                           'committed all-in preflop at %.0fbb without AA/KK (%s)' % (e, hand_code(cards)),
+                           facts, prior_records))
+    return out
+
+
+def family_short_stack_coldcall(hands, prior_records=None):
+    """F2: decision-time eff < 15bb, Hero not in the BB, Hero cold-calls an existing raise. Confirmed
+    only when the canonical chart/rule does not permit the call (resolved in review)."""
+    out = []
+    for h in hands:
+        cards = h.get('cards') or []
+        if len(cards) != 2:
+            continue
+        if (h.get('position') or '') == 'BB':
+            continue
+        e = _hero_eff_stack(h)
+        if not (e and e < 15):
+            continue
+        pf = _preflop(h)
+        if not [a for a in pf if a.get('player') == 'Hero' and a.get('action') == 'calls']:
+            continue
+        if not [a for a in pf if a.get('player') != 'Hero' and a.get('action') == 'raises']:
+            continue
+        facts = {'street': 'preflop', 'hero_cards': cards, 'eff_stack_bb': round(e, 1),
+                 'hand_code': hand_code(cards), 'position': h.get('position'),
+                 'action_line': [(a.get('player'), a.get('position'), a.get('action')) for a in pf]}
+        out.append(_record(h, 'preflop', 'short_stack_coldcall',
+                           'cold-called a raise at %.0fbb out of the BB (%s)' % (e, hand_code(cards)),
+                           facts, prior_records))
+    return out
+
+
+def _packet_complete(c):
+    """A one-pass-ready packet must carry the decision id + hero hand + the canonical decision context."""
+    f = c.get('context', {})
+    base = bool(c.get('decision_id') and f.get('hero_cards') and c.get('detector_reason'))
+    if c['family'] in ('sb_flat_vs_late_open', 'deep_preflop_stackoff', 'short_stack_coldcall'):
+        return base and f.get('eff_stack_bb') is not None and f.get('hand_code')
+    return base and f.get('made_hand_class') and f.get('board')
+
+
+def review_value(candidates):
+    """The bounded review including the rule-backed families. Only the rule-backed SB-flat (an explicit
+    accepted owner rule, confirmable without a range) confirms; everything range-dependent stays
+    READ_DEPENDENT; deep stack-off / short cold-call of reasonable hands are JUSTIFIED."""
+    out = []
+    for c in candidates:
+        fam = c['family']
+        if fam == 'sb_flat_vs_late_open':
+            verdict, tier = CONFIRMED_MISTAKE, OWNER_RULE_BACKED
+            note = ('SB flat-call out of position versus a single late open violates the accepted '
+                    '3-bet-or-fold rule at 20-40bb; %s is a 3-bet-or-fold hand, not an OOP flat' % c['context'].get('hand_code'))
+            better = c.get('proposed_alternative')
+        elif fam == 'deep_preflop_stackoff':
+            verdict, tier, note, better = JUSTIFIED, OWNER_RULE_BACKED, \
+                'a >40bb all-in with a strong non-AA/KK holding is a standard stack-off here; not a confirmed leak', None
+        elif fam == 'short_stack_coldcall':
+            verdict, tier, note, better = READ_DEPENDENT, '', \
+                'needs the canonical short-stack calling chart for this exact spot to confirm/clear', None
+        elif fam == 'river_value':
+            verdict, tier = CONFIRMED_MISTAKE, 'canonical_made_hand_class'
+            note = 'strong made hand took no value on the river (decision error, result-independent)'
+            better = 'bet a standard value size'
+        elif fam in ('turn_overbarrel', 'river_curiosity'):
+            verdict, tier, note, better = READ_DEPENDENT, '', \
+                'confirming needs a canonical opponent range (not available) -- preserved read-dependent', None
+        else:
+            verdict, tier, note, better = INSUFFICIENT_EVIDENCE, '', 'insufficient context', None
+        out.append({
+            'decision_id': c['decision_id'], 'hand_id': c['hand_id'], 'family': fam,
+            'relationship': c.get('relationship'), 'terminal_verdict': verdict,
+            'evidence_tier': tier, 'evidence_source': c.get('rule_source'),
+            'decision_error': note if verdict == CONFIRMED_MISTAKE else None,
+            'evidence': c['detector_reason'], 'better_action': better, 'review_note': note,
+            'result_independent': verdict == CONFIRMED_MISTAKE,
+        })
+    return out
+
+
+def run_value(hands, prior_records=None, n_hands=None, session='june16_844'):
+    """The Iteration-3 product-value run: recalibrated postflop families + the rule-backed sweep,
+    reconciled vs prior truth, packet-completeness-audited, reviewed, gated."""
+    hands = hands or []
+    n = n_hands if n_hands is not None else len(hands)
+    raw = (family_turn_overbarrel(hands, prior_records) + family_river_curiosity(hands, prior_records)
+           + family_river_value(hands, prior_records) + family_sb_flat_vs_late_open(hands, prior_records)
+           + family_deep_preflop_stackoff(hands, prior_records) + family_short_stack_coldcall(hands, prior_records))
+    candidates, suppressed, debt = [], [], []
+    seen = set()
+    for c in raw:
+        if c['relationship'] == 'ALREADY_REVIEWED_SAME_NODE':
+            suppressed.append(c)
+            continue
+        if not _packet_complete(c):
+            debt.append({'hand_id': c['hand_id'], 'family': c['family'], 'reason': 'packet incomplete'})
+            continue
+        key = (c['hand_id'], c['street'], c['family'])
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(c)
+    reviewed = review_value(candidates)
+    confirmed = [r for r in reviewed if r['terminal_verdict'] == CONFIRMED_MISTAKE]
+    fams = sorted({c['family'] for c in raw})
+    by_family = {}
+    for fam in fams:
+        rev = [r for r in reviewed if r['family'] == fam]
+        by_family[fam] = {
+            'raw_candidates': sum(1 for c in raw if c['family'] == fam),
+            'suppressed_prior_reviewed': sum(1 for c in suppressed if c['family'] == fam),
+            'packet_complete': sum(1 for c in candidates if c['family'] == fam),
+            'reviewed': len(rev),
+            'confirmed_mistakes': sum(1 for r in rev if r['terminal_verdict'] == CONFIRMED_MISTAKE),
+            'justified': sum(1 for r in rev if r['terminal_verdict'] == JUSTIFIED),
+            'read_dependent': sum(1 for r in rev if r['terminal_verdict'] == READ_DEPENDENT),
+            'insufficient': sum(1 for r in rev if r['terminal_verdict'] == INSUFFICIENT_EVIDENCE),
+        }
+    metrics = {
+        'session': session, 'n_hands': n, 'by_family': by_family,
+        'engineering_debt_count': len(debt),
+        'total_confirmed_new_mistakes': len(confirmed),
+        'confirmed_mistakes_per_100_hands': round(100.0 * len(confirmed) / max(n, 1), 3),
+        'product_value_gate': 'PASS' if len(confirmed) >= 1 else 'FAIL',
+    }
+    return {'candidates': candidates, 'suppressed': suppressed, 'engineering_debt': debt,
+            'reviewed': reviewed, 'confirmed': confirmed, 'metrics': metrics}

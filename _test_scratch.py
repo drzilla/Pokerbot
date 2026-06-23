@@ -14073,6 +14073,36 @@ check('T-IT2-O1-05: responsive structure -- the stacked outcome bar is width:100
 check('T-IT2-O1-06: Tournament Results carries the FROZEN_AFTER_V820_CLOSURE marker after passing closure',
       "RESULTS_FROZEN = 'FROZEN_AFTER_V820_CLOSURE'" in _rt_src_o1)
 
+# ---- Iteration 3, Track 2: rule-backed sweep + recalibration (genuine confirmed mistake, no fabrication) ----
+def _sbhand(actions, cards=None, eff=30):
+    return {'id': 'X', 'position': 'SB', 'cards': cards or ['Kc', 'Qc'], 'eff_stack_bb': eff,
+            'action_ledger': [dict(street='preflop', **a) for a in actions]}
+_clean = _sbhand([{'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+                  {'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+                  {'player': 'bb', 'position': 'BB', 'action': 'folds', 'amount_bb': 0}])
+_limp = _sbhand([{'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 0.5},
+                 {'player': 'bb', 'position': 'BB', 'action': 'checks', 'amount_bb': 0}])
+_mw = _sbhand([{'player': 'btn', 'position': 'BTN', 'action': 'raises', 'amount_bb': 2.2},
+               {'player': 'Hero', 'position': 'SB', 'action': 'calls', 'amount_bb': 1.7},
+               {'player': 'bb', 'position': 'BB', 'action': 'calls', 'amount_bb': 1.2}])
+check('T-IT3-V-02: SB-flat family flags only the clean heads-up late-open flat; rejects limp-completes and multiway',
+      len(_DC.family_sb_flat_vs_late_open([_clean])) == 1
+      and len(_DC.family_sb_flat_vs_late_open([_limp])) == 0
+      and len(_DC.family_sb_flat_vs_late_open([_mw])) == 0)
+_rev_sb = _DC.review_value(_DC.family_sb_flat_vs_late_open([_clean]))
+check('T-IT3-V-03: the SB-flat confirmed mistake is OWNER_RULE_BACKED + result-independent (3-bet-or-fold)',
+      _rev_sb[0]['terminal_verdict'] == _DC.CONFIRMED_MISTAKE
+      and _rev_sb[0]['evidence_tier'] == _DC.OWNER_RULE_BACKED
+      and _rev_sb[0]['result_independent'] is True and 'fold' in (_rev_sb[0]['better_action'] or ''))
+_val_hand = {'id': 'Y', 'position': 'CO', 'cards': ['Ah', 'Kd'], 'board': ['Ac', '7d', '2s', '9h'],
+             'action_ledger': [{'street': 'flop', 'player': 'Hero', 'action': 'bets', 'amount_bb': 3},
+                               {'street': 'turn', 'player': 'Hero', 'action': 'bets', 'amount_bb': 6}]}
+check('T-IT3-V-01: turn_overbarrel suppresses canonical value hands (betting_class=value -- owner correction #2)',
+      len(_DC.family_turn_overbarrel([_val_hand])) == 0)
+check('T-IT3-V-04: the value gate is PASS with >=1 confirmed, FAIL at zero (no fabricated pass)',
+      _DC.run_value([_clean], {})['metrics']['product_value_gate'] == 'PASS'
+      and _DC.run_value([_limp], {})['metrics']['product_value_gate'] == 'FAIL')
+
 # v8.20 W1A.1 BUG-1 (TRUST, highest release relevance): the report-schema version is a deliberately
 # named owner distinct from the runtime; the footer stamps the RUNTIME version, not the schema sibling.
 from gem_report_draft.draft import REPORT_SCHEMA_VERSION as _rsv_b1

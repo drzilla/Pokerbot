@@ -244,7 +244,7 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
     # "Insufficient evidence" headline that implies nothing is known -- even when the ACTION verdict
     # itself cannot be graded. Promote to factual on a proven anchor; when the verdict is ungradeable,
     # keep a PRECISE caveat that names what the unresolved part is (not a generic "below the bar").
-    _proven_fact = _has_anchor and decision_label and not result_only and not _unprovable
+    _proven_fact = _has_anchor and not result_only and not _unprovable
     if register == 'no_clear_lesson' and _proven_fact:
         register = 'factual'
         if not gradeable:

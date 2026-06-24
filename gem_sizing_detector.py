@@ -22,6 +22,13 @@ import gem_textures
 MIN_JUDGED = 3
 COMPLIANCE_FLOOR = 60.0
 
+# ── v8.21 chart-applicability gate for the ONE canonical aggregate sizing path ────────────────
+# Deep validation (3,609 real hands) found 0 confirmed per-hand sizing mistakes, so there is NO per-hand
+# sizing detector. The only sizing surface is the AGGREGATE build_sizing_leak_signals above, fed by
+# gem_analyzer's GTO block via gem_textures.aggregate_compliance and rendered as "Sizing & Line Patterns".
+# `cbet_chart_applies` (below) is the safety gate that production path uses so the sizing-leak judgment
+# counts only HEADS-UP, SINGLE-RAISED-POT, non-all-in c-bets (where the chart actually holds).
+
 
 def _arch_human(arch):
     return str(arch or '').replace('_', ' ')
@@ -81,37 +88,87 @@ def build_sizing_leak_signals(texture_gto_findings, *, min_judged=MIN_JUDGED,
             ref = list(tgt.get('sizings_pct') or [])
             ref_str = ('/'.join('%d%%' % r for r in ref) if ref else 'reference')
             act_str = ', '.join('%d%%' % a for a in sorted(set(actual))[:6]) or '?'
+            n_off = len(set(off_ids))
+            # direction of the leak: are the off-size c-bets mostly BELOW the reference band (too small)
+            # or ABOVE it (too large)? Owned by the detector (it owns the sizing comparison); the renderer
+            # only displays it -- no renderer-side derivation.
+            ref_lo, ref_hi = (min(ref), max(ref)) if ref else (None, None)
+            below = sum(1 for a in actual if ref_lo is not None and a < ref_lo)
+            above = sum(1 for a in actual if ref_hi is not None and a > ref_hi)
+            if below > above:
+                direction, dword, fixword = 'under', 'too small', 'bigger'
+            elif above > below:
+                direction, dword, fixword = 'over', 'too large', 'smaller'
+            else:
+                direction, dword, fixword = 'mixed', 'inconsistently sized', 'into the reference band'
+            why = {
+                'under': ('Betting too small here leaves value and protection on the table -- you are not '
+                          'charging draws or building the pot on boards where you hold the range advantage.'),
+                'over': ('Betting too large here bleeds chips and folds out the weaker hands you actually '
+                         'want to keep in the pot.'),
+                'mixed': ('Inconsistent c-bet sizing across this whole board class makes you readable and '
+                          'forfeits value or protection -- it is a repeated habit, not one bad hand.'),
+            }[direction]
             signals.append({
                 'family': 'flop_cbet_sizing',
                 'signal_type': 'aggregate_leak',                  # repeated leak, NOT a per-hand verdict
                 'archetype': arch,
                 'side': side,
+                'direction': direction,                           # under | over | mixed (the habit)
                 'pattern_label': _pattern_label(arch, side),
-                'trigger': ('flop c-bet sizing off-reference on %d of %d sized c-bets '
+                'trigger': ('flop c-bet sizing off-reference (%s) on %d of %d sized c-bets '
                             '(%.0f%% within ±10pp of %s) on %s boards %s'
-                            % (len(set(off_ids)), judged, comp, ref_str, _arch_human(arch), side.upper())),
+                            % (dword, n_off, judged, comp, ref_str, _arch_human(arch), side.upper())),
                 'evidence': {
                     'actual_sizings_pct': sorted(set(actual)),
                     'reference_sizings_pct': ref,
                     'tolerance_pp': 10,
                     'sizing_compliance_pct': comp,
                     'judged_c_bets': judged,
+                    'off_band_c_bets': n_off,
                     'sample_size_label': ssl,
                     'depth_band': (sized[0].get('depth_band') if sized else None),
                 },
                 'confidence': 'high',
                 'contributing_hands': sorted(set(off_ids)),
                 'exclusions_considered': 'thin / small-sample / compliant buckets excluded; structural '
-                                         'eligibility owned by is_legal_cbet_opportunity',
+                                         'eligibility owned by is_legal_cbet_opportunity (heads-up '
+                                         'single-raised-pot, non-all-in c-bets only)',
                 'requires_analyst_review': ('aggregate sizing pattern — analyst confirms whether any '
                                             'contributing hand was an individual mistake; the signal does '
                                             'not grade hands'),
-                # human-readable surface copy (no internal codes)
-                'what_happened': 'Hero c-bet %s on %s boards %s; the reference band is %s.'
-                                 % (act_str, _arch_human(arch), side.upper(), ref_str),
-                'why_it_matters': 'A repeated off-reference flop c-bet size leaks value or protection '
-                                  'across this whole board class, not just one hand.',
-                'adjustment': 'On %s boards %s, size flop c-bets toward %s.'
-                              % (_arch_human(arch), side.upper(), ref_str),
+                # human-readable surface copy (plain poker language, no internal codes)
+                'what_happened': ('On %s boards %s, your flop c-bets were repeatedly %s: %d of %d were off '
+                                  'the proven sizing band. You bet around %s of pot where the band is %s.'
+                                  % (_arch_human(arch), side.upper(), dword, n_off, judged, act_str, ref_str)),
+                'why_it_matters': why,
+                'adjustment': ('On %s boards %s, size your flop c-bets %s — toward %s of pot.'
+                               % (_arch_human(arch), side.upper(), fixword, ref_str)),
             })
     return {'signals': signals, 'excluded_counts': excluded}
+
+
+def _flop_cbet_is_all_in(hand):
+    """True iff Hero's flop c-bet action is all-in. An all-in c-bet is a commitment / stack-off
+    decision, not a free sizing choice, so it is out of scope for a c-bet SIZING comparison."""
+    for a in (hand.get('action_ledger') or []):
+        if (isinstance(a, dict) and a.get('street') == 'flop' and a.get('player') == 'Hero'
+                and (a.get('action') in ('bets', 'raises'))):
+            return bool(a.get('is_all_in'))
+    return False
+
+
+def cbet_chart_applies(hand):
+    """True iff the gto_texture_archetypes sizing band applies to this flop c-bet: HEADS-UP,
+    SINGLE-RAISED-POT, non-all-in. The bands are calibrated for HU SRP range c-bets, so a 3-bet/4-bet pot,
+    a multiway flop, or an all-in c-bet must NOT be sizing-judged. gem_analyzer's GTO block uses this gate
+    to skip those from the sizing dimension while leaving the c-bet FREQUENCY denominator untouched, so the
+    one canonical aggregate path (aggregate_compliance -> build_sizing_leak_signals) only ever measures
+    sizing where the chart holds. Canonical decision-time inputs only; no results/showdown/range/equity."""
+    if (hand.get('pot_type') or '') != 'SRP':
+        return False
+    if hand.get('multiway_flop') or (hand.get('players_at_flop') or 2) > 2:
+        return False
+    if _flop_cbet_is_all_in(hand):
+        return False
+    return True

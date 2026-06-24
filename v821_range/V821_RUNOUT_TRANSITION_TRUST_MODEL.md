@@ -1,7 +1,15 @@
 # V821_RUNOUT_TRANSITION_TRUST_MODEL
 
+> **v8.21 correction (supersedes the relative-strength rows below).** The module no longer emits
+> `improved`/`weakened`/`counterfeit`/`has_showdown_value`. Hero "improvement" is now a **proven** fact —
+> Hero's best-five must beat the **board-only** best-five for his hole cards to be credited — and a shared
+> board change is labelled *"shared by every remaining player."* Relative strength / the correct action is
+> always rendered **Insufficient evidence** pending a canonical opponent-range owner. Tests are now **48/48**
+> (forced canonical-owner failures included). See `V821_RUNOUT_TRANSITION_SEMANTIC_CONTRACT.md` and
+> `V821_RUNOUT_TRANSITION_CORRECTION_REPORT.md`. The provenance/no-calculation invariants below still hold.
+
 Provenance and no-calculation invariants for the Runout Transition module. Each is enforced in
-`gem_runout_transition.py` and asserted by `test_runout_transition.py` (29/29).
+`gem_runout_transition.py` and asserted by `test_runout_transition.py`.
 
 | Invariant | How enforced | Test |
 |---|---|---|

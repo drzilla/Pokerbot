@@ -8785,6 +8785,14 @@ if __name__ == '__main__':
     if '--quick' in _argv:
         _argv.remove('--quick')
         _quick_mode = True
+    # handover #5: explicit cache-invalidation path. --reparse forces a fresh parse even when the HH
+    # bytes are byte-identical (e.g. after a code-only parser fix). A PARSER_SCHEMA_VERSION bump already
+    # auto-invalidates; this is the manual override for ad-hoc reparses.
+    _force_reparse = False
+    if '--reparse' in _argv:
+        _argv.remove('--reparse')
+        _force_reparse = True
+        globals()['_FORCE_REPARSE'] = True
     # v8.12.10: quick render now validates by default; opt out explicitly.
     global _NO_VALIDATE_RENDER
     _NO_VALIDATE_RENDER = False
@@ -9556,7 +9564,7 @@ if __name__ == '__main__':
         except Exception:
             pass
     _use_cache = (_cached_hash == _current_hash and os.path.exists(_cache_path)
-                  and _current_hash != '')
+                  and _current_hash != '' and not globals().get('_FORCE_REPARSE'))
 
     # Step 0: Cache schema version check — force reparse if schema is outdated
     if _use_cache:

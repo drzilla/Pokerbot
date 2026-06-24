@@ -704,7 +704,7 @@ def range_evidence_md(ev):
         _note = ev.get('note') or ('no exact chart exists for this '
                                     'position/depth (estimated/closest unavailable)')
         return (f"> **Range evidence — {spot}, {depth:.0f}BB ({basis}).** "
-                f"{hero}: {_note}.")
+                f"<span class='rng-combo-hero'>{hero}</span>: {_note}.")
     label = _cdl(key)
     # Coverage disclosure — proxy/closest are NEVER presented as exact.
     if cov == 'exact':

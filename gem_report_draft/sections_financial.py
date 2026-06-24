@@ -57,8 +57,8 @@ def _build_daily_pnl_table(rd):
         a = by_date[d]
         a['n_t'] += 1
         a['n_b'] += t.get('bullets', 1)
-        a['cost'] += t.get('cost', 0.0)
-        a['cash'] += t.get('cash_total', 0.0)
+        a['cost'] += t.get('cost') or 0.0
+        a['cash'] += t.get('cash_total') or 0.0   # unresolved HH-only event: cash is None, contributes 0
         if t.get('itm'): a['itm_bullets'] += t.get('bullets', 1)
         place = t.get('place', 0)
         total = t.get('total_players', 0)
@@ -427,9 +427,17 @@ def _emit_section_i(doc, s, rd, hands):
         _tot_net_bb += t.get('net_bb', 0)
         if _have_usd:
             u = _usd_match(t['tournament'], t.get('tournament_id'))
-            if u and u.get('cost'):
+            if u and u.get('cost') and (u.get('unresolved') or u.get('cash_total') is None):
+                # v8.21 (R1): unresolved HH-only event — committed cost is known, Return/Net/ROI blank
+                # (never coerced to a $0 return). Cost counts toward committed total; cash/net do not.
+                _ucost = u.get('cost', 0) or 0
+                _bi_cell = _fmt_usd(_ucost)
+                _net_cell = "— <span class='tt-unresolved'>(unresolved)</span>"
+                _roi_cell = "—"
+                _tot_cost += _ucost
+            elif u and u.get('cost'):
                 _ucost = u.get('cost', 0)
-                _ucash = u.get('cash_total', 0)
+                _ucash = u.get('cash_total', 0) or 0
                 _unet = _ucash - _ucost
                 _uroi = (_unet / _ucost * 100) if _ucost else 0
                 _ue = '🟢' if _unet > 0 else ('🟡' if _unet == 0 else '🔴')

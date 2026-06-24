@@ -609,15 +609,102 @@ ONEPASS_TO_REPORT_VERDICT = {
 }
 
 
+# v8.21 (addendum A / handover #3): the one-pass output carries `reason` + `better_action` but the report
+# renderer reads a structured `argument` (the _hand_grid structured-note fast path). Without an argument the
+# analyst's reasoning is produced and then DROPPED -- a graded mistake shows a verdict pill and no explanation.
+# We synthesize a visible, labelled structured argument here from the analyst's own fields so every graded
+# decision renders Why / Better action / Rule to remember / Evidence. Nothing is invented: the prose is the
+# analyst's reason, the rule is the canonical owner-rule the analyst cited, and the lesson is either analyst-
+# authored or a faithful restatement of that cited rule.
+_LESSON_BY_OWNER_RULE = {
+    'owner_rule.sb_3bet_or_fold':
+        'From the SB at 20-40bb facing a single late (CO/BTN) open, play 3-bet-or-fold -- never flat out of position.',
+    'owner_rule.deep_stackoff':
+        'Above ~40bb effective, do not get all-in preflop without AA/KK -- keep the pot smaller (a non-all-in 4-bet) or fold.',
+}
+_ENUM_BADGE = {
+    'CONFIRMED_MISTAKE': ('\U0001F534', 'Confirmed mistake'), 'JUSTIFIED': ('✅', 'Justified'),
+    'READ_DEPENDENT': ('\U0001F7E1', 'Read-dependent'), 'INSUFFICIENT_EVIDENCE': ('\U0001F9ED', 'Insufficient evidence'),
+    'DETECTOR_BUG': ('\U0001F6E0️', 'Detector bug (cleared)'),
+}
+# surface priority when a hand has >1 graded decision: a CONFIRMED_MISTAKE must never be overwritten by a
+# later JUSTIFIED decision in the same hand (handover #4 -- single-source the mistake surface).
+_ENUM_PRIORITY = {'CONFIRMED_MISTAKE': 5, 'READ_DEPENDENT': 3, 'JUSTIFIED': 2,
+                  'INSUFFICIENT_EVIDENCE': 1, 'DETECTOR_BUG': 0}
+
+
+def _split_evidence_refs(reason):
+    """Pull the machine evidence_tier / evidence_ref tokens out of the analyst reason: return
+    (clean_prose, owner_rule_or_None, provenance_str). The refs become a separate Evidence line so the
+    Why prose reads as plain teaching English."""
+    import re as _re
+    reason = reason or ''
+    tier = _re.search(r'evidence[_ ]tier[:\s]+([A-Za-z0-9_.]+)', reason)
+    ref = _re.search(r'evidence[_ ]ref[:\s]+([A-Za-z0-9_.]+)(?:\s*\(([A-Za-z0-9_]+)\))?', reason)
+    owner_rule = ref.group(1) if ref else None
+    prov = []
+    if owner_rule:
+        prov.append('rule ' + owner_rule + ((' (%s)' % ref.group(2)) if ref.group(2) else ''))
+    if tier:
+        prov.append('tier ' + tier.group(1))
+    clean = _re.sub(r'\s*evidence[_ ]ref[:\s]+[A-Za-z0-9_.]+(?:\s*\([A-Za-z0-9_]+\))?\.?', '', reason)
+    clean = _re.sub(r'\s*evidence[_ ]tier[:\s]+[A-Za-z0-9_.]+\.?', '', clean)
+    return clean.strip(), owner_rule, ', '.join(prov)
+
+
+def _first_sentence(text, limit=160):
+    import re as _re
+    text = (text or '').strip()
+    m = _re.match(r'(.+?[.!?])(\s|$)', text)
+    s = m.group(1) if m else text
+    return (s[:limit].rstrip() + '…') if len(s) > limit else s
+
+
+def build_decision_argument(enum, reason, better_action, lesson=None):
+    """Build the visible, labelled structured argument the report renderer surfaces for a graded decision.
+    Leads with **TL;DR:** so the _hand_grid structured-note fast path renders it faithfully (### sub-headers
+    + prose) instead of dropping it. Returns (argument_markdown, resolved_lesson)."""
+    clean, owner_rule, prov = _split_evidence_refs(reason)
+    emoji, badge = _ENUM_BADGE.get(enum, ('\U0001F9ED', enum))
+    resolved_lesson = (lesson or '').strip() or _LESSON_BY_OWNER_RULE.get(owner_rule or '', '')
+    # fail-closed (addendum G): a confirmed mistake must NEVER render without a transferable lesson.
+    # Prefer an analyst-authored lesson, then the cited owner-rule; finally fall back to a spot-specific
+    # restatement of the better action (still hand-specific, not generic boilerplate).
+    if enum == 'CONFIRMED_MISTAKE' and not resolved_lesson and better_action:
+        _ba = better_action.strip().rstrip('.')
+        resolved_lesson = 'In this spot the disciplined line is to ' + (_ba[0].lower() + _ba[1:]) + '.'
+    lines = ['**TL;DR:** %s %s -- %s' % (emoji, badge, _first_sentence(clean)), '']
+    if enum == 'CONFIRMED_MISTAKE':
+        lines += ['### Why this is a mistake', clean, '']
+        if better_action:
+            lines += ['### Better action', better_action, '']
+        if resolved_lesson:
+            lines += ['### Rule to remember', resolved_lesson, '']
+    elif enum == 'READ_DEPENDENT':
+        lines += ['### Why it depends on a read', clean, '']
+        if better_action:
+            lines += ['### If the read is unfavorable', better_action, '']
+    elif enum == 'DETECTOR_BUG':
+        lines += ['### Why this was cleared', clean, '']
+    else:  # JUSTIFIED / other
+        lines += ['### Why it holds up', clean, '']
+    ev = 'Source: analyst one-pass review' + (('; ' + prov) if prov else '')
+    lines += ['### Evidence', ev]
+    return '\n'.join(lines).strip(), resolved_lesson
+
+
 def analyst_commentary_from_output(packet, analyst_output):
     """Transform a validated ONE-PASS analyst output (decision-keyed verdicts) into the canonical
     hand-keyed `analyst_commentary` the report consumes, plus a one-pass verdict-count summary
     (QA-BLOCK-001). The one-pass enum is mapped to the report taxonomy so the final-truth owner recomputes
     terminal ownership from the analyst verdicts (a CONFIRMED_MISTAKE overrides any automatic nomination;
-    a DETECTOR_BUG clears it). Returns (commentary_by_hand, onepass_summary)."""
+    a DETECTOR_BUG clears it). Each entry also carries a synthesized, labelled `argument` (addendum A /
+    handover #3) so the analyst's reason / better action / rule-to-remember / evidence RENDER visibly instead
+    of being dropped. Returns (commentary_by_hand, onepass_summary)."""
     by_decision = {d.get('decision_id'): d
                    for d in (packet.get('required') or []) + (packet.get('optional') or [])}
     commentary, counts = {}, {k: 0 for k in ONEPASS_TO_REPORT_VERDICT}
+    _seen_priority = {}
     for v in (analyst_output.get('verdicts') or []):
         did = v.get('decision_id')
         enum = v.get('verdict')
@@ -628,12 +715,23 @@ def analyst_commentary_from_output(packet, analyst_output):
         if not hid:
             continue
         counts[enum] = counts.get(enum, 0) + 1
+        # one card per hand: keep the highest-surface verdict (a mistake outranks a later justified)
+        _pri = _ENUM_PRIORITY.get(enum, 1)
+        if hid in _seen_priority and _seen_priority[hid] >= _pri:
+            continue
+        _seen_priority[hid] = _pri
+        _reason = v.get('reason', '')
+        _better = v.get('better_action', '')
+        _argument, _lesson = build_decision_argument(enum, _reason, _better, v.get('lesson'))
         commentary[hid] = {
             'verdict': ONEPASS_TO_REPORT_VERDICT[enum],
             'onepass_verdict': enum,
             'decision_id': did,
-            'reason': v.get('reason', ''),
-            'better_action': v.get('better_action', ''),
+            'reason': _reason,
+            'better_action': _better,
+            'lesson': _lesson,
+            'argument': _argument,
+            'street': (str(did).split(':')[1] if did and ':' in str(did) else ''),
             'source': 'one_pass_analyst',
         }
     summary = {

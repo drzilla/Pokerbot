@@ -227,9 +227,18 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
         buyin = t.get('buyin', 0)
         bullets = t.get('bullets', 1)
         cost = round(float(t.get('cost', 0) or 0), 2)    # committed cost
-        ret = _return_object(t.get('cash_received'), t.get('ticket_value'), config)
-        net = round(ret['value'] - cost, 2)
-        roi_pct = round(net / cost * 100, 1) if cost else None
+        # v8.21 (R1): an UNRESOLVED HH-only event keeps its committed cost but has NO settled return --
+        # Return / Net / ROI stay blank (None), never coerced to a $0 return (which would read as a loss).
+        # Gate ONLY on the explicit unresolved flag (a resolved $0-cash event must still render $0, not blank).
+        if t.get('unresolved'):
+            ret = {'value': None, 'exact': False, 'basis': 'unresolved',
+                   'cash_received': None, 'ticket_value': None}
+            net = None
+            roi_pct = None
+        else:
+            ret = _return_object(t.get('cash_received'), t.get('ticket_value'), config)
+            net = round(ret['value'] - cost, 2)
+            roi_pct = round(net / cost * 100, 1) if cost else None
 
         prize_type, bounty_kind, prize_prov = _infer_prize_type(name, t.get('is_sat'))
         if prize_prov == 'inferred':
@@ -311,7 +320,8 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
     # Session totals: AUTHORITATIVE = canonical usd_overlay.totals (never a
     # divergent recomputation). Per-event rows must reconcile to them.
     summed_cost = round(sum(e['cost'] for e in events), 2)
-    summed_return = round(sum(e['return']['value'] for e in events), 2)
+    summed_return = round(sum(e['return']['value'] for e in events
+                              if e['return'].get('value') is not None), 2)
     summed_net = round(summed_return - summed_cost, 2)
 
     totals = {
@@ -324,6 +334,11 @@ def build_tournament_model(rd, cev_by_tid=None, drivers_by_tid=None,
         'roi_pct': ov_tot.get('roi_pct'),
         'return_basis': return_basis_label,
         'cost_basis': 'committed_cost',
+        # v8.21 (R1): coverage of the financial result -- Net/ROI cover the RESOLVED subset only.
+        'resolved_events': ov_tot.get('resolved_events', len(events)),
+        'total_events': ov_tot.get('total_events', len(events)),
+        'unresolved_events': ov_tot.get('unresolved_events', 0),
+        'coverage_partial': bool(ov_tot.get('coverage_partial')),
     }
     # When cash-only is configured the canonical (cash+ticket) totals do not
     # apply; fall back to the summed cash-only figures.

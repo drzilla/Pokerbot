@@ -428,7 +428,17 @@ def family_deep_preflop_stackoff(hands, prior_records=None):
         if not (e and e > 40):
             continue
         pf = _preflop(h)
-        if not (h.get('pf_allin') or any(a.get('player') == 'Hero' and a.get('is_all_in') for a in pf)):
+        # handover #2: the deep-stackoff rule is about Hero COMMITTING deep, not about FACING a
+        # jam. h.get('pf_allin') is true whenever the preflop pot went all-in -- including when
+        # Hero FOLDS to a jam -- so it must not gate this finding (folding deep is exactly what the
+        # rule wants). Require Hero's OWN commitment: a non-fold terminal preflop action that is
+        # all-in, with chips actually put in (chosen_incremental_bb > 0 <=> hero_committed_bb > 0).
+        hero_pf = [a for a in pf if a.get('player') == 'Hero']
+        if not hero_pf or hero_pf[-1].get('action') == 'fold':
+            continue
+        if not any(a.get('is_all_in') for a in hero_pf):
+            continue
+        if not (float(h.get('hero_committed_bb', 0) or 0) > 0):
             continue
         if hand_code(cards) in ('AA', 'KK'):
             continue

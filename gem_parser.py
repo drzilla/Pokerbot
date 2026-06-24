@@ -249,7 +249,11 @@ def parse_session(directory):
                 parse_errors += 1
     return all_hands, tournaments, len(files), parse_errors
 
-PARSER_SCHEMA_VERSION = 2  # Increment when hand dict structure changes
+PARSER_SCHEMA_VERSION = 3  # Increment when hand dict structure OR parse semantics change
+# v3 (handover #1): BB-check-played-postflop no longer wipes the board (phantom-board guard).
+# Bumping this version invalidates stale parse caches via the schema check in gem_analyzer (the cache
+# is force-reparsed when its stored schema_version < this); `--reparse` forces it unconditionally.
+# ALWAYS bump this when parse SEMANTICS change, even if the hand-dict keys are unchanged (handover #5).
 
 def parse_one_hand(text, filename=''):
     hand = {}
@@ -2008,13 +2012,24 @@ def parse_one_hand(text, filename=''):
     else:
         hand['river_action_class'] = ''
 
-    # BUG FIX: null out board-derived fields on hands where Hero folded preflop.
-    # The parser parses the community cards from the HH even when Hero isn't in
-    # the hand (other players went to showdown). This creates "phantom boards"
-    # on fold-preflop hands with spr/hand_strength/draw_type populated as if
-    # Hero saw the flop. Misleads candidate dumps and automated classifiers.
-    if not hand.get('vpip') and hand.get('pf_action') in ('fold', 'check'):
-        # Hero didn't voluntarily put money in — board is irrelevant to Hero
+    # BUG FIX: null out board-derived fields on hands where Hero never PLAYED postflop.
+    # The parser parses the community cards from the HH even when Hero isn't in the hand
+    # (other players went to showdown). This creates "phantom boards" on fold-preflop hands
+    # with spr/hand_strength/draw_type populated as if Hero saw the flop.
+    #
+    # v8.21 (handover #1, canonical promotion of the v8.20-LOCAL-DIAG): a BB CHECK
+    # (vpip=0, pf_action='check') still SEES the flop and can play the whole hand. Wiping
+    # its board mislabels a real postflop hand as 'folded_preflop' and, worse, feeds an EMPTY
+    # board into the hand's turn/river decision records -> the sealed analyst packet fails
+    # closed ('board length 0 != turn requires 4') and the whole analyst pass is withheld.
+    # Only treat Hero as "not in the pot" when Hero genuinely did NOT play postflop: folded
+    # preflop, or checked/walked without committing beyond the blind. went_to_sd, or more than
+    # the ~1.5bb blind committed, proves Hero played the board for real -> preserve it.
+    _hero_played_postflop = bool(hand.get('went_to_sd')) or (
+        float(hand.get('hero_committed_bb', 0) or 0) > 1.5)
+    if (not hand.get('vpip') and hand.get('pf_action') in ('fold', 'check')
+            and not _hero_played_postflop):
+        # Hero didn't voluntarily put money in / never played the flop — board is irrelevant
         hand['board'] = []
         hand['board_texture'] = 'none'
         hand['board_archetype'] = ''

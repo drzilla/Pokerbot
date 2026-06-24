@@ -8,12 +8,12 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the Th. Your flush draw completed: your hole cards now make flush. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the Th. Your flush draw completed: your hole cards now make a flush. A third heart arrived; a flush is now possible for holdings containing two hearts. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the Th.</strong> Your flush draw completed: your hole cards now make flush. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the Th.</strong> Your flush draw completed: your hole cards now make a flush. A third heart arrived; a flush is now possible for holdings containing two hearts. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Shared board change — board pairs, no Hero improvement (turn)
@@ -21,12 +21,12 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the Kh. Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player. The board paired (Kh). Reassess: A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the Kh. The paired board (Kh) gives every remaining player at least one pair (your best five plays the board). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the Kh.</strong> Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player. The board paired (Kh). Reassess: A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the Kh.</strong> The paired board (Kh) gives every remaining player at least one pair (your best five plays the board). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Hero private improvement — pocket pair, board pairs low card (turn)
@@ -34,25 +34,64 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the 7h. Your hole cards now make two_pair (was pair). The board paired (7h). Reassess: A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the 7h. Your hole cards now make two pair (was pair). The board paired (7h). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the 7h.</strong> Your hole cards now make two_pair (was pair). The board paired (7h). Reassess: A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the 7h.</strong> Your hole cards now make two pair (was pair). The board paired (7h). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
-## Flush now possible, Hero not made (turn)
+## Three suited — a flush is possible for two-of-suit holdings (turn)
 - 7h-6h-2c → **7h-6h-2c-Th** | category `high_card → high_card` | hole-cards contribute: `False` | tags `['connectivity_increase', 'flush_card', 'overcard']`
 
 **Player-facing (rendered):**
 
-> Runout — the Th. A hearts flush is now possible on the board. The board became more connected (straight coordination increased). An overcard (Th) arrived above the previous board. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be the top of the board. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the Th. A third heart arrived; a flush is now possible for holdings containing two hearts. The board became more connected. An overcard (Th) arrived above the previous board. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the Th.</strong> A hearts flush is now possible on the board. The board became more connected (straight coordination increased). An overcard (Th) arrived above the previous board. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be the top of the board. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the Th.</strong> A third heart arrived; a flush is now possible for holdings containing two hearts. The board became more connected. An overcard (Th) arrived above the previous board. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
+```
+
+## Four suited — one-of-suit holdings make a flush (turn)
+- 7h-6h-2h → **7h-6h-2h-Th** | category `high_card → high_card` | hole-cards contribute: `False` | tags `['connectivity_increase', 'four_flush', 'overcard']`
+
+**Player-facing (rendered):**
+
+> Runout — the Th. The board is now four-heart; any player holding one heart can make a flush. The board became more connected. An overcard (Th) arrived above the previous board. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. Four to a flush is on the board -- reassess thin value bets and continued bluffs. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
+
+**HTML (via the real renderer `_md_inline`):**
+
+```html
+<strong>Runout — the Th.</strong> The board is now four-heart; any player holding one heart can make a flush. The board became more connected. An overcard (Th) arrived above the previous board. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. Four to a flush is on the board -- reassess thin value bets and continued bluffs. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
+```
+
+## Five suited — flush on the board, shared (river)
+- 7h-6h-2h-Th → **7h-6h-2h-Th-Qh** | category `high_card → flush` | hole-cards contribute: `False` | tags `['monotone_complete', 'overcard']`
+
+**Player-facing (rendered):**
+
+> Runout — the Qh. A heart flush is now present on the board and is shared unless a player can make a higher flush. An overcard (Qh) arrived above the previous board. Reassess: A heart flush is on the board -- reassess unless you hold a higher card of that suit. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
+
+**HTML (via the real renderer `_md_inline`):**
+
+```html
+<strong>Runout — the Qh.</strong> A heart flush is now present on the board and is shared unless a player can make a higher flush. An overcard (Qh) arrived above the previous board. Reassess: A heart flush is on the board -- reassess unless you hold a higher card of that suit. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
+```
+
+## Straight present on the board, shared (river)
+- 9c-8d-7h-6s → **9c-8d-7h-6s-5c** | category `high_card → straight` | hole-cards contribute: `False` | tags `['connectivity_increase', 'four_to_a_straight', 'straight_on_board', 'undercard_or_brick']`
+
+**Player-facing (rendered):**
+
+> Runout — the 5c. A straight is now present on the board and is shared unless a player can make a higher straight. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
+
+**HTML (via the real renderer `_md_inline`):**
+
+```html
+<strong>Runout — the 5c.</strong> A straight is now present on the board and is shared unless a player can make a higher straight. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Blank — nothing meaningful changed (turn)
@@ -60,12 +99,12 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the 5h. The 5h is a blank: it did not change your best-five category, your draws, or the board structure. Still true: Your hole cards still make pair. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the 5h. The 5h is a blank: it did not change your best five, your draws, or the board structure. Still true: Your hole cards still make pair. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the 5h.</strong> The 5h is a blank: it did not change your best-five category, your draws, or the board structure. Still true: Your hole cards still make pair. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the 5h.</strong> The 5h is a blank: it did not change your best five, your draws, or the board structure. Still true: Your hole cards still make pair. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Board four-to-a-straight via the wheel (turn)
@@ -73,12 +112,12 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the 4h. The board is now four-to-a-straight. Reassess: A straight is now possible for the field -- reassess one-pair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the 4h. The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the 4h.</strong> The board is now four-to-a-straight. Reassess: A straight is now possible for the field -- reassess one-pair holdings. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the 4h.</strong> The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Board-only two pair on the river (no Hero contribution)
@@ -86,10 +125,10 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the 9s. Still true: Your best-five (two_pair) comes from the board and is unchanged; it is shared by the field. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+> Runout — the 9s. Still true: Your best five (two pair) comes from the board and is unchanged. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the 9s.</strong> Still true: Your best-five (two_pair) comes from the board and is unchanged; it is shared by the field. _Insufficient evidence for a strategic call:_ Relative hand strength and the correct action are unresolved here: that needs a canonical opponent-range owner, which does not exist. Reassess the changed board features rather than assuming a stronger relative position.
+<strong>Runout — the 9s.</strong> Still true: Your best five (two pair) comes from the board and is unchanged. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```

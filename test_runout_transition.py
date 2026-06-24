@@ -114,7 +114,10 @@ r = turn_rec(hu_ip('TM101', '9h2d', ['Ks', 'Qd', '7c'], 'Kh'))
 check('board pairs -> category_changed', r['category_changed'])
 check('board pair -> Hero hole cards do NOT contribute', r['hero_hole_cards_contribute_after'] is False)
 check('board pair -> board_only_or_shared_category', r['board_only_or_shared_category'] is True)
-check('shared change wording present', any('shared by every remaining player' in c['fact'] for c in r['changed']))
+check('turn shared wording = exact board property (not a complete shared best-five)',
+      any('every remaining player' in c['fact'] and 'at least one pair' in c['fact'] for c in r['changed']))
+check('turn shared change does NOT claim "best five ... shared"',
+      not any('best five is' in c['fact'] and 'shared by every remaining player' in c['fact'] for c in r['changed']))
 check('shared change does NOT say improved', not any(re.search(r'improv', c['fact'], re.I) for c in r['changed']))
 
 r = turn_rec(hu_ip('TM102', '8h8d', ['Qs', '7d', '2c'], '7h'))

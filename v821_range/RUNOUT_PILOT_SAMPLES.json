@@ -13,11 +13,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (3c)."
+        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -34,11 +33,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from pair to two_pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (5c)."
+        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -54,11 +52,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (5h)."
+        "The board paired (5h); your best five is pair, supplied by the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -75,11 +72,10 @@
         "trips_on_board"
       ],
       "changed": [
-        "Your best-five category changed from pair to trips because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (2s)."
+        "The board paired (2s); trips are present on the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -97,11 +93,10 @@
         "trips_on_board"
       ],
       "changed": [
-        "Your best-five category changed from trips to full_house because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (Ah)."
+        "The board paired (Ah); your best five is full house, supplied by the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     }
   ],
@@ -116,7 +111,7 @@
       "contributes": true,
       "tags": [],
       "changed": [
-        "Your hole cards now make two_pair (was pair)."
+        "Your hole cards now make two pair (was pair)."
       ],
       "reassess": []
     },
@@ -133,11 +128,11 @@
         "top_card_pair"
       ],
       "changed": [
-        "Your hole cards now make two_pair (was pair).",
+        "Your hole cards now make two pair (was pair).",
         "The board paired (Kc)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -153,12 +148,12 @@
         "overcard"
       ],
       "changed": [
-        "Your hole cards now make two_pair (was pair).",
-        "The board became more connected (straight coordination increased).",
+        "Your hole cards now make two pair (was pair).",
+        "The board became more connected.",
         "An overcard (Ad) arrived above the previous board."
       ],
       "reassess": [
-        "An overcard arrived -- a prior top pair or overpair may no longer be the top of the board."
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
       ]
     },
     {
@@ -173,11 +168,11 @@
         "overcard"
       ],
       "changed": [
-        "Your hole cards now make two_pair (was pair).",
+        "Your hole cards now make two pair (was pair).",
         "An overcard (Ah) arrived above the previous board."
       ],
       "reassess": [
-        "An overcard arrived -- a prior top pair or overpair may no longer be the top of the board."
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
       ]
     },
     {
@@ -193,11 +188,11 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your hole cards now make two_pair (was pair).",
+        "Your hole cards now make two pair (was pair).",
         "The board paired (4h)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     }
   ],
@@ -217,8 +212,8 @@
         "straight_on_board"
       ],
       "changed": [
-        "Your best-five category changed from high_card to straight because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "A diamonds flush is now possible on the board."
+        "A third diamond arrived; a flush is now possible for holdings containing two diamonds.",
+        "A straight is now present on the board and is shared unless a player can make a higher straight."
       ],
       "reassess": [
         "A flush is now possible -- reassess thin value bets and continued bluffs."
@@ -237,12 +232,12 @@
         "overcard"
       ],
       "changed": [
-        "A spades flush is now possible on the board.",
+        "A third spade arrived; a flush is now possible for holdings containing two spades.",
         "An overcard (Qs) arrived above the previous board."
       ],
       "reassess": [
         "A flush is now possible -- reassess thin value bets and continued bluffs.",
-        "An overcard arrived -- a prior top pair or overpair may no longer be the top of the board."
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
       ]
     },
     {
@@ -259,13 +254,13 @@
         "overcard"
       ],
       "changed": [
-        "A diamonds flush is now possible on the board.",
-        "The board became more connected (straight coordination increased).",
+        "A third diamond arrived; a flush is now possible for holdings containing two diamonds.",
+        "The board became more connected.",
         "An overcard (Qd) arrived above the previous board."
       ],
       "reassess": [
         "A flush is now possible -- reassess thin value bets and continued bluffs.",
-        "An overcard arrived -- a prior top pair or overpair may no longer be the top of the board."
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
       ]
     },
     {
@@ -281,13 +276,13 @@
         "overcard"
       ],
       "changed": [
-        "Your straight draw completed: your hole cards now make straight.",
-        "A spades flush is now possible on the board.",
+        "Your straight draw completed: your hole cards now make a straight.",
+        "A third spade arrived; a flush is now possible for holdings containing two spades.",
         "An overcard (Qs) arrived above the previous board."
       ],
       "reassess": [
         "A flush is now possible -- reassess thin value bets and continued bluffs.",
-        "An overcard arrived -- a prior top pair or overpair may no longer be the top of the board."
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
       ]
     }
   ],
@@ -305,11 +300,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (3c)."
+        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -326,11 +320,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from pair to two_pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (5c)."
+        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -346,11 +339,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (5h)."
+        "The board paired (5h); your best five is pair, supplied by the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -366,11 +358,11 @@
         "top_card_pair"
       ],
       "changed": [
-        "Your hole cards now make two_pair (was pair).",
+        "Your hole cards now make two pair (was pair).",
         "The board paired (Kc)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     }
   ],
@@ -387,7 +379,7 @@
         "blank"
       ],
       "changed": [
-        "The Ks is a blank: it did not change your best-five category, your draws, or the board structure."
+        "The Ks is a blank: it did not change your best five, your draws, or the board structure."
       ],
       "reassess": []
     },
@@ -403,7 +395,7 @@
         "blank"
       ],
       "changed": [
-        "The 6d is a blank: it did not change your best-five category, your draws, or the board structure."
+        "The 6d is a blank: it did not change your best five, your draws, or the board structure."
       ],
       "reassess": []
     },
@@ -419,7 +411,7 @@
         "blank"
       ],
       "changed": [
-        "The Qd is a blank: it did not change your best-five category, your draws, or the board structure."
+        "The Qd is a blank: it did not change your best five, your draws, or the board structure."
       ],
       "reassess": []
     },
@@ -435,7 +427,7 @@
         "blank"
       ],
       "changed": [
-        "The Tc is a blank: it did not change your best-five category, your draws, or the board structure."
+        "The Tc is a blank: it did not change your best five, your draws, or the board structure."
       ],
       "reassess": []
     }
@@ -454,12 +446,11 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
         "Your draw did not complete and your hole cards do not make a hand on this board.",
-        "The board paired (5s)."
+        "The board paired (5s); your best five is pair, supplied by the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -489,11 +480,11 @@
         "undercard_or_brick"
       ],
       "changed": [
-        "Your draw did not complete, though your hole cards still make two_pair.",
-        "The board is now four-to-a-straight."
+        "Your draw did not complete, though your hole cards still make two pair.",
+        "The board is now four-to-a-straight; some holdings can complete a straight."
       ],
       "reassess": [
-        "A straight is now possible for the field -- reassess one-pair holdings."
+        "Some holdings can now complete a straight -- reassess one-pair holdings."
       ]
     },
     {
@@ -509,12 +500,11 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
         "Your draw did not complete and your hole cards do not make a hand on this board.",
-        "The board paired (3c)."
+        "The board paired (3c); your best five is pair, supplied by the board and shared by every remaining player."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     }
   ],
@@ -532,11 +522,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from high_card to pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (3c)."
+        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -553,11 +542,10 @@
         "low_card_pair"
       ],
       "changed": [
-        "Your best-five category changed from pair to two_pair because the board changed; this category is now available from the board and is shared by every remaining player.",
-        "The board paired (5c)."
+        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
       ],
       "reassess": [
-        "A paired board makes trips and full houses possible for the field -- reassess one-pair and overpair holdings."
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
       ]
     },
     {
@@ -572,7 +560,7 @@
         "connectivity_increase"
       ],
       "changed": [
-        "The board became more connected (straight coordination increased)."
+        "The board became more connected."
       ],
       "reassess": []
     },
@@ -588,10 +576,10 @@
         "four_flush"
       ],
       "changed": [
-        "A clubs flush is now possible on the board."
+        "The board is now four-club; any player holding one club can make a flush."
       ],
       "reassess": [
-        "A flush is now possible -- reassess thin value bets and continued bluffs."
+        "Four to a flush is on the board -- reassess thin value bets and continued bluffs."
       ]
     }
   ],

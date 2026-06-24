@@ -3123,7 +3123,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
             _split_argument_into_notes(
             argument, key_dec, one_two, matchup, spot,
             hero_actions_by_street, analyst_street=analyst_street,
-            hero_action_verbs_by_street=_hero_verbs_a
+            hero_action_verbs_by_street=_hero_verbs_a, hand=h
         )
         # If no analyst argument produced notes, try aggression gate commentary
         # so the grid still gets 👍 on clean actions and (N) on flagged ones.
@@ -3143,7 +3143,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     _split_argument_into_notes(
                     ' '.join(_agg_parts_a), '', '', '', '',
                     hero_actions_by_street, analyst_street=_agg_st_a,
-                    hero_action_verbs_by_street=_hero_verbs_a)
+                    hero_action_verbs_by_street=_hero_verbs_a, hand=h)
         # B156: if no notes at all and verdict is III.3/III.5/I.7, add a positive marker
         if not notes and verdict in ('III.3 Cleared', 'III.5 Justified', 'I.7 Cooler'):
             _pos_label = '✓ Standard line' if 'III.3' in verdict else ('✓ Justified' if 'III.5' in verdict else '✓ Cooler — no fold')
@@ -4267,7 +4267,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     notes_b, a2n_b, a2t_b, snn_b = _split_argument_into_notes(
                         _flag['explanation'], '', '', '', '',
                         hero_acts_b, analyst_street=_flag.get('street'),
-                        hero_action_verbs_by_street=_hero_verbs_b)
+                        hero_action_verbs_by_street=_hero_verbs_b, hand=h)
                 elif not _flag:
                     # Wire aggression gate commentary through the notes system
                     # so hero actions get 👍 (clean) and (N) (flagged).
@@ -4288,7 +4288,7 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                         notes_b, a2n_b, a2t_b, snn_b = _split_argument_into_notes(
                             _agg_text, '', '', '', '',
                             hero_acts_b, analyst_street=_agg_street,
-                            hero_action_verbs_by_street=_hero_verbs_b)
+                            hero_action_verbs_by_street=_hero_verbs_b, hand=h)
                 _vsn_emitted_b = False  # v8.12.8 QA2: per-hand reset
                 if used_streets_b and any((all_actions_b.get(s) or []) for s in used_streets_b):
                     # Hero hand display

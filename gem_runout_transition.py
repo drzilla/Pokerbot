@@ -190,7 +190,14 @@ def transition_tags(prev_board, new_card, resulting_board, hole_contributes_afte
 
 
 def _suit_name(s):
-    return {'h': 'hearts', 'd': 'diamonds', 'c': 'clubs', 's': 'spades'}.get(s, s)
+    return {'h': 'heart', 'd': 'diamond', 'c': 'club', 's': 'spade'}.get(s, s)
+
+
+def _label(name):
+    """Player-facing label for a best-five category enum (no raw implementation names in the report)."""
+    n = (name or '').lower()
+    return {'high_card': 'high card', 'two_pair': 'two pair', 'full_house': 'full house', 'boat': 'full house',
+            'straight_flush': 'straight flush', 'set': 'a set'}.get(n, n.replace('_', ' '))
 
 
 def _f(fact, source, tier):
@@ -279,48 +286,85 @@ def build_transition(hand, action_index):
     SRC_D, T_D = 'gem_made_hands.draw_profile', 'canonical_draw_profile'
     SRC_T, T_T = 'gem_analyst_packet._board_texture', 'canonical_board_texture'
 
+    la, lb = _label(made_a), _label(made_b)
+    suit = _suit_name(new_card[1])
+
+    # 1) Hero's hand -- private-card contribution / completion / miss only (never a shared board lift).
+    #    A shared (board-only) category change is expressed by the board-property facts below, so a 4-card
+    #    turn board is never described as supplying a complete shared best-five hand.
     if completed:
         kind = 'straight' if 'straight' in made_a.lower() else 'flush'
-        changed.append(_f('Your %s draw completed: your hole cards now make %s.' % (kind, made_a), SRC_D, T_D))
+        changed.append(_f('Your %s draw completed: your hole cards now make a %s.' % (kind, la), SRC_D, T_D))
     elif category_changed and hole_contributes_after:
-        changed.append(_f('Your hole cards now make %s (was %s).' % (made_a, made_b), SRC_M, T_M))
-    elif category_changed and not hole_contributes_after:
-        changed.append(_f('Your best-five category changed from %s to %s because the board changed; this '
-                          'category is now available from the board and is shared by every remaining player.'
-                          % (made_b, made_a), SRC_M, T_M))
-    if real_draw_missed and not hole_contributes_after:
+        changed.append(_f('Your hole cards now make %s (was %s).' % (la, lb), SRC_M, T_M))
+    elif real_draw_missed and not hole_contributes_after:
         changed.append(_f('Your draw did not complete and your hole cards do not make a hand on this board.',
                           SRC_D, T_D))
     elif real_draw_missed and hole_contributes_after:
-        changed.append(_f('Your draw did not complete, though your hole cards still make %s.' % made_a, SRC_D, T_D))
+        changed.append(_f('Your draw did not complete, though your hole cards still make %s.' % la, SRC_D, T_D))
 
+    # 2) board pairing -- the precise shared property (turn: exact board property; river: complete best-five)
     if 'board_paired' in tags:
-        changed.append(_f('The board paired (%s).' % new_card, SRC_T, T_T))
-        reassess.append('A paired board makes trips and full houses possible for the field -- reassess one-pair '
-                        'and overpair holdings.')
-    if any(t in tags for t in ('flush_card', 'four_flush', 'monotone_complete')) and 'flush' not in made_a.lower():
-        changed.append(_f('A %s flush is now possible on the board.' % _suit_name(new_card[1]), SRC_T, T_T))
+        if board_only_or_shared and category_changed:
+            if street == 'river':
+                changed.append(_f('The board paired (%s); your best five is %s, supplied by the board and '
+                                  'shared by every remaining player.' % (new_card, la), SRC_T, T_T))
+            elif 'double_paired' in tags:
+                changed.append(_f('The board paired (%s) and is now double-paired; every remaining player plays '
+                                  'at least two pair from the board.' % new_card, SRC_T, T_T))
+            elif 'trips_on_board' in tags:
+                changed.append(_f('The board paired (%s); trips are present on the board and shared by every '
+                                  'remaining player.' % new_card, SRC_T, T_T))
+            else:
+                changed.append(_f('The paired board (%s) gives every remaining player at least one pair (your '
+                                  'best five plays the board).' % new_card, SRC_T, T_T))
+        else:
+            changed.append(_f('The board paired (%s).' % new_card, SRC_T, T_T))
+        reassess.append('A paired board makes trips and full houses possible for some holdings -- reassess '
+                        'one-pair and overpair holdings.')
+
+    # 3) flush dimension -- distinguish three / four / five suited board cards
+    if 'monotone_complete' in tags:
+        changed.append(_f('A %s flush is now present on the board and is shared unless a player can make a '
+                          'higher flush.' % suit, SRC_T, T_T))
+        reassess.append('A %s flush is on the board -- reassess unless you hold a higher card of that suit.' % suit)
+    elif 'four_flush' in tags:
+        changed.append(_f('The board is now four-%s; any player holding one %s can make a flush.' % (suit, suit),
+                          SRC_T, T_T))
+        reassess.append('Four to a flush is on the board -- reassess thin value bets and continued bluffs.')
+    elif 'flush_card' in tags:
+        changed.append(_f('A third %s arrived; a flush is now possible for holdings containing two %ss.'
+                          % (suit, suit), SRC_T, T_T))
         reassess.append('A flush is now possible -- reassess thin value bets and continued bluffs.')
-    if 'four_to_a_straight' in tags and 'straight' not in made_a.lower():
-        changed.append(_f('The board is now four-to-a-straight.', SRC_T, T_T))
-        reassess.append('A straight is now possible for the field -- reassess one-pair holdings.')
-    elif 'connectivity_increase' in tags and 'four_to_a_straight' not in tags:
-        changed.append(_f('The board became more connected (straight coordination increased).', SRC_T, T_T))
+
+    # 4) straight dimension -- connectivity / four-to-a-straight / straight on the board (Hero completion is (1))
+    if 'straight_on_board' in tags:
+        if board_only_or_shared:
+            changed.append(_f('A straight is now present on the board and is shared unless a player can make a '
+                              'higher straight.', SRC_T, T_T))
+        else:
+            changed.append(_f('A straight is now present on the board; your hole cards make a higher hand.', SRC_T, T_T))
+    elif 'four_to_a_straight' in tags and 'straight' not in made_a.lower():
+        changed.append(_f('The board is now four-to-a-straight; some holdings can complete a straight.', SRC_T, T_T))
+        reassess.append('Some holdings can now complete a straight -- reassess one-pair holdings.')
+    elif 'connectivity_increase' in tags:
+        changed.append(_f('The board became more connected.', SRC_T, T_T))
+
+    # 5) overcard / blank
     if 'overcard' in tags:
         changed.append(_f('An overcard (%s) arrived above the previous board.' % new_card, SRC_T, T_T))
-        reassess.append('An overcard arrived -- a prior top pair or overpair may no longer be the top of the board.')
+        reassess.append('An overcard arrived -- a prior top pair or overpair may no longer be top of the board.')
     if 'blank' in tags:
-        changed.append(_f('The %s is a blank: it did not change your best-five category, your draws, or the '
-                          'board structure.' % new_card, SRC_D, T_D))
+        changed.append(_f('The %s is a blank: it did not change your best five, your draws, or the board '
+                          'structure.' % new_card, SRC_D, T_D))
 
     # what remained factually true
     if not category_changed and hole_contributes_after and ra >= 1:
-        remained.append(_f('Your hole cards still make %s.' % made_a, SRC_M, T_M))
+        remained.append(_f('Your hole cards still make %s.' % la, SRC_M, T_M))
     elif not category_changed and board_only_or_shared and ra >= 1:
-        remained.append(_f('Your best-five (%s) comes from the board and is unchanged; it is shared by the '
-                           'field.' % made_a, SRC_M, T_M))
+        remained.append(_f('Your best five (%s) comes from the board and is unchanged.' % la, SRC_M, T_M))
     if 'blank' in tags and not remained:
-        remained.append(_f('Your best-five category (%s) is unchanged this street.' % made_a, SRC_M, T_M))
+        remained.append(_f('Your best five (%s) is unchanged this street.' % la, SRC_M, T_M))
 
     # the descriptive block is Factual; the strategic action line is Insufficient evidence
     register = 'Factual' if (changed or remained) else 'Insufficient evidence'
@@ -389,7 +433,10 @@ def transition_note_text(rec):
         out.append('Still true: ' + ' '.join(tb['remained']))
     if tb['reassess']:
         out.append('Reassess: ' + ' '.join(tb['reassess']))
-    out.append('_Insufficient evidence for a strategic call:_ ' + tb['strategic'])
+    # compact strategic line (the full canonical-owner explanation lives in rec['strategic_text'] / the docs,
+    # not repeated in full on every street). Bold renders via _md_inline; no literal Markdown underscores.
+    out.append('**Strategic read: insufficient evidence** -- relative strength and the correct action are not '
+               'determinable from objective facts alone.')
     return ' '.join(s.strip() for s in out if s and s.strip())
 
 

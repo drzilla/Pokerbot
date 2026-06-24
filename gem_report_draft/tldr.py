@@ -768,7 +768,17 @@ def _emit_opening_dashboard(doc, s, rd):
 
         def _mlc(_n, _ids, _title):
             return _rcc(_n, _ids, _title) if _ids else str(_n)
-        _conf_ids = (_mids.get('confirmed_mistake') or []) + (_mids.get('punt') or [])
+        # handover #4: single-source the confirmed-mistake/punt surface from the ANALYST verdicts
+        # (III.1 punts + III.2 mistakes), regardless of P&L. The material-loss-filtered count alone hid
+        # 3 of 4 graded mistakes (only the one that was also a big loss surfaced), so the widget showed
+        # "1" while the analyst confirmed 4. Union the material-loss-classified ids with every analyst
+        # III.1/III.2 hand so the count and the hand-list reach all of them.
+        _conf_ids_ml = (_mids.get('confirmed_mistake') or []) + (_mids.get('punt') or [])
+        _analyst_conf_ids = sorted({h for h, c in (analyst or {}).items()
+                                    if isinstance(c, dict)
+                                    and (c.get('verdict', '') or '').startswith(('III.1', 'III.2'))
+                                    and str(h).startswith('TM')})
+        _conf_ids = sorted(set(_conf_ids_ml) | set(_analyst_conf_ids))
         _clr_ids = (_mids.get('justified') or []) + (_mids.get('read_dependent') or [])
         _varc_ids = (_mids.get('variance') or []) + (_mids.get('cooler') or [])
         doc.w("<div style='margin:0 0 14px;padding:10px 14px;border:1px solid #e5e7eb;"
@@ -777,7 +787,8 @@ def _emit_opening_dashboard(doc, s, rd):
               "one state, none silently dropped: "
               f"{_mlc(_mls.get('total', 0), _mls.get('all_ids'), 'Material losses')} material loss(es) "
               f"({_mls.get('reviewed', 0)} reviewed) · "
-              f"{_mlc(_mls.get('confirmed_mistakes_punts', 0), _conf_ids, 'Confirmed mistakes / punts')} confirmed mistake/punt · "
+              f"{_mlc(len(_conf_ids), _conf_ids, 'Confirmed mistakes / punts')} confirmed mistake/punt "
+              "(analyst-graded, any P&amp;L) · "
               f"{_mlc(_mls.get('cleared', 0), _clr_ids, 'Correctly played')} correctly played · "
               f"{_mlc(_mls.get('variance_coolers', 0), _varc_ids, 'Variance / coolers')} variance/cooler · "
               f"{_mlc(_mls.get('insufficient', 0), _mids.get('insufficient'), 'Insufficient evidence')} insufficient · "

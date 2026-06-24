@@ -239,9 +239,17 @@ def decision_capsule_from_signals(street, *, decision_label='', verdict_hint='',
     _has_anchor = any(r in roles for r in ('Math', 'Range', 'Exploit'))
     _unprovable = ('unavailable' in (decision_label + ' ' + vh).lower()
                    or 'unprovable' in vc or 'node type' in vc)
-    if register == 'no_clear_lesson' and gradeable and not result_only \
-            and _has_anchor and decision_label and not _unprovable:
+    # addendum B (FACTS_AVAILABLE_BUT_ACTION_UNGRADEABLE) / E (Range Lens): a PROVEN factual anchor
+    # (canonical range membership / price) is FACTUAL evidence, so it must NOT sit under an
+    # "Insufficient evidence" headline that implies nothing is known -- even when the ACTION verdict
+    # itself cannot be graded. Promote to factual on a proven anchor; when the verdict is ungradeable,
+    # keep a PRECISE caveat that names what the unresolved part is (not a generic "below the bar").
+    _proven_fact = _has_anchor and decision_label and not result_only and not _unprovable
+    if register == 'no_clear_lesson' and _proven_fact:
         register = 'factual'
+        if not gradeable:
+            roles.setdefault('Caveat', 'the evidence above is a canonical fact; the action verdict itself '
+                             'is not graded here without a decision-time price and opponent-range read')
     # no_clear_lesson must not carry a scored verdict (hard rule §9)
     _reason = None
     if register == 'no_clear_lesson':

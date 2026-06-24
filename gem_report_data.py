@@ -951,6 +951,61 @@ def _parse_game_summaries_usd(hh_dir, hands):
         if not any(_name_match(sn, {hn}) for sn in _summary_names))
     advanced_list = [t['name'] for t in tournaments_parsed if t.get('advanced')]
 
+    # v8.21 (R1): an HH-only tournament (HH hands but NO game summary) is an UNRESOLVED canonical event.
+    # It must still appear EXACTLY ONCE with its KNOWN committed cost + bullets so the event inventory
+    # equals the HH tournament count -- no event, cost or bullet is dropped just because the return is
+    # unresolved. Build the unresolved events from the hands and FOLD their cost + bullets into the
+    # committed totals, while cash/net/ROI stay over the RESOLVED subset (coverage-qualified, never
+    # presented as a fully-resolved result). Return/Net/ROI on the unresolved row stay blank downstream.
+    # Detect HH-only events by TOURNAMENT ID, not name: the loose name heuristic above false-matches
+    # the HH-only event to a sibling "Bounty Hunters ..." summary, so it must not own this decision.
+    _summary_tids = {str(t.get('tid') or '') for t in tournaments_parsed}
+    _hh_by_tid = {}
+    for h in hands or []:
+        if not isinstance(h, dict):
+            continue
+        tid = str(h.get('tournament_id') or '')
+        if tid and tid not in _hh_by_tid:
+            _hh_by_tid[tid] = {'tid': tid, 'name': (h.get('tournament') or '').strip(),
+                               'start_date': h.get('date') or '',
+                               'buyin': round(float(h.get('buyin') or 0), 2)}
+    unresolved_events = []
+    for tid, meta in _hh_by_tid.items():
+        if tid in _summary_tids:
+            continue                                  # resolved by a game summary
+        nm = meta['name']
+        buyin = round(float(meta.get('buyin') or 0), 2)
+        bullets = 1  # a single-entry HH-only event (re-entries would each carry their own summary)
+        unresolved_events.append({
+            'tid': tid, 'name': nm, 'start_date': meta.get('start_date', ''),
+            'buyin': buyin, 'bullets': bullets, 'cost': round(buyin * bullets, 2),
+            'cash_received': None, 'ticket_value': None, 'cash_total': None, 'net': None,
+            'seats_won': 0, 'is_sat': ('Satellite' in nm or 'MEGA' in nm), 'itm': False,
+            'place': 0, 'total_players': 0, 'advanced': False, 'unresolved': True,
+        })
+    # keep the named unresolved list consistent with the tid-based truth (drives coverage copy)
+    unresolved_hh = sorted(e['name'] for e in unresolved_events)
+    if unresolved_events:
+        _un_cost = round(sum(e['cost'] for e in unresolved_events), 2)
+        _un_bullets = sum(e['bullets'] for e in unresolved_events)
+        totals['total_cost'] = round(totals['total_cost'] + _un_cost, 2)   # committed: includes unresolved
+        totals['committed_cost'] = totals['total_cost']
+        totals['n_tournaments'] = n_t + len(unresolved_events)
+        totals['n_bullets'] = n_b + _un_bullets
+        totals['resolved_events'] = n_t
+        totals['total_events'] = n_t + len(unresolved_events)
+        totals['unresolved_events'] = len(unresolved_events)
+        totals['coverage_partial'] = True
+        if hh_intersect:
+            hh_intersect['total_cost'] = round(hh_intersect['total_cost'] + _un_cost, 2)
+            hh_intersect['committed_cost'] = hh_intersect['total_cost']
+            hh_intersect['n_tournaments'] = hh_intersect['n_tournaments'] + len(unresolved_events)
+            hh_intersect['n_bullets'] = hh_intersect['n_bullets'] + _un_bullets
+            hh_intersect['resolved_events'] = hh_intersect.get('n_tournaments', n_t) - len(unresolved_events)
+            hh_intersect['unresolved_events'] = len(unresolved_events)
+            hh_intersect['coverage_partial'] = True
+        tournaments_parsed = tournaments_parsed + unresolved_events
+
     return {'status': 'parsed', 'per_tournament': tournaments_parsed,
             'totals': totals, 'hh_intersect_totals': hh_intersect,
             'unresolved_hh_tournaments': unresolved_hh,

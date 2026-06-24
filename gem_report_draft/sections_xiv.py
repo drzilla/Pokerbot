@@ -2309,10 +2309,10 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                     'bullets': _t.get('bullets', 1),
                     'hands': _t.get('hands', 0),
                     'buyin': _um.get('cost', _t.get('buyin', 0)),
-                    'cash': _um.get('cash_total', 0),
-                    'net_usd': _um.get('net', 0),
-                    'roi': ((_um.get('net', 0) / _um['cost'] * 100)
-                            if _um.get('cost') else 0),
+                    'cash': _um.get('cash_total'),               # None for an unresolved HH-only event
+                    'net_usd': _um.get('net'),                   # None when unresolved (blank, not $0)
+                    'roi': ((_um.get('net') / _um['cost'] * 100)
+                            if (_um.get('cost') and _um.get('net') is not None) else None),
                     'net_bb': round(_t.get('net_bb', 0), 1),
                     'bb100': round(_t.get('bb_per_100', 0), 1),
                     'format': _t.get('format', ''),

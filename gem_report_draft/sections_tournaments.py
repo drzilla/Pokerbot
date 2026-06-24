@@ -682,6 +682,17 @@ def _emit_tournament_tables(doc, s, rd, hands):
           % (model.get('financial_source'), tot.get('return_basis', EMDASH),
              recon, stale, model.get('event_day_tz_source', EMDASH)))
     doc.w('')
+    # v8.21 (R1): when an HH-only event is unresolved, the session Return / Net / ROI cover only the
+    # RESOLVED subset -- mark them coverage-qualified so they never read as a complete N-event result.
+    if tot.get('coverage_partial'):
+        doc.w("<p class='tt-coverage-partial' style='margin:0 0 10px;padding:8px 12px;border:1px solid "
+              "#fde68a;border-radius:10px;background:#fffbeb;color:#92400e'>⚠️ <strong>Session Return / "
+              "Net / ROI are partial</strong> — they cover the <strong>%d financially resolved of %d "
+              "canonical events</strong>; %d event(s) are unresolved / in-play (committed cost counted, "
+              "return pending). These figures are coverage-qualified, not a complete %d-event result.</p>"
+              % (tot.get('resolved_events', 0), tot.get('total_events', 0),
+                 tot.get('unresolved_events', 0), tot.get('total_events', 0)))
+        doc.w('')
     # v8.17 Epic 4: this is now the SINGLE PRIMARY unified Tournament Results
     # table (sortable; one row per event; per-event drilldown). The per-tournament
     # P&L / Deep Runs / Stack Trajectories in S1 are demoted to collapsed
@@ -810,8 +821,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
         name = (e.get('name') or EMDASH).replace('|', '/')
         _buy = _usd_or_dash(e.get('buy_in'))
         _cost = _fmt_usd(e.get('cost', 0))
-        _retv = _fmt_usd(ret.get('value', 0))
-        _net = _fmt_usd(e.get('net', 0), plus=True)
+        # v8.21 (R1): an unresolved HH-only event has blank Return/Net/ROI (None) -- never $0 (a loss).
+        _retv = _fmt_usd(ret.get('value')) if ret.get('value') is not None else EMDASH
+        _net = _fmt_usd(e.get('net'), plus=True) if e.get('net') is not None else EMDASH
         _roi = _pct_or_dash(e.get('roi_pct'))
 
         # --- v8.17.1 P4 surface 5: Finance & Finish row (the split of the former

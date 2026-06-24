@@ -13,7 +13,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -33,7 +33,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -52,7 +52,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The board paired (5h); your best five is pair, supplied by the board and shared by every remaining player."
+        "The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -72,7 +72,7 @@
         "trips_on_board"
       ],
       "changed": [
-        "The board paired (2s); trips are present on the board and shared by every remaining player."
+        "The board paired (2s); trips are on the board, shared by every remaining player, with kickers and full houses still depending on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -93,7 +93,7 @@
         "trips_on_board"
       ],
       "changed": [
-        "The board paired (Ah); your best five is full house, supplied by the board and shared by every remaining player."
+        "The board paired (Ah); all five community cards now form your complete best five (full house), shared by every remaining player."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -300,7 +300,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -320,7 +320,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -339,7 +339,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The board paired (5h); your best five is pair, supplied by the board and shared by every remaining player."
+        "The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -447,7 +447,7 @@
       ],
       "changed": [
         "Your draw did not complete and your hole cards do not make a hand on this board.",
-        "The board paired (5s); your best five is pair, supplied by the board and shared by every remaining player."
+        "The paired board (5s) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -501,7 +501,7 @@
       ],
       "changed": [
         "Your draw did not complete and your hole cards do not make a hand on this board.",
-        "The board paired (3c); your best five is pair, supplied by the board and shared by every remaining player."
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -522,7 +522,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The paired board (3c) gives every remaining player at least one pair (your best five plays the board)."
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
@@ -542,7 +542,7 @@
         "low_card_pair"
       ],
       "changed": [
-        "The board paired (5c) and is now double-paired; every remaining player plays at least two pair from the board."
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
       ],
       "reassess": [
         "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."

@@ -50,7 +50,7 @@
   },
   "rule_backed_strategic_coaching": 0,
   "analyst_workload_added": 0,
-  "avg_record_bytes": 1965,
-  "runtime_seconds": 0.375,
+  "avg_record_bytes": 1968,
+  "runtime_seconds": 0.485,
   "MEASURED_trust_audit_all_zero": true
 }

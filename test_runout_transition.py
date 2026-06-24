@@ -247,6 +247,58 @@ check('canonical renderer escapes < and >', _html_escape('<b>x</b>') == '&lt;b&g
 check('unresolved record renders to empty note (no placeholder)',
       RT.transition_note_text({'unresolved': True}) == '')
 
+print('[10] no false "plays the board" on flop/turn; "complete best five" reserved for a proven river board')
+_BANNED_BOARD = ('plays the board', 'supplied by the board', 'complete best five', 'best five is supplied',
+                 'best five plays')
+
+
+def _facts_text(r):
+    return ' '.join(c['fact'] for c in (r.get('changed') or [])).lower()
+
+
+# turn shared-board cases (single pair, double-paired, board-only two pair) must NOT claim board-play
+_turn_cases = [hu_ip('TM201', '9h2d', ['Ks', 'Qd', '7c'], 'Kh'),        # board pairs top -> shared pair
+               hu_ip('TM202', '3d2c', ['Ks', 'Kc', '7c'], '7h'),        # turn double-paired
+               hu_ip('TM203', 'Ah3d', ['Ks', 'Qd', '7c'], 'Kh')]        # board-only pair, Hero plays it
+for i, h in enumerate(_turn_cases):
+    tx = _facts_text(turn_rec(h))
+    check('turn case %d has a shared-board fact' % i, 'every remaining player' in tx)
+    for ph in _BANNED_BOARD:
+        check('turn case %d never says "%s"' % (i, ph), ph not in tx)
+    check('turn case %d defers kickers to the hole cards' % i, 'hole cards' in tx)
+check('_plays_pure_board is False on a 4-card turn board',
+      RT._plays_pure_board(['3d', '2c'], ['Ks', 'Qd', '7c', '9h']) is False)
+
+# POSITIVE river: Hero's low hole cards play the pure board -> a PROVEN complete-best-five claim is allowed
+r = river_rec(hu_ip('TM210', '3d2c', ['Ks', 'Qd', '7c'], '9h', river='9s'))
+check('river pure-board play is detected', RT._plays_pure_board(['3d', '2c'], ['Ks', 'Qd', '7c', '9h', '9s']) is True)
+check('river pure board -> "complete best five" claim present', 'complete best five' in _facts_text(r))
+check('river pure board -> shared by every remaining player', 'shared by every remaining player' in _facts_text(r))
+# river where a hole-card KICKER plays -> NOT a complete-best-five claim
+r = river_rec(hu_ip('TM211', 'AcTd', ['Ks', 'Qd', '7c'], '9h', river='9s'))
+check('river kicker play is NOT pure-board', RT._plays_pure_board(['Ac', 'Td'], ['Ks', 'Qd', '7c', '9h', '9s']) is False)
+check('river kicker -> no "complete best five" claim', 'complete best five' not in _facts_text(r))
+check('river kicker -> defers kickers to the hole cards', 'hole cards' in _facts_text(r))
+
+print('[11] corpus-wide: zero flop/turn board-play phrases across the real sessions')
+import os as _os
+_cw_bad = []
+for _p in [r'C:\Users\ron\OneDrive\Desktop\GEM 20260527\_session_20260527',
+           r'C:\Users\ron\OneDrive\Desktop\GEM 20260527\hh_today',
+           r'C:\Users\ron\OneDrive\Desktop\GEM 20260527\_session_live_test']:
+    if not _os.path.isdir(_p):
+        continue
+    _hh, *_ = gem_parser.parse_session(_p)
+    for _h in _hh:
+        for _r in RT.transitions_for_hand(_h):
+            if _r.get('unresolved') or _r['street'] == 'river':
+                continue
+            _tx = _facts_text(_r)
+            for _ph in _BANNED_BOARD:
+                if _ph in _tx:
+                    _cw_bad.append((_r['hand_id'], _ph))
+check('zero flop/turn board-play phrases in the entire real corpus', len(_cw_bad) == 0)
+
 # ---------------------------------------------------------------------------------------------------------
 print('\nRESULTS: %d passed, %d failed, %d total' % (_N[0] - _F[0], _F[0], _N[0]))
 if _F[0]:

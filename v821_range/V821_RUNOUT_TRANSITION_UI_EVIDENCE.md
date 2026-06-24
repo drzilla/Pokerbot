@@ -4,18 +4,21 @@ Browser acceptance of the live transition notes in the real report
 (`Pokerbot_Knockman_20260527-28_AUTO_ONLY_V4.html`, served over localhost; appendix hand cards expanded). The
 notes render through the report's per-street note system (numbered pill + `🧠` tag, street label, `_md_inline`).
 
-## Rendered example (verbatim from the live DOM)
+## Rendered example (verbatim from the live DOM — corrected wording)
 
-> **TURN** · ① 🧠 **Runout — the Th.** The board became more connected. An overcard (Th) arrived above the
-> previous board. Still true: Your hole cards still make pair. Reassess: An overcard arrived — a prior top pair
-> or overpair may no longer be top of the board. **Strategic read: insufficient evidence** — relative strength
-> and the correct action are not determinable from objective facts alone.
->
-> **RIVER** · ② 🧠 **Runout — the 3h.** Your draw did not complete, though your hole cards still make pair.
-> Still true: Your hole cards still make pair. **Strategic read: insufficient evidence** — …
+> **TURN** · ② 🧠 **Runout — the Kd.** The paired board (Kd) gives every remaining player at least one pair;
+> kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full
+> houses possible for some holdings — reassess one-pair and overpair holdings. **Strategic read: insufficient
+> evidence** — relative strength and the correct action are not determinable from objective facts alone.
 
-Bold renders as `<strong>` (no literal `**`/underscore artifacts); the turn note is pill ①, the river note is
-pill ② (numbering preserved); both bound to the correct street.
+This is the **corrected** turn shared-board note: no "plays the board" claim, kickers explicitly deferred to
+the hole cards. Bold renders as `<strong>` (no literal `**`/underscore artifacts); the note keeps its numbered
+pill and street binding. The same hand carries the **same** note in AUTO_ONLY and the analyst-integrated
+(`--quick`) render (0 per-hand mismatches across 1,220 hands).
+
+Saved standalone artifacts (faithful render with the report's note CSS, openable in a browser):
+`screenshots/runout_note_desktop_1280.html`, `screenshots/runout_note_mobile_390.html`,
+`screenshots/runout_note_rendered_text.txt`.
 
 ## Six-width acceptance (measured in-browser)
 

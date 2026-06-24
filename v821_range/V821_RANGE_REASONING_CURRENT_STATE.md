@@ -9,8 +9,10 @@ v8.21 **Range Reasoning** — first module **Runout Transition**. Branch
   emits objective facts only: best-five category before/after, **proven** hole-card contribution (Hero's
   best-five vs the board-only best-five), `category_changed`, `board_only_or_shared_category`,
   `draw_completed`, `real_draw_missed`, and objective board tags. It never says improved/weakened/counterfeit/
-  showdown-value; a shared change is labelled by its exact board property (turn) or *"shared by every remaining
-  player"* (river); improvement is attributed to Hero only when his hole cards provably contribute. Distinct
+  showdown-value; a shared change states the shared **minimum** category with a hole-card kicker caveat on the
+  turn (never "plays the board" — only four community cards exist), and claims *"the board now forms your
+  complete best five"* **only** on a river that is *proven* to be Hero's exact best five (`_plays_pure_board`);
+  improvement is attributed to Hero only when his hole cards provably contribute. Distinct
   three/four/five-suited and connectivity/four-to-a-straight/straight-on-board wording; player-facing labels
   (no raw enums); compact bold *Insufficient evidence* strategic line (no markdown artifacts). See
   `V821_RUNOUT_TRANSITION_SEMANTIC_CONTRACT.md`.

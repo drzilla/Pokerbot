@@ -12,11 +12,15 @@ no standalone HTML renderer (`render_html` does not exist).
 The module emits objective facts only. It does **not** use `hero_status`, `improved`, `weakened`,
 `counterfeit`, or `has_showdown_value`. Hero "improvement" is credited **only when proven**: Hero's best-five
 must beat the **board-only** best-five (`hand_strength_name(board[:2], board[2:])` on the river; board
-rank-counts on the turn). A shared/board-driven category change is labelled by its exact property — on the
-river *"shared by every remaining player"*; on the turn the precise board fact (*"every remaining player has at
-least one pair"* / *"trips are present on the board"* / *"double-paired"*), never a complete board-only
-best-five. Relative strength / the correct action is always rendered **Insufficient evidence** (compact bold
-label), pending a canonical opponent-range owner.
+rank-counts on the turn). A shared/board-driven category change states the shared **minimum** with a hole-card
+kicker caveat — on the turn (only four community cards exist) *"…gives every remaining player at least one
+pair; kickers and stronger hands still depend on the hole cards"* (and the double-paired/trips variants),
+**never** "plays the board". The strong claim *"the board now forms your complete best five"* is emitted
+**only** on a river board that is *proven* to be Hero's exact best five — `_plays_pure_board(cards, board)` =
+`evaluate_best_hand(cards, board) == evaluate_best_hand(board[:2], board[2:])` (hole cards add nothing, kicker
+included); when a hole-card kicker plays, the river uses the floor wording. Relative strength / the correct
+action is always rendered **Insufficient evidence** (compact bold label), pending a canonical opponent-range
+owner.
 
 ## Invariants
 

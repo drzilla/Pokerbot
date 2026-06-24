@@ -161,6 +161,17 @@ import gem_analyst_packet as _ap
 src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gem_analyst_packet.py'), encoding='utf-8').read()
 check('analyst packet does not import/reference gem_runout_transition', 'gem_runout_transition' not in src)
 
+print('[12] wired turn notes never claim board-play; only a proven river note may')
+_turn_note = split(hand('TM830', '9h2d', ['Ks', 'Qd', '7c'], 'Kh'))[0]
+_turn_blob = ' '.join(_turn_note).lower()
+for _ph in ('plays the board', 'supplied by the board', 'complete best five'):
+    check('wired TURN note never says "%s"' % _ph, _ph not in _turn_blob)
+check('wired turn note defers kickers to the hole cards', 'hole cards' in _turn_blob)
+# a proven pure-board river note (river card pairs the board, Hero low) may say "complete best five"
+_river_note = split(hand('TM831', '3d2c', ['Ks', 'Qd', '7c'], '9h', river='9s'))[0]
+check('wired RIVER pure-board note carries the complete-best-five claim',
+      'complete best five' in ' '.join(_river_note).lower())
+
 # ---------------------------------------------------------------------------------------------------------
 print('\nRESULTS: %d passed, %d failed, %d total' % (_N[0] - _F[0], _F[0], _N[0]))
 if _F[0]:

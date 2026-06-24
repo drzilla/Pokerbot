@@ -4289,6 +4289,14 @@ def _emit_section_xiv_appendix(doc, s, rd, hands):
                             _agg_text, '', '', '', '',
                             hero_acts_b, analyst_street=_agg_street,
                             hero_action_verbs_by_street=_hero_verbs_b, hand=h)
+                # v8.21 Runout Transition: if neither an analyst explanation nor an aggression note produced a
+                # note (e.g. a required-review hand with a flag but no explanation, AUTO_ONLY mode), still derive
+                # the deterministic turn/river transition note so the same hand carries the same note in
+                # AUTO_ONLY and analyst-integrated renders. Empty argument -> only the transition note is added.
+                if not notes_b:
+                    notes_b, a2n_b, a2t_b, snn_b = _split_argument_into_notes(
+                        '', '', '', '', '', hero_acts_b,
+                        hero_action_verbs_by_street=_hero_verbs_b, hand=h)
                 _vsn_emitted_b = False  # v8.12.8 QA2: per-hand reset
                 if used_streets_b and any((all_actions_b.get(s) or []) for s in used_streets_b):
                     # Hero hand display

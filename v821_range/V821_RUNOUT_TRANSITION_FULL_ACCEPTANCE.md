@@ -1,7 +1,18 @@
 # V821_RUNOUT_TRANSITION_FULL_ACCEPTANCE
 
-Branch `feature/v8.21-range-reasoning-foundation`. Outcome: **READY FOR MERGE** — the corrected descriptive
-transition teaching is live in the real report and fully validated.
+Branch `feature/v8.21-range-reasoning-foundation`. Outcome: **MERGE-READY** — false turn-board wording removed
+and the analyst quick-integration gate passes; the corrected descriptive transition teaching is live in the
+real report and fully validated.
+
+## Release-closure pass (the two final blockers)
+
+| Closure gate | Result |
+|---|---|
+| **Blocker 1** — false turn "plays the board" wording removed | code fixed; `_plays_pure_board` proves the river claim; module **78/78**, wiring **34/34** incl. corpus-wide negative scan; **0** `plays the board` / `supplied by the board` in the AUTO_ONLY (V7/V8) and analyst (V2) HTML + decompressed payloads (`V821_RUNOUT_TRANSITION_FINAL_CORRECTION.md`) |
+| **Blocker 2** — successful analyst `--quick` with matching packet | `--quick` PASSED (packet+analyst+cache+identity bound, coverage 1.0, ANALYST_COMPLETE); packet hash `dae3ea4f…`; required 34=34, optional 8=8; **0** transition decisions in the packet; AUTO_ONLY == analyst notes (0 mismatch, 0 dup) (`..._QUICK_INTEGRATION_EVIDENCE.md`, `QUICK_PACKET_COMPARISON.json`) |
+| Manual review **re-evaluated** against the corrected rules | **46/46 PASS** — one river case correctly dropped the over-claim (`..._MANUAL_REVIEW_LEDGER.md`, `MANUAL_REVIEW_VERDICTS.json`) |
+| Browser re-check on the corrected report (V8) 1280/1440/1920 | 0 page overflow; corrected turn note renders; note 911→1002 px, never clipped; no sticky overlap |
+| Consistency fix | a `sections_xiv.py` fallback derives the deterministic note when no analyst/aggression note exists, so AUTO_ONLY and analyst renders match for the same hand |
 
 ## Gate results
 

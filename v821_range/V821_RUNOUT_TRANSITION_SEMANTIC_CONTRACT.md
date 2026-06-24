@@ -30,9 +30,18 @@ relative-strength claim that needs an opponent-range owner we do not have.
 ## Wording rules (enforced + tested)
 
 - Hero contribution is stated **only** when `hero_hole_cards_contribute_after` is True: *"Your hole cards now
-  make two_pair (was pair)."* / *"Your flush draw completed: your hole cards now make flush."*
-- A shared/board-driven category change says: *"Your best-five category changed from X to Y because the board
-  changed; this category is now available from the board and is shared by every remaining player."*
+  make two pair (was pair)."* / *"Your flush draw completed: your hole cards now make a flush."*
+- A shared/board-driven category change states the shared **minimum** and **never** claims board-play on the
+  flop/turn (only four community cards exist, so a five-card hand must still use a hole card):
+  - turn single pair: *"The paired board (X) gives every remaining player at least one pair; kickers and
+    stronger hands still depend on the hole cards."*
+  - turn double-paired: *"…every remaining player has at least two pair, with kickers and stronger hands still
+    depending on the hole cards."*; turn trips: *"…trips are on the board, shared by every remaining player,
+    with kickers and full houses still depending on the hole cards."*
+  - **"the board now forms your complete best five"** is emitted **only** on a river board that is *proven* to
+    be Hero's exact best five — `_plays_pure_board(cards, board)` (`evaluate_best_hand(cards, board) ==
+    evaluate_best_hand(board[:2], board[2:])`, i.e. the hole cards add nothing, kicker included). When a
+    hole-card kicker (or a higher hand of the same category) plays, the river uses the floor wording instead.
 - A missed real draw with no made hand: *"Your draw did not complete and your hole cards do not make a hand on
   this board."*
 - **Never** emitted: `improved`, `weakened`, `counterfeit`, `showdown value` (batch-scanned in tests + pilot).

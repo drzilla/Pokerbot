@@ -21,12 +21,12 @@ Each block is the Markdown note from `gem_runout_transition.transition_note_text
 
 **Player-facing (rendered):**
 
-> Runout — the Kh. The paired board (Kh) gives every remaining player at least one pair (your best five plays the board). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
+> Runout — the Kh. The paired board (Kh) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. Strategic read: insufficient evidence -- relative strength and the correct action are not determinable from objective facts alone.
 
 **HTML (via the real renderer `_md_inline`):**
 
 ```html
-<strong>Runout — the Kh.</strong> The paired board (Kh) gives every remaining player at least one pair (your best five plays the board). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
+<strong>Runout — the Kh.</strong> The paired board (Kh) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. <strong>Strategic read: insufficient evidence</strong> -- relative strength and the correct action are not determinable from objective facts alone.
 ```
 
 ## Hero private improvement — pocket pair, board pairs low card (turn)

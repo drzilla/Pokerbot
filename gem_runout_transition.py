@@ -200,6 +200,17 @@ def _label(name):
             'straight_flush': 'straight flush', 'set': 'a set'}.get(n, n.replace('_', ' '))
 
 
+def _plays_pure_board(cards, board):
+    """True iff Hero's best five is EXACTLY the board's best five (hole cards add nothing, not even a kicker).
+    Only possible on a complete 5-card (river) board; a 4-card turn board can never supply a complete five."""
+    if len(board) < 5:
+        return False
+    try:
+        return gem_parser.evaluate_best_hand(cards, board) == gem_parser.evaluate_best_hand(board[:2], board[2:])
+    except Exception:
+        return False
+
+
 def _f(fact, source, tier):
     return {'fact': fact, 'source': source, 'tier': tier}
 
@@ -303,21 +314,27 @@ def build_transition(hand, action_index):
     elif real_draw_missed and hole_contributes_after:
         changed.append(_f('Your draw did not complete, though your hole cards still make %s.' % la, SRC_D, T_D))
 
-    # 2) board pairing -- the precise shared property (turn: exact board property; river: complete best-five)
+    # 2) board pairing -- the precise shared property. On the turn only FOUR community cards exist, so the
+    #    best five must still use a hole card: state the shared MINIMUM category, never "plays the board".
+    #    "The board supplies your complete best five" is reserved for a river board that PROVABLY forms Hero's
+    #    exact best five (hole cards add nothing, kicker included) -- _plays_pure_board.
     if 'board_paired' in tags:
         if board_only_or_shared and category_changed:
-            if street == 'river':
-                changed.append(_f('The board paired (%s); your best five is %s, supplied by the board and '
-                                  'shared by every remaining player.' % (new_card, la), SRC_T, T_T))
+            if _plays_pure_board(cards, board):
+                changed.append(_f('The board paired (%s); all five community cards now form your complete best '
+                                  'five (%s), shared by every remaining player.' % (new_card, la), SRC_T, T_T))
             elif 'double_paired' in tags:
-                changed.append(_f('The board paired (%s) and is now double-paired; every remaining player plays '
-                                  'at least two pair from the board.' % new_card, SRC_T, T_T))
+                changed.append(_f('The board paired (%s) and is now double-paired; every remaining player has '
+                                  'at least two pair, with kickers and stronger hands still depending on the '
+                                  'hole cards.' % new_card, SRC_T, T_T))
             elif 'trips_on_board' in tags:
-                changed.append(_f('The board paired (%s); trips are present on the board and shared by every '
-                                  'remaining player.' % new_card, SRC_T, T_T))
+                changed.append(_f('The board paired (%s); trips are on the board, shared by every remaining '
+                                  'player, with kickers and full houses still depending on the hole cards.'
+                                  % new_card, SRC_T, T_T))
             else:
-                changed.append(_f('The paired board (%s) gives every remaining player at least one pair (your '
-                                  'best five plays the board).' % new_card, SRC_T, T_T))
+                changed.append(_f('The paired board (%s) gives every remaining player at least one pair; '
+                                  'kickers and stronger hands still depend on the hole cards.' % new_card,
+                                  SRC_T, T_T))
         else:
             changed.append(_f('The board paired (%s).' % new_card, SRC_T, T_T))
         reassess.append('A paired board makes trips and full houses possible for some holdings -- reassess '

@@ -1,30 +1,31 @@
-"""Standalone: render Runout Transition player-facing examples -> v821_range/RENDERED_EXAMPLES.md."""
+"""Render Runout Transition player-facing examples through the REAL report note renderer
+(gem_report_draft._html._md_inline) -> v821_range/RENDERED_EXAMPLES.md. No separate mini-renderer."""
 import os
 import re
 import gem_parser
 import gem_runout_transition as RT
+from gem_report_draft._html import _md_inline
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'v821_range')
 
 
 def hh(hid, hole, flop, turn, river=None):
-    L = ["Poker Hand #%s: Tournament #888888, RR Test Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:01" % hid,
-         "Table '1' 8-max Seat #1 is the button", "Seat 1: Hero (25000 in chips)",
-         "Seat 2: V1 (25000 in chips)", "Seat 3: V2 (25000 in chips)",
-         "V1: posts small blind 125", "V2: posts big blind 250", "*** HOLE CARDS ***",
-         "Dealt to Hero [%s]" % hole, "Hero: raises 375 to 625", "V1: folds", "V2: calls 375",
-         "*** FLOP *** [%s]" % ' '.join(flop), "V2: checks", "Hero: bets 400", "V2: calls 400",
+    hole = hole if ' ' in hole else hole[:2] + ' ' + hole[2:]
+    L = ["Poker Hand #%s: Tournament #888: RR Hold'em No Limit - Level5(125/250(0)) - 2026/04/07 00:00:01" % hid,
+         "Table '1' 8-max Seat #1 is the button", "Seat 1: Hero (25000 in chips)", "Seat 2: V1 (25000 in chips)",
+         "Hero: posts small blind 125", "V1: posts big blind 250", "*** HOLE CARDS ***",
+         "Dealt to Hero [%s]" % hole, "Hero: raises 375 to 625", "V1: calls 375",
+         "*** FLOP *** [%s]" % ' '.join(flop), "V1: checks", "Hero: bets 400", "V1: calls 400",
          "*** TURN *** [%s] [%s]" % (' '.join(flop), turn)]
+    board = flop + [turn]
     if river:
-        L += ["V2: checks", "Hero: bets 900", "V2: calls 900",
-              "*** RIVER *** [%s] [%s]" % (' '.join(flop + [turn]), river),
-              "V2: checks", "Hero: bets 1500", "V2: folds", "Uncalled bet (1500) returned to Hero"]
-        board = flop + [turn, river]
+        L += ["V1: checks", "Hero: bets 900", "V1: calls 900",
+              "*** RIVER *** [%s] [%s]" % (' '.join(board), river), "V1: checks", "Hero: bets 1500",
+              "V1: folds", "Uncalled bet (1500) returned to Hero"]
+        board = board + [river]
     else:
-        L += ["V2: checks", "Hero: bets 900", "V2: folds", "Uncalled bet (900) returned to Hero"]
-        board = flop + [turn]
-    L += ["Hero collected 2050 from pot", "*** SUMMARY ***", "Total pot 2050 | Rake 0",
-          "Board [%s]" % ' '.join(board), "Seat 1: Hero (button) collected (2050)"]
+        L += ["V1: checks", "Hero: bets 900", "V1: folds", "Uncalled bet (900) returned to Hero"]
+    L += ['*** SUMMARY ***', 'Total pot 3000 | Rake 0', 'Board [%s]' % ' '.join(board), 'Seat 1: Hero collected (3000)']
     return gem_parser.parse_one_hand('\n'.join(L), 'GG - Test.txt')
 
 
@@ -36,11 +37,13 @@ def rec_for(h, street):
 
 
 CASES = [
-    ('Improved to flush (turn)', hh('TM99300001', 'Ah Kh', ['Qh', '7h', '2c'], 'Th'), 'turn'),
-    ('Flush now possible, Hero not made (turn)', hh('TM99300002', 'As Kd', ['7h', '6h', '2c'], 'Th'), 'turn'),
-    ('Board paired on the river, overpair holds (river)', hh('TM99300003', 'Kh Kd', ['Qh', '8d', '2c'], '5s', '8c'), 'river'),
-    ('Blank turn, nothing changed', hh('TM99300004', 'Kh Qd', ['Ah', '7d', '2c'], '3s'), 'turn'),
-    ('Straight threat on the board (turn)', hh('TM99300005', 'Ac Kc', ['9h', '8d', '7c'], '6s'), 'turn'),
+    ('Hero completes a flush with hole cards (turn)', hh('TM99300001', 'AhKh', ['Qh', '7h', '2c'], 'Th'), 'turn'),
+    ('Shared board change — board pairs, no Hero improvement (turn)', hh('TM99300002', '9h2d', ['Ks', 'Qd', '7c'], 'Kh'), 'turn'),
+    ('Hero private improvement — pocket pair, board pairs low card (turn)', hh('TM99300003', '8h8d', ['Qs', '7d', '2c'], '7h'), 'turn'),
+    ('Flush now possible, Hero not made (turn)', hh('TM99300004', 'AsKd', ['7h', '6h', '2c'], 'Th'), 'turn'),
+    ('Blank — nothing meaningful changed (turn)', hh('TM99300005', 'TcTd', ['Ks', '9d', '2c'], '5h'), 'turn'),
+    ('Board four-to-a-straight via the wheel (turn)', hh('TM99300006', 'KdQc', ['As', '2d', '3c'], '4h'), 'turn'),
+    ('Board-only two pair on the river (no Hero contribution)', hh('TM99300007', '3d2c', ['Ks', 'Kd', '7c'], '7h', river='9s'), 'river'),
 ]
 
 
@@ -48,23 +51,29 @@ def strip(html):
     return re.sub(r'\s+', ' ', re.sub('<[^>]*>', ' ', html)).strip()
 
 
-lines = ['# V821 Runout Transition - rendered player-facing examples\n',
-         'Rendered by `gem_runout_transition.render_html`. Deterministic, canonical facts only; the '
-         'improve/weaken direction is computed in the module, not the renderer. Mobile-safe (no fixed pixel widths).\n']
+lines = ['# V821 Runout Transition — rendered player-facing examples',
+         '',
+         'Each block is the Markdown note from `gem_runout_transition.transition_note_text(rec)` rendered '
+         'through the **real** report note renderer `gem_report_draft._html._md_inline` (the same pipeline the '
+         'hand-detail per-street commentary uses — no separate inline-style mini-renderer). Deterministic, '
+         'canonical facts only; the contribution direction is computed in the module. Inline markdown only '
+         '(no fixed pixel widths), so it reflows on desktop and mobile.', '']
 for title, h, street in CASES:
     rec = rec_for(h, street)
     if rec is None:
-        lines.append('\n## %s\n\n_(no resolved record for this fixture)_\n' % title)
+        lines.append('\n## %s\n\n_(no resolved record for this fixture)_' % title)
         print('-', title, ':: (unresolved)')
         continue
-    html = RT.render_html(rec)
-    lines.append('\n## %s\n' % title)
-    lines.append('- %s -> **%s** | status `%s` | tags `%s` | register `%s` | mobile-safe: %s\n'
-                 % ('-'.join(rec['prev_board']), '-'.join(rec['resulting_board']), rec['hero_status'],
-                    rec['transition_tags'], rec['register'], 'width:' not in html.replace('border', '')))
-    lines.append('**Player-facing:**\n\n> %s\n' % strip(html))
-    lines.append('**Desktop HTML:**\n\n```html\n%s\n```\n' % html)
-    print('-', title, '::', strip(html)[:150])
+    note = RT.transition_note_text(rec)
+    html = _md_inline(note)
+    lines.append('\n## %s' % title)
+    lines.append('- %s → **%s** | category `%s → %s` | hole-cards contribute: `%s` | tags `%s`'
+                 % ('-'.join(rec['prev_board']), '-'.join(rec['resulting_board']),
+                    rec['best_five_category_before'], rec['best_five_category_after'],
+                    rec['hero_hole_cards_contribute_after'], rec['transition_tags']))
+    lines.append('\n**Player-facing (rendered):**\n\n> %s' % strip(html))
+    lines.append('\n**HTML (via the real renderer `_md_inline`):**\n\n```html\n%s\n```' % html)
+    print('-', title, '::', strip(html)[:140])
 
-open(os.path.join(OUT, 'RENDERED_EXAMPLES.md'), 'w', encoding='utf-8').write('\n'.join(lines))
+open(os.path.join(OUT, 'RENDERED_EXAMPLES.md'), 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
 print('wrote v821_range/RENDERED_EXAMPLES.md')

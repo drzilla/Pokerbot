@@ -1,16 +1,25 @@
 """gem_runout_transition.py -- v8.21 Range Reasoning / Runout Transition (descriptive foundation).
 
 Builds ONE deterministic, result-independent transition record per eligible TURN or RIVER Hero decision:
-what the new card changed about the board and Hero's hand, what remained valid, and what to reassess.
+what the new card OBJECTIVELY changed about the board and Hero's hand, what remained factually true, and what
+needs reassessment.
 
-Trust rules (enforced): every operand is CONSUMED from a canonical owner --
-  gem_decision_snapshot.build_decision_snapshot (identity / decision state),
-  gem_parser.hand_strength_name (made hand), gem_made_hands.draw_profile (draws/outs),
-  gem_analyst_packet._board_texture (texture). NO new evaluator; NO invented range/equity/EV; NO analyst math;
-  NO later action/board/showdown leakage (board is the street-exact board_at_decision; the new card is its
-  last card; prev board is the strict prefix). Strategic recommendations (continue/resize/slow/pivot/abandon)
-  need an opponent-range/fold-equity owner that does NOT exist -> planning_implication is always
-  'insufficient_evidence' in this MVP (the blocked layer is documented as engineering debt).
+SAFETY CONTRACT (enforced + tested):
+  * Every operand is CONSUMED from a canonical owner -- gem_decision_snapshot.build_decision_snapshot
+    (identity / decision state), gem_parser.hand_strength_name (best-five made-hand class),
+    gem_made_hands.draw_profile (draws/outs), gem_analyst_packet._board_texture (texture). NO new
+    hand-strength/equity evaluator; NO invented range/equity/EV; NO analyst math.
+  * NO later action / later board card / showdown leakage: the board is the street-exact board_at_decision,
+    the new card is its last card, the previous board is the strict prefix.
+  * FAIL CLOSED: any required canonical evaluator failure (or invalid cards / incomplete snapshot) yields an
+    unresolved record with an exact reason -- NO Factual high-confidence claims, NO rendered block.
+  * NO unsafe relative-strength claim. We do NOT say Hero "improved", "weakened", was "counterfeited", or has
+    "showdown value" -- a shared board change (e.g. the board pairing) lifts the formal best-five category for
+    EVERY remaining player without improving Hero's private-card contribution. We state only objective facts:
+    the best-five category before/after, whether Hero's HOLE CARDS contribute (proven by comparing Hero's
+    best-five against the BOARD-ONLY best-five), whether that category is shared by the whole field, and
+    whether a real draw completed or missed. Relative strength / the correct action is explicitly UNRESOLVED
+    without a canonical opponent-range owner (which does not exist).
 """
 from collections import Counter
 
@@ -21,8 +30,19 @@ _ORDER = '23456789TJQKA'
 _MADE_RANK = {'high_card': 0, 'high card': 0, 'pair': 1, 'two_pair': 2, 'two pair': 2, 'trips': 3, 'set': 3,
               'straight': 4, 'flush': 5, 'full_house': 6, 'full house': 6, 'boat': 6, 'quads': 7,
               'straight_flush': 8, 'straight flush': 8}
-_INSUFFICIENT = ('Insufficient evidence for a reliable action recommendation -- reassess the changed board '
-                 'features.')
+_A = _ORDER.index('A')
+# the strategic action / relative strength is UNRESOLVED without a canonical opponent-range owner
+_UNRESOLVED_STRATEGY = ('Relative hand strength and the correct action are unresolved here: that needs a '
+                        'canonical opponent-range owner, which does not exist. Reassess the changed board '
+                        'features rather than assuming a stronger relative position.')
+
+
+class _EvidenceError(Exception):
+    """A required canonical owner failed -- the record must fail closed with this reason."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
 
 
 def _rank(card):
@@ -33,59 +53,108 @@ def _made_rank(name):
     return _MADE_RANK.get((name or '').lower(), 0)
 
 
-def _board_texture(board):
+def _valid_card(c):
+    return isinstance(c, str) and len(c) == 2 and c[0] in _ORDER and c[1] in 'hdcs'
+
+
+# ---- canonical owners, fail-closed --------------------------------------------------------------------
+
+def _made_or_fail(cards, board, reason):
+    try:
+        v = gem_parser.hand_strength_name(cards, board)
+    except Exception:
+        raise _EvidenceError(reason)
+    if not v or str(v).strip().lower() in ('unknown', 'none', ''):
+        raise _EvidenceError(reason)
+    return v
+
+
+def _draw_or_fail(cards, board, reason):
+    try:
+        v = _mh.draw_profile(cards, board)
+    except Exception:
+        raise _EvidenceError(reason)
+    if v is None or not isinstance(v, dict):
+        raise _EvidenceError(reason)
+    return v
+
+
+def _texture_or_fail(board, reason):
     import gem_analyst_packet as _ap
     try:
-        return _ap._board_texture(board)
+        v = _ap._board_texture(board)
     except Exception:
-        return None
+        raise _EvidenceError(reason)
+    if v is None:
+        raise _EvidenceError(reason)
+    return v
 
 
-def _made(cards, board):
-    try:
-        return gem_parser.hand_strength_name(cards, board) or 'unknown'
-    except Exception:
-        return 'unknown'
+def _board_category(board):
+    """Best-five category available from the BOARD ALONE (everyone shares it). River (>=5 cards): reuse the
+    canonical evaluator on the 5 board cards. Turn (4 cards): only rank-count categories are possible (a board
+    straight/flush needs 5 cards), computed from board ranks. Raises _EvidenceError on evaluator failure."""
+    if len(board) >= 5:
+        return _made_or_fail(board[:2], board[2:], 'missing_made_hand_evidence')
+    rc = sorted(Counter(c[0] for c in board).values(), reverse=True)
+    if not rc:
+        return 'high_card'
+    if rc[0] >= 4:
+        return 'quads'
+    if rc[0] == 3:
+        return 'trips'
+    if rc[0] == 2 and len(rc) > 1 and rc[1] == 2:
+        return 'two_pair'
+    if rc[0] == 2:
+        return 'pair'
+    return 'high_card'
 
 
-def _draw(cards, board):
-    try:
-        return _mh.draw_profile(cards, board) or {}
-    except Exception:
-        return {}
-
+# ---- draws --------------------------------------------------------------------------------------------
 
 def _real_draw(dp):
-    """A LIVE draw (one card from completing) -- a backdoor is not a real draw whose busting matters."""
+    """A LIVE draw (one card from completing). A backdoor is NOT a real draw whose completion/busting matters."""
     return dp.get('flush_draw') == 'flush_draw' or dp.get('straight_draw') in ('OESD', 'gutshot', 'double_gutshot')
 
 
-def _draw_completed(db, da, made_b, made_a):
-    bs = 'straight' in (made_a or '').lower() and 'straight' not in (made_b or '').lower()
-    bf = 'flush' in (made_a or '').lower() and 'flush' not in (made_b or '').lower()
-    return ((bs and db.get('straight_draw') in ('OESD', 'gutshot', 'double_gutshot'))
-            or (bf and db.get('flush_draw') == 'flush_draw'))
+def _draw_completed(db, made_b, made_a):
+    """A real draw completed iff Hero's category gained straight/flush AND he held the corresponding real draw."""
+    gained_straight = 'straight' in (made_a or '').lower() and 'straight' not in (made_b or '').lower()
+    gained_flush = 'flush' in (made_a or '').lower() and 'flush' not in (made_b or '').lower()
+    return ((gained_straight and db.get('straight_draw') in ('OESD', 'gutshot', 'double_gutshot'))
+            or (gained_flush and db.get('flush_draw') == 'flush_draw'))
 
 
-def _draw_busted(db, da, completed):
+def _real_draw_missed(db, da, completed):
     return _real_draw(db) and not _real_draw(da) and not completed
 
 
+# ---- straight windows (ace plays high AND low) --------------------------------------------------------
+
 def _max_straight_window(board):
-    idxs = sorted({_ORDER.index(c[0]) for c in board})
-    best = 1
-    for i in idxs:
-        best = max(best, sum(1 for j in idxs if i <= j <= i + 4))
+    base = {_ORDER.index(c[0]) for c in board}
+    candidate_sets = [base]
+    if _A in base:                                   # ace also plays low (A-2-3-4-5 wheel)
+        low = set(base)
+        low.discard(_A)
+        low.add(-1)
+        candidate_sets.append(low)
+    best = 1 if board else 0
+    for s in candidate_sets:
+        for i in s:
+            best = max(best, sum(1 for j in s if i <= j <= i + 4))
     return best
 
 
-def transition_tags(prev_board, new_card, resulting_board, db, da, made_b, made_a, completed, outs_delta):
-    """Deterministic transition tags from the raw board cards + canonical Hero state. Each tag is emitted
-    ONLY when clearly true; never free-form classification."""
+# ---- transition tags ----------------------------------------------------------------------------------
+
+def transition_tags(prev_board, new_card, resulting_board, hole_contributes_after):
+    """Deterministic, objective board tags. Each is emitted ONLY when clearly true. No private-card
+    strength inference (no 'counterfeit'); no connectivity_decrease (a card cannot reduce coordination)."""
     tags = []
     prev_ranks = [c[0] for c in prev_board]
     nr_idx = _rank(new_card)
-    # pairing
+    # pairing of the board by the new card
     if new_card[0] in prev_ranks:
         tags.append('board_paired')
         top = max(prev_board, key=_rank)[0]
@@ -93,12 +162,14 @@ def transition_tags(prev_board, new_card, resulting_board, db, da, made_b, made_
     rc = Counter(c[0] for c in resulting_board)
     if sum(1 for v in rc.values() if v >= 2) >= 2:
         tags.append('double_paired')
+    if any(v >= 3 for v in rc.values()):
+        tags.append('trips_on_board')
     # over / under relative to the previous board
-    if all(nr_idx > _ORDER.index(r) for r in prev_ranks):
+    if prev_ranks and all(nr_idx > _ORDER.index(r) for r in prev_ranks):
         tags.append('overcard')
-    elif all(nr_idx < _ORDER.index(r) for r in prev_ranks):
+    elif prev_ranks and all(nr_idx < _ORDER.index(r) for r in prev_ranks):
         tags.append('undercard_or_brick')
-    # flush dimension
+    # flush dimension (count of the new card's suit on the resulting board)
     sc = Counter(c[1] for c in resulting_board)
     n = sc[new_card[1]]
     if n >= 5:
@@ -107,41 +178,31 @@ def transition_tags(prev_board, new_card, resulting_board, db, da, made_b, made_
         tags.append('four_flush')
     elif n >= 3:
         tags.append('flush_card')
-    # straight coordination: a card can only ADD board straightness. 3 board cards in a 5-rank window is a
-    # connectivity increase; 4 in a window means a straight is one card away (a genuine straight threat).
+    # straight coordination (a card can only ADD board straightness)
     pw, nw = _max_straight_window(prev_board), _max_straight_window(resulting_board)
     if nw > pw and nw >= 3:
         tags.append('connectivity_increase')
     if nw >= 4:
-        tags.append('straight_completing')
-    # counterfeit: Hero's made hand was weakened by the runout
-    if _made_rank(made_a) < _made_rank(made_b):
-        tags.append('counterfeit')
-    # blank vs Hero's draws: only meaningful when Hero is still drawing (no made hand) and the card neither
-    # completes/extends the draw nor pairs/flushes/coordinates the board.
-    if (not completed and outs_delta <= 0 and _made_rank(made_a) == 0
-            and not any(t in tags for t in ('board_paired', 'flush_card', 'four_flush', 'monotone_complete',
-                                            'straight_completing', 'connectivity_increase'))):
-        tags.append('blank_vs_hero_draws')
-    return sorted(set(tags))
-
-
-def _hero_status(made_b, made_a, completed, busted_meaningful):
-    rb, ra = _made_rank(made_b), _made_rank(made_a)
-    if ra > rb or completed:
-        return 'improved'
-    if ra < rb or busted_meaningful:
-        return 'weakened'
-    return 'unchanged'
+        tags.append('four_to_a_straight')
+    if nw >= 5:
+        tags.append('straight_on_board')
+    return tags
 
 
 def _suit_name(s):
     return {'h': 'hearts', 'd': 'diamonds', 'c': 'clubs', 's': 'spades'}.get(s, s)
 
 
+def _f(fact, source, tier):
+    return {'fact': fact, 'source': source, 'tier': tier}
+
+
+# ---- main builder -------------------------------------------------------------------------------------
+
 def build_transition(hand, action_index):
     """Return one deterministic transition record (dict) for a Hero turn/river decision, or an explicit
-    fail-closed unresolved record. No future-information leakage; no invented numbers."""
+    fail-closed unresolved record. No future-information leakage; no invented numbers; no unsafe relative
+    -strength claim."""
     import gem_decision_snapshot as _ds
     hid = hand.get('id')
     cards = hand.get('cards') or []
@@ -150,92 +211,118 @@ def build_transition(hand, action_index):
     except Exception:
         snap = None
 
-    def _unresolved(reason):
+    def _unresolved(reason, kind):
         return {'hand_id': hid, 'street': (snap or {}).get('street'), 'action_index': action_index,
-                'unresolved': True, 'unresolved_reason': reason, 'planning_implication': 'insufficient_evidence',
-                'register': 'Insufficient evidence', 'planning_text': _INSUFFICIENT}
+                'unresolved': True, 'unresolved_reason': reason, 'unresolved_kind': kind,
+                'register': 'Insufficient evidence', 'confidence': 'none',
+                'strategic_implication': 'unresolved', 'strategic_text': _UNRESOLVED_STRATEGY,
+                'changed': [], 'remained': [], 'reassess': []}
 
     if (snap is None or snap.get('no_hero_decision')
             or snap.get('pot_before_action_bb') is None
             or snap.get('hero_stack_before_action_bb') is None
             or snap.get('canonical_effective_decision_depth_bb') is None):
-        return _unresolved('no_canonical_decision_or_operand')
+        return _unresolved('incomplete_decision_snapshot', 'incomplete_decision_snapshot')
     street = snap.get('street')
     board = list(snap.get('board_at_decision') or [])
-    if street not in ('turn', 'river') or len(board) not in (4, 5) or len(cards) != 2:
-        return _unresolved('not_a_turn_or_river_node')
+    if street not in ('turn', 'river') or len(board) not in (4, 5):
+        return _unresolved('not_a_turn_or_river_node', 'not_a_turn_or_river_node')
+    if len(cards) != 2 or not all(_valid_card(c) for c in cards) or not all(_valid_card(c) for c in board):
+        return _unresolved('invalid_cards', 'invalid_cards')
     # all-in / no-future-decision suppression
     al = hand.get('action_ledger') or []
     act = al[action_index] if isinstance(action_index, int) and 0 <= action_index < len(al) else None
     if (act and act.get('is_all_in')) or snap.get('became_all_in_on_this_action'):
-        return _unresolved('all_in_or_no_future_decision')
+        return _unresolved('all_in_or_no_future_decision', 'all_in_or_no_future_decision')
 
     prev_board = board[:-1]
     new_card = board[-1]
-    db = _draw(cards, prev_board)
-    da = _draw(cards, board)
-    made_b = _made(cards, prev_board)
-    made_a = _made(cards, board)
-    completed = _draw_completed(db, da, made_b, made_a)
-    busted = _draw_busted(db, da, completed)
-    # a busted draw only WEAKENS Hero when it leaves no made hand (high card); a redundant draw on a made
-    # hand (e.g. a flush draw alongside a straight) missing is not a weakening.
-    busted_meaningful = busted and _made_rank(made_a) == 0
+    try:
+        made_b = _made_or_fail(cards, prev_board, 'missing_made_hand_evidence')
+        made_a = _made_or_fail(cards, board, 'missing_made_hand_evidence')
+        db = _draw_or_fail(cards, prev_board, 'missing_draw_evidence')
+        da = _draw_or_fail(cards, board, 'missing_draw_evidence')
+        board_cat_b = _board_category(prev_board)            # may raise missing_made_hand_evidence (river)
+        board_cat_a = _board_category(board)
+        prev_texture = _texture_or_fail(prev_board, 'missing_texture_evidence')
+        new_texture = _texture_or_fail(board, 'missing_texture_evidence')
+    except _EvidenceError as e:
+        return _unresolved(e.reason, e.reason)
+
+    # ---- objective Hero-state facts (NO improved/weakened/counterfeit/showdown-value) ----
+    rb, ra = _made_rank(made_b), _made_rank(made_a)
+    category_changed = ra != rb
+    hole_contributes_before = rb > _made_rank(board_cat_b)
+    hole_contributes_after = ra > _made_rank(board_cat_a)
+    board_only_or_shared = not hole_contributes_after        # Hero's category is fully available from the board
+    completed = _draw_completed(db, made_b, made_a)
+    real_draw_missed = _real_draw_missed(db, da, completed)
     outs_delta = (da.get('clean_outs') or 0) - (db.get('clean_outs') or 0)
-    status = _hero_status(made_b, made_a, completed, busted_meaningful)
-    tags = transition_tags(prev_board, new_card, board, db, da, made_b, made_a, completed, outs_delta)
+
+    tags = transition_tags(prev_board, new_card, board, hole_contributes_after)
+    structural = any(t in tags for t in ('board_paired', 'double_paired', 'trips_on_board', 'flush_card',
+                                         'four_flush', 'monotone_complete', 'four_to_a_straight',
+                                         'straight_on_board', 'connectivity_increase'))
+    hero_event = category_changed or completed or real_draw_missed
+    if not structural and not hero_event and 'overcard' not in tags and 'undercard_or_brick' not in tags:
+        tags.append('blank')
+    tags = sorted(set(tags))
 
     contestable = snap.get('contestable_pot_before_action_bb')
     eff = snap.get('canonical_effective_decision_depth_bb')
     spr = round(eff / contestable, 2) if (contestable and eff is not None and contestable > 0) else None
     n_players = len(snap.get('players_active_before_action') or []) + 1
 
-    # ---- planning evidence: facts (Factual) vs reassess prompts; strategic implication is blocked ----
+    # ---- factual statements: what changed / what remained / what to reassess ----
     changed, remained, reassess = [], [], []
-    T = 'canonical'
-    if _made_rank(made_a) > _made_rank(made_b):
-        changed.append({'fact': 'Your hand improved from %s to %s.' % (made_b, made_a),
-                        'source': 'gem_parser.hand_strength_name', 'tier': 'canonical_made_hand_class'})
-    elif _made_rank(made_a) < _made_rank(made_b):
-        changed.append({'fact': 'Your made hand was counterfeited (%s -> %s) by this card.' % (made_b, made_a),
-                        'source': 'gem_parser.hand_strength_name', 'tier': 'canonical_made_hand_class'})
+    SRC_M, T_M = 'gem_parser.hand_strength_name', 'canonical_made_hand_class'
+    SRC_D, T_D = 'gem_made_hands.draw_profile', 'canonical_draw_profile'
+    SRC_T, T_T = 'gem_analyst_packet._board_texture', 'canonical_board_texture'
+
     if completed:
-        changed.append({'fact': 'Your draw completed.', 'source': 'gem_made_hands.draw_profile',
-                        'tier': 'canonical_draw_profile'})
-    if busted_meaningful:
-        changed.append({'fact': 'Your draw missed -- you have no made hand.',
-                        'source': 'gem_made_hands.draw_profile', 'tier': 'canonical_draw_profile'})
+        kind = 'straight' if 'straight' in made_a.lower() else 'flush'
+        changed.append(_f('Your %s draw completed: your hole cards now make %s.' % (kind, made_a), SRC_D, T_D))
+    elif category_changed and hole_contributes_after:
+        changed.append(_f('Your hole cards now make %s (was %s).' % (made_a, made_b), SRC_M, T_M))
+    elif category_changed and not hole_contributes_after:
+        changed.append(_f('Your best-five category changed from %s to %s because the board changed; this '
+                          'category is now available from the board and is shared by every remaining player.'
+                          % (made_b, made_a), SRC_M, T_M))
+    if real_draw_missed and not hole_contributes_after:
+        changed.append(_f('Your draw did not complete and your hole cards do not make a hand on this board.',
+                          SRC_D, T_D))
+    elif real_draw_missed and hole_contributes_after:
+        changed.append(_f('Your draw did not complete, though your hole cards still make %s.' % made_a, SRC_D, T_D))
+
     if 'board_paired' in tags:
-        changed.append({'fact': 'The board paired (%s).' % new_card, 'source': '_board_texture',
-                        'tier': 'canonical_board_texture'})
-        reassess.append('A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands.')
-    if any(t in tags for t in ('flush_card', 'four_flush', 'monotone_complete')):
-        if 'flush' not in (made_a or '').lower():
-            changed.append({'fact': 'A %s flush is now possible.' % _suit_name(new_card[1]),
-                            'source': '_board_texture', 'tier': 'canonical_board_texture'})
-            reassess.append('A flush is now possible -- reassess thin value bets and continued bluffs.')
-    if 'straight_completing' in tags and 'straight' not in (made_a or '').lower():
-        changed.append({'fact': 'The board is now straight-coordinated.', 'source': '_board_texture',
-                        'tier': 'canonical_board_texture'})
-        reassess.append('A straight is now possible -- reassess one-pair hands.')
+        changed.append(_f('The board paired (%s).' % new_card, SRC_T, T_T))
+        reassess.append('A paired board makes trips and full houses possible for the field -- reassess one-pair '
+                        'and overpair holdings.')
+    if any(t in tags for t in ('flush_card', 'four_flush', 'monotone_complete')) and 'flush' not in made_a.lower():
+        changed.append(_f('A %s flush is now possible on the board.' % _suit_name(new_card[1]), SRC_T, T_T))
+        reassess.append('A flush is now possible -- reassess thin value bets and continued bluffs.')
+    if 'four_to_a_straight' in tags and 'straight' not in made_a.lower():
+        changed.append(_f('The board is now four-to-a-straight.', SRC_T, T_T))
+        reassess.append('A straight is now possible for the field -- reassess one-pair holdings.')
+    elif 'connectivity_increase' in tags and 'four_to_a_straight' not in tags:
+        changed.append(_f('The board became more connected (straight coordination increased).', SRC_T, T_T))
     if 'overcard' in tags:
-        changed.append({'fact': 'An overcard (%s) arrived above the previous board.' % new_card,
-                        'source': '_board_texture', 'tier': 'canonical_board_texture'})
-    if 'blank_vs_hero_draws' in tags and status == 'unchanged':
-        changed.append({'fact': 'The %s is a blank -- it did not change your hand or the board structure.' % new_card,
-                        'source': 'gem_made_hands.draw_profile', 'tier': 'canonical_draw_profile'})
-    # what remained valid
-    if _made_rank(made_a) >= 1:
-        remained.append({'fact': 'You still hold %s (showdown value).' % made_a,
-                         'source': 'gem_parser.hand_strength_name', 'tier': 'canonical_made_hand_class'})
-    if status == 'unchanged' and not changed:
-        remained.append({'fact': 'Nothing material changed for your hand this street.',
-                         'source': 'gem_made_hands.draw_profile', 'tier': 'canonical_draw_profile'})
+        changed.append(_f('An overcard (%s) arrived above the previous board.' % new_card, SRC_T, T_T))
+        reassess.append('An overcard arrived -- a prior top pair or overpair may no longer be the top of the board.')
+    if 'blank' in tags:
+        changed.append(_f('The %s is a blank: it did not change your best-five category, your draws, or the '
+                          'board structure.' % new_card, SRC_D, T_D))
 
-    unresolved_fields = []
-    if spr is None:
-        unresolved_fields.append('spr')
+    # what remained factually true
+    if not category_changed and hole_contributes_after and ra >= 1:
+        remained.append(_f('Your hole cards still make %s.' % made_a, SRC_M, T_M))
+    elif not category_changed and board_only_or_shared and ra >= 1:
+        remained.append(_f('Your best-five (%s) comes from the board and is unchanged; it is shared by the '
+                           'field.' % made_a, SRC_M, T_M))
+    if 'blank' in tags and not remained:
+        remained.append(_f('Your best-five category (%s) is unchanged this street.' % made_a, SRC_M, T_M))
 
+    # the descriptive block is Factual; the strategic action line is Insufficient evidence
     register = 'Factual' if (changed or remained) else 'Insufficient evidence'
     return {
         'hand_id': hid, 'street': street, 'action_index': action_index,
@@ -244,67 +331,70 @@ def build_transition(hand, action_index):
         'position': snap.get('hero_position'), 'ip': hand.get('hero_ip'),
         'pot_type': hand.get('pot_type'), 'n_players': n_players, 'multiway': n_players >= 3,
         'initiative_pfr': bool(hand.get('pfr')), 'eff_stack_bb': eff, 'spr': spr,
-        'prev_texture': _board_texture(prev_board), 'new_texture': _board_texture(board),
+        'prev_texture': prev_texture, 'new_texture': new_texture,
         'transition_tags': tags,
-        'made_before': made_b, 'made_after': made_a,
+        # objective best-five facts
+        'best_five_category_before': made_b, 'best_five_category_after': made_a,
+        'category_changed': category_changed,
+        'board_category_before': board_cat_b, 'board_category_after': board_cat_a,
+        'hero_hole_cards_contribute_before': hole_contributes_before,
+        'hero_hole_cards_contribute_after': hole_contributes_after,
+        'board_only_or_shared_category': board_only_or_shared,
         'made_detail_before': db.get('made_hand'), 'made_detail_after': da.get('made_hand'),
         'draw_before': {k: db.get(k) for k in ('straight_draw', 'flush_draw', 'straight_outs', 'flush_outs',
                         'clean_outs', 'overcards') if k in db},
         'draw_after': {k: da.get(k) for k in ('straight_draw', 'flush_draw', 'straight_outs', 'flush_outs',
                        'clean_outs', 'overcards') if k in da},
-        'hero_status': status, 'outs_delta': outs_delta,
-        'draw_completed': completed, 'draw_busted': busted,
-        'has_showdown_value': _made_rank(made_a) >= 1,
+        'draw_completed': completed, 'real_draw_missed': real_draw_missed, 'outs_delta': outs_delta,
         'changed': changed, 'remained': remained, 'reassess': sorted(set(reassess)),
-        # strategic layer is BLOCKED (no opponent-range/fold-equity owner) -> honest reassessment prompt
-        'planning_implication': 'insufficient_evidence', 'planning_text': _INSUFFICIENT,
-        'register': register, 'evidence_tier': 'canonical_descriptive',
-        'confidence': 'high', 'unresolved_fields': unresolved_fields,
-        'canonical_resolved': True, 'canonical_source': 'gem_decision_snapshot+gem_parser+gem_made_hands',
+        # strategic layer BLOCKED (no opponent-range owner) -> honest unresolved line
+        'strategic_implication': 'unresolved', 'strategic_text': _UNRESOLVED_STRATEGY,
+        'strategic_register': 'Insufficient evidence',
+        'register': register, 'evidence_tier': 'canonical_descriptive', 'confidence': 'high',
+        'unresolved': False, 'canonical_resolved': True,
+        'canonical_source': 'gem_decision_snapshot+gem_parser+gem_made_hands+gem_analyst_packet',
     }
 
 
 def teaching_block(rec):
-    """Compact, player-facing teaching object from a transition record (the 5-part structure). Pure
-    presentation of canonical facts -- it derives no new strategic operand."""
+    """Compact, player-facing teaching object (the 5-part structure) from a RESOLVED record. Pure
+    presentation of canonical facts -- derives no new operand. None for unresolved records."""
     if rec.get('unresolved'):
         return None
     return {
         'street': rec['street'], 'new_card': rec['new_card'],
-        'before': 'Board %s (%s)%s' % ('-'.join(rec['prev_board']), rec['prev_texture'] or '?',
-                                       ' -- you held %s' % rec['made_before'] if rec.get('made_before') else ''),
-        'card': 'The %s fell%s.' % (rec['new_card'], (' (' + ', '.join(rec['transition_tags']) + ')') if rec['transition_tags'] else ''),
+        'before': 'Board %s (%s) -- your best five was %s' % ('-'.join(rec['prev_board']),
+                  rec['prev_texture'], rec['best_five_category_before']),
+        'card': 'The %s arrived.' % rec['new_card'],
         'changed': [c['fact'] for c in rec['changed']],
         'remained': [r['fact'] for r in rec['remained']],
         'reassess': rec['reassess'],
-        'implication': rec['planning_text'],
-        'register': rec['register'], 'confidence': rec['confidence'],
+        'strategic': rec['strategic_text'],
+        'register': rec['register'], 'strategic_register': rec['strategic_register'],
+        'confidence': rec['confidence'],
     }
 
 
-def render_html(rec):
-    """The compact street-level HTML block (what the report surface would emit). No calculation here."""
+def transition_note_text(rec):
+    """The PRODUCTION surface: plain Markdown sentences for the EXISTING per-street note renderer (no inline
+    styles, no separate HTML component -- the report's canonical note pipeline escapes and styles it). Returns
+    '' for unresolved records (no empty placeholder). The Factual facts come first; the relative-strength /
+    action line is explicitly marked 'Insufficient evidence' in words, since no range owner exists."""
     tb = teaching_block(rec)
     if tb is None:
         return ''
-    badge = ("<span style='margin-left:6px;padding:2px 8px;border-radius:10px;background:#eef2ff;"
-             "color:#3730a3;font-size:.78em;font-weight:700'>%s</span>" % tb['register'])
-    parts = ["<div style='margin:6px 0;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff'>"]
-    parts.append("<div style='font-weight:700;color:#111827'>Runout — the %s%s</div>" % (tb['new_card'], badge))
-    if tb['changed']:
-        parts.append("<div style='color:#374151'><strong>What changed:</strong> %s</div>" % ' '.join(tb['changed']))
+    out = ['**Runout — the %s.**' % tb['new_card']]
+    out.extend(tb['changed'])
     if tb['remained']:
-        parts.append("<div style='color:#374151'><strong>Still valid:</strong> %s</div>" % ' '.join(tb['remained']))
+        out.append('Still true: ' + ' '.join(tb['remained']))
     if tb['reassess']:
-        parts.append("<div style='color:#374151'><strong>Reassess:</strong> %s</div>" % ' '.join(tb['reassess']))
-    parts.append("<div style='margin-top:2px;color:#6b7280;font-size:.92em'>%s</div>" % tb['implication'])
-    parts.append("</div>")
-    return ''.join(parts)
+        out.append('Reassess: ' + ' '.join(tb['reassess']))
+    out.append('_Insufficient evidence for a strategic call:_ ' + tb['strategic'])
+    return ' '.join(s.strip() for s in out if s and s.strip())
 
 
 def _hero_turn_river_decisions(hand):
-    """Canonical enumeration of Hero's turn/river voluntary decision action indices (descriptive owner;
-    same predicate the snapshot owners use)."""
+    """Canonical enumeration of Hero's turn/river voluntary decision action indices."""
     hero = hand.get('hero', 'Hero')
     out = []
     for i, a in enumerate(hand.get('action_ledger') or []):
@@ -315,12 +405,13 @@ def _hero_turn_river_decisions(hand):
 
 
 def transitions_for_hand(hand):
-    """All resolved transition records for a hand's turn/river Hero decisions (one per decision node)."""
+    """All transition records for a hand's turn/river Hero decisions -- exactly one per street (the first
+    Hero decision node on that street). This is the PRODUCT PATH the report consumes."""
     recs = []
     seen = set()
     for street, i in _hero_turn_river_decisions(hand):
         if street in seen:
-            continue          # one transition per street (first Hero decision on that street)
+            continue
         seen.add(street)
         recs.append(build_transition(hand, i))
     return recs

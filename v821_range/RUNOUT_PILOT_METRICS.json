@@ -1,0 +1,45 @@
+{
+  "corpus": [
+    "live_test_2026-06-04",
+    "hh_today_2026-06-09",
+    "session_2026-05-27"
+  ],
+  "n_hands": 3609,
+  "eligible_turn_river_decisions": 654,
+  "resolved_complete_evidence": 589,
+  "unresolved_suppressed": 65,
+  "unresolved_reasons": {
+    "all_in_or_no_future_decision": 30,
+    "not_a_turn_or_river_node": 35
+  },
+  "descriptive_output": 589,
+  "rule_backed_coaching": 0,
+  "insufficient_evidence_strategic": 589,
+  "resolved_rate": 0.901,
+  "hero_status_distribution": {
+    "improved": 158,
+    "unchanged": 418,
+    "weakened": 13
+  },
+  "transition_tag_distribution": {
+    "connectivity_increase": 211,
+    "overcard": 124,
+    "undercard_or_brick": 123,
+    "board_paired": 95,
+    "flush_card": 68,
+    "blank_vs_hero_draws": 61,
+    "low_card_pair": 60,
+    "straight_completing": 46,
+    "top_card_pair": 35,
+    "double_paired": 19,
+    "four_flush": 15
+  },
+  "false_positive_risk": "descriptive-only; facts are canonical evaluator outputs (no verdicts)",
+  "duplicate_static_texture_commentary": "none \u2014 emits transition (before->after), not static labels",
+  "result_leaks": 0,
+  "unsupported_range_claims": 0,
+  "analyst_workload_added": 0,
+  "avg_record_bytes": 1579,
+  "runtime_seconds": 0.362,
+  "runtime_ms_per_1000_decisions": 554.02
+}

@@ -1,0 +1,387 @@
+{
+  "improved": [
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (3c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (3c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039961024",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "5c",
+      "board": "8c-8h-5d-5c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from pair to two_pair.",
+        "The board paired (5c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039960546",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "8d",
+      "board": "Qs-2c-Kd-8d",
+      "status": "improved",
+      "tags": [],
+      "changed": [
+        "Your hand improved from pair to two_pair."
+      ],
+      "reassess": []
+    }
+  ],
+  "draw_busted": [
+    {
+      "hand": "TM6039528131",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "5s",
+      "board": "9d-5c-Jh-8d-5s",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (5s)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6040091108",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "6c",
+      "board": "8d-Td-3h-Qd-6c",
+      "status": "unchanged",
+      "tags": [],
+      "changed": [],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040363511",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "4s",
+      "board": "Kd-As-Tc-Jc-4s",
+      "status": "unchanged",
+      "tags": [
+        "straight_completing",
+        "undercard_or_brick"
+      ],
+      "changed": [
+        "The board is now straight-coordinated."
+      ],
+      "reassess": [
+        "A straight is now possible -- reassess one-pair hands."
+      ]
+    },
+    {
+      "hand": "TM6040363204",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "3c",
+      "board": "6s-9s-5h-3h-3c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (3c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    }
+  ],
+  "flush_card": [
+    {
+      "hand": "TM6040064088",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "7d",
+      "board": "8c-6d-9d-5h-7d",
+      "status": "improved",
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "straight_completing"
+      ],
+      "changed": [
+        "Your hand improved from high_card to straight.",
+        "A diamonds flush is now possible."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs."
+      ]
+    },
+    {
+      "hand": "TM6040063154",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qs",
+      "board": "7s-6d-5s-Qs",
+      "status": "unchanged",
+      "tags": [
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "A spades flush is now possible.",
+        "An overcard (Qs) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs."
+      ]
+    },
+    {
+      "hand": "TM6040091108",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qd",
+      "board": "8d-Td-3h-Qd",
+      "status": "unchanged",
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "A diamonds flush is now possible.",
+        "An overcard (Qd) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs."
+      ]
+    },
+    {
+      "hand": "TM6040091108",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qd",
+      "board": "8d-Td-3h-Qd",
+      "status": "unchanged",
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "A diamonds flush is now possible.",
+        "An overcard (Qd) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs."
+      ]
+    }
+  ],
+  "board_paired": [
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (3c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (3c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039961024",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "5c",
+      "board": "8c-8h-5d-5c",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from pair to two_pair.",
+        "The board paired (5c)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    },
+    {
+      "hand": "TM6039960337",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "5h",
+      "board": "Tc-3h-5d-Qc-5h",
+      "status": "improved",
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hand improved from high_card to pair.",
+        "The board paired (5h)."
+      ],
+      "reassess": [
+        "A pair on board makes trips/full houses possible -- reassess one-pair and overpair hands."
+      ]
+    }
+  ],
+  "blank": [
+    {
+      "hand": "TM6039960337",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qc",
+      "board": "Tc-3h-5d-Qc",
+      "status": "unchanged",
+      "tags": [
+        "blank_vs_hero_draws",
+        "overcard"
+      ],
+      "changed": [
+        "An overcard (Qc) arrived above the previous board.",
+        "The Qc is a blank -- it did not change your hand or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6039528259",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Ks",
+      "board": "2h-8s-Ad-Ks",
+      "status": "unchanged",
+      "tags": [
+        "blank_vs_hero_draws"
+      ],
+      "changed": [
+        "The Ks is a blank -- it did not change your hand or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6039528259",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "4d",
+      "board": "2h-8s-Ad-Ks-4d",
+      "status": "unchanged",
+      "tags": [
+        "blank_vs_hero_draws"
+      ],
+      "changed": [
+        "The 4d is a blank -- it did not change your hand or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040364335",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "9d",
+      "board": "4s-7c-3d-9d",
+      "status": "unchanged",
+      "tags": [
+        "blank_vs_hero_draws",
+        "overcard"
+      ],
+      "changed": [
+        "An overcard (9d) arrived above the previous board.",
+        "The 9d is a blank -- it did not change your hand or the board structure."
+      ],
+      "reassess": []
+    }
+  ],
+  "unresolved": [
+    {
+      "hand": "TM6039184349",
+      "street": "river",
+      "reason": "all_in_or_no_future_decision"
+    },
+    {
+      "hand": "TM6039026288",
+      "street": "turn",
+      "reason": "not_a_turn_or_river_node"
+    },
+    {
+      "hand": "TM6039026288",
+      "street": "river",
+      "reason": "not_a_turn_or_river_node"
+    }
+  ]
+}

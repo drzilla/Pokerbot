@@ -1163,6 +1163,15 @@ def build_analyst_worklist(candidates, stats, report_data, hands,
         (bucket, proposal, conf, finality, fmodes, rq, why, grp,
          prio) = _classify(c, dn, rng, bnt, dm_block,
                            sources_by_id.get(hid, []), src_truth, action_line)
+        # handover #7 (O-03): the independent biggest-loss screen is authoritative. The session's
+        # largest losses must land in must_review, not review_if_time -- the auto-worklist previously
+        # left them in review_if_time (biggest_loss_id cross-reference was not wired). Force-promote any
+        # hand the biggest-loss screen surfaced so the largest-loss decisions are never under-prioritised.
+        if 'biggest_loss_screen' in sources_by_id.get(hid, []) and bucket != 'must_review':
+            bucket = 'must_review'
+            prio = max(prio, 95)  # sort into the must-review band (sort key is -priority)
+            if not (why or '').strip():
+                why = "One of the session's largest losses (biggest-loss screen)."
         # v8.12.11 (GPT-4/#5): surface the price failure mode wherever the
         # decision node could not produce a usable capped call amount. A
         # specific reason (e.g. side-pot/overjam reconciliation) wins over the

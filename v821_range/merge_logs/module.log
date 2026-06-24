@@ -1,0 +1,92 @@
+[1] neutral factual semantics: shared board vs Hero private-card contribution
+  PASS board pairs -> category_changed
+  PASS board pair -> Hero hole cards do NOT contribute
+  PASS board pair -> board_only_or_shared_category
+  PASS turn shared wording = exact board property (not a complete shared best-five)
+  PASS turn shared change does NOT claim "best five ... shared"
+  PASS shared change does NOT say improved
+  PASS pocket pair on paired board: contributes
+  PASS pocket pair on paired board: category pair->two_pair
+  PASS Hero-contribution wording uses "your hole cards now make"
+  PASS board-only two pair: no contribution
+  PASS board-only two pair: shared
+[2] Hero genuine private improvement (draw completion via hole cards)
+  PASS flush completes: draw_completed
+  PASS flush completes: hole cards contribute
+  PASS flush completes: wording mentions draw completed
+[3] ace-low (wheel) connectivity and completion
+  PASS A-2-3-4 turn -> four_to_a_straight (ace plays low)
+  PASS Hero completes the wheel: draw_completed
+  PASS Hero completes the wheel: best-five straight
+  PASS Hero completes the wheel: contributes
+[4] objective board tags
+  PASS overcard tag
+  PASS flush card tag
+  PASS board_paired tag
+  PASS blank tag only when nothing meaningful changed
+  PASS connectivity_decrease is not a tag
+  PASS counterfeit is not a tag anywhere
+[5] fail-closed canonical evidence (each owner forced to fail)
+  PASS made-hand failure -> unresolved missing_made_hand_evidence
+  PASS unresolved record carries NO factual claims
+  PASS unresolved record confidence is not high
+  PASS draw failure -> unresolved missing_draw_evidence
+  PASS texture failure -> unresolved missing_texture_evidence
+  PASS invalid cards -> unresolved invalid_cards
+  PASS snapshot failure -> unresolved incomplete_decision_snapshot
+[6] suppression / eligibility
+  PASS all-in turn -> unresolved all_in_or_no_future_decision
+  PASS only turn/river decisions enumerated
+[7] one record per street + no future-card leak
+  PASS exactly one record per street
+  PASS turn record board has exactly 4 cards (no river leak)
+  PASS turn record never mentions the river card
+[8] no unsupported strength wording anywhere (batch scan)
+  PASS no "showdown value" wording
+  PASS no "improved" wording
+  PASS no "improve" wording
+  PASS no "weakened" wording
+  PASS no "counterfeit" wording
+  PASS IP hand is in position
+  PASS OOP hand is out of position
+  PASS multiway hand has >=3 players
+[9] render through the REAL report note renderer + safe escaping
+  PASS note renders to a non-empty HTML string
+  PASS rendered note contains no raw script injection
+  PASS every displayed card value is a safe token
+  PASS canonical renderer escapes < and >
+  PASS unresolved record renders to empty note (no placeholder)
+[10] no false "plays the board" on flop/turn; "complete best five" reserved for a proven river board
+  PASS turn case 0 has a shared-board fact
+  PASS turn case 0 never says "plays the board"
+  PASS turn case 0 never says "supplied by the board"
+  PASS turn case 0 never says "complete best five"
+  PASS turn case 0 never says "best five is supplied"
+  PASS turn case 0 never says "best five plays"
+  PASS turn case 0 defers kickers to the hole cards
+  PASS turn case 1 has a shared-board fact
+  PASS turn case 1 never says "plays the board"
+  PASS turn case 1 never says "supplied by the board"
+  PASS turn case 1 never says "complete best five"
+  PASS turn case 1 never says "best five is supplied"
+  PASS turn case 1 never says "best five plays"
+  PASS turn case 1 defers kickers to the hole cards
+  PASS turn case 2 has a shared-board fact
+  PASS turn case 2 never says "plays the board"
+  PASS turn case 2 never says "supplied by the board"
+  PASS turn case 2 never says "complete best five"
+  PASS turn case 2 never says "best five is supplied"
+  PASS turn case 2 never says "best five plays"
+  PASS turn case 2 defers kickers to the hole cards
+  PASS _plays_pure_board is False on a 4-card turn board
+  PASS river pure-board play is detected
+  PASS river pure board -> "complete best five" claim present
+  PASS river pure board -> shared by every remaining player
+  PASS river kicker play is NOT pure-board
+  PASS river kicker -> no "complete best five" claim
+  PASS river kicker -> defers kickers to the hole cards
+[11] corpus-wide: zero flop/turn board-play phrases across the real sessions
+  PASS zero flop/turn board-play phrases in the entire real corpus
+
+RESULTS: 78 passed, 0 failed, 78 total
+ALL RUNOUT TRANSITION TESTS PASSED

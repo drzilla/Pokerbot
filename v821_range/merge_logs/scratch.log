@@ -1,0 +1,2158 @@
+C:\Users\ron\OneDrive\Desktop\Pokerbot_v8131_coverage\_test_scratch.py:7022: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+  "replace(/^[IVX]+\.\d+\s*/,'')" in _html_1231, '')
+Invalid analyst_verdict 'banana' for candidate 6950c85848e1de84 — skipping
+Analyst file not found: /nonexistent/path.json
+
+=== LAYER 1: Constants & helper unit tests ===
+  OK  T1: _EXPLOIT_READ_MAP has exactly 8 entries
+  OK  T2: all map values in VALID_EXPLOIT_READ_LABELS
+  OK  T3: VALID_EXPLOIT_READ_LABELS has 4 entries
+  OK  T4: stamp sets exploit_detector
+  OK  T4b: stamp sets exploit_type
+  OK  T4c: stamp sets exploit_outcome=missed
+  OK  T4d: stamp sets read_source
+  OK  T4e: stamp sets exploit_read_label
+  OK  T5: good outcome stamps correctly
+  OK  T6: unknown detector maps to Unknown
+  OK  T7: template has all 5 new fields
+
+=== LAYER 2: Detector behavioral tests ===
+  OK  T8: bluffed_sticky fires
+  OK  T8b: exploit_detector=bluffed_sticky
+  OK  T8c: exploit_read_label=Sticky Passive
+  OK  T8d: read_source=prior_atoms_mapped
+  OK  T9: overfolded_vs_aggro fires
+  OK  T9b: exploit_detector=overfolded_vs_aggro
+  OK  T9c: exploit_read_label=Aggressive
+  OK  T10: pivot_overplayed fires
+  OK  T10b: read_source=same_hand_pivot
+  OK  T10c: exploit_read_label=Loose Passive
+  OK  T11: missed_steal_vs_nit fires
+  OK  T11b: exploit_read_label=Nit / Rock
+  OK  T12: prior atoms -> prior_atoms_mapped
+  OK  T13: archetype fallback fires
+  OK  T13b: read_source=profiler_archetype
+  OK  T14: no-fire returns empty list
+
+=== LAYER 3: Orchestrator & integration tests ===
+  OK  T15: orchestrator returns list without crash
+  OK  T15b: orchestrator fires at least 2 detectors
+  OK  T16: exploit_read_label == _EXPLOIT_READ_MAP[exploit_detector] for all
+  OK  T17: all exploit_read_labels in VALID_EXPLOIT_READ_LABELS or Unknown
+  OK  T18: no fresh exploit uses legacy_text_inference
+
+=== T-VTS: cross-hand timestamp chronology trust fix ===
+  OK  T-VTS-09a: strictly-before True when a<b and both present
+  OK  T-VTS-09b: same-second tie is NOT strictly-before (safe-disable)
+  OK  T-VTS-09c: missing current key -> not before (disable)
+  OK  T-VTS-09d: missing atom key -> not before (disable)
+  OK  T-VTS-09e: later atom (future) is NOT before current (no leak)
+  OK  T-VTS-10a: present timestamp -> (date,time) key
+  OK  T-VTS-10b: missing hand_time -> None (no fallback)
+  OK  T-VTS-10c: missing hand_ts_date does NOT fall back to filename date
+  OK  T-VTS-01: future-hand evidence (higher TM id, LATER time) NOT admitted (no look-ahead leak)
+  OK  T-VTS-01b: prior-hand evidence (higher TM id, EARLIER time) IS admitted (timestamp controls)
+  OK  T-VTS-02: non-monotonic table-change (higher id, earlier time) admitted as prior by timestamp
+  OK  T-VTS-02b: higher id string yet ordered earlier by timestamp
+  OK  T-VTS-03: missing-timestamp evidence is NOT admitted (no hand-id fallback)
+  OK  T-VTS-03b: chronology flags the missing-timestamp tournament + warning
+  OK  T-VTS-03c: current hand with missing timestamp disables cross-hand grading
+  OK  T-VTS-04a: same-second-as-current evidence is NOT strictly before (excluded)
+  OK  T-VTS-04b: a clearly-earlier hand IS still admitted (strict < works)
+  OK  T-VTS-04c: chronology reports the same-second tie cluster + warning
+  OK  T-VTS-05: later evidence in a scrambled/concatenated fixture does NOT grade an earlier hand
+  OK  T-VTS-06a: showdown-leaked same-hand cue still blocked (no_hindsight False)
+  OK  T-VTS-06b: prior/population read still actionable (no_hindsight True)
+  OK  T-VTS-06c: same-hand cue gated on available-before-decision index
+  OK  T-VTS-07a: proven-safe chronology -> cross-hand read ENABLED
+  OK  T-VTS-07b: missing chronology -> cross-hand read DISABLED
+  OK  T-VTS-07c: same-second-tied chronology -> cross-hand read DISABLED
+  OK  T-VTS-08: diag counts valid/missing/tied correctly
+  OK  T-VTS-11: old id-order sort removed; timestamp chronology + strict gate present
+  OK  T19: Unknown exploit excluded from Matrix counts
+  OK  T19b: no Unknown key in Matrix rows
+  OK  T20: aggro detectors all map to Aggressive
+  OK  T21: sticky detectors all map to Sticky Passive
+  OK  T22: all exploits have non-empty read_source
+  OK  T22b: all read_source values are valid
+  OK  T23: Matrix counts == drilldown counts per read label
+
+=== LAYER 4: Backward compatibility & edge cases ===
+  OK  T24: legacy exploit dict renders without crash
+  OK  T25: empty hand list -> empty exploits, no crash
+  OK  T26: legacy text fallback: aggro -> Aggressive
+  OK  T27: legacy text fallback: sticky -> Sticky Passive
+  OK  T28: legacy text fallback: nit -> Nit / Rock
+  OK  T29: sections_xiv.py uses exploit_read_label for JS read_label
+
+=== LAYER 5: Golden fixture ===
+  OK  T_golden_A: overfolded_vs_aggro -> Aggressive (not Loose Passive)
+  OK  T_golden_B: ego_fought_maniac -> Aggressive (not Nit/Rock)
+  OK  T_golden_C: unknown detector -> Unknown label
+  OK  T_golden_C2: Unknown label NOT in VALID set
+
+=== LAYER 6: Good exploit tests ===
+  OK  T30: good_fold_vs_passive_aggro fires
+  OK  T30b: exploit_outcome=good
+  OK  T30c: exploit_read_label=Loose Passive
+  OK  T30d: auto_verdict=good_exploit
+  OK  T31: air fold excluded (no good exploit)
+  OK  T32: good_steal_vs_nit fires
+  OK  T32b: exploit_outcome=good
+  OK  T32c: exploit_read_label=Nit / Rock
+  OK  T33: premium hand excluded from good_steal (AKo)
+  OK  T34a: AA is premium
+  OK  T34b: KK is premium
+  OK  T34c: QQ is premium
+  OK  T34d: AKo is premium
+  OK  T34e: AQo is NOT premium
+  OK  T34f: JJ is NOT premium
+  OK  T35: Exploit Opps = Missed + Good
+  OK  T36: all verdicts are missed_exploit or good_exploit
+  OK  T37: all good exploit labels valid
+  OK  T38: no exploit duplicates
+  OK  T39: Matrix has Good column header
+  OK  T40: drilldown has good filter
+  OK  T41: no hand has both missed+good for same detector
+
+=== LAYER 7: v8.8.5 — Phase 1 bug fixes ===
+  OK  T42: popup atom has dimension
+  OK  T43a: J3s not 3Js
+  OK  T43b: QTo not TQo
+  OK  T43c: A7s not 7As
+  OK  T44: cEV/100 total row computed
+  OK  T45: %Lost in exits header
+  OK  T46: %Lost calculation present
+  OK  T47: Result column header
+  OK  T48: silent fallback removed
+
+=== LAYER 7: v8.8.5 — Phase 2 evidence backfill (P0.3) ===
+  OK  T49a: _make_atom stores hero_position
+  OK  T49b: _make_atom stores hero_cards
+  OK  T49c: _make_atom stores board
+  OK  T49d: _make_atom stores villain_action
+  OK  T49e: _make_atom stores context_text
+  OK  T49f: _make_atom stores detail_status default
+  OK  T50a: _hand_context extracts hero position
+  OK  T50b: _hand_context extracts hero cards
+  OK  T50c: _hand_context extracts board
+  OK  T51: _hand_context fallback to hero_position
+  OK  T52: detect_open_limp populates context_text
+  OK  T53: popup serialization has all 9 P0.3 fields
+  OK  T54: JS renders context_text in evidence table
+
+=== LAYER 7: v8.8.5 — Phase 3 vague diagnostic fix ===
+  OK  T55a: AMBIGUOUS verdict enumerates gates
+  OK  T55b: AMBIGUOUS names the failing gate
+  OK  T55c: AMBIGUOUS_AGGRESSIVE enumerates gates
+
+=== LAYER 7: v8.8.5 — Phase 4 tournament context ===
+  OK  T56: RACER format detection in parser
+  OK  T57: SATELLITE format still in parser
+  OK  T58: perTournamentPnlRows serialized
+
+=== LAYER 7: v8.8.5 — Phase 6 villain assumptions ===
+  OK  T59a: assumption_confidence=high for 7 atoms
+  OK  T59b: assumption_confidence=medium for 4 atoms
+  OK  T59c: assumption_confidence=low for 1 atom
+  OK  T59d: explicit confidence overrides n_atoms
+  OK  T60a: prior_atoms_mapped source label
+  OK  T60b: profiler_archetype source label
+  OK  T60c: same_hand_pivot source label
+  OK  T60d: assumption_source in JS exploit serialization
+  OK  T60e: assumption block in exploit drilldown
+
+--- Layer 8: v8.8.6 GPT QA bug fixes ---
+  OK  T61: context-pill in _md_inline whitelist
+  OK  T62a: P&L uses DOMContentLoaded
+  OK  T62b: P&L has idempotency guard
+  OK  T63: _villain_has_read returns 4-tuple
+  OK  T64: n_atoms > 0 for prior_atoms source
+  OK  T65: n_atoms interpolated in assumption_source
+  OK  T65b: archetype source no atom count
+  OK  T66: subtotal cEV/100 in sections_financial
+  OK  T67a: gate scrub strips _TURN suffix
+  OK  T67b: UNKNOWN mapped to human-readable label
+  OK  T67c: HERO_AGGRESSIVE maps to plain English
+  OK  T68: Bustouts filter in P&L table
+  OK  T69a: satellite caveat on verdict line
+  OK  T69b: satellite caveat inlined in coaching text
+  OK  T70: no 3-tuple unpack of _villain_has_read
+  OK  T71a: no \x27 in exploit drilldown onclick
+  OK  T71b: &#39; used in drilldown onclick
+  OK  T72: P&L init called after data assignment
+  OK  T73: satellite coaching text caveats "the leak"
+  OK  T74a: CORRECTLY_PASSIVE plain English
+  OK  T74b: MISSED_AGGRESSION plain English
+
+--- Layer 8 continued: v8.8.6 V6 QA fixes ---
+  OK  T75a: exploit_read_label canonical (no emoji)
+  OK  T75b: exploit_read_display has emoji
+  OK  T75c: read_label == exploit_read_label invariant
+  OK  T76a: 1 atom (singular)
+  OK  T76b: 4 atoms (plural)
+  OK  T77: Bustouts uses Number(r.roi)
+  OK  T78a: satellite caveat in S17.3 severity
+  OK  T79a: _READ_EMOJI has 5 entries
+  OK  T79b: _READ_EMOJI covers all valid labels
+  OK  T80: sections_iv_xii uses _canon for label normalisation
+  OK  T81: exploit_read_display in JS popup
+
+--- Layer 8 continued: v8.8.6 S1-fix + B-HG1 ---
+  OK  T82a: XIV.B satellite caveat on flag explanation
+  OK  T82b: XIV.B applies .replace on deviation phrase
+  OK  T83: MDA coaching path applies satellite caveat
+  OK  T84: deviation label satellite caveat on CLEAR confidence
+  OK  T85a: _argument_is_structured has isinstance guard
+  OK  T85b: note loop has str coercion
+  OK  T86: all 3 emit paths apply satellite coaching caveat
+
+--- Layer 9: v8.8.6 raise-size display + verdict chips ---
+  OK  T87a: _current_bet tracking variable exists
+  OK  T87b: _raise_count tracking variable exists
+  OK  T88a: preflop Open to label
+  OK  T88b: preflop 3-bet to label
+  OK  T88c: preflop 4-bet to label
+  OK  T88d: preflop 5-bet to label
+  OK  T89: raise-to level sourced from the canonical replay (raw current_bet+amt only as fallback)
+  OK  T90: all-in JAM headline uses the canonical _jam_headline (adds physical / all-in to level)
+  OK  T91: postflop raise label is Raise to
+  OK  T92a: verdict-chip-row div exists in modal HTML
+  OK  T92b: Agree chip with data-verdict
+  OK  T92c: Debate chip with data-verdict
+  OK  T92d: Report bug chip with data-verdict
+  OK  T92e: Clear verdict button exists
+  OK  T93a: modal-review-status select hidden
+  OK  T93b: chip click handler dispatches change event
+  OK  T93c: loadReview syncs verdict chips
+  OK  T93d: verdict chip CSS — agree active green
+  OK  T93e: verdict chip CSS — debate active amber
+  OK  T93f: verdict chip CSS — bug active red
+  OK  T93g: section audit-status select still visible (not hidden)
+
+--- Layer 10: v8.8.6 VH + HA architecture implementation ---
+  OK  T-VH1a: SIGNAL_COACHING has all 10 signals
+  OK  T-VH1b: each entry has suggests/so_what/default_timing
+  OK  T-VH2a: atom has suggests field
+  OK  T-VH2b: atom has so_what field
+  OK  T-VH2c: atom has default_timing field
+  OK  T-VH3a: _build_hand_opponent_contexts function exists
+  OK  T-VH3b: all 4 buckets referenced
+  OK  T-VH4: _classify_timing uses available_before_action_index
+  OK  T-VH5: unknown timing -> villain_evidence downgrade
+  OK  T-VH6a: coaching block container in modal JS
+  OK  T-VH6b: coaching block renders all 4 bucket types
+  OK  T-VH7: severity C uses Small Miss label
+  OK  T-VH8a: villain_badges parameter in grid renderer
+  OK  T-VH8b: villain badge span rendered
+  OK  T-VH8c: badge types vb-note vb-pivot vb-miss vb-good in CSS
+  OK  T-VH9: villain street notes with so_what
+  OK  T-HA1: handReferenceAudit in draft.py
+  OK  T-HA2: handAvailability in draft.py
+  OK  T-HA3: openHandListPopup uses handAvailability for fallback
+  OK  T-HA4: generic "detail not in appendix" retired
+  OK  T-HA5: popup header includes hand count
+  OK  T-HA6: handOpponentContexts serialized in sections_xiv.py
+  OK  T-VH10: _EXPLOIT_COACHING covers all exploit detectors
+  OK  T-VH11a: exploit has suggests field
+  OK  T-VH11b: exploit has so_what field
+  OK  T-VH12: _build_villain_badges function exists
+  OK  T-VH13: villain_badges passed to grid at both call sites
+  OK  T-VH14: coaching block CSS exists
+  OK  T-VH15: villain badge CSS exists
+  OK  T-HA7: _esc helper defined in _html.py JS
+  OK  T-VH16: _TIMING_LABELS dict exists
+  OK  T-HA8: villain street notes CSS exists
+
+--- Layer 11: HA Phase 3 - Priority Registration ---
+  OK  T-HA9: _APPENDIX_HAND_PRIORITIES in _state.py
+  OK  T-HA10: _register_hand_priority function exists
+  OK  T-HA11: priority keeps best (lowest)
+  OK  T-HA12: _reset_citations clears priorities
+  OK  T-HA13: _popup_example_ids has priority param
+  OK  T-HA14: _register_hids_for_appendix has priority param
+  OK  T-HA15: budget planner in draft.py
+  OK  T-HA16: budget_trimmed state in frontend
+  OK  T-HA17a: P0 missed 3-bet annotation
+  OK  T-HA17b: P0 J44 sizing deviations
+  OK  T-HA17c: P0 missed squeeze teaching
+  OK  T-HA18a: P1 missed BB defends
+  OK  T-HA18b: P1 leak candidates in mistakes
+  OK  T-HA18c: P1 fold-to-cbet drill
+  OK  T-HA19: P0 Issue Explorer annotation
+  OK  T-HA20: P1 villain evidence annotation
+  OK  T-HA21: budget_trimmed in draft.py HA classification
+  OK  T-HA22: _popup_example_ids calls _register_hand_priority
+  OK  T-HA23: XIV.B P0/P1 cap bypass
+  OK  T-HA24: atoms_by_hand fix in _build_hand_opponent_contexts
+  OK  T-HA25: atoms_by_hand in _build_villain_badges
+  OK  T-HA26: atoms_by_hand in yellow street notes
+  OK  T-VH10: top one-liner for exploit hands
+  OK  T-VH11: severity C compact shows timing + hero action
+  OK  T-VH12: read signal line in exploit blocks
+  OK  T-VH13: Bucket C uses compact v25-ve-inline format
+  OK  T-VH14: yellow street notes have Actionable now line
+  OK  T-VH15: yellow street notes badge + suggests
+  OK  T-VH16: evidence disclaimer removed from Bucket C
+  OK  T-VH17: one-liner CSS
+  OK  T-IQ1: buildInlineHandQueueFromClickedRef JS function
+  OK  T-IQ2: isHandDetailAvailable helper
+  OK  T-IQ3: collectHandIdsFromQueueContainer helper
+  OK  T-IQ4: click handler inline queue branch
+  OK  T-IQ5: back-to-list handles inline_table
+  OK  T-IQ6: dynamic back button label
+  OK  T-IQ7: inlineHandQueueAudit debug object
+  OK  T-IQ8: IE rep tables have queue metadata
+  OK  T-IQ9: back-to-table scrolls to source
+  OK  T-IQ10: sourcePath dedup in queue bar
+  OK  T-AV1: candidate builder returns list
+  OK  T-AV2: all 5 source_types generated
+  OK  T-AV3: candidate dedup — no hand+villain duplicates
+  OK  T-AV4: budget cap respected
+  OK  T-AV5: priority ordering P0 < P1 < P2
+  OK  T-AV6: candidate has all required fields
+  OK  T-AV7: evidence_summary non-empty on all candidates
+  OK  T-AV8: worksheet round-trips
+  OK  T-AV9: analyst review loads valid JSON
+  OK  T-AV10: invalid verdict rejected
+  OK  T-AV11: missing analyst file no crash
+  OK  T-AV12: candidate_id is stable hash
+  OK  T-AV13: candidate_reason on all candidates
+  OK  T-AV14: mixed_signal has dimension_counts
+  OK  T-AV15: timing_unclear has action-index fields
+  OK  T-AV16: by_hand_villain index populated
+  OK  T-AV17: by_hand_villain contains exploit_miss for 39960264+v01
+  OK  T-AV18: rejected good_exploit filtered from contexts
+  OK  T-AV19: confirmed exploit_miss has analyst_coaching
+  OK  T-AV20: upgraded atom has analyst_learning bucket
+  OK  T-AV21: fallback label for non-reviewed coaching blocks
+  OK  T-AV22: analyst_learning bucket CSS present
+  OK  T-AV23: analyst badge rendering in JS
+  OK  T-HG1: hand grid render loop skips posts actions
+  OK  T-HG2: hero action index helper skips posts
+  OK  T-HG3: hero verbs exclude posts action
+  OK  T-PLO1: PLO shadow block present in gem_analyzer.py
+  OK  T-PLO2: downstream game_type gate still present (safety net)
+  OK  T-PLO3: PLO hands excluded from strategic iteration
+  OK  T-V25-1: V25 CSS classes present
+  OK  T-V25-2: V25 modal HTML structure in _MODAL_HTML
+  OK  T-V25-3: buildModalHandV25 function exists
+  OK  T-V25-4: Review controls preserved in _MODAL_HTML
+  OK  T-V25-5: hand-modal-title ID preserved
+  OK  T-V25-6: hand-queue-context ID preserved
+  OK  T-V25-7: GTOW clone preserves original class
+  OK  T-V25-8: No overflow:hidden on V25 street ancestors
+  OK  T-V25-9: Legacy fallback wrapper exists
+  OK  T-V25-10: Queue functions all present
+  OK  T-V25-11: Analyst handoff rendering preserved
+  OK  T-V25-12: V25 handles all coaching bucket types
+  OK  T-V25-13: Review storage IDs in _MODAL_HTML
+  OK  T-V25-14: list-modal and villain-evidence-modal preserved
+  OK  T-V25-15: _hand_grid.py unchanged (SHA256)
+  OK  T-V25-16: _hydrateV25TopBar exists and called in openHand
+  OK  T-V25-17: buildModalHand wrapper has try/catch/fallback
+  OK  T-V25-18: Opponent coaching dedup via routing tracking
+  OK  T-BF1-1: BUG-1 — category field used in _ai_ids (not equity threshold)
+  OK  T-BF1-2: BUG-1 — no equity threshold buckets remain
+  OK  T-BF3-1: BUG-3 — auto_verdicts dict built in analyzer
+  OK  T-BF3-2: BUG-3 — sections_xiv reads auto_verdicts as fallback
+  OK  T-BF3-3: BUG-3 — auto badge rendered for auto-verdicts
+  OK  T-BF4-1: BUG-4 — no catch-all else Note badge
+  OK  T-BF4-2: BUG-4 — passive_aggro_pivot badge preserved
+  OK  T-BF5-1: BUG-5 — GTOW flop-root gated on not pf_allin
+  OK  T-BF6-1: BUG-6 — _in_rj initialized before REJAM block
+  OK  T-BF6-2: BUG-6 — R4 branches on range membership
+  OK  T-BF6-3: BUG-6 — R4 in-range check uses _in_rj
+  OK  T-FEAT-1: Arrow key handler has editable-field focus guard
+  OK  T-BF2-1: _PUSH_DEPTH_MAX extended to 25
+  OK  T-BF2-2: _STEAL_DEPTH_MAX preserved at 15 for R1
+  OK  T-BF2-3: R1 uses _STEAL_DEPTH_MAX (not _PUSH_DEPTH_MAX)
+  OK  T-BF2-4: R2 has out-of-range gate (R2_open_shove_out_of_range)
+  OK  T-BF2-5: _in_push initialized for R2 verdict gating
+  OK  T-BF2-6: JAM_ chart prefix searched in push citation
+  OK  T-BF2-7: Position aliasing map exists
+  OK  T-BF2-8: Depth quantization tiers in push citation
+  OK  T-BF2-9: No-jam-range detection for positions without charts
+  OK  T-BF2-10: Villain push citation extended to _PUSH_DEPTH_MAX
+  OK  T-BF2-11: GTOW ChipEV section exists in range file
+  OK  T-BF2-12: JAM_12BB charts present
+  OK  T-BF2-13: JAM_15BB charts present
+  OK  T-BF2-14: JAM_20BB charts present (BTN+SB only)
+  OK  T-BF2-15: JAM_25BB_SB chart present
+  OK  T-BF2-16: No-jam note for EP at 20BB
+  OK  T-BF2-17: JAM_12BB_CO loads via gem_ranges
+  OK  T-BF2-18: JAM_20BB_BTN loads with thin range
+
+=== v8.9.1: Drop Audit Regression + UX + Raw Stats ===
+  OK  T-891-01: board-tex class present in _hand_grid.py
+  OK  T-891-02: draw-profile class present in _hand_grid.py
+  OK  T-891-03: villain-mini class present in _hand_grid.py
+  OK  T-891-04: push-verdict class present in _hand_grid.py
+  OK  T-891-05: _ps(p, stk pattern in action format strings
+  OK  T-891-06: _effective_amt function defined in _hand_grid.py
+  OK  T-891-07: _grid_stack function defined in _hand_grid.py
+  OK  T-891-08: _eai_html fragment initialized
+  OK  T-891-09: _arch_html fragment initialized
+  OK  T-891-10: _push_verdict_attr fragment initialized
+  OK  T-891-11: _calljam_html fragment initialized
+  OK  T-891-12: json.dumps used for JS onclick safety
+  OK  T-891-13: html.escape used for villain alias safety
+  OK  T-891-14: villain_archetype_label reads from h, not app_details
+  OK  T-891-15: villain_exploit_note reads from h, not app_details
+  OK  T-891-14: sec-5-5 emitted in both if/else paths
+  OK  T-891-15: sec-5-6 emitted in both if/else paths
+  OK  T-891-16: sec-11-4b emitted in both if/else paths
+  OK  T-891-17: Raw Stats filter does NOT exclude 0
+  OK  T-891-18: Raw Stats filter line keeps 0 and 0.0 values
+  OK  T-891-19: ICM flat alert uses phase check (not icm_pressure)
+  OK  T-891-20: icm_pressure >= 0.5 gate removed
+  OK  T-891-21: Push-range comment says <=25BB (not <=15BB)
+  OK  T-891-22: VERSION is v8.12.0
+  OK  T-891-23: _sort_cards_desc used for flop ordering
+  OK  T-A-01: mobile .v25-hand has padding-bottom with v25-review-h
+  OK  T-A-02: analyst-notes early-return for headerless divs
+  OK  T-A-03: verdict extracts from first <p> before textContent
+  OK  T-A-04: villain row has evidence link button
+  OK  T-A-05: metadata normalizer uses anchored skip regexes
+  OK  T-A-06: stack context preserves source summary text
+  OK  T-A-07: hero-phase querySelector in V25 preflop
+  OK  T-A-08: v25-compact-queue class in queue rendering
+  OK  T-A-09: v25-queue-main-row and v25-queue-chip-rail present
+  OK  T-A-10: v25-queue-btn replaces inline style buttons
+  OK  T-A-11: postflop title is Board + hero hand
+  OK  T-A-12: .ann-bare V25 rule has font-size 1.15em
+  OK  T-A-13: desktop grid 190px 390px minmax(0, 1fr)
+  OK  T-A-14: .modal-panel.v25-panel desktop width override
+  OK  T-A-15: semantic column classes present
+  OK  T-A-16: overflow-wrap anywhere on commentary paragraphs
+  OK  T-A-17: scroll-margin-top uses var(--sticky-offset)
+  OK  T-B-01: _norm8 function in draft.py
+  OK  T-B-02: handAvailability JS lookup uses normalizeHandId
+  OK  T-B-03: no inline onclick openHand in sections_issue_explorer
+  OK  T-B-04: data-hand-queue-group in sections_financial suckout
+  OK  T-B-05: _collectByQueueGroup function in JS
+  OK  T-B-06: collectHandIdsFromQueueContainer has group filter
+  OK  T-B-07: scroll-margin-top uses var(--sticky-offset) (item 11 verify)
+  OK  T-C-01: _hero_made_html pattern in _hand_grid.py
+  OK  T-C-02: _describe_made_hand called for hero (not just villain)
+  OK  T-C-03: _hero_made_html pre-initialized to empty (fail-soft)
+  OK  T-C-04: villain made-hand span still present (no regression)
+  OK  T-C-05: hero made-hand only appears when went_sd is true
+  OK  T-C-06: hero made-hand uses "Hero:" label (guardrail 7)
+
+--- Mobile Table Readability Tests ---
+  OK  T-MOB-01: _md_to_html auto-classifies tables with data-mobile-mode
+  OK  T-MOB-02: scroll mode assigned when >=5 visible columns (no prose)
+  OK  T-MOB-03: --mobile-table-min-width CSS var computed
+  OK  T-MOB-04: scroll mode CSS — swipe hint
+  OK  T-MOB-05: scroll mode CSS — sticky first column
+  OK  T-MOB-06: scroll mode CSS — horizontal scroll wrapper
+  OK  T-MOB-07: scroll mode CSS — min-width from CSS var
+  OK  T-MOB-08: page-level overflow prevention
+  OK  T-MOB-09: hand-list mode CSS — hide original table on mobile
+  OK  T-MOB-10: hand-list mode CSS — show mobile-hand-list
+  OK  T-MOB-11: desktop hides mobile-only views
+  OK  T-MOB-12: mobile-hand-row card structure in CSS
+  OK  T-MOB-13: open-hand-btn class in mobile CSS
+  OK  T-MOB-14: mobile-tag classes with good/bad/warn variants
+  OK  T-MOB-15: evidence-card mode CSS exists
+  OK  T-MOB-16: evidence-card grid layout (2-col key/value)
+  OK  T-MOB-17: evidence-card body styling
+  OK  T-MOB-18: compact mode CSS tightens padding
+  OK  T-MOB-19: JS _buildMobileHandRows function
+  OK  T-MOB-20: JS mobileTableAudit object
+  OK  T-MOB-21: JS audit counts all 4 modes
+  OK  T-MOB-22: JS hand-row builder preserves data-hand-id
+  OK  T-MOB-23: IE main table (ie-tbl) has scroll mode
+  OK  T-MOB-24: IE rep-hands table has hand-list mode
+  OK  T-MOB-25: IE drill-down table has scroll mode
+  OK  T-MOB-26: IE evidence/sub tables have compact mode
+  OK  T-MOB-27: exploit matrix table has scroll mode
+  OK  T-MOB-28: IE drill-down table has table-scroll wrapper
+  OK  T-MOB-29: all mobile CSS inside @media(max-width:768px)
+  OK  T-MOB-30: no page-level overflow introduced by table-shell
+  OK  T-MOB-31: evidence-card auto-detect uses header keywords
+  OK  T-MOB-32: evidence keywords include verdict and misplay
+  OK  T-MOB-33: evidence-card needs both hand + prose columns
+  OK  T-MOB-34: evidence-card overrides scroll for prose tables
+  OK  T-MOB-35: version bumped to v8.12.0
+  OK  T-V254-01: hand-list table hide requires has-mobile-cards class
+  OK  T-V254-02: evidence-card table hide requires has-mobile-cards class
+  OK  T-V254-03: hand-list fallback scroll when no mobile cards
+  OK  T-V254-04: evidence-card fallback scroll when no mobile cards
+  OK  T-V254-05: JS hand-list builder adds has-mobile-cards class
+  OK  T-V254-06: JS evidence-card builder function exists
+  OK  T-V254-07: evidence-card builder called in init
+  OK  T-V254-08: evidence-card builder adds has-mobile-cards class
+  OK  T-V254-09: swipe hint uses literal arrow characters
+  OK  T-V254-10: no octal-mangled swipe hint
+
+--- V25.4 P1-1/P1-2: Dynamic sticky vars + scroll-margin ---
+  OK  T-V254-11: _syncV25StickyVars function defined
+  OK  T-V254-12: _syncV25StickyVars measures topbar offsetHeight
+  OK  T-V254-13: _syncV25StickyVars measures queue offsetHeight
+  OK  T-V254-14: _syncV25StickyVars measures review offsetHeight
+  OK  T-V254-15: _syncV25StickyVars called in openHand
+  OK  T-V254-16: resize listener calls _syncV25StickyVars
+  OK  T-V254-17: resize listener debounced
+  OK  T-V254-18: hardcoded :root fallback still present
+  OK  T-V254-19: setProperty writes to .v25-panel (scoped, not :root)
+  OK  T-V254-20: .v25-street has scroll-margin-top
+  OK  T-V254-21: queue hidden state handled (display===none => 0)
+
+--- V25.4 P1-3: Metadata skip hardening ---
+  OK  T-V254-22: _metaSkips includes Mistake keyword
+  OK  T-V254-23: _metaSkips includes Correct keyword
+  OK  T-V254-24: _metaSkips includes Borderline keyword
+  OK  T-V254-25: _metaSkips includes Flagged keyword
+  OK  T-V254-26: _metaSkips includes Reviewed keyword
+  OK  T-V254-27: _metaSkips includes Cleared keyword
+  OK  T-V254-28: _metaSkips includes Punt keyword
+  OK  T-V254-29: status skip is case-insensitive
+  OK  T-V254-30: original skip regexes preserved (L-level, BP, SPR, SRP, showdown)
+
+--- V25.4 P1-4: Verdict text strip xref/link noise ---
+  OK  T-V254-31: verdict uses cloneNode before text extraction
+  OK  T-V254-32: verdict clone strips <a> elements
+  OK  T-V254-33: verdict clone strips .xref elements
+  OK  T-V254-34: verdict clone strips .hand-ref elements
+  OK  T-V254-35: verdict clone strips .mh-links elements
+  OK  T-V254-36: stray arrow chars stripped from verdict text
+  OK  T-V254-37: mentioned-in backlinks still extracted separately
+
+--- V25.4 P1-5: analyst_learning street fallback ---
+  OK  T-V254-38: analyst_learning routing uses ctx.street fallback
+  OK  T-V254-39: fallback chain is hero_decision_street||ctx.street||empty
+
+--- V25.4 P1-6: Street-routed exploit fallback label ---
+  OK  T-V254-40: street-routed exploit blocks get fallback label
+  OK  T-V254-41: fallback filters exploit_miss and good_exploit buckets
+  OK  T-V254-42: fallback checks analyst_reviewed before showing label
+  OK  T-V254-43: bottom-contexts fallback label still present
+
+--- V25.4 P1-7: Villain fallback normalization ---
+  OK  T-V254-44: villain fallback no longer clones DOM
+  OK  T-V254-45: villain fallback splits facing-strip into chips
+  OK  T-V254-46: villain fallback detects coverage in chip text
+  OK  T-V254-47: structured villain row still uses villainIntel
+
+--- V25.4 P1-8: Coverage from stack-context fallback ---
+  OK  T-V254-48: coverage checks stackEl text as fallback
+  OK  T-V254-49: coverage combines facing-strip + stack-context text
+  OK  T-V254-50: covers Hero regex still present in coverage
+
+--- V25.4 P1-9: Review pills CSS ---
+  OK  T-V254-51: .review-pill base CSS exists
+  OK  T-V254-52: .review-none variant CSS exists
+  OK  T-V254-53: .review-some variant CSS exists
+  OK  T-V254-54: .review-all variant CSS exists
+  OK  T-V254-55: .review-na variant CSS exists
+  OK  T-V254-56: .review-missing variant CSS exists
+  OK  T-V254-57: JS pbReviewPillHTML function still generates pills
+
+--- V25.4 P1-10: Hand-list trigger label clarity ---
+  OK  T-V254-58: naked number triggers get "hands" suffix
+  OK  T-V254-59: BB value triggers get "BB" suffix
+  OK  T-V254-60: aria-label set from data-list-title
+  OK  T-V254-61: existing descriptive labels skipped
+
+--- V25.4 P1-11/P1-12: Search placeholder + Reset de-emphasis ---
+  OK  T-V254-62: search placeholder is descriptive
+  OK  T-V254-63: reset button uses outline style (not solid red bg)
+  OK  T-V254-64: reset button border is soft red
+  OK  T-V254-65: reset button label is lowercase with ellipsis
+
+--- V25.4 P2: Polish items ---
+  OK  T-V254-66: queue reason uses CSS class (not inline style)
+  OK  T-V254-67: v25-queue-reason CSS class defined
+  OK  T-V254-68: queue also-appears uses CSS class
+  OK  T-V254-69: street-actions selector preferred over bare td
+  OK  T-V254-70: street-actions fallback to all tbody td
+  OK  T-V254-71: review empty state has actionable copy
+  OK  T-V254-72: export/import buttons use review-json-btn class
+  OK  T-V254-73: review-json-btn CSS defined
+  OK  T-V254-74: modal close button min-height 36px
+
+--- V25.4+ GPT-QA + Usability fixes ---
+  OK  T-V254-75: queue bar uses display:block not flex
+  OK  T-V254-76: sticky vars measured after layout (rAF)
+  OK  T-V254-77: review bar ResizeObserver resync
+  OK  T-V254-78: metadata classifies Type/Phase/Eff separately
+  OK  T-V254-79: Hero emitted before Eff in metadata order
+  OK  T-V254-80: facing-strip fallback clones .facing-action
+  OK  T-V254-81: verdict clear button says "Clear" not "Clear verdict"
+  OK  T-V254-82: also-appears inserted inside .v25-compact-queue
+  OK  T-V254-83: scroll-mode tables override card-mode CSS
+  OK  T-V254-84: evidence-card builder falls back to first-row th
+  OK  T-V254-85: BB value triggers include "hands" in label
+  OK  T-V254-86: review pill uses text not symbols for compact
+  OK  T-V254-87: all-reviewed pill says "Reviewed"
+
+=== v8.9.5 TESTS ===
+  OK  T-V254-88: BUG-D getAttribute data-street in note routing
+  OK  T-V254-89: BUG-D street normalization regex
+  OK  T-V254-90: BUG-E _dedupTextKey helper exists
+  OK  T-V254-91: BUG-E containment check
+  OK  T-V254-92: stackEl uses toUpperCase
+  OK  T-V254-93: BUG-2 _ws_date_compact in gem_analyzer.py
+  OK  T-V254-94: BUG-3 _IE_JS is raw string
+  OK  T-V254-95: BUG-D analytics data-street stamp
+  OK  T-V254-96a: data-mobile-mode on .table-shell + valid values only
+  OK  T-V254-96: old card-mode gated with :not([data-mobile-mode])
+  OK  T-V254-97: scroll-mode display table + max-content
+  OK  T-V254-98: compact-mode display table-cell
+  OK  T-V254-99: IE mobile CSS has grid-template-areas
+  OK  T-V254-100: IE bottom-sheet ie-mobile-detail-open class
+  OK  T-V254-101: IE mobile close button
+  OK  T-V254-101b: IE click guard pieces
+  OK  T-V254-102: bottom controls padding-bottom 132px
+  OK  T-V254-103: evidence-card _previewPriority with verdict first
+  OK  T-V254-103b: evidence preview + details separate elements
+  OK  T-V254-104: has-mobile-cards added AFTER card append (order-based)
+
+=== v8.9.5 TESTS ===
+  OK  T-V255-01: queue-bar uses min-height: 0 not var(--v25-queue-h)
+  OK  T-V255-02: --v25-queue-h still measured by _syncV25StickyVars
+  OK  T-V255-03: facing-strip fallback clones before text extraction
+  OK  T-V255-04: clone removes .facing-action before text extraction
+  OK  T-V255-05: Evidence chip filter guard in fallback
+  OK  T-V255-06: text extracted from clone not original
+  OK  T-V255-07: emoji-prefix guard in metadata skip list
+  OK  T-V255-08: coverage uses row-specific parsing when v_number available
+  OK  T-V255-09: coverage falls back to full stack text when no identity
+  OK  T-V255-10: coverage still checks alias as alternative to v_number
+  OK  T-V255-11: double requestAnimationFrame for sticky sync kept
+  OK  T-V255-12: ResizeObserver for review bar kept
+  OK  T-V255-13: legacy fallback wrapper kept
+  OK  T-V255-14: Clear verdict label kept
+
+=== v8.9.6 TESTS ===
+  OK  T-V256-01: _eval7_id or _evaluate_cards import attempted
+  OK  T-V256-02: _MC_SAMPLES default is 20000
+  OK  T-V256-03: remaining_id variable exists in equity function
+  OK  T-V256-04: _Card = None guard in except block
+  OK  T-V256-05: .v25-hand max-width is 1220px
+  OK  T-V256-06: grid columns 190px 390px
+  OK  T-V256-07: .v25-top-cards .card font-size 15px
+  OK  T-V256-08: v25-hand-name-stage uses createElement(div)
+  OK  T-V256-09: _appendV25WhyLine function exists
+  OK  T-V256-10: v25-queue-reason line suppressed
+  OK  T-V256-11: street nav chips removed
+  OK  T-V256-12: .v25-street-head has position: sticky in BASE rule
+  OK  T-V256-13: hydrateV25CommentaryCollapse function exists
+  OK  T-V256-14: .v25-commentary-toggle CSS exists
+  OK  T-V256-15: v25-ve-inline class in villain_evidence rendering
+  OK  T-V256-16: Suggests: in villain_evidence block
+  OK  T-V256-17: Villain Evidence Collected heading removed
+  OK  T-V256-18: evidence collection disclaimer removed
+  OK  T-V256-19: Read timing removed from evidence block
+  OK  T-V256-20: _clusterVillainEvidence function exists with street in key
+  OK  T-V256-21: no .v25-ve-mark action-column marker rendered
+  OK  T-V256-22: smoke test compares private vs public evaluator values
+  OK  T-V256-23: grid preserves third column minmax(0,1fr)
+  OK  T-V256-24: no cluster without signal key
+  OK  T-V256-25: cluster merge preserves suggests and so_what
+  OK  T-V256-26: label dedup + Unknown villain fallback
+
+=== v8.10.0 COACHING CARDS TESTS ===
+  OK  T-CC-01: no numeric equity without range
+  OK  T-CC-02: no HU equity in multiway
+  OK  T-CC-03: HU at decision allows equity
+  OK  T-CC-04: pot validation fails on zero pot
+  OK  T-CC-05: game context format in facts
+  OK  T-CC-06: bounty card produced for BOUNTY format
+  OK  T-CC-07: mystery bounty gets medium confidence
+  OK  T-CC-08: bounty-only call mentions bounty in headline
+  OK  T-CC-09: hero does not cover detected
+  OK  T-CC-10: ICM suppresses confident chip-EV
+  OK  T-CC-11: satellite takes priority over ICM
+  OK  T-CC-12: hard action ranking without alternatives rejected
+  OK  T-CC-13: good verdict with chart-standard passes
+  OK  T-CC-14: disciplined fold template with fold action
+  OK  T-CC-15: display_card has provenance field
+  OK  T-CC-16: blocker_facts disabled in Phase 1
+  OK  T-CC-17: hero_range_facts disabled in Phase 1
+  OK  T-CC-18: villain reads available_before_decision is True
+  OK  T-CC-19: villain_read_safe False with zero evidence
+  OK  T-CC-20: fold contradicts chart-standard auto-verdict
+  OK  T-CC-21: _clamp_words enforces word limit
+  OK  T-CC-22: no mixed-action card type in Phase 1
+  OK  T-CC-23: no sizing card type in Phase 1
+  OK  T-CC-24: no duplicate card types per hand
+  OK  T-CC-25: existing action display preserved
+  OK  T-CC-26: existing villain badges preserved
+  OK  T-CC-27: existing thumbs-up/down preserved
+  OK  T-CC-28: existing GTOW button preserved
+  OK  T-CC-29: existing copy/reset notes preserved
+  OK  T-CC-30: existing analyst notes still render
+  OK  T-CC-31: mobile range text max-width + ellipsis
+  OK  T-CC-32: max card limits enforced (1 primary per hand)
+  OK  T-CC-33: feedback metadata stores provenance fields
+
+  -- Phase 2: blocker + range awareness --
+  OK  T-CC-40: blocker_facts enabled on 3-flush board with A of suit
+  OK  T-CC-41: blocker_facts disabled with <3 board cards
+  OK  T-CC-42: no_flush_blocker when hero has no hearts
+  OK  T-CC-43: paired_board_blocker when hero holds board pair rank
+  OK  T-CC-44: hero_range_facts enabled with chart match
+  OK  T-CC-45: hero_range_facts detects outside-chart hand
+  OK  T-CC-46: hero_range_facts disabled when ranges is None
+  OK  T-CC-47: blocker_insight template fires for nut flush blocker
+  OK  T-CC-48: range_awareness fires for outside-chart hand
+  OK  T-CC-49: no duplicate card types per hand (Phase 2)
+  OK  T-CC-50: assertion E1 blocks blocker without enabled
+  OK  T-CC-51: assertion F1 blocks range awareness without enabled
+  OK  T-CC-52: flat-call from CO detected as capped range
+  OK  T-CC-53: coaching version is v2
+  OK  T-CC-54: no_flush_blocker does NOT fire on passive hand
+  OK  T-CC-55: made nut flush renders as nut_flush_made not blocker
+  OK  T-CC-56: paired-board blocker uses trips/full-house wording
+  OK  T-CC-57: outside-chart does not fire when range_context != open
+  OK  T-CC-58: capped-premium does NOT fire for BB defend
+  OK  T-CC-59: primary card before insight card in result list
+  OK  T-CC-60: max 2 cards per hand
+  OK  T-CC-61: insight card survives primary suppression
+
+=== v8.9.7 TESTS ===
+  OK  T-V257-01: B138 set is not weak (7h7d on 2-7-9-A-4)
+  OK  T-V257-02: B138 pocket pair off-board not weak (JhJd on 2-7-9-A-4)
+  OK  T-V257-03: B138 two pair is not weak (9h4d on 2-7-9-A-4)
+  OK  T-V257-04: B138 genuine weak hand still flagged (3h5d on 2-7-9-A-4)
+  OK  T-V257-05: B138 bottom pair still weak (2h5d on 2-7-9-A-4)
+  OK  T-V257-06: B140 sentinel key (street, -1) in _build_villain_badges
+  OK  T-V257-07: B140 auto_verdict fallback in _build_villain_badges
+  OK  T-V257-08: B140 _hero_last_idx_by_street precomputation
+  OK  T-V257-09: B140 sentinel placement in _hand_grid.py
+  OK  T-V257-12: B139 hands sorted by ID in build_villain_intel
+  OK  T-V257-13: B139 evidence_atoms sorted by stable key
+  OK  T-V257-14: B139 exploit_opportunities sorted by stable key
+  OK  T-V257-15: B139 evidence_hand_ids sorted in read_states
+  OK  T-V257-18: B142 session fingerprint embedded in stats
+  OK  T-V257-19: B142 session fingerprint embedded in report_data
+  OK  T-V257-20: B142 --quick fingerprint mismatch check
+  OK  T-V257-21: B141 same_hand_actionable in context dict
+  OK  T-V257-22: B141 same_hand_actionable gate in _html.py
+  OK  T-V257-23: B143 _trigger_markers precomputation exists
+  OK  T-V257-24: trigger marker covers flagged folds AND calls/raises (v8.12.0b)
+  OK  T-V257-25: B143 ann-trigger rendering in main loop
+  OK  T-V257-26: B143 ann-trigger CSS in _html.py
+  OK  T-P2D-01: Lint findings printed to console by default
+  OK  T-P2D-02: Lint prints ERROR/BLOCKER severity filter
+  OK  T-P2C-01: _PLO_CANDIDATE_BUCKETS tuple exists
+  OK  T-P2C-02: _filter_non_nlh_from_candidate_buckets function exists
+  OK  T-P2C-03: PLO quarantine called in __main__ before coverage gate
+  OK  T-P2C-04: Production-safe PLO leak invariant (log, not assert)
+  OK  T-P2C-05: bust_audit in candidate bucket tuple
+  OK  T-P2C-06: iii4_screening in candidate bucket tuple
+  OK  T-P2A-01: _is_preflop_terminal_allin function exists at module level
+  OK  T-P2A-02: Helper checks pf_allin field
+  OK  T-P2A-03: Helper checks action_ledger for postflop hero actions
+  OK  T-P2A-04: M1 detector uses shared helper
+  OK  T-P2A-05: M6 detector uses shared helper
+  OK  T-P2A-06: J14 detector uses shared helper
+  OK  T-P2A-07: At least 3 detectors use shared helper (prove it is shared)
+  OK  T-P2A-08: Helper does not require empty board (handles board runout)
+  OK  T-P2B-01: R5_micro_potodds auto_rule exists
+  OK  T-P2B-02: R6 uses required_equity from decision_math
+  OK  T-P2B-03: R6 micro-stack gate uses eff < 6
+  OK  T-P2B-04: No bounty in R5_micro_potodds formula
+  OK  T-P2B-05: Missing pot data routes to III.4 not I.7
+  OK  T-P1C-01: REJAM chart lookup in reshove detector
+  OK  T-P1C-02: Position canonicalization in reshove detector
+  OK  T-P1C-03: Unrecognized position caps at MARGINAL
+  OK  T-P1C-04: Hand not in REJAM chart suppresses should_reshove
+  OK  T-P1C-05: Early opener without chart caps at MARGINAL
+
+=== v8.9.9 Phase 2 TESTS ===
+  OK  T-P3A-01: Only one def _versioned_path in gem_analyzer.py
+  OK  T-P3A-02: _versioned_path takes pname_file parameter
+  OK  T-P1A-01: gem_coverage_builder.py exists and importable
+  OK  T-P1A-02: build_and_write callable in gem_coverage_builder
+  OK  T-P1A-03: py_compile clean on gem_coverage_builder.py
+  OK  T-P1A-04: gem_analyzer.py calls build_and_write from gem_coverage_builder
+  OK  T-P1A-05: --profile flag accepted by gem_analyzer.py
+  OK  T-P1A-06: _log_profile helper defined
+  OK  T-P1B-01: --resume-from-cache flag accepted by gem_analyzer.py
+  OK  T-P1B-02: Resume mode loads three cache files (hands, stats, report_data)
+  OK  T-P1B-03: Resume mode validates session fingerprint
+  OK  T-P1B-04: Resume mode calls coverage builder
+  OK  T-P1B-05: Resume mode aborts on missing cache with clear error
+  OK  T-P1B-06: Resume mode aborts on fingerprint mismatch
+  OK  T-D1-01: no live SBD_ chart keys after quarantine
+  OK  T-D1-02: other chart families still load
+  OK  T-D1-03: anti-canary — no line starts with SBD_
+  OK  T-PKO-01: 1-chip cover is collectible
+  OK  T-PKO-02: equal stacks collectible (eliminate on win)
+  OK  T-PKO-03: covered is NOT collectible
+  OK  T-PKO-04: research bucket keeps 1.10/0.90 heuristic
+  OK  T-PKO-05: 22.0 in short bucket, 23.5 is band edge
+  OK  T-PKO-06: <12bb routes to push/fold out-of-scope
+  OK  T-PKO-07: >60bb routes to deep out-of-scope
+  OK  T-PKO-08: floor-graded delta buckets (PKO3 v3 run)
+  OK  T-PKO-09: CO bucket upgraded to full confidence (PKO3 v3 revisit-verified)
+  OK  T-PKO-24: v3-measured buckets carry classic pct, full conf, jam_heavy False
+  OK  T-PKO-25: v1-era unmeasured rows demoted to directional with mix withdrawn
+  OK  T-PKO-10: high-delta fold w/o Classic backstop = Review, never Missed
+  OK  T-PKO-11: chart-backed fold = Missed with chart source
+  OK  T-PKO-12: 3way-short flat call = Good/aligned (v3 call-dominated mix; jam-heavy retired)
+  OK  T-PKO-13: HU covering (v1-era, mix unverified) Classic-OK call = Baseline
+  OK  T-PKO-14: action_mix n/r (v1-era 50bb row) Classic-OK continue = Baseline (not PKO-good)
+  OK  T-PKO-14b: covered-short call with v3-known mix = Good/aligned
+  OK  T-PKO-15: Classic-too-loose + high delta = Review (not auto Too wide)
+  OK  T-PKO-16: facing all-in routes to allin_family, never a defense bucket
+  OK  T-PKO-17: mystery routes out-of-scope (no research bucket)
+  OK  T-PKO-18: phase outside bubble downgrades confidence
+  OK  T-PKO-19: classification enum excludes Opp/Actual; count dims are bools
+  OK  T-PKO-20: CO opener maps to measured CO bucket
+  OK  T-PKO-21: enrich returns enabled aggregate + by_hand contexts
+  OK  T-PKO-22: snapshot count equals sum of teaching Seen cells
+  OK  T-PKO-23: enrich fail-soft on garbage input
+  OK  T-PKOE-01: Hero covers villain -> collectible trust line + $X conversion
+  OK  T-PKOE-02: Villain covers Hero -> bounty discount does not help Hero
+  OK  T-PKOE-03: near-equal/equal stacks handled safely (collectible only if Hero wins)
+  OK  T-PKOE-04: multiway partial cover -> suppress over-claim + uncertain note
+  OK  T-PKOE-05: missing exact bounty -> estimate model display (no fabricated $)
+  OK  T-PKOE-06: bounty dollar-to-BB conversion appears ($X = YBB)
+  OK  T-PKOE-07: trust guard flags cover/collect/discount/threshold conflicts; clean PKO math passes
+  OK  T-PKOE-08: build_pko_context stamps a reconciled pko_trust object
+  OK  T-PKOE-09: overjam side-pot chips Hero cannot win are surfaced
+  OK  T-PKOE-10: PKO pill wires pko_trust_render with pot-odds threshold facts + downgraded class + strip
+  OK  T-PKOE-11: PKO table v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review), clickable counts, no Hands column
+  OK  T-PKOE-12: dense cEV/BB-100 units carry a concise body gloss
+  OK  T-PKOE-13: navigation labels stay compact (<=28 chars; abbreviations preserved)
+  OK  T-PKOE-14: no raw Roman verdict codes in normal hand verdict copy (codes stripped to labels)
+  OK  T-PKOE-15: render strip carries chip-vs-PKO threshold reconciliation; clean class kept
+  OK  T-PKOE-16: render-path DOWNGRADES a confident PKO class to Review on a trust contradiction
+  OK  T-PKOE-17: PKO-adjusted threshold ABOVE chip despite discount -> render contradiction + downgrade
+  OK  T-PKOE-18: overjam chips Hero cannot win surface in the rendered strip
+  OK  T-H141-01: RUNTIME_VERSION SoT is v8.19.0 and feeds worklist + villain defaults
+  OK  T-H141-02: run manifest emits RUNTIME_VERSION + report_format_version (not the pinned format ver)
+  OK  T-H141-03: multiway "impact uncertain" downgrades a confident PKO class to Review
+  OK  T-H141-04: PKO context with no chip-vs-PKO threshold says so explicitly (not silent)
+  OK  T-H141-05: chip-vs-PKO threshold still renders when a discount is present
+  OK  T-H141-06: auto-clear -> internal QA (not a visible row), never titled "mistake"
+  OK  T-H141-07: raw chart ids humanize (REJAM/PUSH/CALLJAM) and are not exposed raw
+  OK  T-H141-08: render paths route chart ids through chart_display_label, drop the raw rejam id
+  OK  T-H141-09: pot-odds teaches required-equity-vs-range, not "ahead right now"
+  OK  T-H141-10: dense cEV paragraph replaced by concise line + <details> (no "Surface: cEV")
+  OK  T-H141-11: financial date labelled cash-settlement + run-log writer present
+  OK  T-H141-12: reviewed/completed list is collapsed by default (hidden + aria-expanded=false + caret)
+  OK  T-H141-13: only the COMPLETED list collapses (open/unresolved queue rows stay visible)
+  OK  T-H141-14: reviewed-list rows show Hero hand (.handcards) next to the hand id
+  OK  T-H141-15: missing Hero hand falls back to id only (cards span is conditional)
+  OK  T-H141-16: section review (sub) labelled "Section review" + audit-section, never a hand
+  OK  T-H141-17: section id (sec-tldr) lives in data-aid only, never rendered as a poker hand id
+  OK  T-H141-18: section review preserves verdict + notes inputs (data not lost)
+  OK  T-H141-19: Bounty trust strip renders in the real hand-detail path for a collectible hand
+  OK  T-H141-20: trust strip shows chip-only + PKO-adjusted thresholds when facts exist
+  OK  T-H141-21: trust strip states threshold-unavailable when PKO threshold missing
+  OK  T-H141-22: bounty trust strip is wired into BOTH real hand-detail paths (XIV.A + XIV.B)
+  OK  T-H141-23: bounty cover is ONE source of truth (canonical decision context drives flag + card)
+  OK  T-H141-24: _hand_grid push/call-jam verdicts use human chart labels, not raw ids
+  OK  T-H141-25: sections_xiv Range-check call-jam line humanized (no raw {key} leak)
+  OK  T-H141-26: required-equity teaching attaches to EVERY required-equity line (XIV.A + XIV.B)
+  OK  T-H141-27: financial settlement-date label is in the REAL results-attribution path (S1.1a)
+  OK  T-H141-28: all-auto-clear queue reframes the urgent "open first" title + count
+  OK  T-H141-29: call-jam verdict reconciles vs analyst + states nearest-chart depth (no hard contradiction)
+  OK  T-H141-30: PKO all-in audit defers to the canonical decision context (one source w/ icm + trust strip)
+  OK  T-H141-31: every Bounty-trust line states threshold status (chip/PKO or unavailable)
+  OK  T-H141-32: XIV.B PKO pill downgrades confident class via pko_trust_render (no raw classification)
+  OK  T-H141-33: multiway confident PKO class (Too wide) downgrades to Review in render fn
+  OK  T-H141-34: Correct-range lines use human chart labels, not raw ids
+  OK  T-H141-35: PKO bounty-math note gates on bounty_applicability in both paths (XIV.A + XIV.B)
+  OK  T-XWAY-01: _live_players_at counts only live (not folded) at the decision index
+  OK  T-XWAY-02: turn donk into a 2-way (flop-folded-through) pot is NOT a multiway donk
+  OK  T-XWAY-03: turn donk with 3 genuinely live remains a multiway donk (message 3-way)
+  OK  T-XWAY-04: multiway-donk message uses live-at-bet count (_n_live), not flop n_to_flop
+  OK  T-XWAY-05: HU PKO spot is not multiway-suppressed and keeps its confident class
+  OK  T-XWAY-06: 3-way-live PKO spot is multiway-suppressed and downgraded to Review
+  OK  T-CONSIST-01: generic Bounty-trust strip suppressed when PKO pill renders its own (XIV.A + XIV.B)
+  OK  T-CONSIST-02: --quick re-render rewrites manifest + run-log with the analyst status
+  OK  T-RE-01: 14.7BB UTG+1 jam -> JAM_15BB_HJ via proxy (not PUSH_10BB)
+  OK  T-RE-02: 18BB SB jam -> 20BB tier (nearest)
+  OK  T-RE-03: 172BB BTN RFI -> OPEN_100BB_BTN exact
+  OK  T-RE-04: KJo 14.7 open-shove INSIDE JAM_15BB_HJ (proxy)
+  OK  T-RE-05: 87o 172 BTN RFI OUTSIDE OPEN_100BB_BTN (exact) + boundary cells
+  OK  T-RE-06: K9o 17BB call-jam vs SB -> 15BB chart, INSIDE (nearest-tier, not 20BB)
+  OK  T-RE-07: 5.9BB call-jam defers (membership unknown + wider-than-chart note)
+  OK  T-RE-08: pf_allin + first_in + 4bet+ -> rejam (not open_shove)
+  OK  T-RE-08b: first-in open-jam -> open_shove; BB flat -> None
+  OK  T-RE-09: proxy block discloses proxy + INSIDE + "hand classes", never "combos"
+  OK  T-RE-09b: OUTSIDE block states OUTSIDE authoritatively
+  OK  T-RE-10: sections_xiv wires range_evidence_md + W-RANGE-CONTRADICT + Range Logic strip
+  OK  T-RE-11: grid uses select_open_jam_chart (>=2 sites), no f"PUSH_10BB_{...}" membership key
+  OK  T-RE-12: header/grid/gtow prefer eff_stack_bb_at_decision for preflop jams
+  OK  T-RE-13: --quick rewrites gem_report_data + persists _gto_written_ids
+  OK  T-RE-14: reviewed-list [hidden] !important override + R-B "You reviewed" separation copy
+  OK  T-RE-15: coverage tags are a subset of {exact,proxy,closest,none}
+  OK  T-RE-16: build_range_evidence derives boundary/top examples from chart cells
+  OK  T-RE-17: grid push footer gated on role==open_shove, call-jam on role==call_jam
+  OK  T-RE-18: _allin_range_note disabled (returns "" for an all-in open-shove + a call-jam)
+  OK  T-RCC-01: zero renders plain non-clickable text
+  OK  T-RCC-02: N renders hand-list-trigger with deduped escaped ids
+  OK  T-R1-01: payload JS escapes </ and carries codec metadata
+  OK  T-R1-02: payload roundtrips via deflate-raw (-15 wbits)
+  OK  T-R1-03: codec + fallback + traps + async guards present in bundle
+  OK  T-R1-04: no raw window.villainIntel= assignment emitted anymore
+  OK  T-AUDIT-01: decision points extracted for every hero action
+  OK  T-AUDIT-02: parse-missing hand recorded with reason field
+  OK  T-AUDIT-03: SB defend marked quarantine-bound (SBD2 absent)
+  OK  T-AUDIT-04: audit gated off by default (env flag absent)
+  OK  T-LIVE-01: CVJ discount is covers-gated (no unconditional -8)
+  OK  T-LIVE-02: mystery + multiway numeric discounts removed in pot odds
+  OK  T-GTOW-V221: builder version is 2.2.1
+  OK  T-GTOW-152: depth 152 removed from 8m grid (151 snaps to 160)
+  OK  T-GTOW-B149: pf_settled hand never gets a flop-root URL
+  OK  T-GTOW-BOUNTY: bounty hands carry the approx label
+  OK  T-GTOW-LIMP: limp-then-raise falls back (no broken path)
+  OK  T-B150: parser sets table_size from dealt players + keeps capacity
+  OK  T-AMIT: N14-N18 registered with Amit source
+  OK  T-BUGS: B148-B151 registered once each, no duplicate ids
+  OK  T-BUGS-2: statuses — B148 refuted, B149/B150 fixed, B151 open
+  OK  T-ATTR: appendix cards carry data-format/phase/eff-bb/tournament
+  OK  T-V8120B-1: classic evidence reads preflop_deviations + facing_action
+  OK  T-V8120B-2: confirmed wide defend now classifies Too wide/Review (not Baseline)
+  OK  T-V8120B-3: classic baselines recorded (PKO3 v3 values)
+  OK  T-V8120B-4: teaching rows aggregate by research bucket
+  OK  T-V8120B-5: S4.2 compact layout, v8.19.0 headers (Hero rate / Too wide vs Classic / Missed vs Classic / PKO combo review)
+  OK  T-V8120B-6: pill no longer embeds a span (md would escape it)
+  OK  T-V8120B-7: villain trigger covers calls/raises with action context (v8.12.8: amber arrow glyph)
+  OK  T-121-C1: depth-scaled bounty discount is authoritative
+  OK  T-121-C2: hand-authored pko_bonus retired for chart-diff
+  OK  T-121-C3: opener-keyed BBD defend union wired (exact-chart-only)
+  COMMENTARY-MIGRATION: 0 sources, 0 visible / 0 more / 0 legacy / 0 review / 0 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+  COMMENTARY-MIGRATION: 0 sources, 0 visible / 0 more / 0 legacy / 0 review / 0 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+  WARNING EFF-STACK: Hand TM_PA3 overjam 1.6BB claimed at effective 22.5BB (<= 25BB short-shove) — verify Hero total vs effective.
+  WARNING EFF-STACK: Hand TM_SZ2 overjam 13.0BB claimed at effective 19.0BB (<= 25BB short-shove) — verify Hero total vs effective.
+  WARNING EFF-STACK: Hand TM_SZ3 overjam 64.4BB claimed at effective 13.0BB (<= 25BB short-shove) — verify Hero total vs effective.
+  COMMENTARY-MIGRATION: 64 sources, 31 visible / 0 more / 31 legacy / 0 review / 2 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+  COMMENTARY-MIGRATION: 130 sources, 58 visible / 0 more / 70 legacy / 0 review / 2 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+  COMMENTARY-MIGRATION: 68 sources, 33 visible / 0 more / 32 legacy / 0 review / 3 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+  OK  T-121-C2b: chart-diff returns provenance note when pair exists
+  OK  T-121-C2c: BTN gets no generic bonus (tightens in research)
+  OK  T-121-G1: BB flat of a chart 3-bet hand fires Missed 3-Bet
+  OK  T-121-G1b: no chart key (vs UTG) -> silent, no heuristic fallback
+  OK  T-121-G2: SB fold of a chart squeeze hand fires Missed Squeeze
+  OK  T-121-G2b: copy never says punt/wrong
+  OK  T-121-G4: river bluff-catcher review fires on 4-flush runout loss
+  OK  T-121-G4b: review copy teaches the checklist, never verdicts
+  OK  T-121-CARD: pko_pressure insight registered with Review title + cap
+  OK  T-121-R2: hot grid styles use pb- classes
+  OK  T-121-R2b: data-gtow-url no longer emitted (href is canonical)
+  OK  T-121-R3: lazyfier + PBLazy + beforeprint + expand-all present
+  OK  T-121-R3b: openHand guards lazy materialization
+  OK  T-121-R3c: lazy mode default OFF
+  OK  T-122-LAZY-1: PBLazy + PBData exposed on window (click-path fix)
+  OK  T-122-LAZY-2: lazy default ON with opt-out
+  OK  T-122-LAZY-3: no pb-nw class emissions in sections (md whitelist)
+  OK  T-122-LAZY-4: GEM_LAZY_HANDS=0 produces identity output
+  OK  T-122-LAZY-5: default-on lazyfies with payload + expand-all
+  OK  T-122-FLAG: --no-lazy-hand-details opt-out wired
+  OK  T-122-DARK-1: G7-G10 all silent without their chart families
+  OK  T-122-DARK-2: G7-G10 fire on synthetic exact charts
+  OK  T-122-G6: OOP HU two-pair check-call on wet turn -> review flag
+  OK  T-122-G6b: multiway excluded
+  OK  T-122-P4: post-loss cluster detected with neutral wording
+  OK  T-122-P4b: worksheet never reaches a render surface
+  OK  T-122-PC-1: static tooltips via pb-tt classes; titles JS-filled
+  OK  T-122-PC-2: villain-mini onclick removed (delegated listener)
+  OK  T-122-AUDIT: fired ids read preflop_deviations
+  OK  T-1224-CBET-1: bet-then-call-allin in 3BP counts as c-bet
+  OK  T-1224-RIVAL-1: K9 river bet on QQQ-6-2 classifies as bluff, not value
+  OK  T-1224-CHKB-1: checked QJ-high that WON showdown files as check_sdv
+  OK  T-1224-SD-1: showdown reveals carry outcome from SUMMARY lines
+  OK  T-1224-SD-2: one-card voluntary show flagged partial
+  OK  T-1224-RA-1: analyst I.7 enters the cooler ledger (count 1)
+  OK  T-1224-RA-2: mistake row carries analyst EV (net_bb) + canonical count
+  OK  T-1224-EAI-1: one-liner expected base = table base (39.1)
+  OK  T-1224-DIR-1: mixed-direction label when cEV and BB disagree
+  OK  T-1224-REC-1: spine-disagreement reconciliation note present
+  OK  T-1224-A2-1: dashboard quotes promoted leaks as canonical
+  OK  T-1224-PROMO-1: BB Over-Fold + Postflop Over-Folding promotion rules
+  OK  T-1224-CAP-1: appendix cap is lazy-aware (1000) with env override
+  OK  T-1224-DEF-1: defend-matrix aggregate uses opportunity-weighted target
+  OK  T-1224-GTO-1: biggest pots + CLEAR mistakes guaranteed in shortlist
+  OK  T-1224-GTO-2: analyst-confirmed mistakes appended post-attach
+  OK  T-1224-WL-1: degenerate p25=0 renders top-avg aim, not "<=0.0 (aim)"
+  OK  T-1224-WL-2: synthesis_notes key present
+  OK  T-1224-FP-1: session fingerprint carries hh_hash
+  OK  T-1224-FP-2: --quick hard-aborts on cache-vs-dir mismatch
+  OK  T-1224-VAL-1: draw-profile validation is lazy-payload-aware
+  OK  T-1224-RECON-1: analyst entry reconciliation present (v8.12.9: synthesis counted separately)
+  OK  T-1224-WPOT-1: W-POT accepts decision-point pots (superseded by v8.12.6 any-street windows)
+  OK  T-1224-PHASE-1: Del-6 phase pattern computed + rendered
+  OK  T-1224-ARC-1: intra-session arc draws a conclusion
+  OK  T-1224-TRACK-1: current-session row closes the trend table
+  OK  T-1224-PICKS-1: batch-closed candidates surface a section warning
+  OK  T-1224-SUCK-1: mistakes-bucket prefill capped for suckout hands
+  OK  T-1225-SUM-1: summaries discovered in arbitrarily-named sibling dir
+  OK  T-1225-SUM-2: chips payout flagged as flighted advancement
+  OK  T-1225-SUM-3: HH tournament without summary listed unresolved
+  OK  T-1225-CI-1: promotion rules are Wilson-CI gated
+  OK  T-1225-CI-2: borderline miss does NOT pass the CI gate; clear miss does
+  OK  T-1225-UNS-1: TLDR names flighted bags + missing summaries
+  OK  T-1225-PILL-1: verdict-pill in the _md_inline stash whitelist
+  OK  T-1225-PILL-2: modal top bar clones the verdict pill into the top-verdict chip
+  OK  T-1225-LAZY-1: PBLazy normalizes TM-form ids before payload lookup
+  OK  T-1225-LAZY-2: ensureAll yields to the event loop (chunked)
+  OK  T-1226-NAME-1: __main__ PLO-quarantine writes to stats, not s (analyze_session may stamp s[_non_nlh_ids])
+  OK  T-1226-WPOT-1: pot claims accepted against ANY street window
+  OK  T-1226-IE-1: coverage Training column renders em-dash, not None
+  OK  T-1228-LAZY-1: draft emits window.handIndex for popup rows
+  OK  T-1228-LAZY-2: popup is index-first with DOM fallback
+  OK  T-1228-PKO-1: spot label names the ACTUAL opener, never borrowed BTN
+  OK  T-1228-PKO-2: 69bb-vs-18bb is covers/collectible (hero stack, not eff)
+  OK  T-1228-PKO-3: borrowed (nearest) aggregate never claims PKO-Good
+  OK  T-1228-PKO-4: SB opener routes out-of-scope, never the BTN bucket
+  OK  T-1228-PKO-5: near-equal stacks say collectible-if-wins, never "cannot collect"
+  OK  T-1228-PKO-6: caveat uses the estimated bounty model, not a dead-end
+  OK  T-1228-PKO-7: no-estimate hands keep the unavailable wording
+  OK  T-1228-PO-1: street-calls block carries per-street required equity
+  OK  T-1228-PO-2: overbet flagged on the turn + headline is max-required street
+  OK  T-1228-PO-3: overbet invariant — required equity always > 33.3%
+  OK  T-1228-PO-4: all-in calls stay on the equity path (returns None)
+  OK  T-1228-PO-5: enrich second path exists + runs without phevaluator
+  OK  T-1228-PO-6: worksheet carries mode/is_overbet/per_street
+  OK  T-V8171-PO-FUT-1: decision-time pot odds price on the pot at Hero’s call
+  OK  T-V8171-PO-FUT-2 (anti): a later caller’s chips never enter Hero’s displayed pot
+  OK  T-1228-EAI-1: missing phevaluator warns loudly at startup
+  OK  T-1228-EAI-2: heuristic fallback count stamped on eai + eai_ev_adjusted
+  OK  T-1228-EAI-3: report data exposes the degradation flag
+  OK  T-1228-EAI-4: TLDR scorecard marks True EV approximate when degraded
+  OK  T-1228-EAI-5: STEP0 installs phevaluator in the Chat env
+  OK  T-1228-MK-1: trigger marker renders ↪ with Trigger-prefixed tooltip
+  OK  T-1228-MK-2: badge row ownership — evidence on villain rows only
+  OK  T-1228-MK-3: evidence badges built for whitelisted villain signals
+  OK  T-1228-MK-4: trigger amber + vb-evid red CSS shipped
+  OK  T-1228-MK-5: atom with teaching text gets evid badge (v8.17.1 villain sentinel); bare atom does not
+  OK  T-1228-LINT-1: grid stashes rendered bet pcts for W-PCT
+  OK  T-1228-LINT-2: W-PCT + W-NOTE-STREET lints wired after grid build
+  OK  T-1228-VI-1: baseline-open set — JJ/KQo standard, A7o is a real exploit
+  OK  T-1228-VI-2: standard opens reclassified read_supported_standard
+  OK  T-1228-VI-3: thin reads downgrade Good/Miss to candidate
+  OK  T-1228-CTX-1: atom/context dedupe keys on street+signal, not hand+villain
+  OK  T-1229-NOT-1: chart notation sorts ranks high-first (8Ao bug)
+  OK  T-1229-SB-1: SB100 missed-open records the chart actually hit (limp vs raise)
+  OK  T-1229-BOLD-1: hero hand token bolded inside range families
+  OK  T-1229-POT-1: side-pot-aware required equity (main pot price)
+  OK  T-1229-POT-2: folded players excluded from showdown villain hands
+  OK  T-1229-POT-3: EV prices the winnable pot only
+  OK  T-1229-GRID-1: capped jam adds only the EFFECTIVE amount to the pot
+  OK  T-1229-PRICE-1: worksheet PRICE line prefers the pot-odds engine
+  OK  T-1229-REJAM-1: rejam note carries human label + Top/Boundary range
+  OK  T-1229-NWAY-1: multiway equity label says "by showdown" (hindsight guard)
+  OK  T-1229-VSN-1: villain note renders the Evidence line
+  OK  T-1229-THUMB-1: positive note marker is thumbs-UP green
+  OK  T-1229-POPUP-1: hand-list columns sortable
+  OK  T-1229-POPUP-2: Vs Pos column shows the OPENER from the index
+  OK  T-1230-POT-1: pot walk reproduces GG totals on re-raised streets
+  OK  T-1230-POT-2: blind posts seed commits, antes excluded
+  OK  T-1230-EFF-1: all-in CALL amount is the exact contested cap
+  OK  T-1230-BNTY-1: no bounty-adjusted threshold when engine applied none
+  OK  T-1230-RJ-1: rejam near-flip gated on _in_rj — inside=standard get-in; outside/no-chart=III.4 (no "standard get-in" claim); _rj_phrase removed
+  OK  T-RE-19: W-RANGE-CONTRADICT lint catches outside-chart "standard get-in"/"correct push"
+  OK  T-RE-20: legacy Correct-range prose gated on canonical block (_canon_supersede + h threaded)
+  OK  T-RE-21b: without h, legacy Correct-range line preserved (back-compat)
+  OK  T-RE-21: 72807590 missed-open defers to canonical MP (no "Correct range"/"inside this chart")
+  OK  T-RE-22: W-RANGE-CONTRADICT lint extended for range-standard/standard line/inside this chart
+  OK  T-RE-23: proxy chart labeled "(short-table proxy)" + "hand classes" (not combos)
+  OK  T-RE-23b: non-proxy chart (seat==pos) has no proxy label
+  OK  T-RE-23c: sections_xiii shows true seat + proxy chart label, threads hands_by_id
+  OK  T-RE-24: coverage-builder re-jam key strips "+" and is not stack-gated
+  OK  T-RE-24a: REJAM_MPvsUTG1 resolves (AA inside) — matches canonical selector
+  OK  T-RE-24b: W-RANGE-CHART-EXISTS lint guards no-chart claim vs canonical Reference
+  OK  T-RE-25: W-RANGE-NO-CHART lint guards chart-support prose vs canonical no-charted-range
+  OK  T-1230-VSN-1: cross-hand pattern reads labeled Future read
+  OK  T-1230-SIZE-1: oversized villain opens get the sizing-read note
+  OK  T-1230-CLS-1: user-facing range counts say hand classes, not combos
+  OK  T-1230-SRCH-1: search miss inflates lazy hands and retries
+  OK  T-1231-NOT-1: _chart_label canonical — pairs bare, high-first
+  OK  T-1231-POP-1: popup reads the static verdict-pill before defaulting
+  OK  T-1231-POP-2: unmapped Roman prefixes stripped in popup verdicts
+  OK  T-1231-MOB-1: mobile street headers sticky
+  OK  T-1231-PKO-1: partial multiway coverage names the covered seats
+  OK  T-1231-PKO-2: covers BTN only — CO covers Hero (named, not counted)
+  OK  T-1231-STUB-1: metric-only stubs carry an explicit no-replay reason
+  OK  T-1231-PKO-3: depth band discloses the effective stack behind it
+  OK  T-1231-RECON-1: synthesis blocks counted apart from hand entries
+  OK  T-1231-LUCK-1: revealed-hand equity labeled luck context, not decision basis
+  OK  T-1231-ROM-1: no literal Roman codes printed in Cleared-As cells
+  OK  T-1232-RC-1: no analyst file -> AUTO_ONLY
+  OK  T-1232-RC-2: synthesis ignored; partial coverage -> ANALYST_PARTIAL
+  OK  T-1232-RC-3: all candidates reviewed -> ANALYST_COMPLETE
+  OK  T-1232-RC-4: candidates path persists need-set for --quick
+  OK  T-1232-FNAME-1: AUTO_ONLY filename tag wired in all 3 render paths
+  OK  T-1232-QV-1: --quick validates by default, --no-validate-render opts out
+  OK  T-1232-MANIFEST-1: run manifest carries analyst_status + summary flag
+  OK  T-1232-BANNER-1: TLDR emits AUTO_ONLY + no-summary banners
+  OK  T-1233-LABEL-1: chart ids resolve to human labels, no raw leak
+  OK  T-1233-LABEL-2: UTG+1/UTG+2 positions format (no lowercase fallback)
+  OK  T-1233-HAND-1: _hand_label canonical (list+str), pairs bare
+  OK  T-1233-POL-1: marginal open routes aggregate_only, NEVER must_review
+  OK  T-1233-POL-2: CLEAR core miss routes must_review
+  OK  T-1233-POL-3: revealed equity labeled luck-only, not the basis
+  OK  T-1233-POL-4: decision-effective stack vs relevant villain (19, not nominal)
+  OK  T-1233-POL-5: tiny collectible PKO call -> auto_clear (not a punt)
+  OK  T-1233-SCHEMA-1: all 8 additions + review_outcome unreviewed + valid bucket
+  OK  T-1233-SCHEMA-2: no Roman numerals in any proposal/why text
+  OK  T-1233-EMIT-1: full pipeline emits analyst_worklist artifact
+  OK  T-1233-PRICE-1: call > eff nulls call_amount_bb + failure mode
+  OK  T-1233-LINE-1: canonical_action_line built from ledger (not terse)
+  OK  T-1233-BNT-1: bounty split — no adjustment while collectibility unknown
+  OK  T-1233-BNT-2: bounty adjustment applied only when coverage known+covers
+  OK  T-1233-AC-1: deep premium all-in (AKo 100BB) is NOT auto_clear
+  OK  T-1233-AC-2: short NON-premium all-in (A4o 18BB) is NOT auto_clear
+  OK  T-1233-AC-3: narrow premium short-stack (AA 15BB) -> auto_clear
+  OK  T-1233-AC-4: table seat count (n_players=6) does NOT flag multiway
+  OK  T-1233-AC-5: genuine 3-way all-in (n_opponents=2) -> NOT auto_clear
+  OK  T-1233-DK-1: preflop deviation anchors decision_node.street=preflop
+  OK  T-1233-DK-2: missed-rejam line stops at Hero call (no postflop bleed)
+  OK  T-1233-DK-3: missed-open line stops at Hero fold (no later SB all-in)
+  OK  T-1233-DK-4: first-in open stack not overwritten by later all-in (81 not 12)
+  OK  T-1233-DK-5: BB defend preflop item does not inherit river/fold context
+  OK  T-1233-PNA-1: missed-open first-in fold -> call_amount_bb None + N/A
+  OK  T-1233-PNA-6: first-in deviation does not inherit a later all-in as price
+  OK  T-1233-PNA-2: wide-open first-in raise -> call_amount_bb None (ignores bogus price)
+  OK  T-1233-PNA-3: first-in open-jam -> call_amount_bb None
+  OK  T-1233-PNA-4: BB defend (Hero calls) keeps real call_amount_bb
+  OK  T-1233-PNA-5: missed-rejam (Hero called) keeps real call amount
+  OK  T-1233-POL-6: empty chart label -> no empty parens / dangling text
+  OK  T-1233-PA-1: open-then-call-off -> node is the call, price applies
+  OK  T-1233-PA-2: open-then-4bet-jam -> node is Hero jam, facing the 3-bet
+  OK  T-1233-PA-3: open-raise-jam, Hero calls off -> node is the call-off
+  OK  T-1233-PA-4: first-in open-jam -> call None, N/A, facing first-in
+  OK  T-1233-PA-5: iso-jam over limper -> facing vs limper(s), not unknown
+  OK  T-1233-PA-6: preflop_allin line stops at the reviewed all-in (no trailing caller)
+  OK  T-1233-PA-7: multi-action preflop_allin never anchors to the initial open
+  OK  T-1233-PA-8: first-in deviation w/ contaminated opener -> facing first-in
+  OK  T-1233-SZ-1: clean overjam call-off capped to eff (call<=eff, overjam present)
+  OK  T-1233-SZ-2: multiway call-off raw>eff -> null + price unavailable + failure mode
+  OK  T-1233-SZ-3: first-in overjam shows jam_size and decision_effective separately
+  OK  T-1233-SZ-4: reviewer question uses decision-effective stack, not raw jam size
+  OK  T-1233-SZ-5: why_review reconciles raw jam vs effective (no contradiction with action)
+  OK  T-1233-SZ-INV: no item has call_amount_bb > effective stack without overjam/side_pot
+  OK  T-1234-A-1: analyst street=preflop -> Preflop punt (not Postflop)
+  OK  T-1234-A-2: analyst street=turn -> Postflop punt
+  OK  T-1234-A-3: preflop all-in hand (no street/spot) -> Preflop punt, not Postflop
+  OK  T-1234-A-4: spot PF ALL-IN marker -> Preflop punt
+  OK  T-1234-A-5: legacy/unknown street degrades to neutral Punt (not Postflop)
+  OK  T-1234-A-6: hardcoded "Postflop punt" fallback removed from the punt table
+  OK  T-1234-B-1: top-of-range loss w/o verdict -> neutral status, no exculpatory verdict
+  OK  T-1234-B-2: no signal/context -> plain "awaiting analyst review"
+  OK  T-1234-B-3: auto-detected cooler -> auto-signal context, not a cooler verdict
+  OK  T-1234-B-4: S1.3 no longer renders exculpatory variance/cooler as a verdict default
+  OK  T-1234-B-5: S17.6 large-loss audit neutralized the same way
+  OK  T-1234-C-1: no item with a populated call_amount_bb has price_engine none
+  OK  T-1234-C-2: first-in open/fold -> price_engine not_applicable (never none)
+  OK  T-1234-C-3: ledger call-off -> action_ledger
+  OK  T-1234-C-4: capped overjam call-off -> sidepot_reconciled
+  OK  T-1234-C-5: unsafe multiway call-off -> unavailable + failure mode
+  OK  T-1234-C-6: first-in open-jam (no call price) -> not_applicable, not none
+  OK  T-1234-C-7: price_engine driven by decision-node price_source (no static none)
+  OK  T-1234-D-1: no analyst -> AUTO_ONLY, all candidates awaiting
+  OK  T-1234-D-2: partial -> reviewed/candidate/unreviewed counts + remaining bucket named
+  OK  T-1234-D-3: all candidates reviewed -> ANALYST_COMPLETE, none awaiting
+  OK  T-1234-D-4: --quick (no candidates) still names remaining bucket from persisted map
+  OK  T-1234-D-5: TLDR banner covers all three states with counts + remaining buckets
+  OK  T-1235-F-1: shorter villain -> Hero covers + delta (direction shown)
+  OK  T-1235-F-2: deeper villain -> Villain covers Hero + delta (not "= equal")
+  OK  T-1235-F-3: within tolerance -> "≈ roughly equal" only for true near-ties
+  OK  T-1235-F-4: hand 70391838 — all 5 villain seats compared to Hero (no "= equal")
+  OK  T-1235-F-5: cover table wired to helper; buggy flag-only "= equal" branch removed
+  OK  T-1235-G-1: Hero covers -> positive bounty discount + value (collectible)
+  OK  T-1235-G-2: Hero does NOT cover -> 0 discount + 0 value (no fabricated discount)
+  OK  T-1235-G-3: cover-aware PKO-adjusted threshold rendered + freezeout guard
+  OK  T-1235-G-4: unknown/unsafe -> "review manually"; old misleading copy removed
+  OK  T-1235-G-5: estimated bounty labelled a model estimate; adj-EV only with discount
+  OK  T-1236-G-1: safe dollar source present -> bounty $ returned (by tid or name)
+  OK  T-1236-G-2: no safe dollar source -> None (caller says unavailable, no fake $)
+  OK  T-1236-G-3: render shows "$X" when safe, else explicit dollar-unavailable + BB model
+  OK  T-1236-G-4: chip-only -> PKO-adjusted call thresholds shown side by side
+  OK  T-1235-H-1: every Roman-coded verdict label renders code-free
+  OK  T-1235-H-2: bare codes map to labels; already-clean / non-verdict pass through
+  OK  T-1235-H-3: display-only — taxonomy map + internal code routing intact
+  OK  T-1235-H-4: verdict-label leak sites route through _verdict_display_label
+  OK  T-1235-H-5: raw Roman-code copy removed from user-facing strings
+  OK  T-1236-H-6: no Roman verdict code in any visible render string (report-draft)
+  OK  T-1236-H-7: humanized copy present, Roman render-forms gone (ASCII-safe)
+  OK  T-VT-01: teaching object has full contract incl source_truth{atoms,decision_id,no_hindsight}
+  OK  T-VT-02: villain FACTS copied verbatim (no invention); future exploit is a COMPLETE cue-aligned projection
+  OK  T-VT-03: thin read -> fixed fallback line, no exploit_now
+  OK  T-VT-04: showdown-only atom (available None) -> no_hindsight False, no exploit_now (no hindsight leak)
+  OK  T-VT-05: prior-atoms read -> no_hindsight True; evidence_atoms are strictly EARLIER hands
+  OK  T-VT-06: profiler_archetype (population, no direct evidence) capped to low confidence
+  OK  T-VT-07: confidence bands wired to evidence_count + same-type corroboration
+  OK  T-VT-08: do_not_overadjust is derived guardrail copy keyed by confidence (never a villain fact)
+  OK  T-VT-09: PKO cover reuses coverage_label verbatim; no BB/$ fabricated; omitted when absent
+  OK  T-VT-10: live read carries live caveat, never the online suffix (no cross-apply)
+  OK  T-VT-11: villain_did/exploit_now clamped to word caps
+  OK  T-VT-12: missing decision index -> decision_id ends |? and same-hand cue is not actionable
+  OK  T-VT-13: builder reuses stamped fields (no hardcoded villain facts / invented coaching)
+  OK  T-VT-14: build_villain_teaching indexes by hand + villain; never raises on partial data
+  OK  T-VT-15: non-fallback teach_lines render the FULL Slice-D contract (8 labels)
+  OK  T-VT-16: atom no-hindsight REQUIRES same_hand_actionable (avail alone is insufficient)
+  OK  T-VT-17: low-confidence guardrail generic by default; PKO line only for PKO/cold-call spots
+  OK  T-VT-18: renderer iterates the FULL teach_lines (not just header) + has teach styles
+  OK  T-VX-01: full per-hand teaching contract (8 labels) + tag_suggestion{label,color,kind} present
+  OK  T-VX-02: candidate read language unless high conf; weak read -> Unsure/yellow (never forced)
+  OK  T-VX-03: repeated sticky/passive -> Calling Station (orange) at high conf, exploit present
+  OK  T-VX-04: aggression -> Danger Reg (red) high conf / Candidate Maniac-LAG (pink) medium; exploit respects raise
+  OK  T-VX-05: showdown-only atom -> fallback, no exploit_now, Unsure tag, no_hindsight False
+  OK  T-VX-06: hero-not-involved atoms never create a same-hand teaching object (no fake live read)
+  OK  T-VX-07: uncorroborated/contradictory cues -> low conf + Unsure tag + candidate read (not forced)
+  OK  T-VX-08: evidence summary groups by STABLE id + truncates long alias list (no overflow)
+  OK  T-VX-09: v8.13.0 no-hindsight gates intact (prior=actionable True; showdown=False)
+  OK  T-VX-10: renderer classifies new contract lines (tag swatch + confidence + guard rename)
+  OK  T-VC-01: no trusted baseline -> teaching_status never a graded missed/good
+  OK  T-VC-01b: trusted baseline + confident no-hindsight read -> graded good_exploit allowed
+  OK  T-VC-02: postflop/multiway/station/weird-sizing cues never graded missed/good
+  OK  T-VC-03: single-hand read capped to low confidence and never graded
+  OK  T-VC-04a: explanatory cue kept; label-only cue rejected
+  OK  T-VC-04b: builder drops a non-explanatory cue + flags it (no Cue line)
+  OK  T-VC-05: mixed-profile caveat renders before the archetype on the Read line
+  OK  T-VC-06: teaching object retains raw provenance; raw evidence modal present
+  OK  T-VC-07: matrix uses "Teaching Signals"; "Exploit Opps = Missed + Good" gone
+  OK  T-VC-08a: risky-widening exploit carries an ICM caution line + source warning
+  OK  T-VC-08b: low-variance value advice (default _o) gets NO ICM caution
+  OK  T-VC-09: villain badge suppressed on action-kind / index-space mismatch (never guesses)
+  OK  T-VC-10: loose_passive read fires from prior atoms (no archetype fallback)
+  OK  T-VC-11: Step-1 timestamp gate intact (prior admitted, future + tie excluded)
+  OK  T-VC-12: within-hand no-hindsight intact (showdown blocked, prior actionable)
+  OK  T-VC-13: loose-passive cue + aggressive read -> split, compact node-specific note before archetype
+  OK  T-VC-14: same-axis cue/read (loose-passive + sticky) stays consistent (no false split)
+  OK  T-VC-15: cross-node tight-cue vs aggressive-read -> split, node-specific, never contradiction/Mixed-profile
+  OK  T-VC-16: passive_aggro pivot -> line-specific value warning, not a global tag / contradiction
+  OK  T-VC-17: station cue vs aggressive read -> split; explicit profile_label honored
+  OK  T-VC-18: split/mixed read stays non-graded without a trusted baseline
+  OK  T-VC-19: confident read -> "read is from other spots"; forming read -> "still forming"; never Mixed profile
+  OK  T-VC-20: derived split caveat is compact (<=12 words) and never "contradiction"/"Mixed profile"
+  OK  T-VC-21: sparse single-cue card shows only the weak-read fallback (no verbose profile caveat)
+  OK  T-VC-22: high-confidence aggregate read + off-axis cue -> "read is from other spots" (read_conf threads from builder)
+  OK  T-VS3-01: _build_read_states emits profile_label from dimension coherence
+  OK  T-VS3-01b: a real read_state carries a profile_label key
+  OK  T-VS3-02: cross-hand trusted exploit -> available_before=0, action_index stamped, gradable
+  OK  T-VS3-03a: non-trusted detector is never gradable (no_trusted_baseline)
+  OK  T-VS3-03b: trusted but low confidence -> low_confidence
+  OK  T-VS3-03c: trusted med/high but no availability -> read_not_available_before_decision
+  OK  T-VS3-03d: trusted + ungraded outcome (downgraded thin) -> no_graded_outcome
+  OK  T-VS3-04a: lesson_7part has all 7 parts + gradable + non_gradable_reason (+ v8.18.1 provenance)
+  OK  T-VS3-04b: graded trusted exploit -> gradable True, q5/q6/q7 present, reason empty
+  OK  T-VS3-04c: thin/fallback object -> q1 is the fixed fallback, q2..q7 None, not gradable
+  OK  T-VS3-05: mixed aggregate -> Mixed-profile prefix; consistent aggregate keeps node-specific cue
+  OK  T-VS3-06: non-trusted exploit is non-graded + carries the producer reason
+  OK  T-VS3-07: openExploitDrilldown short-circuits a single reviewable example to a direct open
+  OK  T-CT-01: 5 reviewed / 0-of-14 significant losses is NOT ANALYST_COMPLETE
+  OK  T-CT-02a: incomplete coverage line says "not final"
+  OK  T-CT-02b: complete coverage renders "14/14 significant-loss" + 0 critical + COMPLETE
+  OK  T-CT-03: every stack_trajectories biggest_loss_id is screened
+  OK  T-CT-04: postflop loss <= -15BB screened; winners/small losses not
+  OK  T-CT-04b: screened hands reach the worklist with their screen source bucket
+  OK  T-CT-05a: final Justified does NOT render bare "Wrong push" (overridden)
+  OK  T-CT-05b: no analyst verdict -> auto pre-review
+  OK  T-CT-05c: final Mistake + "standard" TL;DR is a flagged contradiction
+  OK  T-CT-06: SB shove total 33.6 / eff 18 evaluated at 18BB (not 33), with warn
+  OK  T-CT-07: "call 7 into 19.9" passes when _pot_odds per-street pot is 19.9
+  OK  T-CT-08a: monotone over-commit lesson names protection+turn, not only "missed flop aggression"
+  OK  T-CT-08b: _agg_commentary reframes monotone over-commit (not sole "missed flop aggression")
+  OK  T-V25HD-01: result pill color classes preserved (good/bad/neutral)
+  OK  T-V25HD-02: system verdict readable in its own top-bar chip (12px, not 0.55em)
+  OK  T-V25HD-03: top verdict strips raw Roman verdict codes in hydration
+  OK  T-V25HD-04: street header builds title + context chips next to it
+  OK  T-V25HD-04b: .v25-street-head is a flex row (context next to title, not far-right grid)
+  OK  T-V25HD-05: no street shortcut/filter chips added (nav stays hidden)
+  OK  T-V25HD-06: action-row / commentary-grid / review-control selectors intact
+  OK  T-V25HD-07: mobile header wraps cleanly (flex-wrap on street head + top identity)
+  OK  T-V25HD-08: top-bar chips use line-height:1 (verdict chip adds no row-height jump)
+  OK  T-RQ-01: queue priority order punt<analyst<known_leak<marginal (auto_clear -> internal QA)
+  OK  T-RQ-02: status normalize (Agree/Report bug/Drill/Rulebook/Clear); Ignore rejected
+  OK  T-RQ-03: queue item carries id/rank/bucket/reason_label/title/net/cards
+  OK  T-RQ-04: modal review chips include Drill + Rulebook + Clear; no Ignore status
+  OK  T-RQ-05: PBReviewQueue builds full-queue context (data-queue-ids) + opens via openHand
+  OK  T-RQ-06: rq-card renders data-topn + count + show-all + reviewed + celebratory state
+  OK  T-RQ-07: compact rows are full-row clickable (role=button) with one reason + BB pill
+  OK  T-RQ-08: mobile rq-row uses stacking grid-areas (no horizontal table)
+  OK  T-RQ-09: status change refreshes the queue partition/counts
+
+=== v8.14.3 post-report QA hotfix (Issues 1-5) ===
+  OK  T-H143-01: validator flags visible "awaiting analyst" when ANALYST_COMPLETE (Issue 2)
+  OK  T-H143-02: validator does NOT flag "awaiting analyst" when ANALYST_PARTIAL (truth-preserving)
+  OK  T-H143-03: validator flags financial mismatch (top-level != overlay totals) (Issue 1)
+  OK  T-H143-04: validator passes when top-level cost/ABI == overlay totals
+  OK  T-H143-05: validator flags an analyst-critical (III.2) hand rendered budget_trimmed (Issue 3)
+  OK  T-H143-06: validator clean when the III.2 hand is not budget_trimmed
+  OK  T-H143-07: validator DECODES the lazy payload inline (no QA-only dep; works in the shipped bundle)
+  OK  T-H143-08: draft.py registers analyst III.1/III.2 + significant/critical-loss as P0/P1 and rescues trimmed ones
+  OK  T-H143-09: gem_report_data sets top-level total_invested/avg_buyin from parsed overlay + emits total_ticket_value
+  OK  T-H143-10: by-day table emits the cash+ticket basis footnote when ticket value > 0 (Issue 1)
+  OK  T-H143-11: large-loss verdict says "outside required review set" (not "awaiting") when complete=True
+  OK  T-H143-12: large-loss verdict still says "awaiting analyst" when complete=False (PARTIAL truth)
+  OK  T-H143-13: validator flags a hand that is BOTH a budget_trimmed stub and a full lazy card (Issue 3)
+  OK  T-H143-14: validator does NOT flag dup when the hand is only trimmed (no full card)
+
+=== v8.14.4: cash+ticket disclosure on the active financial surface ===
+  OK  T-H144-01: ACTIVE S1.1a path renders the cash+ticket return-basis disclosure ($470.00)
+  OK  T-H144-02: disclosure renders AFTER the by-day financial table (not before it)
+  OK  T-H144-03: ticket value = 0 omits the ticket-specific disclosure
+  OK  T-H144-04: disclosure is wired into the ACTIVE _emit_results_attribution path
+  OK  T-H144-05: validator flags ticket>0 with NO disclosure, passes when present
+
+=== v8.14.4: raw chart-ID guard (centralized validator + humanizer) ===
+  OK  T-H144B-01: REJAM_HJvsUTG1 in user text is detected + humanized away (Test 1)
+  OK  T-H144B-02/PUSH: validator flags PUSH_12BB_BTN in visible HTML prose (Test 2)
+  OK  T-H144B-02/CALLJAM: validator flags CALLJAM_BBvsSB in visible HTML prose (Test 2)
+  OK  T-H144B-02/REJAM: validator flags REJAM_HJvsUTG1 in visible HTML prose (Test 2)
+  OK  T-H144B-02/OPEN: validator flags OPEN_20-40BB_SB in visible HTML prose (Test 2)
+  OK  T-H144B-02/JAM: validator flags JAM_10BB_CO in visible HTML prose (Test 2)
+  OK  T-H144B-03: decoded lazy payload card with raw chart ID is flagged (Test 3)
+  OK  T-H144B-04: raw chart ID in rd analyst_commentary is flagged (Test 4)
+  OK  T-H144B-05: data-chart-id attrs, JS keys, humanized + plain prose are NOT flagged
+  OK  T-H144B-06: humanizer removes every raw id, preserves meaning, is idempotent
+  OK  T-H144B-07: raw-chart-ID guard wired into _quick_validate_render AND the main-path validator
+  OK  T-H144B-08: centralized find_raw_chart_ids_in_user_text + humanize_raw_chart_ids in gem_chart_labels
+
+=== Tournament Tables v8.15 Phase 1 / SP-1: event-level model ===
+  OK  T-TT-01 [A-FIN]: model totals reconcile to canonical (cost 3946.97 / return 1370.43 / net -2576.54 / ROI -65.3)
+  OK  T-TT-02 [A-FIN]: return basis is explicit "cash + ticket" with ticket value carried
+  OK  T-TT-03 [A-FIN]: per-event rows reconcile to canonical totals (summed == overlay, diagnostic true)
+  OK  T-TT-04 [A-FIN]: join by tournament_id (event_id derived from tid, not name)
+  OK  T-TT-05 [A-FIN]: stale session_financials => diagnostic, not a blocker (model still builds from overlay)
+  OK  T-TT-06 identity: repeated tournament NAME stays separate events (2 distinct rows, not merged)
+  OK  T-TT-07 identity: multi-bullet stays ONE event (bullets=3, one row, entry_pattern multi_bullet)
+  OK  T-TT-08 identity: event_id stable + deterministic across rebuilds
+  OK  T-TT-09 provenance: name-token bounty => prize_type bounty marked inferred; bounty $ stays blank
+  OK  T-TT-10 provenance: unrecognized field => blank + unknown provenance (no fabricated value)
+  OK  T-TT-11 cEV: cev_per_100 stored RAW (0.54, not a %), unit raw_chip_ev; blank when unavailable
+  OK  T-TT-12 TZ: no canonical TZ => Asia/Bangkok; event_day = start_date, NOT the report label date
+  OK  T-TT-13 TZ: canonical report timezone is used when available
+  OK  T-TT-14 no stack-trajectory surface; only detector-backed drivers survive
+
+=== Tournament Tables v8.15 Phase 2 / SP-2: additive renderer ===
+  OK  T-TT-R-01: new Results section renders the typed DataTable from build_tournament_model
+  OK  T-TT-R-02: unified Tournament Results (STT) wired BEFORE S1 (primary Results surface)
+  OK  T-TT-R-03: repeated tournament names render as separate event rows (RES-001 bold name)
+  OK  T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)
+  OK  T-A-001 (RES-001): tournament name renders bold (tt-tname)
+  OK  T-A-005 (RES-005): grouped table carries a totals tfoot row (tt-totals)
+  OK  T-A-009 (RES-009): explicit coverage inventory (HH-backed / summary-only / resolved)
+  OK  T-A-007 (RES-007): Entries (count) is distinct from Entry timing in the filter dims
+  OK  T-TT-R-05: summary strip totals (v8.16.2 Phase D: Invested/Cash/Ticket split, canonical)
+  OK  T-TT-R-06: return basis "cash + ticket" stays on the trust line
+  OK  T-TT-R-07: per-event return is canonical (satellite cash $0 + ticket $470 = return $470, ticket marker)
+  OK  T-TT-R-08: unknown prize provenance renders an em dash (not a fabricated label)
+  OK  T-TT-R-09: inferred prize type marked with * + footnote present
+  OK  T-TT-R-10: bounty dollars not inferred (audit footnote present; Type shows Bounty*, no fabricated $)
+  OK  T-TT-R-11: Results finish shows place/field + Top% (No cash is a RETURN outcome, not the finish); satellite Ticket
+  OK  T-TT-R-12: renderer is read-only on rd (no unrelated state mutation)
+  OK  T-TR817-01: primary Results DataTable emitted (id + typed sortable headers + Type/Finish/Cost/Exit cols)
+  OK  T-TR817-02: v8.18.0 Details/Drivers removed; DataTable init wired; exit hand is the FINAL column
+  OK  T-TR817-03: per-event drilldown payload is canonical (one entry per event, no recompute)
+  OK  T-TR817-04: deep-run status derived from canonical finish (top% / day2 / itm)
+  OK  T-TR817-05: Stack Trajectory folded into the drilldown (no standalone recompute)
+  OK  T-TR817-06: drilldown review-links route to the event hands
+  OK  T-TR817-07: PKO/bounty return reconciliation line present (bounty folded into cash, never inferred)
+  OK  T-TR817-08: satellite return breakdown = ticket (no fabricated bounty $)
+  OK  T-TR817-09: sum(event bullets/cost/net) reconcile to canonical totals
+  OK  T-TR817-10: event ROI denominator is committed cost, never return
+  OK  T-TR817-11: one row per event_id (re-entries merged; multi-bullet stays one row)
+  OK  T-TR817-12: legacy P&L/Deep-Runs/Stack-Traj collapsed into one closed secondary reconciliation details
+  OK  T-TR817-13: drilldown JS + modal scaffold + sortable wired in _html.py
+  OK  T-RC3-01: STT (Tournament Results) wired BEFORE S1 in section_emitters
+  OK  T-RC3-02: one closed s1-recon-detail collapse wrapping the legacy surfaces
+  OK  T-RC3-03: openTargetDetails expands ANCESTOR details (anchor into collapsed S1)
+  OK  T-RC3-04: villain teaching render reads ctx.teaching.lesson_7part (compact 7-part)
+  OK  T-RC3-05: compact labelled rows present (Read/Cue/Exploit now/Next time/Guardrail)
+  OK  T-RC3-06: legacy teach_lines.forEach fallback preserved
+  OK  T-RC3-07: closed s1-recon-detail collapse hides its content via explicit CSS
+
+--- v8.16.1 live-smoke trust fixes (Bug-1 date scope, Bug-2 78024888) ---
+  OK  T-CALLAI-1: callAI river not a missed-aggression spot
+  OK  T-CALLAI-2: non-all-in river call still evaluated
+  OK  T-CALLAI-3: CORRECTLY_PASSIVE on a CALL says "Correct call" not "check"
+  OK  T-CALLAI-4: CORRECTLY_PASSIVE on a CHECK still says "Correct check"
+  OK  T-CALLAI-5: all-in/composite action codes map to readable words
+  OK  T-HH10-1: 78024888 turn (AQhh on 9hTd2s2h) is a nut flush draw
+  OK  T-HH10-2: HH10#1 detector guards on a strong draw
+  OK  T-HH10-3: a weak no-draw hand is NOT excluded (detector still fires)
+  OK  T-RECON-1: auto Mistake + all-correct/borderline label -> downgrade
+  OK  T-RECON-2: corroborated by "Too aggressive" -> keep Mistake
+  OK  T-RECON-3: corroborated by "Missed" -> keep Mistake
+  OK  T-RECON-4: analyst verdict (not auto) never downgraded
+  OK  T-RECON-5: no aggression label (preflop) -> left alone
+  OK  T-RECON-6: III.1 Punt also reconciled
+  OK  T-RECON-7: non-mistake verdict (III.5) never downgraded
+  OK  T-RECON-8: render wires the reconciliation guard
+  OK  T-DATECOV-1: both dates included (no silent filter)
+  OK  T-DATECOV-2: HH file count included==total==3
+  OK  T-DATECOV-3: summary file count included==total==2
+  OK  T-DATECOV-4: nothing excluded, filtered=False
+  OK  T-DATECOV-5: multi-date session is loudly flagged
+
+--- v8.16.2 Report Reliability + Sticky Review UX v1 (Phases B-E) ---
+  OK  T-B-DEDUP-1: _state exposes _FULL_CARD_IDS registry
+  OK  T-B-DEDUP-2: _reset_citations clears _FULL_CARD_IDS
+  OK  T-B-DEDUP-3: both full-card emit sites register the id
+  OK  T-B-DEDUP-4: XIV.C stub loop excludes full-carded ids
+  OK  T-B-DEDUP-5: full-carded id removed from the stub list (the fix logic)
+  OK  T-B-DEDUP-6: full-render dup validator counts data-format full cards only
+  OK  T-C-STICKY-1: board+action sections are position:sticky in the V25 layout
+  OK  T-C-STICKY-2: --v25-street-head-h var declared + measured
+  OK  T-C-STICKY-3: mobile keeps a single shared compact sticky board strip
+  OK  T-C-STICKY-4: sticky context sits BELOW the street header (lower z-index)
+  OK  T-D-TT-1: STT nav label is "Tournament Results"
+  OK  T-D-TT-2: section title + canonical Finance & Finish surface (duplicate cross-check removed)
+  OK  T-D-TT-3: summary strip uses Invested/Cash return/Ticket return labels
+  OK  T-D-TT-6: session-totals strip typed tt_session_summary (own 7-col grammar, not 12-col daily financial_summary)
+  OK  T-D-TT-4: per-event cEV column hidden when all-empty (has_cev guard in Performance table)
+  OK  T-D-TT-5: legacy S1 financial tables NOT removed
+  OK  T-E-RQ-1: queue Debate icon aligned to modal (🤔, not bare 🟡)
+  OK  T-E-RQ-2: queue + modal Agree icon consistent (✅)
+  OK  T-E-RQ-3: status colors consistent across pill + revchip + modal chip
+  OK  T-E-RQ-4: open rows compacted + 20+ list scroll-capped
+  OK  T-E-RQ-5: cheerful completion card copy
+
+--- v8.16.3 Commentary & Range Explanation Upgrade v1 (Range Lens) ---
+  OK  T-RL-D1: all pairs compress to 22+
+  OK  T-RL-D2: AJs+ stays suited (s preserved, run reaches top)
+  OK  T-RL-D3: AJo+ stays offsuit
+  OK  T-RL-D4: bounded suited run renders hi-lo (KJs-KTs, not collapsed)
+  OK  T-RL-D5: 77+ pairs render compactly
+  OK  T-RL-D6: T9s+ is NOT confused with T9o+ (suited/offsuit kept separate)
+  OK  T-RL-D7: mixed range preserves all three groups (matches _compact_range "+"-at-top convention)
+  OK  T-RL-D8 (anti): no suit-stripped "AJ+" when suitedness matters
+  OK  T-RL-D9 (anti): canonical case preserved (A8o, not lowercase a8o)
+  OK  T-RL-D10 (anti): suited and offsuit never merged into one token
+  OK  T-RL-E1: made hand only -> bucket made (top pair)
+  OK  T-RL-E2: draw only -> bucket draw (flush draw, no pair)
+  OK  T-RL-E3: combo draw (FD+OESD) -> bucket draw
+  OK  T-RL-E4: pair + flush draw -> made with redraw surfaced
+  OK  T-RL-E5: air / overcards -> bucket air
+  OK  T-RL-E6: nut flush draw labelled
+  OK  T-RL-E7: paired board, board-pair only -> Hero is the DRAW, not a made pair (78024888 turn)
+  OK  T-RL-E8: monotone board texture detected
+  OK  T-RL-E9: connected board texture detected
+  OK  T-RL-E10: river missed draw -> air
+  OK  T-RL-P1: preflop lens compresses chart set + states membership
+  OK  T-RL-P2: preflop lens None when no chart / unknown membership (no hallucination)
+  OK  T-RL-P3 (anti): lens carries no fake % or solver combo-count
+  OK  T-RL-P4: render wires _emit_range_lens into the hand-detail card
+
+--- v8.16.3 Commentary Column v3.4 (router-aware zero-drop migration) ---
+  OK  T-CM-01: route_street_attr ports the V25 headerless rule
+  OK  T-CM-02: note-street header path splits multi-street
+  OK  T-CM-03: enumerator captures all in-body source families (not .analyst-notes only)
+  OK  T-CM-04: Range Lens (📐) routes to its street cell, NOT General (L23 misbucket=0)
+  OK  T-CM-05: headerless note preserved (legacy), never dropped
+  OK  T-CM-06: bare _emit_analyst_fallback captured -> review_needed (highest drop-risk surfaced)
+  OK  T-CM-07: nested details/source-raw -> preserved_legacy
+  OK  T-CM-08: handOpponentContexts decoded + firewall split (in-cell vs bottom vs passive)
+  OK  T-CM-09: bottom/passive/mh-verdict NEVER point at the Commentary cell (L24=0)
+  OK  T-CM-10: window.coachingCards inventoried per street
+  OK  T-CM-11: zero-drop balance — inventoried == sum of the six destinations
+  OK  T-CM-12: migration summary failure fields all zero + lints CLEAN
+  OK  T-CM-13: lazy parity — inline source count == decoded-lazyHands source count
+  OK  T-CM-14 (anti): a post-lazy STUB body has NO inline notes — enumeration MUST decode, not grep
+  OK  T-CM-15 (anti): no out-of-scope source is ever classified visible_capsule
+
+--- v8.16.4 Review Precision & Decision-Trust (synthetic fixtures only) ---
+  OK  T-RPDT-01: .rq-rev-row declares 5 columns + named grid-areas (was 4 -> pill wrapped)
+  OK  T-RPDT-02: reviewed row emits a note preview in rq-main (no empty cell)
+  OK  T-RPDT-03: queue ResizeObserver re-syncs sticky vars + nav z-index above street headers
+  OK  T-RPDT-04: generic reason banned: 'Strategic leak'
+  OK  T-RPDT-04: generic reason banned: 'Known leak'
+  OK  T-RPDT-04: generic reason banned: 'Potential detector blind spot'
+  OK  T-RPDT-04: generic reason banned: 'Spots cleared or monitored'
+  OK  T-RPDT-04: generic reason banned: 'Marginal candidate'
+  OK  T-RPDT-04: generic reason banned: '(empty)'
+  OK  T-RPDT-05: concrete reason accepted; build_why_review structured
+  OK  T-RPDT-06: build_why_review gates out generic / bad street / bad category
+  OK  T-RPDT-07: actionable_reason_ok validates a full why-contract
+  OK  T-P0C-01: translate_ui_token maps internal tokens to user copy (longest-first), leaves clean text
+  OK  T-P0C-02: ui_copy_violations flags banned VISIBLE tokens, allows spaced English, empty on clean
+  OK  T-P0C-03: issue-collector display names carry no internal jargon (ids stay stable)
+  OK  T-P2-01: _bold_combo_in_expr wraps the exact combo token only (no-op on prefix/miss)
+  OK  T-P2-02: range_membership_color by action-vs-chart (fold-outside=green, open-outside=red, fold-inside=red)
+  OK  T-P2-03: range_membership_color action=None stays legacy membership-only (backward compatible)
+  OK  T-P2-04: highlight_range_expression bolds combo + colours by action + flags combo_highlighted
+  OK  T-P2-05: range_evidence_md emits action-coloured + combo-bolded rng-hl that survives _html_escape
+  OK  T-P2HC-01: inside lens marks Hero even when not in top-5 (rng-combo-hero + Includes label)
+  OK  T-P2HC-02: outside lens marks Hero WITHOUT implying inclusion (Reference classes, not Includes)
+  OK  T-P2HC-03: fold-outside correct -> green lens, Hero still emphasized (no false negative marker)
+  OK  T-P2HC-04: exact Hero combo normalized correctly (Ah2h->A2s, AdKc->AKo, TsTc->TT)
+  OK  T-P2HC-05: escaped markup remains zero across inside/outside/fold lenses
+  OK  T-P2HC-06: highlight_range_expression appends Hero token when combo not in expr
+gem_report_lint: 0 BLOCKER · 0 ERROR · 0 WARNING · 0 INFO
+  OK  T-P2HC-07: rendered gate — #Range-Lens spans == #Hero-combo spans (100% coverage, 1:1)
+  OK  T-P3A-01: no render emit-site prints a raw +N read-weight (vsn-impact + matrix scrubbed)
+  OK  T-P3A-02: read-impact +N scrub maps to plain words (slight/moderate/strong), no raw +N
+  OK  T-P3C-01: villain matrix/drilldown user-label is "Signals", not "Exploit Opportunit*"
+  OK  T-P3B-01: evid uses a (street,-1) sentinel + villain_position; grid pins by villain position
+  OK  T-P3B-02: evid sentinel carries villain_position for grid position-pinning
+  OK  T-P4D-01: finish domain — exact Top% (0-100) below Ticket/Day2/Est.ITM/Pending/No-cash sentinels
+  OK  T-P4D-02: pooled group ROI on covered subset; committed incl pending; no fake -100%
+  OK  T-P4D-03: settled-only ITM/Top denominators + hand-weighted BB/100; band floor sort; deterministic colour
+  OK  T-P4D-04: distribution Net is diverging (neg share of |neg|, pos share of pos)
+  OK  T-P4UI-01: grouped aggregate surface renders (tabs + legend squares + pooled ROI + settled coverage)
+  OK  T-P4UI-02: multi-tab grouped aggregate — Buy-in default + prize_type/entry_pattern/phase_reached; speed/entry_timing auto-hidden; single-day hides By-day
+  OK  T-P4UI-03: By-day tab appears only for a multi-day report
+  OK  T-P4W-01: model carries canonical per-event hands / BB-100 / reviewed / exit-hand
+  OK  T-P4W-02: _tt_perf_maps joins hands/BB-100/reviewed/exit by tid (BB-100 = sum net_bb / hands * 100)
+  OK  T-P4UI-04 (QA-RES-003): the group-aware Cost/Cash-Return/Net financial chart is the PRIMARY Results chart (owner-locked); the static finish-outcome bar is removed
+  OK  T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)
+  OK  T-P4UI-06: v8.18.0 redundant Drivers-in-view rollup removed (driver data retained in the event payload)
+  OK  T-P4UI-07: chart JS (initTtChart / ttRenderChart) + diverging-bar CSS wired in _html.py
+  OK  T-P4UI-08 (anti): a real full-buy-in bust shows a real -100% ROI; no literal "unavailable" / debug token in the TT section
+  OK  T-P4UI-09: Results DataTable is the canonical per-event surface; exit-hand uses PokerHandDisplay + standard link
+  OK  T-P4UI-10 (QA-RES-001/002/004): ONE canonical Results filter state (the .dt-filters DataTable, full owner dimension set); the competing .tt-filters chip toolbar is removed; sticky summary present
+  OK  T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers retired; aggregate+chart remain non-event surfaces)
+  OK  T-RES-01 (chart): window.ttChart carries Cost/Return/Net per tab so the chart recomputes from canonical numbers (no JS re-aggregation drift)
+  OK  T-RES-02 (stale-state prevention): renderGrouped keeps the grouped FOOTER total + coverage note live from the filtered set
+  OK  T-RES-03 (one canonical state): the .dt-filters DataTable is the single filter owner with the full dimension set; the .tt-filters chip toolbar is gone
+  OK  T-RES-04 (reload-safe single state): initTtFilters only restores a saved selection when its toolbar exists; otherwise it clears the orphaned key and renders the full set
+  OK  T-RES-05 (chart follows grouping tab + filter): the chart re-renders from the active tab + filtered events
+  OK  T-RES-06 (chart values ALWAYS from the filtered set): renderChart re-aggregates from the current filtered events (_ttAggregate over evs.filter), never the precomputed full-session window.ttChart values
+  OK  T-RES-07 (one canonical state owner derived from the DataTable rows): renderResultsFromCurrentState + _ttCurrentEvents read the DataTable visible rows (DOM source of truth), so every caller is order-independent; ttCurrentFilteredIds is exposed
+  OK  T-RES-08 (metric change -> canonical render, not full-session): the metric button handler calls renderResultsFromCurrentState (so a metric switch after a filter recomputes from the filtered set) and never alters the filter
+  OK  T-RES-09 (grouping-tab change -> canonical render; old empty-state path retired): the tab handler sets the chart data-tab AND calls renderResultsFromCurrentState; the bare window.ttApplyFilters() (empty private state) call is GONE
+  OK  T-RES-10 (reload/restoration parity): initTtFilters initial render is renderResultsFromCurrentState (the canonical state), NOT a bare render() that would clobber the DataTable-restored filter back to the full population
+  OK  T-RES-11 (no render path to an empty independent Results state): the only filter bridge stores window.__ttFilteredIds and routes through the canonical render; no tournament handler calls window.ttApplyFilters()
+  OK  T-RES-DIM (renderer emits every required dim with >=2 values): entry_time / multiday / satellite chip-groups render when the data carries them (auto-hidden in the June-16 session ONLY because it is single-valued for those three); the other six (buy-in/speed/bounty/freezeout/multi-bullet/phase) are live-proven in the browser matrix
+  OK  T-RES-DIM-DEFS (all 9 owner filter dimensions defined + the 6 grouping tabs): the Results filter set covers buy-in/entry-timing/speed/bounty/freezeout/multi-bullet/multi-day/satellite/phase and the grouping tabs cover buy-in/prize/speed/entry-pattern/entry-timing/phase-reached
+  OK  T-RES-DIM-HIDE (auto-hide is the only reason a dim is absent): a dimension is shown iff it has >=2 distinct values among the events (single-valued dims are intentionally skipped)
+  OK  T-MOBCHART-01 (mobile usability): the grouped-aggregate table stays a COMPACT horizontally-scrollable table on mobile (its .table-shell carries data-mobile-mode=scroll), never the tall stacked-card layout that blew group rows up to ~410px blank panels at 360/390/430
+  OK  T-MOBOVF-01 (360px page-overflow fix): the .od-row mobile single-column track is minmax(0,1fr), NOT a bare 1fr -- so .od-card.rq-card / .od-card.cooler-summary-card shrink to the container instead of expanding the grid track to their ~323px min-content and pushing the document 3px past a 360px viewport
+gem_report_lint: 0 BLOCKER · 1 ERROR · 4 WARNING · 26 INFO
+  LINT: E4 | iii2-confirmed | Empty rows list in hand_evidence_table block
+  OK  T-V-FULL-01: complete all-sections synthetic report renders (fixture gap fixed; canonical results_attribution + parsed overlay)
+  OK  T-V-LEAK-01: chart-id humanized in capsule range-line; no raw PUSH_/REJAM_/CALLJAM_ in visible text
+  OK  T-P5-01: verdict resolver priority (queue>analyst>auto); a pure result NEVER becomes a grade
+  OK  T-P5-02: marker_parity_issues flags orphan mistake/trigger/villain-evidence (bound + thumbs OK)
+  OK  T-P5-03: allin_completeness — empty math FAILs unless no_clear_lesson; complete passes
+  OK  T-P5W-01: a positive chip RESULT never overrides a bad decision (stays graded)
+  OK  T-P5W-02: a negative chip RESULT never overrides a correct decision
+  OK  T-P5W-03: cooler (no strategic error) surfaces as a decision class; a bare flip -> neutral Review
+  OK  T-P5W-04: an active-queue decision overrides the analyst/hand summary
+  OK  T-P5W-05: the analyst verdict overrides the auto verdict
+  OK  T-P5W-06: a hand with only a chip result (no decision signal) -> neutral Review
+gem_report_lint: 0 BLOCKER · 0 ERROR · 0 WARNING · 0 INFO
+  OK  T-P5W-07: identical canonical verdict across topbar/action-row/capsule (rendered) + queue context
+  OK  T-P5W-08: valid marker/commentary pairs pass (thumbs needs none)
+  OK  T-P5W-09: each orphan class (mistake / trigger / villain-evidence) fails the build
+  OK  T-P5W-10: wrong-player and wrong-street/action marker mappings fail
+  OK  T-P5W-11: marker claiming a row cue with no resolvable row fails; non-row thumbs passes
+  OK  T-P5W-12: complete non-PKO call_vs_jam (all fields) -> no issue, no fallback note
+  OK  T-P5W-13: complete PKO call-all-in (bounty present) -> no issue
+  OK  T-P5W-14: unavailable equity -> explicit no_clear_lesson naming equity
+  OK  T-P5W-15: open-shove missing pot / fold-equity -> no_clear_lesson naming the gap
+  OK  T-P5W-16: a bounty hand with no bounty input -> no_clear_lesson naming bounty
+  OK  T-P5W-17: call_vs_jam priced on the decision-time (side-pot) _po maps to_call/pot/required
+  OK  T-P5W-18: build FAILs when neither complete math nor a no_clear_lesson exists
+  OK  T-P5W-19: completeness equation — scored all-ins == complete + no_clear_lesson, zero remainder
+  OK  T-RPDT-08: Mistake w/o bound action marker -> downgrade to Review
+  OK  T-RPDT-09: non-mistake verdict scrubs stale negative marker, keeps verdict
+  OK  T-RPDT-10: verdict_validation_issue flags unsubstantiated Mistake only
+  OK  T-RPDT-11: range_membership_color green/amber/red/neutral + inexact->neutral
+  OK  T-RPDT-12: highlight wraps the expression itself + colour class + node label
+  OK  T-RPDT-13: outside-open negative ONLY under trust gates; never flag a fold
+  OK  T-RPDT-14: allin_math_kind classifies call-vs-jam / open-shove / rejam / none
+  OK  T-RPDT-15: required fields per type; equity never claims exactness on heuristic
+  OK  T-RPDT-16: multiway suppresses HU required-equity, shows field+per-opponent, marks uncertainty
+  OK  T-RPDT-17: bounty provenance labels distinguish exact/estimated/flat/effective
+  OK  T-V8171-BP1: analyzer stamps bounty_value_provenance ladder (exact>effective>flat>unavailable)
+  OK  T-V8171-BP2 (anti): a flat/unavailable provenance never renders as exact or dynamic
+  OK  T-RPDT-18 (anti): postflop lens does NOT restate Hero made hand by default
+  OK  T-RPDT-19: lens mentions Hero only for blocker/value/bluff-catch
+  OK  T-RPDT-20: _emit_range_lens skips postflop when Hero is all-in preflop
+  OK  T-RPDT-21 (anti): lens still carries no solver %/combo counts
+  OK  T-RPDT-22: attribution roles distinguish root / downstream / consequence
+  OK  T-RPDT-23: attribution_plan orders streets + flags root/downstream, no dup
+  OK  T-RPDT-24: Tournament Results is the supplementary cross-check label (single primary)
+  OK  T-RPDT-25: Debate verdict is preserved, never forced to Mistake/Justified
+  OK  T-RPDT-26: internal QA jargon is caught as generic (kept out of user queue)
+
+--- v8.16.4 Decision-Trust Integration (live contract wiring) ---
+  OK  T-DTI-01: Obj6 preflop_range_lens(highlight=True) colours the expression; default unchanged
+  OK  T-DTI-02: Obj6 render path calls preflop_range_lens(..., highlight=True)
+  OK  T-DTI-03: Obj8 pot-odds block imports + applies multiway_render_plan to suppress HU required-equity
+  OK  T-DTI-04: Obj9 bounty provenance label wired (exact vs flat starting-BB estimate)
+  OK  T-DTI-05: Obj5 validator Check 14 calls verdict_validation_issue
+  OK  T-DTI-06: Obj4 worklist builds why_contract via build_why_review + adds why_review_actionable
+  OK  T-DTI-07 (anti): why-contract wiring is ADDITIVE — does not drop hands (no gate/continue on None)
+
+--- v8.16.4 DTI Blockers — bounded queue + compact-path decision evidence ---
+  OK  T-QUEUE-01: 38 identical leak examples -> ONE aggregated leak group, all 38 in drilldown
+  OK  T-QUEUE-02: primary queue is BOUNDED (<= cap) despite 42 candidates
+  OK  T-QUEUE-03: detector-health (auto_clear) + generic detector reason -> internal QA, not primary
+  OK  T-QUEUE-04: zero generic-only titles in the primary queue (generic high-value demoted to overflow)
+  OK  T-QUEUE-05: the REAL build_review_queue bounds + aggregates (38 leak hands -> 1 leak_group row, count 38; auto_clear excluded)
+  OK  T-DK-01: call-vs-jam (Hero calls, faced an all-in)
+  OK  T-DK-02: open-shove (Hero aggresses first-in)
+  OK  T-DK-03: rejam (Hero jams over a prior raise)
+  OK  T-DK-04: unprovable -> "All-in decision (exact node type unavailable)", NOT a guess
+  OK  T-DK-05: a typed label cannot contradict the ledger
+  OK  T-CPATH-01: compact _po_lines_b path wires multiway suppression + decision-kind + provenance
+  OK  T-CPATH-02: compact path consumes the SAME _po_b object (no recompute)
+  OK  T-CPATH-03: dashboard build_review_queue routes through aggregate_review_queue + bounded cap
+  OK  T-ATTR-01: attribution_render_line renders root -> downstream -> consequence in street order
+  OK  T-ATTR-02 (anti): absent/empty/all-none roles -> "" (unattributed hands unchanged)
+  OK  T-ATTR-03: a repeated role is not echoed with its full explanation across streets
+  OK  T-CPATH-04: compact path optionally renders attribution_render_line gated on h[attribution_roles]
+  OK  T-CPATH-05: XIV.A full-card path carries SAME decision-kind + attribution (every path)
+
+--- v8.17 Epic B (B6/B7): how-PKO-changes-the-decision + 4-state provenance ---
+  OK  T-PKO817-01: B7 covers+discount states chip→bounty threshold delta + positive incentive + action
+  OK  T-PKO817-02: B7 multiway/suppressed -> directional, NOT a fixed price cut
+  OK  T-PKO817-03: B7 villain-covers-Hero -> bounty not collectible, price as chip decision
+  OK  T-PKO817-04 (anti): B7 empty on contradiction OR no bounty (never out-claims math)
+  OK  T-PKO817-05: B7 "Too wide" classification keeps the not-continue caveat even with bounty
+  OK  T-PKO817-06: pko_trust_render returns how_changes_md + cover_state/discount_applies (no recompute)
+  OK  T-PKO817-07: XIV.A + XIV.B PKO pills render how_changes_md + 4-state provenance (effective/flat/unavailable)
+
+--- v8.17 Epic B (B8): PKO aggregate count-cell contract ---
+  OK  T-PKO817-08: count 0 -> muted non-clickable plain "0"
+  OK  T-PKO817-09: count 1 -> single hand-list-trigger (no separate Hands col); JS opens it directly
+  OK  T-PKO817-10: count = unique ids (dedup), >1 opens the hand list
+  OK  T-PKO817-11: openHandListPopup short-circuits a single id to openHand (direct open, 1 click)
+  OK  T-PKO817-12: S4 PKO aggregate v8.19.0 headers + clickable counts (data keys unchanged), no Hands col, directional⚠
+
+--- v8.17 Epic A (capsule layer): registers / tiers / capsule / content lints ---
+  OK  T-CAP817-01: register — mistake/borderline/exploit/leak -> coaching; correct/standard -> factual
+  OK  T-CAP817-02: result-only / non-gradeable ALWAYS -> no_clear_lesson (hard rule §9)
+  OK  T-CAP817-03: evidence-tier verb gate — exact verbs allowed only chart-sourced
+  OK  T-CAP817-04: build_capsule drops empty roles, keeps order, marks a visible anchor
+  OK  T-CAP817-05: build_capsule returns None when every role is blank (no empty capsule)
+  OK  T-CAP817-06: L6 terminal-result leakage + L3 internal token are FAIL
+  OK  T-CAP817-07: L13 result-only scored + L7 factual praise/takeaway are FAIL
+  OK  T-CAP817-08: L1 verdict/range contradiction + L12 missing anchor are FAIL
+  OK  T-CAP817-09 (anti): a clean chart-sourced coaching capsule with anchor + takeaway has ZERO FAILs
+  OK  T-CAP817-10: lint summary gates the build (fail>0 -> gate_ok False)
+  OK  T-CAP817-11: signals->coaching capsule (mistake verdict) with Decision+Verdict roles
+  OK  T-CAP817-12: signals->factual capsule (standard verdict) keeps a Math anchor
+  OK  T-CAP817-13: no_clear_lesson drops the scored Verdict + states what is missing
+  OK  T-CAP817-14: render_capsule_md emits a register badge + the role md
+  OK  T-CAP817-15: XIV.A + XIV.B emit the visible pb-capsule (decision_capsule_from_signals wired both paths)
+  OK  T-CAP817-16: register-variant capsule CSS present (coaching/factual/no_clear_lesson + dark)
+
+--- v8.17 worksheet classification (unreviewed worksheet / empty analyst) ---
+  OK  T-WS817-01: unreviewed worksheet (empty analyst) -> AUTO_ONLY, never ANALYST_COMPLETE
+  OK  T-WS817-01b: only-meta analyst dict (no real reviews) -> not ANALYST_COMPLETE
+  OK  T-WS817-02: empty analyst fields do NOT suppress AUTO_ONLY commentary (capsule still builds)
+  OK  T-WS817-04: detector-only spot (no analyst grade) is factual/no_clear, never coaching
+  OK  T-WS817-03: synthetic Villain-evidence/exploit source is inventoried (survives migration, no silent drop)
+
+=== v8.17.1 Iteration 1 (corrective): canonical decision snapshot ===
+  OK  T-DS-01a: HU vs 1BB all-in — contesting_count == 2 (short IS a participant)
+  OK  T-DS-01b: HU vs 1BB all-in — effective stack of the confrontation == 1BB
+  OK  T-DS-01c: HU vs 1BB all-in — Hero (20) covers -> collectible
+  OK  T-DS-02: dead short + one real caller -> 3 participants (short NOT excluded)
+  OK  T-DS-03: dead short + two real callers -> 4 participants
+  OK  T-DS-04a: DecisionSnapshot identical regardless of future fold/call
+  OK  T-DS-04b: RealizedContest differs (REV6: V folds -> Hero open-jam fully uncalled/returned, 0 contestable; V calls -> 2)
+  OK  T-DS-05a: mixed — short villain A collectible
+  OK  T-DS-05b: mixed — deep villain B not_collectible
+  OK  T-DS-05c: mixed — aggregate == mixed
+  OK  T-DS-05d: mixed — scalar NOT collapsed to not_collectible
+  OK  T-DS-05e: equal stacks -> collectible_equal_stack (REV5 B5: collectible on outright win)
+  OK  T-DS-06: postflop eff grading Hero flop bet = villain behind 57 (60-3 preflop), not starting 60
+  OK  T-DS-06b: F4 current-street bet -> villain remaining behind 47 (60-3-10), not 57
+  OK  T-DS-07: side-pot layers represented (>=2 layers, short caps the first)
+  OK  T-DS-08: player yet-to-act at Hero open shove is captured (BB not yet folded at decision)
+  OK  T-DS-09: a player who committed then folded before Hero is folded, not active
+  OK  T-DS-10a: 3bet
+  OK  T-DS-10b: 4bet
+  OK  T-DS-10c: 5bet_plus
+  OK  T-DS-10d: call_vs_jam (call a short jam)
+  OK  T-DS-10e: call_off (call all-in vs a live raise)
+  OK  T-DS-10f (REV11 B1.2): raise/jam over an already-all-in, NO other live -> rejam_over_live_raise (LITERAL re-jam, NOT a call)
+  OK  T-DS-10g: rejam over a LIVE raise
+  OK  T-DS-10h: open_shove
+  OK  T-DS-10i: first_in_open (non-all-in open)
+  OK  T-DS-11: overjam_with_side_pot (jam over a short all-in with a live opponent behind)
+  OK  T-DS-12a: DecisionSnapshot has the full required typed shape
+  OK  T-DS-12b: snapshot is action-indexed (hero_action_index is an int)
+  OK  T-DS-13a: board_at_decision preflop == []
+  OK  T-DS-13b: board_at_decision flop == first 3
+  OK  T-I1RT-01 (REV11 B1.2): a covering re-jam over a short jam is labelled re-jam (literal action preserved, NOT call)
+  OK  T-I1RT-02: _canon_allin_kind keeps the fallback for a genuine re-jam
+  OK  T-I1RT-03 (REV11 B1.2): range role for a covering re-jam is rejam (the literal action is a re-jam)
+  OK  T-I1RT-04: range role for a genuine re-jam stays rejam
+  OK  T-I1RT-05 (REV11 B1.2): deviation-bucketed covering re-jam -> rejam_over_live_raise + snapshot eff (~8, not clean 22)
+  OK  T-DS-14: preflop all-in -> blocker_facts disabled (no future-board read)
+  OK  T-DS-15: pko_pressure card pinned to preflop
+  OK  T-DS-16: dead-short all-in does NOT collapse eff_stack_bb_at_decision (reads the ~17.5BB main contest vs the raiser, not 0.8)
+  OK  T-DS-17: parser stamps the canonical decision_snapshot (single source)
+  OK  T-DS-18: dead short remains a realized participant (Hero + RealVill + DeadShort = 3)
+  OK  T-REV2-01: river call vs all-in -> eff!=~0, callable=jam, kind call_vs_jam
+  OK  T-REV2-02: flop call-off Hero shorter -> callable=Hero stack 17, eff~17, to_call=full jam
+  OK  T-REV2-03: tiny final side-pot call -> small to_call ~2.3, eff!=~0
+  OK  T-REV2-04: prior-street all-in persists -> main {Hero,Short,Deep}, side {Hero,Deep}
+  OK  T-REV2-05: folded dead money -> Folder not a participant, not eligible; Short eligible
+  OK  T-REV2-06: short jam + deep non-all-in caller -> eligible {Short}; aggregate all
+  OK  T-REV2-07: two all-in opponents (cover Short, not Big) -> mixed
+  OK  T-REV2-08: earlier preflop open is future-blind to the later flop Hero jam
+  OK  T-REV2-09: worklist postflop call price routed from snapshot (callable, canonical source)
+  OK  T-REV2-10: call_vs_jam facing >1BB bet -> decision depth not ~0 (parity invariant)
+  OK  T-I1F-01: B1 earlier ctx -> eligible {Short}, aggregate all, reason known_all
+  OK  T-I1F-02: later opponent (Deep) flop all-in does NOT alter the earlier bounty ctx
+  OK  T-I1F-03: later opponent FOLD does not alter the earlier DecisionSnapshot
+  OK  T-I1F-04: later HERO all-in does not alter the earlier open bounty ctx (future-blind)
+  OK  T-I1F-05: first-in open, no all-in -> eligible {}, not_applicable / no_allin_confrontation
+  OK  T-I1F-06: realized accessor no longer falls back to the cover map (returns {})
+  OK  T-I1F-07: stack-cover relationship is a SEPARATE fact (Hero covers V) — not eligibility
+  OK  T-I1F-08: truth table — all collectible -> (all, known_all)
+  OK  T-I1F-09: truth table — all not-collectible -> (none, known_none)
+  OK  T-I1F-10: truth table — only equal stacks -> (all, known_all) [REV5 B5: equal is collectible]
+  OK  T-I1F-11: truth table — collectible + not-collectible -> (mixed, known_mixed)
+  OK  T-I1F-12: truth table — strict-cover + equal stacks -> (all, known_all) [both collectible]
+  OK  T-I1F-13: truth table — unknown stack present -> (unknown, unknown_missing_stack)
+  OK  T-I1F-14: every decision-time (aggregate,reason) is a valid truth-table pair
+  OK  T-I1F-15: 1 folded contributor -> total 17, dead 2, main eligible {Hero,Short,Deep}, reconciles
+  OK  T-I1F-16: several folded contributors -> dead 5 (F1 2 + F2 3) stays in pot, reconciles
+  OK  T-I1F-17: folded blind money is dead money (SB 0.5), pot reconciles
+  OK  T-I1F-18: dead money + one short all-in -> dead 2, Short eligible, reconciles
+  OK  T-I1F-19: dead money + 2 genuine side pots (folded cap merged away) -> reconciles, dead 2, main {Deep,Hero,Mid,Short}
+  OK  T-I1F-20: sum(layer totals) == total committed pot for every dead-money fixture
+  OK  T-I1F-21: worklist bounty_context consumes the canonical decision-time object
+  OK  T-I1F-22: report + worklist both consume the canonical decision context (no independent reconstruction)
+  OK  T-I1F-23: gate prefix-invariance — clean model invariant, CONTAMINATED model detected
+  OK  T-I1F-24a: pot reconciliation passes on a valid dead-money contest
+  OK  T-I1F-24b: gate CATCHES removed dead money AND a dropped folded total (17->15)
+  OK  T-I1F-25: gate accepts valid pairs and CATCHES the mixed/known_all contradiction
+  OK  T-I1F-26: prefix-invariance is a no-op when Hero has no reviewed decision (ridx None)
+  OK  T-I1G-01: rendered == canonical — HU collectible all-in (all/known_all)
+  OK  T-I1G-02: rendered == canonical — HU non-collectible all-in (none/known_none)
+  OK  T-I1G-03: rendered == canonical — equal stacks (all/known_all) [REV5 B5: equal is collectible]
+  OK  T-I1G-04: rendered == canonical — mixed multiway eligibility (mixed/known_mixed)
+  OK  T-I1G-05: rendered == canonical — unknown opponent stack (unknown/unknown_missing_stack)
+  OK  T-I1G-06: rendered == canonical — no all-in confrontation (not_applicable)
+  OK  T-I1G-07: earlier decision rendered ctx is unchanged by a later OPPONENT all-in
+  OK  T-I1G-08: earlier decision (idx 0) ctx unchanged by a later HERO all-in
+  OK  T-I1G-09: several Hero decisions -> the right action-indexed ctx per index (not one default)
+  OK  T-I1G-10: gate_report_bounty PASSES canonical render, CATCHES a reconstructed (wrong) bounty render
+  OK  T-I1G-11: pot_semantic gate PASSES a valid contest
+  OK  T-I1G-12: pot_semantic gate CATCHES folded-in-main, unmerged-side, and bad participant count
+  OK  T-I1G-13: worklist_bounty_consistency PASSES a clean not_applicable bnt
+  OK  T-I1G-14: worklist_bounty_consistency CATCHES not_applicable+collectibility_known and +adjustment (the REV3 52/7 bugs)
+  OK  T-I1G-15: a not_applicable canonical context yields null hero_covers + unknown-not eligibility-known
+  OK  T-I1H-01: open-shove -> potential_if_called (NOT not_applicable)
+  OK  T-I1H-02: re-jam over a live raise -> potential_if_called
+  OK  T-I1H-03: call vs an existing jam -> exact_committed
+  OK  T-I1H-04: first-in NON-all-in open -> not_applicable (no shove, no committed)
+  OK  T-I1H-05: open-shove carries potential_calling_bounties (cover relationships known)
+  OK  T-I1H-06: a Hero shove with live callers is never not_applicable (model invariant)
+  OK  T-I1H-07: non-bounty shove is not_applicable; bounty shove is potential_if_called (gate distinguishes)
+  OK  T-I1H-08: the two Hero decisions in one hand have DIFFERENT contexts (open vs call-vs-jam)
+  OK  T-I1H-09: per-decision metadata emits a block per Hero action index (0 and 3) with the RIGHT context
+  OK  T-I1H-10: per-decision gate PASSES correct render, CATCHES a wrong-action-index render
+  OK  T-I1H-11: Hero overjam vs shorter caller -> gross 120, contestable 40, uncalled 80, NO side pot
+  OK  T-I1H-12: Villain overjam vs shorter Hero call -> uncalled to V, contestable 80, no side
+  OK  T-I1H-13: multiway main + genuine side pots + final uncalled (Deep 50 returned, ledger-derived), all layers >=2 eligible
+  OK  T-I1H-14: folded dead money + uncalled -> dead 3 stays, Hero uncalled 95, reconciles
+  OK  T-I1H-15: one-eligible band WITH dead money is a valid uncontested award (not a fake side pot)
+  OK  T-I1H-16: gross == contestable + uncalled for every uncalled fixture; no zero/one-player-no-dead layer
+  OK  T-I1H-17: pot gate CATCHES an injected one-player side pot (uncalled excess as side pot)
+  OK  T-LU-01 (83526894-structure): river jam fully called + BB-ante asymmetry -> uncalled 0, no false ante return
+  OK  T-LU-02 (84611544-structure): fully-called river bet + folded SB blind -> uncalled 0
+  OK  T-LU-03: BB walk -> no blind/ante is labelled an uncalled bet (source index None, return 0)
+  OK  T-LU-04: big-blind ante on one seat + fully-called open -> no false return (ante stays dead)
+  OK  T-LU-05: Hero jams 100 / V calls all-in 20 -> genuine 80 return, source = Hero raise, matched 20
+  OK  T-LU-06: river bet 20 then villain folds -> genuine 20 return to Hero (river is uncalled)
+  OK  T-LU-07: multiway main + genuine side pots + final uncalled (Deep 50 returned) -> all layers >=2 eligible
+  OK  T-LU-08: sub-chip rounding (6.004 vs 6.001) does not manufacture an uncalled return
+  OK  T-LU-09: contestable/eligible pot excludes ONLY the proven uncalled action (not antes)
+  OK  T-LU-10: gross == contestable + uncalled and Σ(layers) == contestable for every ledger fixture
+  OK  T-B2-01: canonical reviewed ref selects the RIVER jam-call (not the first all-in call)
+  OK  T-B2-02: mismatching pot-odds is rebuilt to the reviewed (river) action; stale equity dropped
+  OK  T-B2-03: matching pot-odds keeps equity + pins the action index (reviewed_routed False)
+  OK  T-B2-04: the VISIBLE reviewed-decision line states street + call + effective depth
+  OK  T-B2-05: visible-decision gate PASSES a block that grades the reviewed (river) action
+  OK  T-B2-06: visible-decision gate CATCHES hidden-correct/visible-wrong (idx river, visible turn)
+  OK  T-B2-07: visible-decision gate CATCHES a visible block missing data-decision-action-index
+  OK  T-B2-08: visible-decision gate CATCHES a visible call amount that differs from the canonical display
+  OK  T-B2-09: visible-decision gate CATCHES a block grading an EARLIER street than the reviewed action
+  OK  T-REV7-01 (A1): Hero 20bb (posted 1) vs Villain jam 100 -> callable 19, raw-to-match 99, overjam 80
+  OK  T-REV7-02 (A1): required equity uses the CONTESTABLE pot + callable, NEVER the raw overjam
+  OK  T-REV7-03 (A2): the overjam call displays the CALLABLE amount, not the raw 99
+  OK  T-REV7-04 (A2): every action TYPE renders its own verb (call/fold/check/open/bet/3-bet/open-shove/re-jam)
+  OK  T-REV7-05 (A1): a non-call decision (open/bet/check) has price_applicable False (no call price)
+  OK  T-REV7-06 (B): gate CATCHES the raw overjam (call 99BB) rendered as Hero's price
+  OK  T-REV7-07 (B): gate CATCHES a re-jam / bet / fold rendered with the wrong (call) verb
+  OK  T-REV7-08 (B): gate PASSES the correct callable-amount render (call 19BB)
+  OK  T-META-01: changing the hand ID does not change the canonical price/action
+  OK  T-META-02: renaming players does not change the canonical price/action
+  OK  T-META-03: changing Hero hole cards does not change the price/action
+  OK  T-META-04: appending future actions does not alter the reviewed (idx 4) decision
+  OK  T-META-05: changing later board cards does not alter the preflop decision
+  OK  T-META-06: an unrelated folded player does not alter Hero's callable price/raw/overjam
+  OK  T-REV8-01 (A1/A2): UTG first-in fold -> facing_state first_in, price NOT applicable, "fold first-in"
+  OK  T-REV8-02 (A1): SB unopened fold -> first_in (special), price NOT applicable
+  OK  T-REV8-03 (A1): BB unraised -> check_option, price NOT applicable
+  OK  T-REV9-01 (A2): fold over ONE limp -> facing_limp, price NOT applicable, "fold over limp" (not first-in)
+  OK  T-REV9-02 (A2): fold after TWO limpers -> "fold after 2 limpers"
+  OK  T-REV9-03 (A2): overlimp (BTN calls over a limp) -> facing_limp, "overlimp 1BB", overlimp_cost preserved
+  OK  T-REV9-04 (A2): SB complete after a limp -> facing_limp, "complete 0.5BB after 1 limper"
+  OK  T-REV9-05 (A2): BB check after a limp -> check_option (to_call 0), display "check"
+  OK  T-REV9-06 (A2): iso-raise over ONE limp -> facing_limp, "iso-raise to 5BB over 1 limper" (not "open to")
+  OK  T-REV9-07 (A2): iso-raise over TWO limps -> "iso-raise to 6BB over 2 limpers"
+  OK  T-REV9-08 (A2): limp THEN raise, Hero acts -> facing_raise (priced), "fold facing 4BB"
+  OK  T-REV9-09 (E): full-render gate CATCHES a facing-limp fold rendered as "fold first-in"
+  OK  T-REV9-10 (D): an iso-raise (facing_limp) does NOT accept a first-in RFI chart as selected (node-exact)
+  OK  T-REV9-11 (C2): coaching-card bounty context derives from the reviewed action index
+  OK  T-REV9-12 (B1/E): the holdout invokes the REAL production hand-detail renderer (render_html)
+  OK  T-REV9-13 (D): a reviewed 3-bet does NOT accept a first-in OPEN range (both raise) as selected
+  OK  T-REV8-05 (A1/A2): fold facing a RAISE -> facing_raise, PRICE applicable, "fold facing 1.5BB"
+  OK  T-REV8-06 (A1): fold facing a JAM -> facing_jam, PRICE applicable
+  OK  T-REV8-07 (E): full-render gate CATCHES a first-in fold rendered with pot odds + required equity
+  OK  T-REV8-08 (E): full-render gate PASSES a clean first-in fold (no price shown)
+  OK  T-REV8-09 (D/E): visible gate CATCHES an inferred decision labelled "Reviewed decision"
+  OK  T-I1H-18: Hero later folds -> hero_remained_eligible False, realized_collectible {} (decision-time stays)
+  OK  T-I1H-19: Hero remains to showdown -> realized_collectible includes Short
+  OK  T-I1H-20: pot gate CATCHES Hero-folded-but-realized-collectible (failure injection)
+  OK  T-I1H-21: exact equal stacks -> collectible_equal_stack, aggregate all (collectible on outright win)
+  OK  T-I1H-22: Hero covers by one chip -> collectible (strict)
+  OK  T-I1H-23: Hero covered by one chip -> not_collectible
+  OK  T-I1H-24: equal stacks are NEVER classified aggregate none (B5 core)
+  OK  T-I1H-25: multiway equal-stack boundary -> all collectible (not none)
+  OK  T-B34-01: re-jam over a short all-in WITH a live caller -> exact_and_potential (both kept)
+  OK  T-B34-02: exact_and_potential certainty is mixed_known (committed known, caller unmodelled)
+  OK  T-B34-03: committed all-in + missing opponent stack -> exact_committed BUT certainty unknown_stack
+  OK  T-B34-04: open-shove with a live caller -> potential_if_called, certainty unknown_caller_model
+  OK  T-B34-05: auto-clear BLOCKS exact_and_potential (unresolved potential caller)
+  OK  T-B34-06: auto-clear BLOCKS a committed all-in with unknown stack (failure injection)
+  OK  T-B34-07: auto-clear BLOCKS potential_if_called
+  OK  T-B34-08: auto-clear does NOT block a clean exact_committed+known on a bounty reason
+  OK  T-B34-09: visible note for exact_and_potential discloses committed AND potential caller
+
+============================================================
+  OK  T-REV10-01 (C3): first-in SB complete -> first_in_limp node + "complete" display, NOT call_vs_jam
+  OK  T-REV10-02 (C2/B4): facing-limp overlimp / SB-complete / iso-raise / iso-shove are DISTINCT nodes
+  OK  T-REV10-03 (D1): a walk (Hero never acts) -> no_hero_decision node, no price, confidence none, "no Hero decision"
+  OK  T-REV10-04 (B2): a fold facing an overjam shows the CALLABLE amount + raw separately, never raw as the price
+  OK  T-REV10-05 (B3): canonical effective decision depth is always >= callable and <= hero stack
+  OK  T-REV10-06 (A2/A3): serialized worklist node exposes nested price/stack/selection; non-price fold carries no call price
+  OK  T-REV10-07 (A3): a river/flop BET serializes hero_action_kind != first_in_open and NO call price
+  OK  T-REV10-08 (F3/B8): gate A PASSES the canonical node and CATCHES a corrupted node/price (subset gate would miss)
+  OK  T-REV10-09 (F3/D): full-render gate CATCHES a no-Hero-decision hand rendered as "act" + bounty teaching
+  OK  T-REV10-10 (F3/B2): full-render gate CATCHES a fold-facing price above the callable amount (raw overjam shown)
+  OK  T-REV10-11 (F4): node+price invariant under hand-id / player-rename / irrelevant-cards changes
+  OK  T-REV10-12 (F4): appending a future action + adding a folded unrelated player do not change the earlier callable/node
+  OK  T-REV10-13 (F4): a first-in fold has NO decision price, with OR without an ante (an ante never creates one)
+  OK  T-REV11-01 (B1.1): a postflop first bet is hero_action_kind=bet / node postflop_bet (NOT first_in_open)
+  OK  T-REV11-02 (B1.2): a covering re-jam over a short jam is rejam_over_live_raise / node re_jam, display "re-jam" (NOT call)
+  OK  T-REV11-03 (B3/C3): a first-in underblind all-in -> short_all_in / first_in_short_all_in / "short of the big blind", NOT limp/call_off
+  OK  T-REV11-04 (B4): a first-in/no-wager contract has raw_amount_to_match_bb=None and uncallable_overjam_bb=None
+  OK  T-REV11-05 (B4/D2): an aggressive action keeps the faced price under faced_voluntary_price_bb, raw_amount_to_match=None
+  OK  T-REV11-06 (B3): became_all_in_on_this_action uses the post-action stack (an action that jams Hero is all-in)
+  OK  T-REV11-07 (G1): the ledger oracle imports/calls NONE of the canonical functions (independent oracle, not self-agreement)
+  OK  T-REV11-08 (G2): the oracle independently classifies the fixtures consistently with the canonical
+  OK  T-REV11-09 (J1): the oracle gate CATCHES a postflop bet serialized as first_in_open
+  OK  T-REV11-10 (J6/J7): the canonical NEVER types the underblind all-in as call_off/limp (short_all_in node)
+  OK  T-REV11-11 (F1/B5): the SERIALIZED coaching card carries decision_content_ownership + an ownership class
+  OK  T-REV11-12 (F3): a preflop-concept card on a flop reviewed action is ownership=earlier_context
+  OK  T-REV11-13 (H1): METAMORPHIC player-rename invariance (non-zero check, 0 violations)
+  OK  T-REV11-14 (H1): METAMORPHIC future-append invariance — a later action never changes the earlier identity
+  OK  T-REV11-15: the oracle gate PASSES the clean canonical fixtures (no semantic-invariant violations)
+  OK  T-REV12-01 (B5): the oracle does NOT accept complete -> call_off / call_vs_jam (kind)
+  OK  T-REV12-02 (B5): the oracle node check — complete -> first_in_limp, NOT call_vs_jam / call_off node
+  OK  T-REV12-03/REV14 (A/C): the re-jam ActionSizingContract exposes amount_added != live total-to + continue/raise + composite display
+  OK  T-REV12-04 (J1/J2/J3): visible-semantic gate CATCHES a short-all-in body with call +EV / Wrong push / 8BB proxy
+  OK  T-REV12-05 (J4): visible-semantic gate CATCHES a re-jam body with a Wide CVJ (Call Villain Jam) headline
+  OK  T-REV12-06: visible-semantic gate PASSES a clean short-all-in / re-jam body (no per-hand contradictions)
+  OK  T-REV12-07 (J10/G): action-row gate READS the selected Hero row and CATCHES a re-jam shown as a plain priced Call
+  OK  T-REV12-08 (J5/A2): action-row gate CATCHES a JAM row that shows a bare numeric amount (no adds/all-in label)
+  OK  T-REV12-09 (E2/E3): gate CATCHES an earlier-context card whose context index equals the reviewed action index
+  OK  T-REV12-10 (B3/B4): _renderCoachingCard renders the ownership labels (earlier_context / population_research / whole_hand)
+  OK  T-REV12-11 (J8): the visible-semantic gate flags a MISSING ownership-label renderer
+  OK  T-REV13-01 (H1/A): re-jam sizing contract — amount_added != raise_increment, both typed
+  OK  T-REV13-02 (E2): independent sizing oracle agrees with the contract on amount_added + total_to
+  OK  T-REV13-03 (T1): the correct row labels amount_added; the raise-increment row is a DIFFERENT string
+  OK  T-REV13-04 (E3/T5): numeric row check PASSES amount_added "adds", FAILS the raise-increment "adds"
+  OK  T-REV13-05 (B2/T3): node.price_contract == view.price_contract; non-price re-jam callable None; sizing equal
+  OK  T-REV13-06 (F/T5): view==node deep parity PASSES the real pair, FAILS an injected non-price callable
+  OK  T-REV13-07 (B2): a first-in fold has callable null in view + node + action_display (no forced price)
+  OK  T-REV13-08 (C3): first_in_short_all_in + no_hero_decision UNGRADED; re-jam GRADABLE
+  OK  T-REV13-09 (C1): short all-in display is neutral "short of the big blind" (no grade), callable None
+  OK  T-REV13-10 (H6): sizing contract invariant under player-rename + changed hand ID
+  OK  T-REV13-11 (F): canonical view==node deep-parity gate is clean over the fixtures
+  OK  T-REV13-12 (E/B6): numeric action-row gate PASSES a re-jam row that correctly labels amount_added
+  OK  T-REV13-13 (D): re-jam/open-shove bounty flag uses subordinate wording, not "wider call"
+  OK  T-REV14-01 (I1/T1): BB call with ante — ante 0.12 dead, BB 1.0 live; callable=amount_added=continue=1.0, no raise increment
+  OK  T-REV14-02 (T2): pot_contribution = dead ante + live total-to; dead ante separated
+  OK  T-REV14-03 (T3/I2): an all-in exhausts the stack — stack_after=0, amount_added==stack_before (ante never left behind)
+  OK  T-REV14-04 (T4/G): the independent oracle (ante-dead) — a call adds callable, never a raise increment
+  OK  T-REV14-05 (T8/B6): the call numeric gate flags a call carrying a raise increment + a price != callable
+  OK  T-REV14-06 (T6/I5/E): required equity uses the contestable (capped) pot, excludes the uncallable overjam; oracle==canonical
+  OK  T-REV14-07 (T7/B8): persisted view==node parity PASSES the stored pair, FAILS a post-serialization mutation
+  OK  T-REV14-08 (T8): adds==raise_increment still caught; raw snapshot callable privatized on a non-price view
+  OK  T-REV15-01 (G1/T1): non-blind open with ante — amount_added 2.2, live total 2.2, pot 2.34 (not 2.06/2.2)
+  OK  T-REV15-02 (G2/T2): BB 3-bet with ante — live_before 1.0, amount_added 13.0, live total 14.0, pot 14.15
+  OK  T-REV15-03 (G3/T3): postflop open jam — amount_added 12.33, live total 12.33, stack_after 0
+  OK  T-REV15-04 (G4/T4): postflop re-jam — amount_added 52.28, live total 59.73 (live before + added)
+  OK  T-REV15-05 (G5/T5): underblind all-in — dead ante 0.15, amount_added 0.12, live total 0.12, pot 0.27
+  OK  T-REV15-06 (G6/T7): a short blind BELOW the ante is still typed as the blind (production + oracle), not max-post
+  OK  T-REV15-07 (G7/T6): the relational gate PASSES a valid contract, FAILS a corrupted live-total identity
+  OK  T-REV15-08 (G8): the display gate FAILS an impossible row (amount_added exceeds the all-in total)
+  OK  T-REV15-09 (G9): PRODUCTION_CALCULATION_OWNERSHIP records 0 remaining unapproved calculators (or N/A in-repo)
+  OK  T-REV15-10: the parser stamps a typed post_type from the raw text; one commitment replay owns sizing
+  OK  T-REV16-01 (T1): non-blind open with ante — physical 2.2, live total 2.2, pot 2.34 (naive added_bb would drop the ante)
+  OK  T-REV16-02 (T2): BB 3-bet with ante — live before 1.0, physical 13.0, live total 14.0, pot 14.15
+  OK  T-REV16-03 (T3): prior open then postflop open jam — stack_before 12.33 (=start-ante-open), physical 12.33, after 0; naive path over-states by the ante
+  OK  T-REV16-04 (T4): prior 3-bet then postflop jam — stack_before 30.6 (=start-ante-3bet), physical 30.6 == stack_before, all-in; naive path over-states
+  OK  T-REV16-05 (T5): prior raise+calls then postflop jam — stack_before 25.5, physical 25.5, all-in, level 28.5
+  OK  T-REV16-06 (T6): postflop bet then re-jam — live before 7.45, physical 52.28, live total 59.73 (= live_before + physical)
+  OK  T-REV16-07 (T7): preflop call-all-in after a prior open — stack_before/physical 40.63 (not 40.78), callable 40.63
+  OK  T-REV16-08 (T8): a partial blind below the ante is typed as the blind (ante 0.15 dead, blind 0.10 live)
+  OK  T-REV16-09 (T9): a covering caller (0 live this street) calls EXACTLY the bettor all-in (18.1 == 18.1)
+  OK  T-REV16-10 (T10): a caller with prior live commitment adds level - own live before (15 - 5 = 10)
+  OK  T-REV16-11 (T11): a short caller calls only its stack (12, all-in), and Hero is refunded the uncalled 18
+  OK  T-REV16-12 (T12): an uncalled bet is refunded — bettor stack_after == stack_before (8 returned), conservation holds
+  OK  T-REV16-13 (T13): the ownership classifier FAILS missing/unreadable/absent-field/unclassified/two-owners and PASSES a clean audit
+  OK  T-REV16-14 (T14): the renderer-parity gate FAILS a non-canonical (raw-fallback) size, PASSES the canonical one
+  OK  T-REV17-01 (§1.4): a dead_blind reduces the stack + pot but adds NO live commitment; the BB is live
+  OK  T-REV17-02 (§1.3): the ownership-contract gate PASSES the tracked acceptance/ artifact and FAILS a missing one (no ok/unreadable tolerance)
+  OK  T-REV17-03 (§1.1): the frozen row-bound gate FAILS the cross-row collision seed and PASSES a correct render
+  OK  T-REV17-04 (§1.1): the Stage-P source-expected key set equals the canonical record key set (raises + calls bound)
+  OK  T-W1A-01: status precedence MISTAKE > CONDITIONAL > CLEARED > UNGRADED
+  OK  T-W1A-02: verdict-code classifier (III.1/III.2->MISTAKE, III.4/III.8->CONDITIONAL, I.7/III.0/III.3/III.5->CLEARED)
+  OK  T-W1A-03: marker mistake -> MISTAKE; auto_downgraded -> CONDITIONAL
+  OK  T-W1A-03b: UNASSESSED vs CLEARED (neutral->UNASSESSED, III.3/III.5->CLEARED; EAI flip w/o verdict stays UNASSESSED)
+  OK  T-W1A-03c: precedence MISTAKE>CONDITIONAL>CLEARED>UNASSESSED>UNGRADED + label "Not reviewed"
+  OK  T-W1A-04: secondary reasons never override status (cooler->CLEARED+COOLER, read-dep->CONDITIONAL+READ_DEPENDENT)
+  OK  T-W1A-05: ungradeable hand is UNGRADED even with a mistake-looking verdict (never strategically graded)
+  OK  T-W1A-06: no MISTAKE without an actual graded error (cleared/justified/neutral never MISTAKE)
+  OK  T-W1A-07: FinalStatus to_dict/from_dict round-trip (shared static+lazy serialization)
+  OK  T-W1A-08: status pill never blank, carries data-final-status + fs-* class (CLEARED visible, UNGRADED non-strategic)
+  OK  T-W1A-09: status-contradiction gate catches CLEARED-with-Mistake-pill and passes a consistent MISTAKE card
+  OK  T-W1A-10: gate flags a card with no canonical status (C1 -- exactly one status per hand)
+  OK  T-W1A-11: build_canonical_verdicts stamps cv[final_status] (ONE owner) for the hand
+  OK  T-PHD-01: CardVM rank/suit/glyph/colour + .card pill render
+  OK  T-PHD-02: unknown/partial card -> typed unknown pill (no crash)
+  OK  T-PHD-03: render_poker_hand has the poker-hand marker, role=img, aria-label, size class
+  OK  T-PHD-04: size variants distinct; marker=False -> bare pills
+  OK  T-PHD-05: sort_desc rank order + HandVM.to_dict typed serialization
+  OK  T-PHD-06: bypass guard -- _card_html/_cards_html delegate to _cards; header uses render_poker_hand
+  OK  T-PHD-07: fmtCardSpans is the canonical JS card renderer (poker-hand component, aria-label, card-x unknown)
+  OK  T-CAP18-01: canonical register vocabulary FACTUAL/COACHING/INSUFFICIENT_EVIDENCE (build-time)
+  OK  T-CAP18-02: zero-drop ledger balances (inventoried == sum destinations); silent_drops + no-destination == 0
+  OK  T-CAP18-03: canonical visible register badges + named-surface retention (no blanket out-of-scope)
+  OK  T-TRES18-01: Top% label is always one decimal (Top 5.0% / Top 61.0%)
+  OK  T-DT-01: typed column kinds -> sort kind + format; signed +/-, money, pct; -100% muted
+  OK  T-DT-02: sum aggregate ignores None; a None cell value sorts last (value is None)
+  OK  T-DT-03: render emits typed schema + totals + sticky filters (counts) + canonical hand cell
+  OK  T-DT-04: hand cell keeps id separate from cards (PokerHandDisplay + link); empty hand -> null label
+  OK  T-VT18-01: teaching contract -> stable key + observation/inference split + sequence id + evidence
+  OK  T-VT18-02: full-population coverage -- eligible complete; thin reads typed INSUFFICIENT_EVIDENCE; chronology + result-oriented guards fire
+  OK  T-VT18-03: missing future_exploit -> eligible + incomplete (missing_fields), never ineligible
+  OK  T-VT18-04: derived future_exploit is concrete (cue-tied action verb), >=8 words, never a forbidden placeholder
+  OK  T-VT18-05: signednum kind -> signed number, no currency symbol; sign class set
+  OK  T-VT18-06: speed classifier types every event + records the source (explicit vs name-pattern vs default)
+  OK  T-VT181-01: classify_cue_family is cue-first (signal -> family; text fallback)
+  OK  T-VT181-02: cue keyword match is word-bounded (no nit-in-opportunity), inflections still match
+  OK  T-VT181-03: future_exploit stored COMPLETE (cue-first LARGE_DONK), 40-word clamp removed
+  OK  T-VT181-04: future-exploit provenance present (cue_family/current_exploit_domain/source/reason)
+  OK  T-VT181-05: cue alignment rejects a swapped future, accepts the matching one
+  OK  T-VT181-06: all seven mutation classes are detected (completeness + alignment + hindsight)
+  OK  T-VT181-07: thin/fallback object gets NO future exploit + NO provenance (eligibility untouched)
+  OK  T-COR-001: typed CSV coercion handles 49.5/"1,234.50"/49/""/missing/non-numeric Top_Leak
+  OK  T-COR-001b: numeric columns coerced, text Top_Leak preserved, empty domain-zero -> 0.0
+  OK  T-COR-004: unavailable grouped cEV is None (em dash), not 0.0; available cEV hand-weighted
+  OK  T-COR-002: multiway-unsupported capsule drops +EV verdict + 49.6% Math; HU path keeps them
+  OK  T-COR-005: contiguity helper + multi-day span detection
+  OK  T-D-001: a normal PFR flop spot is a legal c-bet opportunity
+  OK  T-D-002: Hero terminal preflop all-in -> HERO_ALL_IN_NO_DECISION (90177176-class)
+  OK  T-D-003: flop jammed (betting closed) -> BETTING_CLOSED_FLOP
+  OK  T-D-004: no chips behind / SPR<=0 -> NO_ACTIONABLE_CHIPS
+  OK  T-D-005: never reached a flop -> NO_FLOP
+  OK  T-D-006: preflop all-in in ledger with no hero postflop action -> excluded
+  OK  T-D-AUDIT-turn: turn-street gate needs board>=4 (probe / delayed-cbet family mutation)
+  OK  T-D-AUDIT-river: river-street gate needs board>=5 (river-value family mutation)
+  OK  T-D-AUDIT-allin: a flop-jammed turn/river spot is BETTING_CLOSED_FLOP across families
+  OK  T-D-AUDIT-spr: SPR<=0 (effective all-in / runout) is NO_ACTIONABLE_CHIPS on every street
+  OK  T-D-AUDIT-terminal: Hero terminal preflop all-in excluded from every postflop family
+  OK  T-D-AUDIT-preflop: preflop families gate terminal-allin but NOT a valid jam-3bet (family equiv)
+  OK  T-E-001: PKO BB Defense uses unambiguous v8.19.0 headers (no bare Actual/Wrong/Review)
+  OK  T-E-002: aggregate is not a combo verdict — 32o-class guard copy present
+  OK  T-I-001: coverage classifies HH-backed vs summary-only vs financially-resolved events
+  OK  T-I-002: reproducibility invariants hold (hand_count==volume, date_range==coverage)
+  OK  T-I-003: same inputs + config reproduce the same manifest (deterministic)
+  OK  T-F-001 (COM-002): a result-only insufficient capsule carries reason="result_only"
+  OK  T-F-002 (COM-002): a non-gradeable spot carries reason="non_gradeable_spot"
+  OK  T-F-003 (COM-002): an un-anchored gradeable spot carries reason="evidence_threshold_not_met"
+  OK  T-F-004 (COM-002): every insufficient reason is a typed member of INSUFFICIENT_REASONS
+  OK  T-F-RF-1: raw villain evidence (q1) is wrapped in a closed <details> disclosure
+  OK  T-F-RF-2: teaching clusters lead — the Read head is emitted BEFORE the raw-evidence disclosure
+  OK  T-G-001 (ANA-002): the known regression hand TM6089787923 is selected via the structural biggest-loss screen
+  OK  T-G-002 (ANA-001): a named biggest_loss_id with net>=0 FAILS LOUD (not silent-skip)
+  OK  T-G-003 (ANA-001): a named biggest_loss_id missing from hands FAILS LOUD
+  OK  T-G-004 (ANA-001): a tournament with NO biggest_loss_id is legitimately absent (no false alarm)
+  OK  T-RC3-P01a: a non-NLH hand (via _non_nlh_ids) is excluded from critical/need (NLH retained)
+  OK  T-RC3-P01b: a non-NLH hand is excluded by the per-candidate fallback (4-card / non-NLH game_type)
+  OK  T-RC3-P05a: worklist emits 'reviewed_decisions' (authoritative kind survives exclusion)
+  OK  T-RC3-P05b: Gate G consumes reviewed_decisions + scopes checks 1-3 past inferred containers
+  OK  T-RC3-P05c: scoping strips the inferred container, keeps the authoritative one
+  OK  T-RC3-P21a: canonical owner = candidate need minus auto minus non-NLH (suppress kept, blindspot excluded)
+  OK  T-RC3-P21b: completeness need == canonical owner need (ONE shared required-review population)
+  OK  T-RC3-P21c: the coverage gate sources _need_verdict_ids from canonical_required_review_ids (no hand-rolled set), excluding the no-node debt
+  OK  T-RC3-PLOa: PLO quarantined from non_nlh + need + critical + significant sets
+  OK  T-RC3-PLOb: PLO quarantined from the coverage VM + rc awaiting/critical-unreviewed
+  OK  T-RC3-PLOc: the NLH hands are the entire need set (PLO does not pin PARTIAL)
+  OK  T-RC3-PLOd: NLH graded -> ANALYST_COMPLETE / COMPLETE, 0 awaiting, 0 critical-unreviewed
+  OK  T-RC3-PLOe: _filter_non_nlh_from_candidate_buckets strips PLO from buckets + punts
+  OK  T-RC3-PLOf: --quick subtracts cached PLO id from need/critical/awaiting
+  OK  T-RC3-PLOg: _non_nlh_ids computed from ALL hands + stamped (never the NLH-filtered list)
+  OK  T-W1A-ML-01: every screened material loss is in the population (3 records, 0 dropped)
+  OK  T-W1A-ML-02: dedup — PF1 also nominated by mistakes stays present with the family recorded
+  OK  T-W1A-ML-03: nonmatching-family — PF2 in NO detector family is still present (blindspot_only)
+  OK  T-W1A-ML-04: analyst-omission — ungraded material hands are VISIBLE as UNGRADED, not dropped
+  OK  T-W1A-ML-05: auto-clear — the population is keyed on the loss screens, never auto-resolved out
+  OK  T-W1A-ML-06: alt-path — assert_no_silent_drop FAILS LOUD when a material hand is off-surface
+  OK  T-W1A-ML-07: no false alarm when every material id is surfaced
+  OK  T-W1A-ML-08: summary reconciles (per-classification counts sum == total == |population| == 3)
+  OK  T-W1A-ML-09: classify_verdict maps all eight terminal states
+  OK  T-W1A-ML-10: reenrich updates classifications from live analyst verdicts (render-time + --quick)
+  OK  T-W1A-SD-01: true positive — a sufficient bucket with <60% sizing compliance emits ONE high-confidence signal
+  OK  T-W1A-SD-02: full provenance — aggregate signal_type + contributing hands + reference + trigger
+  OK  T-W1A-SD-03: justified — a compliant (>=60%) sufficient bucket emits NO signal
+  OK  T-W1A-SD-04: insufficient — a thin-sample bucket emits NO signal (excluded, never silently graded)
+  OK  T-W1A-SD-05: small-sample bucket excluded (deep-vs-short: short-stack thin samples never fire)
+  OK  T-W1A-SD-06: deep-band signal carries the depth band + a depth-derived reference band
+  OK  T-W1A-SD-07: an aggregate sizing leak does NOT grade its contributing hands (no per-hand verdict)
+  OK  T-W1A-SD-08: a sufficient bucket with too few judged c-bets (<3) is excluded (thin sizing sample)
+  OK  T-W1A-SD-09: production-connected — coverage_builder stamps report_data[sizing_leak_signals]
+  OK  T-W1A-ISO-01: production owners do NOT import the benchmark module
+  OK  T-W1A-ISO-02: no production rule keyed to a real hand / tournament / player id
+  OK  T-W1A1-BUG2-01: punt-override set includes III.2; mistake-cleared set excludes it (root cause)
+  ✓ Analyst file: 1 hand entries. Reconciliation: 1/1 hand entries matched session hands
+  OK  T-W1A1-BUG2-02: an auto-punt graded III.2 leaves the canonical punt count at 0 (not double-counted)
+  OK  T-W1A1-BUG2-03: both discipline builders delegate punt/mistake counts to the gem_final_truth owner; the two old independent punt formulas are gone (BUG-2 fix is now structural)
+  OK  T-W1A2A-FT-01: auto-punt overridden to III.2 is one confirmed mistake, zero punt (override final)
+  OK  T-W1A2A-FT-02: auto-punt cleared to Justified is zero mistake and zero punt
+  OK  T-W1A2A-FT-03: a detector mistake the analyst graded a cooler is one cooler, zero confirmed mistake
+  OK  T-W1A2A-FT-04: a nomination graded read-dependent is not a confirmed mistake
+  OK  T-W1A2A-FT-05: insufficient / read-dependent / mistake hands are NOT Pick-eligible
+  OK  T-W1A2A-FT-06: a well-played / standard hand IS Pick-eligible
+  OK  T-W1A2A-FT-07: workflow_state (REVIEWED) is separate from final_class (workflow != poker class)
+  OK  T-W1A2A-FT-08: reconciliation has zero contradictions / orphans / duplicate final owners
+  ⚠ Analyst file: 2 hand entries. Reconciliation: 0/2 matched; UNMATCHED hand ids (not in this session): ['A', 'B']
+  OK  T-W1A2A-FT-09: discipline_tier canonical counts equal the owner counts (one cross-surface source)
+  OK  T-W1A2A-FT-10: a cleared detector nomination keeps its provenance but leaves the mistake population
+  OK  T-W1A2A-FT-11: owner labels expose no internal Roman codes (III.1/III.2/I.7...)
+  OK  T-W1A2A-FT-12: escape_attr escapes apostrophe, quote, ampersand and angle brackets
+  OK  T-W1A2A-FT-14: thin accessors read the owner populations (delegation, not recompute)
+  OK  T-W1A2A-QA005-01: the Picks surface gates confirmed picks on the canonical positive final class
+  OK  T-W1A2A-T1-12a: rendered reconciliation flags a row the owner expects but the surface omitted
+  OK  T-W1A2A-T1-12b: a surface emitting exactly the owner population reconciles (0 missing/extra/dupes)
+  OK  T-W1A2A-T1-12c: rendered reconciliation flags a duplicated row id
+  OK  T-W1A2A-T1-13: confirmed-Pick eligibility requires positive evidence + rejects hedged arguments
+  OK  T-W1A2A-T1-14: the verdict-pill data attribute is escaped via the canonical escape_attr helper
+  OK  T-W1A2A-T3-01: commitment node selects the later large flop stack-off over the preflop defend
+  OK  T-W1A2A-T3-02: a material loss with no decision node is an ungraded blocker (candidate, not mistake)
+  OK  T-W1A2A-T3-03: a turn/river candidate records the missing villain-range assumption (no invented math)
+  OK  T-W1A2A-T3-04: pilot never auto-promotes; hand-level candidates carry a real node; zero invented math
+  OK  T-W1A2A-T3-05: the bounded review runs, gives a terminal outcome per candidate, confirms none w/o inputs
+  OK  T-W1A2A-T3-06: the analyst queue splits new / re-review / aggregate, with node+facts per item
+  OK  T-W1A2A-T3-07: prior-reviewed hand at a different node = RE_REVIEW_CHANGED_NODE with old/new node diff
+  OK  T-W1A2A-T3-08: an already-reviewed-same-node candidate is suppressed from the analyst queue
+  OK  T-W1A2A-T3-09: decision_risk is capped at eff_stack; raw cumulative risk recorded + capped flag set
+  OK  T-W1A2A-T3-10: a river bet without canonical strength input is INSUFFICIENT_INPUT, not from went_to_sd
+  OK  T-W1A2A-T2-02: tournament drilldown hand-id lists carry no silent [:60] cap (every hand reachable)
+  OK  T-W1A2A-A1-01: the Results DataTable has NO separate Date column (identity is combined)
+  OK  T-W1A2A-A2-01: the legacy Net/Cost/Return metric toggle + multi-bar chart are removed
+  OK  T-W1A2A-A2-02: outcome buckets are mutually exclusive and the segment counts sum to the event count
+  OK  T-W1A2A-A2-03: the outcome bar recomputes from a filtered subset (counts + % follow the dataset)
+  OK  T-IT2-O2-01: genuine-value guard rejects board two-pair (paired board), accepts a real two pair
+  OK  T-IT2-O2-02: a genuine strong hand checked through the river is a CONFIRMED missed-value mistake (confirm path works)
+  OK  T-IT2-O2-03: over-barrel + curiosity-call families review as READ_DEPENDENT (no canonical range)
+  OK  T-IT2-O2-04: product-value gate is FAIL at zero confirmed, PASS at >=1 (no fabricated pass)
+  OK  T-IT2-O1-01: all seven deterministic finality fixtures pass (HH / summary / unresolved / multi-bullet / multi-day / satellite / >60)
+  OK  T-IT2-O1-02: finality reconciliation -- one row per tournament, no invented exits, exits reachable, totals reconcile
+  OK  T-IT2-O1-03: multi-day flights merge into ONE event row; both bullets remain individually inspectable
+  OK  T-IT2-O1-04: an unresolved event never invents a final exit (source exit dropped + warning recorded)
+  OK  T-IT2-O1-05: responsive structure -- the stacked outcome bar is width:100% flex (scales to every viewport, no fixed-width overflow)
+  OK  T-IT2-O1-06: Tournament Results carries the FROZEN_AFTER_V820_CLOSURE marker after passing closure
+  OK  T-IT3-V-02: SB-flat family flags only the clean heads-up late-open flat; rejects limp-completes and multiway
+  OK  T-IT3-V-03: the SB-flat confirmed mistake is OWNER_RULE_BACKED + result-independent (3-bet-or-fold)
+  OK  T-IT3-V-01: turn_overbarrel suppresses canonical value hands (betting_class=value -- owner correction #2)
+  OK  T-IT3-V-04: the value gate is PASS with >=1 confirmed, FAIL at zero (no fabricated pass)
+  OK  T-IT3-T1-01: the live Results Exit hand derives from the canonical finality owner (not the raw event field)
+  OK  T-IT3-T1-02: the production render-field path consumes the finality owner; unresolved/advanced rows never render a final exit
+  OK  T-7FIX-01: seven-fixture Results acceptance -- all 7 fixtures x 8 dimensions present and True
+  OK  T-IT4-T0-01: packet-completeness is a strict boolean (not a hand-code string); present-fields is a list
+  OK  T-IT4-T0-02: deep_preflop_stackoff reviews as READ_DEPENDENT, not auto-justified
+  OK  T-IT4-T0-03: short_stack_coldcall keeps a genuine flat (chips behind), excludes the all-in call; uses "outside the BB"
+  OK  T-IT4-T0-04: a count-only multi-bullet event marks intermediate bullet exits Unavailable; final exit factual; none fabricated
+  OK  T-IT4-T1-01: the sealed packet holds the high-confidence SB-flat as required, keyed evidence, manifest binds session+hash
+  OK  T-IT4-T2-01: the fail-closed validator accepts a complete one-pass output (100% required coverage, 0 errors)
+  OK  T-IT4-T2-02: the validator fail-closes on out-of-enum verdict + unknown id + wrong session + missing packet hash
+  OK  T-RV-01: REQUIRED (gradable) + UNRESOLVED (no-node debt) preserve 100% of the legacy population (parity, no demotion/dup)
+  OK  T-RV-01b (QA-PACKET-001): no-canonical-node hands are split OUT of required into the explicit unresolved population
+  OK  T-RV-02: packet_hash is content-bound -- changes with runtime commit and with input hashes
+  OK  T-RV-03: validator REQUIRES session_id + packet_hash; accepts a complete bound output (coverage 1.0)
+  OK  T-RV-04: validator fail-closes on stale cache, other-packet hash, unknown id, duplicate required
+  OK  T-RC-A1: a legacy required decision is a CANONICALLY-RESOLVED atomic snapshot -- exact id, scalar action, street-exact board, action line ends at Hero, NO net_bb/prior leak
+  OK  T-RC-A2: a fully-canonical record passes the audit -- zero silently-incomplete, zero future leaks, zero analyst calculations required
+  OK  T-RC-G1-01: mutation -- a turn card injected into a flop record fails the audit
+  OK  T-RC-G1-02: mutation -- a full board injected into a preflop record fails board-length
+  OK  T-RC-G1-03: mutation -- an opponent action appended after Hero fails truncation
+  OK  T-RC-G1-04: mutation -- net_bb leak fails
+  OK  T-RC-G1-05: mutation -- prior verdict leak fails
+  OK  T-RC-G1-06: mutation -- a call with null amount_to_call fails
+  OK  T-RC-G1-07: mutation -- a non-scalar Hero action fails
+  OK  T-RC-G1-08: mutation -- a preflop made-hand class (runout leak) fails
+  OK  T-RC-NC-01: a RAISE whose amount_to_call equals its full added (NOT the call component) fails
+  OK  T-RC-NC-02: missing canonical hero_stack_before fails
+  OK  T-RC-NC-03: missing canonical pot_before fails
+  OK  T-RC-NC-04: missing canonical effective stack fails
+  OK  T-RC-NC-05: missing explicit price_status fails
+  OK  T-RC-NC-06: decision risk exceeding the decision-time stack fails
+  OK  T-RC-NC-07: an aggressive action without chosen_incremental fails
+  OK  T-RC-NC-08: missing active_players fails
+  OK  T-RC-NC-09: a non-canonically-resolved record (without explicit unresolved flag) fails
+  OK  T-RC-NC-10: price applicable but required_equity missing fails
+  OK  T-RC-BIND-01: build_identity reports the v8.20.0 FINAL release + a build id, git-independently
+  OK  T-RC-BIND-02: cache identity changes when an INPUT hash changes
+  OK  T-RC-BIND-03: cache identity changes when the RUNTIME/build identity changes
+  OK  T-RC-BIND-04: cache identity changes when a HAND id changes
+  OK  T-RC-BIND-05: cache identity changes when QUEUE membership (_candidate_need_ids) changes
+  OK  T-RC-BIND-06: cache identity is STABLE under a final_truth RECORDS change (quick-render idempotency)
+  OK  T-RC-BIND-07: build_packet embeds build_identity in the manifest AND the packet hash still binds it
+  OK  T-RC-BIND-08: canonical_input_hashes returns SHA-256 (64-hex) per file; empty/missing dir -> {} (no crash)
+  OK  T-QA1-01: one-pass output -> exact per-decision verdict totals (3/17/6/10/6) + 42 reviewed decisions
+  OK  T-QA1-02: final-truth recomputes ownership from the analyst verdicts (CONFIRMED_MISTAKE=3, JUSTIFIED=17, READ_DEPENDENT=6, INSUFFICIENT=10, cleared=6)
+  OK  T-QA1-03: merging analyst commentary clears AUTO_ONLY (report becomes analyst-integrated)
+  OK  T-QA1-04: an EMPTY analyst output keeps the report AUTO_ONLY (auto candidates are never relabelled as confirmed mistakes)
+  OK  T-QA1-05: the one-pass enum maps to the report taxonomy so only CONFIRMED_MISTAKE is a mistake class
+  OK  T-QA1-06: validate_analyst_output rejects a DUPLICATE required verdict (fail-closed in --quick)
+  OK  T-QA1-07: validate_analyst_output rejects an INCOMPLETE output (missing a required verdict)
+  OK  T-RC-A3 (QA-PACKET-001): a hand with no canonical decision node -> explicit UNRESOLVED/debt record (flagged), NEVER in required, never an invented node
+  OK  T-RC-B1: real_input_hashes are actual file SHA-256; content_cache_identity is content-derived
+  OK  T-RC-B2: packet_hash binds the cache identity (changing it changes the hash)
+  OK  T-RC-G2-01: recompute_packet_hash matches the stored hash across a serialize/reload round-trip
+  OK  T-RC-G2-02: tampering any packet fact breaks the recomputed hash (fail-closed binding)
+  OK  T-RC-G2-03: a fresh process (no heavy stage) has zero forbidden quick counts -> quick_is_clean
+  OK  T-RC-G2-04: once a forbidden stage ticks, quick_is_clean is False (the meter actually detects work)
+  OK  T-RC-G2-05: --quick analyst-output validation rejects a wrong packet_hash binding (fail-closed)
+  OK  T-RC-G2-06: --quick analyst-output validation fails closed on a stale cache (cache_ok=False)
+  OK  T-RC-G3-01: the body markdown converter ESCAPES an inline <style> block (so it must NOT be emitted in the body)
+  OK  T-RC-G3-02: the same converter PASSES a <div> block through as real HTML (the bar markup is fine in the body)
+  OK  T-RC-G3-03: the outcome-bar CSS is routed to the HEAD (doc._extra_css), never an inline <style> in the body
+  OK  T-RC-G3-04: the stacked-bar MARKUP is still emitted into the body as real HTML (the bar itself renders)
+  OK  T-W1A1-BUG1-01: report-schema version is a named owner, distinct from runtime (two surfaces, one fact)
+  OK  T-W1A1-BUG1-02: the footer stamps the RUNTIME version, never the renderer/schema sibling
+  OK  T-W1A2-QA013-01: Confirmed-Mistakes tables label realized net as "Hand net", never "EV"
+  OK  T-RC3-P02a: biggest/postflop loss buckets are populated BEFORE the analyst_candidates file is written
+  OK  T-RC3-P02b: a mandatory biggest/postflop loss is never auto-resolved (guard present)
+  OK  T-RC3-P11: invalid analyst street is validated to a canonical street (no KeyError crash)
+  OK  T-G-005 (R-G): hand-list popup ids are deduped order-preserving (no duplicate ID)
+  OK  T-B-001: PHF-001 numerator is the INTERSECTION (9 of 53), not all analyst entries (14)
+  OK  T-B-002: coverage_state = BOUNDED_COMPLETE when all critical done but non-critical remain
+  OK  T-B-003: unreviewed critical -> PARTIAL + "not final"
+  OK  T-B-004: every canonical MISTAKE + CONDITIONAL enters the queue; CLEARED does not
+  OK  T-B-005 (R-B): the system-priority queue is INVARIANT to Ron review state (mutation)
+  OK  T-C-001: source_quality enum maps coverage exact/closest/none
+  OK  T-C-002: matching_class finds the ONE class token containing Hero (A6o -> A2o+)
+  OK  T-C-003: KTo is OUTSIDE a range with K9o+ but not KTo? (K9o+ DOES contain KTo) — Q8o outside
+  OK  T-C-004: A6o exact-combo bolding never matches A6s / A6o+ (no broad substring)
+  OK  T-C-005: lens emphasises exactly the matching class (rng-class-match on A2o+) + exposes matching_class
+  OK  T-RES-006: disjoint phase taxonomy -- one event -> exactly one of the canonical phases
+RESULTS: 2024 passed, 0 failed out of 2024
+ALL TESTS PASSED

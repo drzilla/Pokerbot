@@ -1,0 +1,421 @@
+  P4 worksheet: 0 overbluff cand, 2 post-loss clusters, G15 cover-hands=1
+GEM v8.12.0 (parser v7.2) — C:/Users/ron/OneDrive/Desktop/GEM 20260527/_session_20260527
+============================================================
+  ♻️  HH files unchanged — loading cached hands from /home/claude/gem_hands_Knockman__session_20260527.json
+Loaded: 1220 cached hands, 13 tournaments in 0.8s
+
+  ⚠️  POST-PARSE SANITY CHECK — 1 issue(s):
+    ⚠️  ~333 possible missing hands (ID gaps)
+  Continuing with caution — results may be unreliable.
+  Decision points: 1323 DPs across 785 hands (0.05s)
+  QA Parser: 1 issue(s), 260 warning(s)
+    warn: TM6007234700: villain 7e34abbb has shown_cards but no showdown
+    warn: TM6007234624: villain 706b7257 has shown_cards but no showdown
+    warn: TM6007234530: villain 9dfdf75e has shown_cards but no showdown
+    warn: TM6007234490: villain 6b9a29eb has shown_cards but no showdown
+    warn: TM6007234490: villain 9dfdf75e has shown_cards but no showdown
+    warn: TM6007234470: villain 706b7257 has shown_cards but no showdown
+    warn: TM6007234470: villain 9dfdf75e has shown_cards but no showdown
+    warn: TM6007234033: villain 7e34abbb has shown_cards but no showdown
+    warn: TM6007233750: villain 7e34abbb has shown_cards but no showdown
+    warn: TM6007233207: villain fcdc25ba has shown_cards but no showdown
+Loaded 380 range charts from C:\Users\ron\OneDrive\Desktop\Pokerbot_v8131_coverage\Poker_Ranges_Text.txt
+Loaded 39 target frequency bands from ranges file
+
+⚠️  Chart sanity (B32): 24 chart(s) flagged:
+  - BB_vs_SB_LIMP_15-20BB (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - BB_vs_SB_LIMP_20-25BB (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - BB_vs_SB_LIMP_30BB+ (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - FLAT3B_20BB_BBvsBTN_MINRAISE (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - FLAT3B_40BB_BBvsBTN_MINRAISE (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - FLAT3B_50BB_BBvsBTN_MINRAISE (unknown): OCR-noise: 4o_column_cluster, 2o_column_cluster
+  - REJAM_BBvsHJ (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_BBvsMP (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_BBvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_BBvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_BTNvsHJ (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_BTNvsMP (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_BTNvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_BTNvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_COvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_COvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_HJvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_HJvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_MPvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_MPvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_SBvsHJ (rejam): OCR-noise: 4o_column_cluster
+  - REJAM_SBvsMP (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_SBvsUTG (rejam): OCR-noise: 2o_column_cluster
+  - REJAM_SBvsUTG1 (rejam): OCR-noise: 4o_column_cluster
+  Phase QA: 156/1220 hands differ (12.8%) between old and new phase model
+  D2: 1 bad river call-down(s) detected
+  Coaching flags: 6 (CHEAP_TOURNEY_SMALL_SIZING, MW_SMALL_SIZING)
+  Teaching examples: missed_squeeze 0 clear + 1 mixed / 79 opps (0.0%)
+    SQF diag: 154 keys tried, 30 resolved to charts, no_cards=0, not_in_range=234
+    SQF miss: 65o BB vsLJ+BTN 30BB keys=['SQF_30BB_BB_vsLJopen_BTNcall_HF', 'SQF_30BB_BB_vsLJopen_BTNcall_HF', 'SQF_30BB_BB_vsLJopen_BTNcall', 'SQF_30BB_BB_vsLJopen_BTNcall', 'SQUEEZE_30BB_vsLJopen_BTNcall', 'SQUEEZE_30BB_vsLJopen_BTNcall']
+    SQF miss: K8o SB vsUTG+CO 50BB keys=[]
+    SQF miss: KTo BB vsUTG+1+LJ 30BB keys=[]
+    SQF miss: 85o BB vsUTG+SB 50BB keys=[]
+    SQF miss: 86o BB vsLJ+HJ 30BB keys=['SQUEEZE_30BB_vsLJopen_BTNcall']
+  Teaching examples: missed_3bet 6 clear + 6 mixed / 365 opps (1.6%)
+  Overfold detection: 3 positions fold >10pp above expected
+  Lucky mistakes: 3 hands won despite <35% equity (positive variance masking errors)
+  QA Analyzer: CLEAN
+
+============================================================
+SANITY CHECKS
+============================================================
+  OK: VPIP (24.8) >= PFR (15.7)
+  OK: Position distribution checked
+  OK: BTN open arithmetic: 20 + 32 = 52 FI
+  OK: CO open arithmetic: 26 + 42 = 68 FI
+  OK: SB open arithmetic: 2 raises + 16 limps + 8 folds = 26 FI
+  OK: WTSD 24.6%
+  OK: River semi-bluff = 0
+  OK: Premium rate 3.2%
+
+  ALL CHECKS PASSED ✓
+
+============================================================
+SESSION SUMMARY
+============================================================
+Date: 2026-05-27
+
+  === PRIMARY METRICS ===
+  VPIP-PFR Gap: 9.1% (ex-BvB: 8.9%) (target <4%)
+  WWSF: 37.4% (70/187) (target 42-48%)
+  Non-SD Win: 24.1% (45/187) (target 25-35%)
+  SD Aggressor: 47.6% (20/42) (target >40%)
+  Caller IP Flop Agg: 25.0% (4 hands, 1 delayed cbets, 2 truly passive) (target 30-40%)
+  IP Stab Rate (K3): 50.0% (1/2) (target 40-60%)
+  IP Caller x/r (K1): 0.0% (0/9) | MW: 0.0% (MW target 0-5%)
+  Flop Lead Rate (K6): 5.1% (4/79) (baseline ~2-5%, higher OK on low_paired/low_straight)
+  Float→Turn Attack: 20.0% (5h) (target >50%)
+  *** Aggressor vs Reactor Δ: +5.90 BB/h | Agg +2.32 (84h) vs React -3.58 (103h) | target Agg > 3x React ***
+  Triple Barrel Faced: 4 (called 2@0.0%wr | folded 2 | raised 0)
+  Sizing Consistency: 82.6% geometric (19/23) | Small→Small→JAM: 0 (target 0)
+  === END PRIMARY ===
+
+VPIP 24.8% | PFR 15.7% | ATS 38.3% | AF 1.97
+BTN 38.5% | CO 38.2% | SB 69.2%
+HU CB 65.3% (IP 69.0% OOP 42.9%) | MW CB 33.3% | Turn CB 45.5%
+WTSD 24.6% | WSD 54.3%
+F2-3B 44.8% (13/29)
+3B vs EP 9.8% | vs LP 11.7%
+Premiums 3.2% | Card Cold: False
+EAI: 61 showdowns
+  Preflop (53): Ahead 11.5/16 (71.9%) | Flip 7.5/22 (34.1%) | Behind 4/15 (26.7%)
+  Postflop (8): Ahead 2/2 (100.0%) | Behind 0/5 (0.0%)
+    Flop (1): ahead 0/0 | behind 0/1
+    Turn (3): ahead 2/2 | behind 0/1
+    River (4): ahead 0/0 | behind 0/3
+Coolers: 5 (0.41/100)
+Punts: 3 (0.25/100) | Mistakes: 21 (0.25/100)
+Check-Raises: 9 | One-and-Done: 9
+CR Frequency: Flop 11.3% (7/62) | Turn 6.9% | River 0.0% | Total 8.6% [target: flop 6-8%, total 8-12%]
+3-Bet by Hero Pos: BTN 11.2% | SB 5.9% | BB 9.7% | CO 8.6% | HJ 11.3%
+Missed River Value: 2 | Missed Probes: 0
+SPR dist: {'<1': 10, '1-3': 31, '3-6': 70, '6-10': 35, '10+': 37}
+SD hand strength: {'pair': 39, 'high_card': 13, 'trips': 7, 'two_pair': 29, 'full_house': 3, 'straight': 2, 'flush': 3}
+Table sizes: {8: 794, 7: 162, 6: 228, 3: 1, 5: 34, 4: 1}
+SB BvB Preflop: limp 42.9% raise 14.3% fold 42.9% (n=7) [target: limp ~80%, raise ~10%, fold ~10%]
+BB 3-bets: 15 hands [target sizing: 5x from BB]
+
+  Caller_Flop_IP:
+           made_hand    8 hands    4 bet   50.0%
+           oesd+bdfd    1 hands    0 bet    0.0%
+        gutshot+bdfd    1 hands    0 bet    0.0%
+                bdfd    4 hands    1 bet   25.0%
+                none    2 hands    0 bet    0.0%
+
+  Caller_Turn_IP:
+           made_hand    5 hands    1 bet   20.0%
+              nut_fd    1 hands    0 bet    0.0%
+                oesd    1 hands    0 bet    0.0%
+           overcards    2 hands    1 bet   50.0%
+                none    2 hands    0 bet    0.0%
+
+  PFR_Flop_IP:
+           made_hand   28 hands   22 bet   78.6%
+              nut_fd    1 hands    0 bet    0.0%
+                  fd    2 hands    0 bet    0.0%
+        gutshot+bdfd    1 hands    1 bet  100.0%
+             gutshot    3 hands    2 bet   66.7%
+                bdfd   15 hands    6 bet   40.0%
+           overcards    4 hands    2 bet   50.0%
+                none    1 hands    1 bet  100.0%
+
+  PFR_Turn_IP:
+           made_hand   19 hands    9 bet   47.4%
+              nut_fd    1 hands    1 bet  100.0%
+                  fd    3 hands    0 bet    0.0%
+             gutshot    4 hands    1 bet   25.0%
+           overcards    3 hands    0 bet    0.0%
+                none    5 hands    1 bet   20.0%
+
+  === TOP LOSING LINES ===
+                                                     Line    #   Net BB    BB/h  Conf
+                                        PF_PFR_allin_lost   23   -324.5  -14.11   LOW
+                             SRP_PFR_OOP_xc-xc-xc_SD_lost    1    -67.3  -67.31   LOW
+                              4BP_PFR_IP_bet-call_SD_lost    1    -62.1  -62.08   LOW
+                        SRP_Caller_OOP_xc-bet-jam_SD_lost    1    -54.8  -54.79   LOW
+                                     PF_Caller_allin_lost    6    -53.6   -8.93   LOW
+                                   SRP_Caller_OOP_xf_lost   21    -50.4   -2.40   LOW
+                          SRP_PFR_IP_cbet-bet-jam_SD_lost    1    -41.6  -41.55   LOW
+                       SRP_Caller_OOP_xc-xc-xc-ai_SD_lost    1    -39.7  -39.65   LOW
+                                3BP_Caller_OOP_xc_SD_lost    1    -39.3  -39.29   LOW
+                                SRP_Caller_OOP_xc-xf_lost    5    -30.8   -6.16   LOW
+  === TOP WINNING LINES ===
+                                               PF_PFR_won   69   +590.2   +8.55
+                                            PF_Caller_won    2   +142.0  +71.01
+                                      SRP_PFR_IP_cbet_won   11    +45.2   +4.11
+                           SRP_Caller_IP_bet-x-jam_SD_won    1    +40.6  +40.56
+                            3BP_PFR_IP_cbet-x-call_SD_won    1    +31.8  +31.76
+  Unique lines: 119 | VPIP hands tracked: 303
+
+MISTAKES:
+  TM6007233290 | J8o   | CO  | 22BB | Missed Steal (MARGINAL) | Fold, folded J8o FI at CO 22BB
+  TM6008028590 | J8o   | CO  | 17BB | Missed Steal (MARGINAL) | Fold, folded J8o FI at CO 17BB
+  TM6008351713 | JTo   | CO  | 52BB | Missed Steal (MARGINAL) | Fold, folded JTo FI at CO 52BB
+  TM6007606715 | J3s   | BTN | 118BB | Missed Steal (MARGINAL) | Fold, folded J3s FI at BTN 118BB
+  TM6008681861 | Q8o   | CO  | 14BB | Missed Steal (MARGINAL) (post_bubble — ladder-up may justify) | Fold, folded Q8o FI at CO 14BB
+  TM6008543102 | 84s   | CO  | 77BB | Missed Steal (MARGINAL) (post_bubble — ladder-up may justify) | Fold, folded 84s FI at CO 77BB
+  TM6008542556 | A8o   | CO  | 26BB | Missed Steal (MARGINAL) (post_bubble — ladder-up may justify) | Fold, folded A8o FI at CO 26BB
+  TM6008219936 | J7s   | CO  | 47BB | Missed Steal (MARGINAL) | Fold, folded J7s FI at CO 47BB
+  TM6008641878 | QTo   | CO  | 17BB | Missed Steal (MARGINAL) (bubble_zone — ladder-up may justify) | Fold, folded QTo FI at CO 17BB
+  TM6007887017 | T9o   | BTN | 17BB | Missed Steal (MARGINAL) (bubble_zone — ladder-up may justify) | Fold, folded T9o FI at BTN 17BB
+  TM6008013345 | J3s   | BTN | 99BB | Missed Steal (MARGINAL) | Fold, folded J3s FI at BTN 99BB
+  TM6008014851 | Q7s   | CO  | 25BB | Missed Steal (MARGINAL) | Fold, folded Q7s FI at CO 25BB
+  TM6008644157 | QTo   | CO  | 19BB | Missed Steal (CLEAR) | Fold, folded QTo FI at CO 19BB
+  TM6008644063 | A7o   | BTN | 26BB | Missed Steal (MARGINAL) | Fold, folded A7o FI at BTN 26BB
+  TM6008643871 | T5s   | CO  | 37BB | Missed Steal (MARGINAL) | Fold, folded T5s FI at CO 37BB
+  TM6008643209 | J8o   | CO  | 86BB | Missed Steal (MARGINAL) | Fold, folded J8o FI at CO 86BB
+  TM6008644398 | Q3o   | BTN | 3BB | Missed Push <8BB (MARGINAL) | Fold, folded Q3o FI at BTN 3BB
+  TM6008472200 | 88    | HJ  | 114BB | Continue vs Check-Back-Flop Raise-Turn (HH10#1) | Board: 6c 2d 9s Th 3h | Caller, check flop, bet turn 33% → call raise, x/f river
+  TM6007884641 | QJo   | HJ  | 133BB | Missed Turn Delayed C-bet (M1) | Board: 5h 9c 5s 4d | PFR, check flop, check turn, check river, SD lost
+  TM6008013090 | A7o   | BTN | 131BB | Missed Turn Delayed C-bet (M1) | Board: 8c Ks Tc 4h | PFR, check flop, check turn, fold river
+  TM6008358673 | A5o   | SB  | 39BB | Wide CVJ (Call Villain Jam) | PFR, PF ALL-IN, SD lost
+
+MISSED RIVER VALUE (2):
+  TM6007316261 | ATo   | SB  | pair | Bet 1 streets | Jd 9h As Ks 3c | Caller, check flop, bet turn 33%, check river, SD won
+  TM6006838419 | A2o   | BB  | full_house | Bet 0 streets | Kc Ks 2h Kh 6c | Caller, call flop, check turn, check river, SD won
+
+PREFLOP DEVIATIONS (115 total):
+  Type                      Total Clear Marginal  Common Hands
+  Missed Open                  26    17        9  66, A2o, 87s, 64s, JTo
+  Wide Open                    19    18        1  A6s, KJo, KTo, K9o, K6o
+  Missed Defend/3-Bet           7     3        4  KTs, 87s, 76s, KTo, ATs
+  Missed Rejam                  4     2        2  KJo, AQs, A3s, QJs
+  Missed BB Defend              4     0        4  J4s, K7o, AQo, T9o
+  Wide BB Defend               33     0       33  65o, 62s, T5s, J9o, 54o
+
+Stats saved: /home/claude/gem_stats.json (377KB)
+Hands saved: /home/claude/gem_hands_Knockman__session_20260527.json (43475KB)
+Hands (lean) saved: /home/claude/gem_hands_lean.json (41076KB, -5.5% vs full)
+
+============================================================
+CSV ROW (append to session_history)
+============================================================
+Header: Date,Batch_ID,Hands,BB_per_100,VPIP,PFR,ThreeBet,ATS,ATS_Raw,BTN_Open,CO_Open,SB_Steal,AF,WTSD_Vol,WSD_Vol,Flop_CBet_HU,Flop_CBet_HU_OOP,Flop_CBet_HU_Raw,Flop_CBet_MW,Turn_CBet,River_CBet,Missed_Probe_Count,Flop_Probe,LT12BB_Errors,Punts_per_100,Mistakes_per_100,RedLine_BB100,Pure_Bluff_Pct,Semi_Bluff_Pct,Value_Bet_Pct,ThreeBet_vs_EP,ThreeBet_vs_LP,Premiums_Pct,Top_Leak,VPIP_PFR_Gap,VPIP_PFR_Gap_Raw,WWSF,Non_SD_Win,SD_Aggressor,Caller_IP_Flop_Agg,IP_Stab_Rate,Flop_Lead_Rate,Float_Turn_Attack,Agg_React_Delta,Draw_Overbet_Jams,Passive_Passive_Jam,Triple_Barrel_Called_WR,Sizing_Geo_Pct,Small_Small_Jam_Ct,CR_Flop_Pct,CR_Total_Pct,ThreeBet_BTN,AFq,EV_bb_per_100,Fold_to_CBet,Call_CBet,Raise_CBet_IP,Fold_to_XR_after_CBet,Donk_Flop,Donk_Turn,Fold_to_Donk,Raise_Donk,Double_Barrel,Triple_Barrel,Fold_to_Double_Barrel,Cold_Call,Cold_Call_NB,BB_Defense_vs_Steal,BB_Defense_vs_NonSteal,SB_Defense_vs_LP,Hero_4Bet,Hero_5Bet,Fold_to_Steal_BB,ReSteal,Fold_to_Squeeze,LT15BB_Call_Jam,VPIP_PFR_Ratio,True_PFR,PF_AllIn_Pct,ThreeBet_IP,ThreeBet_OOP,Fold_to_3Bet_IP,Fold_to_3Bet_OOP,Call_3Bet,Call_4Bet,Call_5Bet,Call_Squeeze,Raise_Squeeze,Call_Steal_BB,Fold_BB_to_SB,Fold_SB_to_BTN,SB_Defend,BB_3Bet_vs_BTN,BB_3Bet_vs_SB,Fold_to_BB_3Bet,Fold_to_CBet_Turn,Fold_to_CBet_River,CBet_3BP,CBet_4BP,Fold_to_CBet_3BP,Fold_to_CBet_4BP,MW_CBet,Fold_to_MW_CBet,Delayed_CBet_Turn,Probe_Turn,WTSD_after_Flop_CBet,WSD_after_Calling_River,RCE_avg_bb,River_Bet_Avg_bb,River_Raise_Avg_bb,Call_CBet_IP,Raise_CBet_OOP,BB_Iso_SB_Limp,F2_Flop_CBet_Small,F2_Flop_CBet_Medium,F2_Flop_CBet_Large,F2_Turn_CBet_Small,F2_Turn_CBet_Medium,F2_Turn_CBet_Large,Mean_Logit,FinScore_Pct,AvgPos_Pct,Skill_Index,Skill_Index_Handicap
+Values: 2026-05-27,GG20260527,1220,-12.89,24.8,15.7,9.3,38.3,32.9,38.5,38.2,69.2,1.97,24.6,54.3,69.0,42.9,65.3,33.3,45.5,40.0,0,,0,0.25,0.25,,10.5,20.0,63.8,9.8,11.7,3.2,Non-SD Win 24.1%,2.7,9.1,37.4,24.1,47.6,25.0,50.0,5.1,20.0,5.9,0,0,0.0,82.6,0,11.3,8.6,11.2,7.9,-3.67,55.4,32.3,0.0,66.7,6.7,19.7,36.4,9.1,27.0,8.1,72.7,63.5,6.4,56.4,44.7,28.0,9.5,0.0,43.6,9.2,0.0,27.0,0.633,25.7,5.7,21.7,6.1,0.0,0.0,0.0,35.3,0.0,0.0,0.0,43.6,83.3,75.0,19.1,23.5,0.0,0.0,61.5,60.0,57.1,0.0,75.0,0.0,28.6,75.0,27.6,0.0,24.3,44.4,-5.15,2.36,13.81,50.0,11.3,12.5,63.9,66.7,41.7,0,33.3,87.5,,,,,
+
+RUN LOG ROW (append to gem_run_log.csv):
+2026-05-27,GG20260527,1220,13,29,~610K,0,,v7.2 parser. 115 preflop deviations (55 clear). 21 mistakes. 5 coolers.
+
+Opponent profiling: 320 villains tracked, 0 archetype misplays found, 320 villain identities assigned (neutral aliases)
+  Archetypes: {'LAG': 47, 'NIT': 12, 'TAG': 31, 'SOLID_REG': 16, 'FISH': 47, 'UNKNOWN': 147, 'DANGER_REG': 4, 'CALLING_STATION': 1, 'FUN_REC': 10, 'WHALE': 1, 'MANIAC': 4}
+
+  Opponent Intel QA:
+    Evidence atoms: 269
+      passive_aggro_pivot: 55
+      repeated_blind_overfold: 55
+      open_limp: 45
+      multiway_donk: 40
+      weird_minbet: 37
+      limp_call: 19
+      cold_call_3bet_oop: 13
+      river_bluff_shown: 3
+      weak_showdown_call: 2
+    hero_involved=false: 224
+    Exploit opportunities: 32
+      missed_steal_vs_nit: 13
+      overfolded_vs_aggro: 10
+      paid_off_passive_aggression: 6
+      ego_fought_maniac: 3
+    Exploit read labels:
+      Aggressive: 13
+      Nit / Rock: 13
+      Loose Passive: 6
+    Exploit read sources:
+      prior_atoms_mapped: 22
+      profiler_archetype: 10
+    Read states: 118
+      🐟 Loose Passive: 53
+      ⚡ Aggressive: 42
+      🪨 Nit / Rock: 21
+      📞 Sticky Passive: 2
+    Top villains by evidence:
+      Warden     (V10 ): 12 atoms
+      Blade      (V55 ): 11 atoms
+      Druid      (V117): 9 atoms
+      Milo       (V14 ): 8 atoms
+      Lucky      (V01 ): 8 atoms
+    Hero-as-villain atoms: 0
+  Hands cache updated with archetype tags
+
+  Analyst villain worksheet: /mnt/user-data/outputs\_analyst_villain_worksheet_20260527-28.json (40 candidates)
+
+Report data saved: /home/claude/gem_report_data_Knockman.json (10142KB)
+GTO export saved: /home/claude/Claude_GEM_2_GTOWizard_20260527_V1.txt
+Avg buy-in: $29.41 (470.6 total)
+
+Hero classification: ⚪ Variance Session — skill_band ranks below; structure read needs more bullets
+Mistake EV impact: -43.5BB
+
+LEAK PERSISTENCE:
+  🆕 New           Non-SD Win                First time flagged
+  --- 1 new, 0 recurring, 0 returned, 0 resolved
+  variance-outcome classifier: 28 all-in losses tagged (8 suckout, 9 lost_flip, 11 top_of_range, 0 semi_bluff_cooler)
+  pf-variance auto-resolve: 13 preflop all-in lost-flips/suckouts tagged (excluded from coverage gate)
+  cooler auto-resolve: 2 cooler-detector hands tagged (excluded from coverage gate)
+  RC3 P0-2: restored 5 mandatory loss hand(s) from auto-resolve (biggest/postflop loss must be reviewed)
+  pot-odds enrichment: 6 hands enriched, 1 integrity flag(s), 92 skipped
+  decision math: 141 candidates have per-street pot-odds/equity
+  pre-filled verdicts: 136 candidates have suggested verdicts (0.0s)
+  auto-verdicts piped to renderer: 55
+  root mistakes: 9 hands have preflop root attribution
+  population exploits: 20 decision points annotated
+  auto narrative: "Losing session: -12.9 BB/100 across 1220 hands (13 tournamen..."
+  coverage dry-run: 49 auto-resolvable, 77 need analyst, 12 blindspot
+  analyst worksheet: /home/claude/analyst_worksheet_Knockman_20260527-28.json (88 entries, 40 verdicts pre-filled, 49 auto-resolvable)
+  Real surface: 9 signal + 10 decision = 19 hands to review
+
+Analyst candidates: /home/claude/analyst_candidates_Knockman_20260527-28.json (29 bust + 5 cooler + 22 mistake + 3 punt + 3 III.4 screening + 0 read-dep screening + 64 bestplay screening + 12 blindspot sample)
+
+============================================================
+ANALYST FILE RESOLUTION
+============================================================
+  Looking for: session_analysis_20260527-28.json
+  — working directory: C:\Users\ron\OneDrive\Desktop\Pokerbot_v8131_coverage (no session_analysis files)
+  — /mnt/user-data/outputs: /mnt/user-data/outputs (no session_analysis files)
+  — /home/claude: /home/claude (no session_analysis files)
+  Analyst commentary: none — no session_analysis file found.
+  Sections requiring commentary will render as ⚪ awaiting analyst.
+
+============================================================
+ANALYST COVERAGE CHECK
+============================================================
+  Chart-match auto-resolved: 10 (excluded from coverage requirement)
+  Unresolved/debt (no canonical decision node): 17 hand(s) — engineering debt, NOT required analyst review.
+  ⚠ WARNING: 26 of 26 flagged hands have NO analyst verdict.
+  Covered: 0  |  Uncovered: 26
+  Expected file: session_analysis_20260527-28.json  (NOT FOUND)
+  Uncovered IDs (26 total):
+    TM6007537096  Ts Ks       BB     40BB  -39.7BB  [bust/punt]
+    TM6007810095  6c 6d       MP     47BB  -41.6BB  [bust/punt]
+    TM6007884641  Jd Qs       HJ    133BB  -3.0BB  [bust/punt]
+    TM6007886276  As Kd       UTG    58BB  -13.8BB  [bust/punt]
+    TM6008013090  7s Ac       BTN   131BB  -2.2BB  [bust/punt]
+    TM6008013759  Ah Qd       BB     60BB  -23.8BB  [blindspot]
+    TM6008014543  As 7s       BTN    12BB  -11.6BB  [bust/punt]
+    TM6008024592  Kd Ks       HJ     82BB  -62.1BB  [blindspot]
+    TM6008028249  Kc 7c       BB     25BB  -5.7BB  [bust/punt]
+    TM6008223142  Ks Ac       HJ     46BB  -12.2BB  [bust/punt]
+    TM6008256355  Kd Jh       BB     32BB  -31.2BB  [bust/punt]
+    TM6008276983  Ad 5d       UTG+1  200BB  -67.3BB  [blindspot]
+    TM6008354007  Js Jh       HJ     16BB  -16.1BB  [bust/punt]
+    TM6008358311  Td Ac       BB     58BB  -22.8BB  [blindspot]
+    TM6008358350  Ah Jh       CO     34BB  -29.5BB  [blindspot]
+    TM6008358673  Ah 5c       SB     39BB  -7.6BB  [bust/punt]
+    TM6008358853  Td Ac       BTN    53BB  -10.8BB  [bust/punt]
+    TM6008358935  Ad Th       SB     25BB  +17.4BB  [bust/punt]
+    TM6008375290  Kh Th       SB     73BB  -39.3BB  [bust/punt]
+    TM6008472200  8d 8h       HJ    114BB  -11.5BB  [bust/punt]
+    TM6008491846  9c Jd       BB     13BB  -12.6BB  [bust/punt]
+    TM6008681699  Ks Js       BB     89BB  -54.8BB  [bust/punt]
+    TM6008681767  5s 5d       HJ     34BB  -19.5BB  [bust/punt]
+    TM6008681883  Kc Jc       MP     12BB  -11.4BB  [bust/punt]
+    TM6008701782  8h As       MP     14BB  -14.0BB  [bust/punt]
+    TM6009090406  7h 6d       BB     19BB  -19.1BB  [bust/punt]
+
+  Continuing with ⚪ awaiting-analyst stubs. To fail on incomplete coverage, re-run with --require-analyst.
+  Blindspot audit: 0/12 sampled hands reviewed (12 unreviewed — informational, not a coverage requirement).
+  ⚠ WARNING: 1 metric-flagged leak(s) have NO analyst judgment: ['Non-SD Win']
+Residual decomposition (cEV/100, spine): read-dep 0.0, MDA-missed -0.248, MDA-aligned 0.182, unattributed +3.266 stacks | BB/100 lens: unattributed +12.18
+Depth segments: 1220 hands / 13 tournaments across 4 depth buckets
+
+  Analyst worklist: /mnt/user-data/outputs/analyst_worklist_20260527-28.json
+    must_review=8 review_if_time=67 auto_clear=1 aggregate_only=7 drill_candidate=36
+
+============================================================
+SCHEMA VALIDATION
+============================================================
+  ALL SCHEMA CHECKS PASSED ✓
+  Coaching cards: 35 cards for 34 hands
+  COMMENTARY-MIGRATION: 14735 sources, 5871 visible / 204 more / 4065 legacy / 0 review / 4595 untouched | drops 0 misbucket 0 bottom-contam 0 parity-mismatch 0 | content-lint L2 0 L3 0 L6 0
+gem_report_lint: 0 BLOCKER · 0 ERROR · 12 WARNING · 27 INFO
+
+Report (HTML, primary): /mnt/user-data/outputs\Pokerbot_Knockman_20260527-28_AUTO_ONLY_V9.html (3874KB)
+Report (MD,  secondary): /mnt/user-data/outputs\Pokerbot_Knockman_20260527-28_AUTO_ONLY_V9.md  (8903KB)
+  ✓ Sealed atomic analyst packet (GEM-v8.20.0-d3aa50786d7a): /mnt/user-data/outputs\analyst_packet_Knockman.json (required=34 optional=8 hash=e6b9f93ac7ac semantic_failing=0 future_leaks=0 zero_calc=True)
+    1) review every required decision once -> save analyst JSON at /mnt/user-data/outputs\analyst_packet_Knockman_analyst_output.json
+    2) python gem_analyzer.py C:/Users/ron/OneDrive/Desktop/GEM 20260527/_session_20260527 --quick   (validates binding + renders from cache)
+Input manifest: /mnt/user-data/outputs\Pokerbot_Knockman_20260527-28_AUTO_ONLY_V9_input_manifest.json  (29 files, 1220 hands, 12 events: 12 HH-backed / 0 summary-only / 12 resolved)
+  ⚠ HTML > 1MB — zipped to prevent browser preview hang:
+  ZIP: /mnt/user-data/outputs\Pokerbot_Knockman_20260527-28_AUTO_ONLY_V9.zip (1935KB)
+
+============================================================
+TIMING SUMMARY
+============================================================
+  Parse:         0.8s
+  Analyze:      33.2s
+  Profiler:      3.6s
+  Render:       10.4s
+  Total:        94.1s
+
+  Analyst status: AUTO_ONLY (full)
+    Reviewed hands: 0
+    Candidate hands awaiting review: 26
+    ⚠️  No analyst file loaded — this is NOT a final report.
+
+  Run manifest: /home/claude/_run_manifest_Knockman_20260527-28.json
+  Run log: /home/claude/_run_log_Knockman_20260527-28.txt
+
+============================================================
+POST-RENDER VALIDATION
+============================================================
+  ✅ Hand-list triggers: 409 live, 0 escaped
+  ℹ️  19 'awaiting analyst' label(s) (expected for AUTO_ONLY)
+  ✅ All 326 anchor links resolve
+  ✅ 12 stat cards in top bar
+  ℹ️  0 draw-profile annotations in hand grids (incl. lazy payload)
+  ✅ All 211 hand-ref links resolve to appendix entries (1220 total)
+  ✅ Financial one-source-of-truth: cost=$470.6 ABI=$29.41 (overlay = top-level)
+  ✅ 48 analyst-critical hand(s) carry full detail (none budget_trimmed)
+  ✅ No raw chart IDs in user-facing prose
+  ✅ All Mistake/Punt verdicts substantiated (v8.16.4 Obj-5)
+  ✅ Marker/commentary parity clean (v8.17.1 P5)
+  ✅ All scored all-ins complete or no_clear_lesson (v8.17.1 P5)
+
+  ✅ All validation checks passed
+
+============================================================
+ANALYST HANDOVER REMINDER
+============================================================
+
+  Before delivering this report, please write a brief handover covering:
+
+  1. BUGS: anything that rendered wrong, showed incorrect data, or looked off.
+     For each: symptom, section, severity, and how to reproduce.
+  2. PIPELINE FRICTION: any step that was slow, confusing, or needed a
+     manual workaround. What would have saved time?
+  3. DATA QUALITY: any automated classification (draw profile, archetype,
+     verdict pre-fill, pot odds) that was wrong. What it said vs what it
+     should have said.
+  4. MISSING FEATURES: things you did manually that should be automated.
+  5. TEMPLATE QUALITY: did pre-filled verdicts help? What % confirmed vs
+     overridden? Were draw profiles and villain archetypes useful?
+
+  Format as markdown. Include file names and line numbers where possible.
+  This handover goes directly to Claude Code for the next improvement cycle.
+

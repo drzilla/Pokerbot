@@ -1,0 +1,49 @@
+[1] additive injection: no analyst argument -> one transition note, bound + critical tone
+  PASS one transition note on turn
+  PASS bound to first hero turn action
+  PASS tone is critical (numbered pill, not a thumbs)
+  PASS contains the runout marker
+[2] turn AND river each receive exactly one note
+  PASS turn note present
+  PASS river note present
+  PASS exactly one note per street
+[3] unresolved / all-in render nothing
+  PASS all-in turn -> no transition note
+  PASS hand=None -> no transition note
+[4] survives the single-narrative override (long prose argument)
+  PASS long narrative triggered single-narrative path (snn set)
+  PASS transition text survives the override
+  PASS existing analyst commentary still present
+[5] merge preserves pill numbering + tone; no gaps/dupes
+  PASS note numbers are contiguous 1..N with no dupes
+  PASS transition merged into the existing turn note (not a second pill)
+[6] non-key street behaviour unchanged (preflop/flop notes identical with vs without hand)
+  PASS preflop/flop attachments unchanged
+[7] no duplicate note when Hero acts multiple times on a street
+  PASS exactly one transition note on the turn (multi-action street)
+[8] distinct 3 / 4 / 5 suited wording
+  PASS 3-suited wording
+  PASS 4-suited wording
+  PASS 5-suited wording
+  PASS 3/4/5 wordings are distinct
+[9] turn shared-board never claims a complete board-only best-five
+  PASS turn shared = exact board property
+  PASS turn does NOT say "best five ... shared by every remaining player"
+[10] no enum names / no literal markdown control chars / safe escaping / no range-strategy directives
+  PASS no raw enum names
+  PASS no literal markdown underscores around words
+  PASS renders through _md_inline to escaped HTML
+  PASS no range/equity/EV term in facts/notes
+  PASS no strategic directive
+  PASS strategic line is the compact insufficient-evidence label
+[11] no transition data enters the analyst packet
+  PASS analyst packet does not import/reference gem_runout_transition
+[12] wired turn notes never claim board-play; only a proven river note may
+  PASS wired TURN note never says "plays the board"
+  PASS wired TURN note never says "supplied by the board"
+  PASS wired TURN note never says "complete best five"
+  PASS wired turn note defers kickers to the hole cards
+  PASS wired RIVER pure-board note carries the complete-best-five claim
+
+RESULTS: 34 passed, 0 failed, 34 total
+ALL RUNOUT WIRING TESTS PASSED

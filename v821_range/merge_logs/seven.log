@@ -1,0 +1,17 @@
+
+Seven-Fixture Tournament Results Acceptance -- 7x8 matrix
+scenario                          finality    financials  one_row     bullet_exit filters     grouping    chart       drilldown   
+----------------------------------------------------------------------------------------------------------------------------------
+FIXTURE-HH-Resolved               PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-SummaryOnly               PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-Unresolved                PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-MultiBullet               PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-MultiDay                  PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-Satellite                 PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+FIXTURE-Over60                    PASS        PASS        PASS        PASS        PASS        PASS        PASS        PASS        
+----------------------------------------------------------------------------------------------------------------------------------
+ALL_PASS: True
+
+artifacts:
+  JSON: C:/mnt/user-data/outputs/v820_wave1a2a\SEVEN_FIXTURE_RESULTS_ACCEPTANCE.json
+  HTML: C:/mnt/user-data/outputs/v820_wave1a2a\SEVEN_FIXTURE_RESULTS_ACCEPTANCE.html

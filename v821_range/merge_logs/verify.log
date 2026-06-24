@@ -1,0 +1,16 @@
+GEM Release Integrity Verifier -- v8.19.0
+Project: C:\Users\ron\OneDrive\Desktop\Pokerbot_v8131_coverage
+======================================================================
+
+[1/4] File hash verification (69 files)
+
+[2/4] Canary checks (664 fix markers)
+
+[3/4] Anti-canary checks (12 old bug patterns)
+
+[4/4] Package structure
+  gem_report_draft/ has 19 .py files (assembled package)
+
+======================================================================
+[PASS] All 69/69 files match, 664/664 canaries pass, 12/12 anti-canaries pass.
+       Project is a clean v8.19.0 copy.

@@ -26,5 +26,5 @@
     "deep_preflop_stackoff": 1,
     "short_stack_coldcall": 6
   },
-  "note": "The Runout Transition feature lives entirely in the RENDER path (gem_runout_transition + the _split_argument_into_notes wiring in sections_xiv.py). gem_analyst_packet.py does not import or reference it, so the sealed packet (required/optional/unresolved decisions, hash, schema) is identical with or without the feature. required_count == optional_count before == after."
+  "note": "The Runout Transition feature lives entirely in the RENDER path (gem_runout_transition + the _split_argument_into_notes wiring in sections_xiv.py). gem_analyst_packet.py does not import or reference it, so the sealed packet (required/optional/unresolved decisions, hash, schema) is identical with or without the feature. The required_count is unchanged before vs after (34 == 34) and, separately, the optional_count is unchanged before vs after (8 == 8); the two counts are not equal to each other."
 }

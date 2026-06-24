@@ -1,8 +1,9 @@
 # V821_RUNOUT_TRANSITION_UI_EVIDENCE
 
-Browser acceptance of the live transition notes in the real report
-(`Pokerbot_Knockman_20260527-28_AUTO_ONLY_V4.html`, served over localhost; appendix hand cards expanded). The
-notes render through the report's per-street note system (numbered pill + `🧠` tag, street label, `_md_inline`).
+Browser acceptance of the live transition notes in the **AUTO_ONLY full render** of the real report (1,220
+hands), served over localhost with appendix hand cards expanded. The same notes appear in the
+analyst-integrated (`--quick`) render. The notes render through the report's per-street note system (numbered
+pill + `🧠` tag, street label, `_md_inline`).
 
 ## Rendered example (verbatim from the live DOM — corrected wording)
 
@@ -42,5 +43,7 @@ intact, and the note is **readable** (wraps cleanly) on desktop and mobile.
   (`getBoundingClientRect` + `scrollWidth/clientWidth`), the same method used for the v8.18 mobile-overflow
   evidence. The programmatic `_qa_mobile_360_overflow.py` gate also passes at 360/390/430.
 - The production HTML uses lazy hand cards (`PBLazy`, `deflate-raw+base64` `PB_PAYLOADS.lazyHands`); the notes
-  are embedded there and inflate on expand. The screenshots use the non-lazy full render so the notes are
-  directly visible; the lazy payload was independently decompressed and confirmed to contain the same 109 notes.
+  are embedded there and inflate on expand. The rendered-note artifacts (`screenshots/runout_note_*.html`) use
+  the report's own note CSS; the lazy payload was independently decompressed and confirmed to carry the
+  transition notes on **104 hands**, identical between the AUTO_ONLY and analyst-integrated renders (0 per-hand
+  mismatch, 0 within-hand duplication).

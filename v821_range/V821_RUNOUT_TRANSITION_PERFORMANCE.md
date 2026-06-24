@@ -18,7 +18,7 @@ Runout Transition wiring.
 ## How measured
 
 - **Size / runtime:** generated the report with the wiring reverted to HEAD (`Pokerbot_..._V5`, 3,850 KB) and
-  with the wiring (`Pokerbot_..._V2`, 3,858 KB), both lazy-on. The +8 KB is the 109 transition notes inside the
+  with the wiring (both lazy-on, ~3,858 KB). The +8 KB is the transition notes (104 hands) inside the
   `deflate-raw+base64` `PB_PAYLOADS.lazyHands` payload (≈44 KB uncompressed, ≈0.4% of the payload).
 - **Added render cost:** timed `transitions_for_hand` over all 1,220 hands → 0.089 s; the appendix calls it at
   most once per rendered hand, so the live cost is ≤ that. Deterministic, single pass, no I/O.

@@ -25,9 +25,10 @@ v8.21 **Range Reasoning** — first module **Runout Transition**. Branch
   canonical `_md_inline`. Unresolved/all-in render nothing; existing notes / pill numbering / tone are
   preserved; structured TL;DR notes are never corrupted. See `V821_RUNOUT_TRANSITION_REPORT_INTEGRATION.md` and
   `..._LIVE_WIRING_REPORT.md`.
-- **Tests**: `test_runout_transition.py` **49/49** (semantics, fail-closed, wheel, no banned wording, render
-  through the real `_md_inline`); `test_runout_wiring.py` **29/29** (additive injection, override survival,
-  numbering/tone preserved, distinct suit wording, no enum/markdown/range artifacts, no packet entry).
+- **Tests**: `test_runout_transition.py` **78/78** (semantics, fail-closed, wheel, no banned wording, no false
+  flop/turn board-play wording, proven river `_plays_pure_board`, render through the real `_md_inline`);
+  `test_runout_wiring.py` **34/34** (additive injection, override survival, numbering/tone preserved, distinct
+  suit wording, board-play wording, no enum/markdown/range artifacts, no packet entry).
 - **Measured pilot** `_v821_runout_pilot.py` (product path) — 3,609 hands → 529 street transitions, 482
   resolved (91%); **MEASURED trust audit all zero**. 281 hole-card-contribute vs 201 board/shared.
 - **No baseline regression**: `_test_scratch.py` 2024/2024 (the `_hand_grid.py` freeze pin re-pinned for the

@@ -37,7 +37,8 @@ renderer formats.
 ## Verified live in the real report
 
 Generated a full report on a real session (1,220 hands, `_session_20260527`):
-- **109 transition notes** present in the production HTML — embedded in `PB_PAYLOADS.lazyHands` (the report's
+- **104 hands carry a transition note** (final count, identical in the AUTO_ONLY and analyst-integrated renders)
+  in the production HTML — embedded in `PB_PAYLOADS.lazyHands` (the report's
   `deflate-raw+base64` lazy payload); decompressed and confirmed (`Runout —`, `became more connected`,
   `hole cards now make`, `Strategic read`, `at least one pair`). The same 109 appear in the secondary `.md`.
 - **68 hands** had a resolved turn/river transition; the debug trace confirmed the wiring fired with the hand

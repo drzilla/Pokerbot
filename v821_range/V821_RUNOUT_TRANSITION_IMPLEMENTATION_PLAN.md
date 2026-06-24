@@ -11,7 +11,7 @@
 | 5. Compact street rendering | ✅ (function) | `render_html(rec)` — mobile-safe block; **live wiring = next step (below)** |
 | 6. Analyst-packet exposure | ✅ **not needed** | nothing flows into the packet (0 analyst workload) |
 | 7. Review/Drill hooks | deferred (designed) | `transitions_for_hand(hand)` is consumable by Review/Drill later |
-| 8. Tests | ✅ | `test_runout_transition.py` — **29/29** |
+| 8. Tests | ✅ | `test_runout_transition.py` **78/78** + `test_runout_wiring.py` **34/34** (final) |
 | 9. Real-report evidence | ✅ | pilot 589/654 real decisions + rendered examples |
 
 ## Stage-5 integration design (live report wiring — next bounded step)

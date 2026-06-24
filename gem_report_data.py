@@ -957,34 +957,38 @@ def _parse_game_summaries_usd(hh_dir, hands):
     # unresolved. Build the unresolved events from the hands and FOLD their cost + bullets into the
     # committed totals, while cash/net/ROI stay over the RESOLVED subset (coverage-qualified, never
     # presented as a fully-resolved result). Return/Net/ROI on the unresolved row stay blank downstream.
-    # Detect HH-only events by TOURNAMENT ID, not name: the loose name heuristic above false-matches
-    # the HH-only event to a sibling "Bounty Hunters ..." summary, so it must not own this decision.
-    _summary_tids = {str(t.get('tid') or '') for t in tournaments_parsed}
-    _hh_by_tid = {}
-    for h in hands or []:
-        if not isinstance(h, dict):
-            continue
-        tid = str(h.get('tournament_id') or '')
-        if tid and tid not in _hh_by_tid:
-            _hh_by_tid[tid] = {'tid': tid, 'name': (h.get('tournament') or '').strip(),
-                               'start_date': h.get('date') or '',
-                               'buyin': round(float(h.get('buyin') or 0), 2)}
+    # Detect HH-only events by TOURNAMENT ID when the hands carry one (the loose name heuristic above
+    # false-matches the HH-only event to a sibling "Bounty Hunters ..." summary). When hands have NO
+    # tournament_id (legacy / synthetic), fall back to the name-based `unresolved_hh` computed above and
+    # only list it (no committed-cost event can be built without the id-keyed metadata).
     unresolved_events = []
-    for tid, meta in _hh_by_tid.items():
-        if tid in _summary_tids:
-            continue                                  # resolved by a game summary
-        nm = meta['name']
-        buyin = round(float(meta.get('buyin') or 0), 2)
-        bullets = 1  # a single-entry HH-only event (re-entries would each carry their own summary)
-        unresolved_events.append({
-            'tid': tid, 'name': nm, 'start_date': meta.get('start_date', ''),
-            'buyin': buyin, 'bullets': bullets, 'cost': round(buyin * bullets, 2),
-            'cash_received': None, 'ticket_value': None, 'cash_total': None, 'net': None,
-            'seats_won': 0, 'is_sat': ('Satellite' in nm or 'MEGA' in nm), 'itm': False,
-            'place': 0, 'total_players': 0, 'advanced': False, 'unresolved': True,
-        })
-    # keep the named unresolved list consistent with the tid-based truth (drives coverage copy)
-    unresolved_hh = sorted(e['name'] for e in unresolved_events)
+    _hands_have_tid = any(isinstance(h, dict) and h.get('tournament_id') for h in (hands or []))
+    if _hands_have_tid:
+        _summary_tids = {str(t.get('tid') or '') for t in tournaments_parsed}
+        _hh_by_tid = {}
+        for h in hands or []:
+            if not isinstance(h, dict):
+                continue
+            tid = str(h.get('tournament_id') or '')
+            if tid and tid not in _hh_by_tid:
+                _hh_by_tid[tid] = {'tid': tid, 'name': (h.get('tournament') or '').strip(),
+                                   'start_date': h.get('date') or '',
+                                   'buyin': round(float(h.get('buyin') or 0), 2)}
+        for tid, meta in _hh_by_tid.items():
+            if tid in _summary_tids:
+                continue                              # resolved by a game summary
+            nm = meta['name']
+            buyin = round(float(meta.get('buyin') or 0), 2)
+            bullets = 1  # a single-entry HH-only event (re-entries would each carry their own summary)
+            unresolved_events.append({
+                'tid': tid, 'name': nm, 'start_date': meta.get('start_date', ''),
+                'buyin': buyin, 'bullets': bullets, 'cost': round(buyin * bullets, 2),
+                'cash_received': None, 'ticket_value': None, 'cash_total': None, 'net': None,
+                'seats_won': 0, 'is_sat': ('Satellite' in nm or 'MEGA' in nm), 'itm': False,
+                'place': 0, 'total_players': 0, 'advanced': False, 'unresolved': True,
+            })
+        # tid-based detection is authoritative when available — override the name-based list with it.
+        unresolved_hh = sorted(e['name'] for e in unresolved_events)
     if unresolved_events:
         _un_cost = round(sum(e['cost'] for e in unresolved_events), 2)
         _un_bullets = sum(e['bullets'] for e in unresolved_events)

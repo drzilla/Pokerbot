@@ -31,6 +31,31 @@ EMDASH = '—'  # —
 
 _PRIZE_LABEL = {'bounty': 'Bounty', 'standard': 'Standard',
                 'satellite': 'Satellite', 'unknown': EMDASH}
+# R3 (owner request): compact Type icons. The shape (not colour) carries the meaning; the full label
+# stays the cell value (sort/filter) and the title (tooltip + accessible text). A legend sits by the table.
+_TYPE_ICON = {'Bounty': '\U0001F3AF', 'Standard': '♠️', 'Satellite': '\U0001F3AB'}
+
+
+def _type_icon_cell_html(pt, esc):
+    """Render the Type column as a compact icon + tooltip/accessible title, never icon-as-colour-only."""
+    base = (pt or '').rstrip('*')
+    ic = _TYPE_ICON.get(base)
+    if not ic:
+        return esc(pt)
+    star = '*' if pt.endswith('*') else ''
+    return ("<span class='tt-type-ic' title='%s' aria-label='%s'>%s%s</span>"
+            % (esc(pt), esc(pt), ic, star))
+
+
+def _tt_name_line1(name, buy_usd):
+    """R3 owner layout: a 'NN-KO 10.80 Rest' name becomes 'NN-KO: $10.80 Rest' (prefix + colon, buy-in
+    pulled up with a $). Best-effort: names that do not match the prefix-then-buyin shape are left as-is."""
+    import re as _re
+    m = _re.match(r'^([0-9]+[-–\s][0-9A-Za-z]+)\s+\$?([0-9][0-9,]*(?:\.[0-9]+)?)\s+(.+)$', name or '')
+    if not m:
+        return name
+    amt = buy_usd if (buy_usd and buy_usd != EMDASH) else ('$' + m.group(2))
+    return '%s: %s %s' % (m.group(1), amt, m.group(3))
 
 
 def _usd_or_dash(v):
@@ -705,6 +730,11 @@ def _emit_tournament_tables(doc, s, rd, hands):
           'Deep Runs / Stack Trajectories render only inside ONE collapsed secondary reconciliation '
           'disclosure in Variance (below).*')
     doc.w('')
+    # R3: compact Type-icon legend (the icon shape, not colour, carries the meaning).
+    doc.w("<p class='tt-type-legend' style='font-size:0.85em;color:#6b7280;margin:0 0 8px'>"
+          "<strong>Type:</strong> %s Bounty · %s Standard · %s Satellite</p>"
+          % (_TYPE_ICON['Bounty'], _TYPE_ICON['Standard'], _TYPE_ICON['Satellite']))
+    doc.w('')
 
     # ---- Summary strip (canonical session totals) ----
     # v8.16.2 Phase D: user-facing labels (Invested / Cash return / Ticket return
@@ -750,9 +780,11 @@ def _emit_tournament_tables(doc, s, rd, hands):
     # denominators, legend-square colours. Rendered ABOVE the per-event detail.
     _emit_grouped_aggregate(doc, events)
 
-    # ---- v8.20 QA-RES-003: group-aware Cost/Cash-Return/Net financial chart (owner-locked; replaces the
-    # static finish-outcome bar as the primary Results chart). ----
-    _emit_financial_chart(doc, events)
+    # ---- R2 (owner request): restore the approved COMPACT STACKED HORIZONTAL finish-outcome distribution
+    # bar as the primary Results chart. The v8.20 group-aware Cost/Cash-Return/Net diverging-bar chart was
+    # a regression; the stacked horizontal distribution (one bar, mutually-exclusive outcome segments,
+    # compact legend, recomputes under filters) is the canonical visualization. ----
+    _emit_distribution_chart(doc, events)
 
     # ---- v8.17 Epic 4: PRIMARY unified sortable table + per-event drilldown ----
     # Built ONCE from the canonical events; the per-event payload feeds the
@@ -882,9 +914,9 @@ def _emit_tournament_tables(doc, s, rd, hands):
             'tournament': _dtcell(
                 _C['tournament'], name,
                 display=("<strong class='tt-tname'>%s</strong>%s" % (
-                    _esc_tt(name),
+                    _esc_tt(_tt_name_line1(name, _buy)),
                     ("<span class='tt-tdetail'>%s</span>" % _ident_detail) if _ident_detail else ''))),
-            'type': _dtcell(_C['type'], pt, display=_esc_tt(pt)),
+            'type': _dtcell(_C['type'], pt, display=_type_icon_cell_html(pt, _esc_tt)),
             'bullets': _dtcell(_C['bullets'], e.get('bullets', 1)),
             'finish': _dtcell(_C['finish'], (_fin_tp if _fin_tp is not None else _fin_sort), display=_fin_disp),
             'cost': _dtcell(_C['cost'], e.get('cost', 0)),

@@ -3,6 +3,10 @@
 The single current authority for the Pokerbot v8.21 **Sizing & Lines** workstream. Supersedes the per-hand
 pilot documents in `v03_pilot/` (kept for audit, banner-marked superseded).
 
+> ✅ **Status: COMPLETE — merged into `main`** (merge commit `5f1fbfe`, non-fast-forward, over released
+> v8.20.0 `d72ed955a868`). No extra analyst-LLM workload; no `v8.21.0` tag. See
+> `V821_SIZING_LINES_MERGE_ACCEPTANCE.md` and `V821_SIZING_LINES_MAIN_INTEGRATION_REPORT.md`.
+
 ## The completed feature (locked)
 
 **Aggregate flop c-bet sizing leak detection.** Pokerbot tells the player when their **flop bet sizing is

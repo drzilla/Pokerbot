@@ -244,7 +244,8 @@ def run():
     filter_dims = sorted(set(re.findall(r"data-dt-filter='([^']+)'", md)))
     grouping_tabs = re.findall(r"class='tt-tab[^']*' data-tab='([^']+)'", md)
     chart_metrics = sorted(set(re.findall(r"data-metric='([^']+)'", md)))
-    has_chart_block = "class='tt-chart'" in md
+    # R2: the primary Results chart is the COMPACT STACKED HORIZONTAL finish-outcome distribution bar.
+    has_chart_block = "tt-outcome-bar" in md and "data-outcome-buckets" in md
     has_cash_return = 'Cash Return' in md
     has_filters_block = "class='dt-filters'" in md or "'dt-filters'" in md
     has_grouped_block = "tt-grouped" in md
@@ -260,8 +261,8 @@ def run():
     # session-wide structural gates (shared by every fixture's filters/grouping/chart dims).
     filters_ok_session = bool(has_filters_block and len(filter_dims) >= 2)
     grouping_ok_session = bool(has_grouped_block and len(grouping_tabs) >= 2)
-    chart_ok_session = bool(has_chart_block and has_cash_return
-                            and {'net', 'cost', 'return'}.issubset(set(chart_metrics)))
+    # R2: the restored distribution bar carries the typed bucket model + per-segment data (no $ metrics).
+    chart_ok_session = bool(has_chart_block and ('tt-outcome-seg' in md) and ('data-bucket=' in md))
 
     results = {}
     for name in FIXTURE_ORDER:

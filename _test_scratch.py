@@ -8914,7 +8914,7 @@ _mb_rd = {'platform': 'GG', 'usd_overlay': {'status': 'parsed', 'totals': {},
 _mb_md = _render_tt(_mb_rd)
 check('T-TT-R-04: multi-bullet renders as ONE row carrying the bullet count (3)',
       _mb_md.count(">Big Re-entry</strong>") == 1
-      and ">Standard*</td>" in _mb_md
+      and "aria-label='Standard*'" in _mb_md   # R3: Type is a compact icon; the label lives in title/aria-label
       and "data-label='Bullets' data-sort-value='3'" in _mb_md and ">3</td>" in _mb_md, '')
 # v8.19.0 Chapter A: RES-001 bold name + RES-005 grouped totals + RES-009 coverage inventory
 _a_md = _render_tt(_rep_rd)
@@ -8951,7 +8951,7 @@ check('T-TT-R-09: inferred prize type marked with * + footnote present',
 # bounty dollars not inferred
 check('T-TT-R-10: bounty dollars not inferred (audit footnote present; Type shows Bounty*, no fabricated $)',
       'Bounty dollar amounts are shown only when safely sourced (never inferred)' in _ttr_md
-      and ">Bounty*</td>" in _ttr_md, '')
+      and "aria-label='Bounty*'" in _ttr_md, '')   # R3: Type icon; label in title/aria-label
 # v8.16.2 Phase D: the per-event cEV/100 COLUMN is hidden entirely (not a column
 # of em-dashes) when no canonical per-tournament cEV source exists.
 check('T-TT-R-11: Results finish shows place/field + Top% (No cash is a RETURN outcome, not the finish); satellite Ticket',
@@ -9791,12 +9791,11 @@ _ett_p4s(_d_p4s, _s_p4s, _rd_p4s, _hands_p4s)
 _md_p4s = _d_p4s.render_md()
 _js_p4s = ' '.join(_d_p4s._extra_js)
 _html_p4src = open('gem_report_draft/_html.py', encoding='utf-8').read()
-check('T-P4UI-04 (QA-RES-003): the group-aware Cost/Cash-Return/Net financial chart is the PRIMARY Results chart (owner-locked); the static finish-outcome bar is removed',
-      "class='tt-chart'" in _md_p4s and 'tt-chart-metrics' in _md_p4s
-      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and "data-metric='return'" in _md_p4s
-      and 'Cash Return' in _md_p4s and 'tt-bar-row' in _md_p4s
-      and 'tt-outcome-bar' not in _md_p4s and 'data-outcome-buckets' not in _md_p4s
-      and _md_p4s.index('tt-aggregate') < _md_p4s.index("class='tt-chart'"), '')
+check('T-P4UI-04 (R2 restore): the COMPACT STACKED HORIZONTAL finish-outcome distribution bar is the PRIMARY Results chart (owner-requested); the v8.20 group-aware financial diverging-bar chart is removed',
+      'tt-outcome-bar' in _md_p4s and 'data-outcome-buckets' in _md_p4s
+      and 'tt-outcome-seg' in _md_p4s and 'data-bucket=' in _md_p4s
+      and 'tt-chart-metrics' not in _md_p4s and "data-metric='cost'" not in _md_p4s
+      and _md_p4s.index('tt-aggregate') < _md_p4s.index('tt-outcome-bar'), '')
 check('T-P4UI-05: BB/100 + cEV/100 are columns of the ONE Results DataTable (separate Performance event table removed)',
       "data-dt-col='bb100'" in _md_p4s and "data-dt-col='cev'" in _md_p4s
       and 'BB/100' in _md_p4s and 'cEV/100' in _md_p4s
@@ -9832,9 +9831,9 @@ check('T-P4UI-11: ONE Results event table (v8.18.0 final: Performance + Drivers 
       and 'tt-drivers-rollup' not in _md_p4s and 'Tournament Performance' not in _md_p4s,
       '')
 # QA-RES-001..005: the Tournament Results repair (one canonical state + restored financial chart).
-check('T-RES-01 (chart): window.ttChart carries Cost/Return/Net per tab so the chart recomputes from canonical numbers (no JS re-aggregation drift)',
-      'window.ttChart=' in _js_p4s and '"net"' in _js_p4s and '"cost"' in _js_p4s and '"return"' in _js_p4s
-      and "data-metric='net'" in _md_p4s and "data-metric='cost'" in _md_p4s and 'Cash Return' in _md_p4s)
+check('T-RES-01 (R2 chart): the finish-outcome distribution bar embeds the typed bucket model + per-segment data so it recomputes from the filtered set (no JS re-aggregation drift)',
+      'data-outcome-buckets=' in _md_p4s and 'tt-outcome-seg' in _md_p4s
+      and 'data-bucket=' in _md_p4s and 'data-count=' in _md_p4s)
 check('T-RES-02 (stale-state prevention): renderGrouped keeps the grouped FOOTER total + coverage note live from the filtered set',
       "pane.querySelector('tfoot tr.tt-totals')" in _html_p4src
       and "pane.querySelector('.tt-coverage-note')" in _html_p4src

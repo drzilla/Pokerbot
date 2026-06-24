@@ -18,7 +18,7 @@ MANIFEST = {
     "GEM_Changelog.txt": ("188986c40696178d035f217db6975cd7e986aa22f9d706381c316764031f87d7", 141201, "v8.20.0 final release entry (required-review split, self-contained package, mobile Results)"),
     "GEM_Quick_Reference.txt": ("e64b74b80bebeba3e374a723dcfe78e19ed03aa3cfd31940be2144e53d1efe99", 101982, "quick reference (whitespace-trimmed)"),
     "Poker_Ranges_Text.txt": ("a90713804a5a0a5cb8872e1f61807afdc2e84e12c13c10d35edf44498cd443d1", 107309, "v8.12.0 D1: wrong-node SBD_* block QUARANTINED"),
-    "SESSION_START_STEP0_package_rebuild.txt": ("0ff1e8c293c8db23754dfc030a8e9ead0d596a0f5399fa77e114e8fdcb8da26e", 4167, "v8.16.4: 42 files, 412 canaries"),
+    "SESSION_START_STEP0_package_rebuild.txt": ("e50699cd86c4035372c24d18a9dd4e27b486e84b0f66c809cb95a373fd399d44", 5626, "GEM-main-ee5c105 operational refresh: 167-file bundle, 69/69 files, 664 canaries, Runout Transition runtime"),
     "_gtow_situations.json": ("cc93b265fd8a90872ac951fd713d408a6156e0efc4264c45b48b48fa00c36449", 354785, "v8.12.0a: curated GTOW stacks lookup (enables stacks= param)"),
     "_test_scratch.py": ("b778e535899a21a59dd8d6e3be2d8ce327c29543f62de82ffe4106ea1cde92ea", 913805, "v8.21 Runout Transition: T-V25-15 _hand_grid.py freeze pin re-pinned for the wiring; T-RC-BIND-01 v8.20.0 identity preserved"),
     "coaching_rules.json": ("9fdecf6ef5143d000e81874837b5f871f1d03ff30b30f52128d614f69ca7f045", 4953, "v8.12.0a: +N14-N18 Amit rules"),

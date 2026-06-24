@@ -1,74 +1,93 @@
 ================================================================================
-SESSION-START STEP 0 — EXTRACT THE GEM RUNTIME BUNDLE   (v9-capacity, CHAT)
+SESSION-START STEP 0 -- EXTRACT THE GEM RUNTIME BUNDLE   (v9-capacity, CHAT)
+Bundle: GEM-main-ee5c105   (operational build from main; NOT a release tag)
+Source commit: ee5c105c6684633be03860fbae286ef33f88586e   (branch main)
 ================================================================================
 The project carries the ENTIRE runtime as ONE self-extracting file:
 
-    gem_src_bundle.py          (prints its BUNDLE_VERSION on extract)
+    gem_src_bundle.py          (prints its BUILD_LABEL + SOURCE_COMMIT on extract)
 
-Source files are NOT stored flat in the project anymore. DO THIS FIRST,
-before reading other files or running any pipeline step:
+Source files are NOT stored flat in the project. DO THIS FIRST, before reading
+other files or running any pipeline step:
 
-1. Extract the runtime, then pull in the flat session-data CSVs and the
-   equity engine:
+1. Extract the runtime into /home/claude/gem and work ONLY from there:
        python /mnt/project/gem_src_bundle.py /home/claude/gem
        cd /home/claude/gem
+   Expect: "GEM bundle GEM-main-ee5c105: extracted 167 files" and a complete tree
+   INCLUDING the gem_report_draft/ package directory.
+
+2. Copy the flat project CSV data into the working tree (the resolvers glob the
+   CWD only), INCLUDING gem_pipeline_learnings.csv:
+       cp /mnt/project/gem_pipeline_learnings.csv . 2>/dev/null || true
        cp /mnt/project/session_*.csv . 2>/dev/null || true
+   These live FLAT in the project (Ron refreshes them without a bundle rebuild).
+   If no session CSVs exist, trend/skill sections render standalone -- say so.
+
+3. Install the equity engine (REQUIRED for exact EAI equity / True EV):
        pip install --quiet phevaluator 2>/dev/null || \
            pip install --quiet phevaluator --break-system-packages || true
-   Expect: "GEM bundle <version>: extracted ~99 files" and a complete tree
-   INCLUDING the gem_report_draft/ package directory. The old 16-file
-   manual package rebuild is OBSOLETE — the bundle preserves structure.
-   The pip install is REQUIRED for exact EAI equity / True EV: without
-   phevaluator the analyzer degrades to a rank heuristic (True EV moves
-   several BB/100), WARNS loudly on stderr, and the report marks True EV
-   "approximate" — do not ship that without telling Ron.
-   The CSV copy matters: session_financials*.csv and session_history*.csv
-   live FLAT in the project (Ron refreshes them between releases) and the
-   resolvers glob the working directory only. If no session CSVs exist,
-   trend/skill sections render standalone — say so, don't improvise.
+   Without phevaluator the analyzer degrades to a rank heuristic (True EV moves
+   several BB/100), WARNS loudly on stderr, and marks True EV "approximate" --
+   do not ship that without telling Ron.
 
-2. Verify before proceeding:
-       python -c "import gem_report_draft, gem_analyzer; print('imports OK')"
+4. Verify before proceeding (run from /home/claude/gem):
+       python -c "import gem_report_draft, gem_analyzer, gem_runout_transition; print('imports OK')"
        python verify_release.py --project-dir .
-   Both must pass: expect a clean v8.17.1 copy — 49/49 files, 450 canaries,
-   11 anti-canaries (the count grows as modules/canaries are added each release).
-   On any failure STOP and tell Ron — do not improvise a report.
+   Expect verify_release: [PASS] All 69/69 files match, 664/664 canaries pass,
+   12/12 anti-canaries pass. (Use --project-dir . -- the bare default looks at
+   the parent directory and is not meaningful in the extracted tree.)
 
-3. THE CANONICAL PIPELINE ENTRY POINT IS:
+5. Run the current repository test command + the Runout Transition suites:
+       python _test_scratch.py                 -> RESULTS: 2024 passed, 0 failed
+       python test_runout_transition.py        -> RESULTS: 78 passed, 0 failed
+       python test_runout_wiring.py            -> RESULTS: 34 passed, 0 failed
+   On ANY failure STOP and tell Ron -- do not improvise a report.
+
+6. Confirm the exact bundle source commit (the bundle file stays in /mnt/project;
+   it is intentionally NOT extracted into the tree, so add it to the path):
+       python -c "import sys; sys.path.insert(0,'/mnt/project'); import gem_src_bundle as b; print(b.SOURCE_BRANCH, b.SOURCE_COMMIT, b.BUILD_TIMESTAMP)"
+   It must print branch 'main' and commit ee5c105c6684633be03860fbae286ef33f88586e.
+   (The bundle's BUNDLE_VERSION is the operational label 'GEM-main-ee5c105' -- it
+   is NOT a v8.21 release tag; no release tag exists.)
+
+7. THE ONLY PRODUCTION RUNNER IS:
        python gem_analyzer.py <SESSION_DIR>
-   That is the ONLY production runner. It parses, analyzes, builds the
-   coverage layer (pot odds, coaching cards, candidates + the analyst
-   WORKSHEET, auto-verdicts, coverage gate) and writes versioned outputs
-   (Pokerbot_<Player>_<dates>_V<N>.html). After writing the analyst file
-   (session_analysis_<dates>.json, OUTSIDE the HH input dir), re-render
-   with `python gem_analyzer.py <SESSION_DIR> --quick` (cache-guarded;
-   it hard-aborts if the cache is from a different session).
-   Do NOT use any other runner or hand-rolled render driver — if a
-   helper script looks like a pipeline runner, it is not; gem_analyzer
-   is the pipeline.
+   It parses, analyzes, builds the coverage layer (pot odds, coaching cards,
+   candidates + the analyst worklist + the sealed atomic analyst packet), and
+   writes versioned outputs (Pokerbot_<Player>_<dates>_V<N>.html). Do NOT use any
+   other runner or a hand-rolled render driver.
 
-3b. Work from /home/claude/gem for ALL pipeline steps. Session uploads
-   (hand histories etc.) extract to sibling dirs as usual.
+   GAME SUMMARIES ARE PART OF THE RUN: Ron's uploads normally contain TWO zips --
+   (A) hand histories and (B) tournament game summaries (cash / net / ROI /
+   finishes). Extract zip B to a sibling directory -- discovery is automatic.
+   If only hand histories were uploaded, say so ("no game summaries attached --
+   cash/ROI columns will be blank").
 
-   GAME SUMMARIES ARE PART OF THE RUN: Ron's session uploads normally
-   contain TWO zips — (A) hand histories and (B) tournament game
-   summaries. Zip B carries cash / net / ROI / finishes and resolves
-   flighted advancements. Extract it to a sibling directory — discovery
-   is automatic (content-sniffed, v8.12.5). If only hand histories were
-   uploaded, say so explicitly in the session preamble ("no game
-   summaries attached — cash/ROI columns will be blank").
-
-4. Prose references stay FLAT in the project — read them directly from
-   /mnt/project/: GEM_Quick_Reference.txt, Analyst_Writing_Checklist.md,
-   the reference docs, GEM_Changelog.txt. (QR/changelog/this file also
-   ride INSIDE the bundle so the verifier can hash them; the flat copies
-   are the ones you read.)
-
-5. Analyst-file rule unchanged: --analyst-file must NOT point inside the
+8. ONE RUN PER SESSION: perform NO MORE THAN one full `python gem_analyzer.py
+   <SESSION_DIR>` run and, after the analyst output JSON is written (OUTSIDE the
+   hand-history input dir, bound to the sealed packet), AT MOST one matching
+   re-render:
+       python gem_analyzer.py <SESSION_DIR> --quick
+   --quick is cache- and packet-guarded; it hard-aborts if the analyst output is
+   bound to a different packet/session. --analyst-file must NOT point inside the
    hand-history input directory.
 
-RELEASE NOTE: a release is now ONE artifact — a new gem_src_bundle.py
-(plus flat prose re-uploads only when prose changed). If verify_release
-reports stale files after an update, bundle and prose came from different
-drops — re-upload both from the same release.
+NEW IN THIS BUNDLE (GEM-main-ee5c105): the descriptive Runout Transition feature.
+On eligible turn/river decisions the hand-detail report adds ONE note explaining
+what the new card objectively changed, what remains true, and what to reassess.
+It is deterministic, result-independent, renders in both AUTO_ONLY and analyst-
+integrated reports, adds NO analyst-packet decisions and NO analyst-LLM work, and
+the strategic action stays "Insufficient evidence" (no opponent-range / equity /
+EV calculation). Unresolved / all-in nodes render nothing.
+
+9. Prose references stay FLAT in the project -- read them directly from
+   /mnt/project/: GEM_Quick_Reference.txt, Analyst_Writing_Checklist.md, the
+   reference docs, GEM_Changelog.txt. (QR/changelog/this file also ride INSIDE the
+   bundle so the verifier can hash them; the flat copies are the ones you read.)
+
+OPERATIONAL NOTE: this is a Chat runtime refresh, not a formal release. A refresh
+is ONE artifact -- a new gem_src_bundle.py (plus flat re-uploads only when a flat
+file's bytes changed). If verify_release reports stale files after an update, the
+bundle and a flat file came from different drops -- re-upload both from the same
+drop.
 ================================================================================

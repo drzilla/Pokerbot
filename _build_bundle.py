@@ -55,7 +55,14 @@ QA_HARNESS = ['_qa_v817_rc3_acceptance.py', '_qa_v817_synthetic.py',
               '_qa_stagep.py',
               # v8.18.0 Wave-1A: the status-contradiction gate — imported by the suite
               # (T-W1A-09/10), so it must extract with the runtime or the clean-room suite breaks.
-              '_qa_status_consistency.py']
+              '_qa_status_consistency.py',
+              # v8.20: the seven-fixture Tournament Results acceptance harness — imported by _test_scratch
+              # (the Results-regression tests), so it must extract with the runtime or the clean-room suite breaks.
+              '_qa_seven_fixture_results.py',
+              # v8.21 Runout Transition: the feature's focused + wiring suites must extract WITH the runtime
+              # so the STEP0 self-verify commands (`python test_runout_transition.py`, `python
+              # test_runout_wiring.py`) run directly from the bundle (78/78 + 34/34).
+              'test_runout_transition.py', 'test_runout_wiring.py']
 
 # Stage-A kill list — never bundled
 KILL = {
@@ -107,6 +114,22 @@ PROSE = {
 # AND is uploaded flat for Chat readability. Same repo source, same release.
 BUNDLE_ALSO = {'GEM_Quick_Reference.txt', 'GEM_Changelog.txt',
                'SESSION_START_STEP0_package_rebuild.txt'}
+
+
+def _git_identity():
+    """Operational build identity from the repo HEAD: (full_sha, short_sha, branch).
+    Returns ('unknown','unknown','unknown') if git is unavailable. This is an OPERATIONAL
+    label only -- it never asserts a release tag."""
+    import subprocess
+    def _g(*a):
+        try:
+            return subprocess.check_output(['git', '-C', REPO, *a], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            return ''
+    full = _g('rev-parse', 'HEAD') or 'unknown'
+    short = _g('rev-parse', '--short=7', 'HEAD') or (full[:7] if full != 'unknown' else 'unknown')
+    branch = _g('rev-parse', '--abbrev-ref', 'HEAD') or 'unknown'
+    return full, short, branch
 
 
 def _repo_runtime_modules():
@@ -178,11 +201,17 @@ def build(project_dir):
     lines = '\n'.join(b64[i:i+76] for i in range(0, len(b64), 76))
     sha = hashlib.sha256(raw).hexdigest()[:16]
     stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    full, short, branch = _git_identity()
+    label = 'GEM-%s-%s' % (branch, short)   # operational build label -- NOT a release tag
     n_repo = sum(1 for _, o in chosen if o == 'repo')
     n_proj = len(chosen) - n_repo
     out = f'''"""GEM source bundle -- self-extracting runtime for Chat sessions.
 
-BUNDLE_VERSION = {BUNDLE_VERSION}   built {stamp}
+BUILD_LABEL     = {label}   (operational label -- NOT a release tag)
+SOURCE_COMMIT   = {full}
+SOURCE_SHORT    = {short}
+SOURCE_BRANCH   = {branch}
+BUILD_TIMESTAMP = {stamp}
 files: {len(chosen)} ({n_repo} from repo, {n_proj} from prior project)
 zip sha256[:16]: {sha}
 
@@ -196,7 +225,11 @@ NOT in here — read them directly from /mnt/project/.
 """
 import base64, io, os, sys, zipfile
 
-BUNDLE_VERSION = {BUNDLE_VERSION!r}
+BUNDLE_VERSION = {label!r}            # operational build label, not a release tag
+SOURCE_COMMIT = {full!r}
+SOURCE_COMMIT_SHORT = {short!r}
+SOURCE_BRANCH = {branch!r}
+BUILD_TIMESTAMP = {stamp!r}
 
 _B64 = """\\
 {lines}"""

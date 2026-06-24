@@ -1,0 +1,763 @@
+{
+  "corpus_hands": 3609,
+  "total_review_items": 46,
+  "categories_present": [
+    "blank",
+    "connectivity_increase",
+    "five_suited_board",
+    "flush_card_no_hero_flush",
+    "flush_draw_completed",
+    "four_flush_board",
+    "four_to_a_straight",
+    "hero_private_contribution",
+    "missed_real_draw",
+    "multiway",
+    "river",
+    "shared_board_pair_change",
+    "straight_completed_hole_cards",
+    "straight_on_board",
+    "threebet_pot",
+    "wheel_structure"
+  ],
+  "required_categories_missing": [],
+  "ledger": [
+    {
+      "category": "shared_board_pair_change",
+      "hand": "TM6039962804",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "Ad-3d-8d-3c",
+      "category_before": "high_card",
+      "category_after": "pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 3c.** The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "shared_board_pair_change",
+      "hand": "TM6039961024",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8c-8h-5d-5c",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5c.** The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "shared_board_pair_change",
+      "hand": "TM6039960337",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Tc-3h-5d-Qc-5h",
+      "category_before": "high_card",
+      "category_after": "pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5h.** The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "hero_private_contribution",
+      "hand": "TM6039960546",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "Qs-2c-Kd-8d",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [],
+      "rendered": "**Runout \u2014 the 8d.** Your hole cards now make two pair (was pair). **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "hero_private_contribution",
+      "hand": "TM6039184349",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "Kd-3h-9d-Kc",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "board_paired",
+        "top_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the Kc.** Your hole cards now make two pair (was pair). The board paired (Kc). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "hero_private_contribution",
+      "hand": "TM6039026447",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "2c-8d-5c-Ad",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Ad.** Your hole cards now make two pair (was pair). The board became more connected. An overcard (Ad) arrived above the previous board. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_draw_completed",
+      "hand": "TM6040281035",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "9h-5s-Js-Ts",
+      "category_before": "high_card",
+      "category_after": "flush",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase",
+        "flush_card"
+      ],
+      "rendered": "**Runout \u2014 the Ts.** Your flush draw completed: your hole cards now make a flush. A third spade arrived; a flush is now possible for holdings containing two spades. The board became more connected. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_draw_completed",
+      "hand": "TM6059475200",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "9d-Kh-6h-9h",
+      "category_before": "high_card",
+      "category_after": "flush",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "board_paired",
+        "flush_card",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 9h.** Your flush draw completed: your hole cards now make a flush. The board paired (9h). A third heart arrived; a flush is now possible for holdings containing two hearts. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_draw_completed",
+      "hand": "TM6059114060",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "4c-7s-Tc-5d-5c",
+      "category_before": "high_card",
+      "category_after": "flush",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "board_paired",
+        "flush_card",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5c.** Your flush draw completed: your hole cards now make a flush. The board paired (5c). A third club arrived; a flush is now possible for holdings containing two clubs. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_card_no_hero_flush",
+      "hand": "TM6040064088",
+      "street": "river",
+      "pot_type": "3BP",
+      "board": "8c-6d-9d-5h-7d",
+      "category_before": "high_card",
+      "category_after": "straight",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "four_to_a_straight",
+        "straight_on_board"
+      ],
+      "rendered": "**Runout \u2014 the 7d.** A third diamond arrived; a flush is now possible for holdings containing two diamonds. A straight is now present on the board and is shared unless a player can make a higher straight. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_card_no_hero_flush",
+      "hand": "TM6040063154",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "7s-6d-5s-Qs",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "flush_card",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Qs.** A third spade arrived; a flush is now possible for holdings containing two spades. An overcard (Qs) arrived above the previous board. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "flush_card_no_hero_flush",
+      "hand": "TM6040091108",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8d-Td-3h-Qd",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Qd.** A third diamond arrived; a flush is now possible for holdings containing two diamonds. The board became more connected. An overcard (Qd) arrived above the previous board. Still true: Your hole cards still make pair. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_flush_board",
+      "hand": "TM6039026432",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "8c-2c-5c-3h-7c",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "four_flush"
+      ],
+      "rendered": "**Runout \u2014 the 7c.** The board is now four-club; any player holding one club can make a flush. Still true: Your hole cards still make pair. Reassess: Four to a flush is on the board -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_flush_board",
+      "hand": "TM6040150968",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "9c-2c-5c-7d-Tc",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "four_flush",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Tc.** The board is now four-club; any player holding one club can make a flush. An overcard (Tc) arrived above the previous board. Still true: Your hole cards still make pair. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. Four to a flush is on the board -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_flush_board",
+      "hand": "TM6040090765",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "Kh-Ah-Th-8h",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "four_flush",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 8h.** The board is now four-heart; any player holding one heart can make a flush. Still true: Your hole cards still make pair. Reassess: Four to a flush is on the board -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "connectivity_increase",
+      "hand": "TM6039960546",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Qs-2c-Kd-8d-Js",
+      "category_before": "two_pair",
+      "category_after": "two_pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "rendered": "**Runout \u2014 the Js.** The board became more connected. Still true: Your hole cards still make two pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "connectivity_increase",
+      "hand": "TM6039184217",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "6c-6h-7d-9h",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the 9h.** The board became more connected. An overcard (9h) arrived above the previous board. Still true: Your best five (pair) comes from the board and is unchanged. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "connectivity_increase",
+      "hand": "TM6039026447",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "2c-8d-5c-Ad",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Ad.** Your hole cards now make two pair (was pair). The board became more connected. An overcard (Ad) arrived above the previous board. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_to_a_straight",
+      "hand": "TM6039246647",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "Kc-Qs-Tc-9d",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "four_to_a_straight",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 9d.** The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_to_a_straight",
+      "hand": "TM6040064088",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "8c-6d-9d-5h",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "four_to_a_straight",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 5h.** The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "four_to_a_straight",
+      "hand": "TM6040063154",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "7s-6d-5s-Qs-9c",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "four_to_a_straight"
+      ],
+      "rendered": "**Runout \u2014 the 9c.** The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "straight_on_board",
+      "hand": "TM6040064088",
+      "street": "river",
+      "pot_type": "3BP",
+      "board": "8c-6d-9d-5h-7d",
+      "category_before": "high_card",
+      "category_after": "straight",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "four_to_a_straight",
+        "straight_on_board"
+      ],
+      "rendered": "**Runout \u2014 the 7d.** A third diamond arrived; a flush is now possible for holdings containing two diamonds. A straight is now present on the board and is shared unless a player can make a higher straight. Reassess: A flush is now possible -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "straight_on_board",
+      "hand": "TM6039306033",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Ac-4s-5h-3s-2c",
+      "category_before": "high_card",
+      "category_after": "straight",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "four_to_a_straight",
+        "straight_on_board",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 2c.** A straight is now present on the board and is shared unless a player can make a higher straight. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "wheel_structure",
+      "hand": "TM6039026447",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "2c-8d-5c-Ad",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Ad.** Your hole cards now make two pair (was pair). The board became more connected. An overcard (Ad) arrived above the previous board. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "wheel_structure",
+      "hand": "TM6039528259",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "2h-8s-Ad-Ks-4d",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "rendered": "**Runout \u2014 the 4d.** The board became more connected. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "wheel_structure",
+      "hand": "TM6040062700",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "8h-3s-As-Qd-Td",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "rendered": "**Runout \u2014 the Td.** The board became more connected. Still true: Your hole cards still make pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "blank",
+      "hand": "TM6039528259",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "2h-8s-Ad-Ks",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "blank"
+      ],
+      "rendered": "**Runout \u2014 the Ks.** The Ks is a blank: it did not change your best five, your draws, or the board structure. Still true: Your best five (high card) is unchanged this street. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "blank",
+      "hand": "TM6040509970",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8s-8h-3c-6d",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "blank"
+      ],
+      "rendered": "**Runout \u2014 the 6d.** The 6d is a blank: it did not change your best five, your draws, or the board structure. Still true: Your best five (pair) comes from the board and is unchanged. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "blank",
+      "hand": "TM6040062700",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8h-3s-As-Qd",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "blank"
+      ],
+      "rendered": "**Runout \u2014 the Qd.** The Qd is a blank: it did not change your best five, your draws, or the board structure. Still true: Your hole cards still make pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "missed_real_draw",
+      "hand": "TM6039528131",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "9d-5c-Jh-8d-5s",
+      "category_before": "high_card",
+      "category_after": "pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5s.** Your draw did not complete and your hole cards do not make a hand on this board. The paired board (5s) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "missed_real_draw",
+      "hand": "TM6040091108",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "8d-Td-3h-Qd-6c",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [],
+      "rendered": "**Runout \u2014 the 6c.** Your draw did not complete, though your hole cards still make pair. Still true: Your hole cards still make pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "missed_real_draw",
+      "hand": "TM6040363511",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Kd-As-Tc-Jc-4s",
+      "category_before": "two_pair",
+      "category_after": "two_pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "four_to_a_straight",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 4s.** Your draw did not complete, though your hole cards still make two pair. The board is now four-to-a-straight; some holdings can complete a straight. Still true: Your hole cards still make two pair. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "multiway",
+      "hand": "TM6039962804",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "Ad-3d-8d-3c",
+      "category_before": "high_card",
+      "category_after": "pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 3c.** The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "multiway",
+      "hand": "TM6039961024",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8c-8h-5d-5c",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5c.** The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "multiway",
+      "hand": "TM6039026432",
+      "street": "turn",
+      "pot_type": "SRP",
+      "board": "8c-2c-5c-3h",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "rendered": "**Runout \u2014 the 3h.** The board became more connected. Still true: Your hole cards still make pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "river",
+      "hand": "TM6039960546",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Qs-2c-Kd-8d-Js",
+      "category_before": "two_pair",
+      "category_after": "two_pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "rendered": "**Runout \u2014 the Js.** The board became more connected. Still true: Your hole cards still make two pair. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "river",
+      "hand": "TM6039960337",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "Tc-3h-5d-Qc-5h",
+      "category_before": "high_card",
+      "category_after": "pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the 5h.** The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards. Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "river",
+      "hand": "TM6039026432",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "8c-2c-5c-3h-7c",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "four_flush"
+      ],
+      "rendered": "**Runout \u2014 the 7c.** The board is now four-club; any player holding one club can make a flush. Still true: Your hole cards still make pair. Reassess: Four to a flush is on the board -- reassess thin value bets and continued bluffs. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "threebet_pot",
+      "hand": "TM6039184349",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "Kd-3h-9d-Kc",
+      "category_before": "pair",
+      "category_after": "two_pair",
+      "category_changed": true,
+      "hole_cards_contribute_after": true,
+      "board_only_or_shared": false,
+      "tags": [
+        "board_paired",
+        "top_card_pair"
+      ],
+      "rendered": "**Runout \u2014 the Kc.** Your hole cards now make two pair (was pair). The board paired (Kc). Reassess: A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "threebet_pot",
+      "hand": "TM6039184217",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "6c-6h-7d-9h",
+      "category_before": "pair",
+      "category_after": "pair",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the 9h.** The board became more connected. An overcard (9h) arrived above the previous board. Still true: Your best five (pair) comes from the board and is unchanged. Reassess: An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "threebet_pot",
+      "hand": "TM6039246647",
+      "street": "turn",
+      "pot_type": "3BP",
+      "board": "Kc-Qs-Tc-9d",
+      "category_before": "high_card",
+      "category_after": "high_card",
+      "category_changed": false,
+      "hole_cards_contribute_after": false,
+      "board_only_or_shared": true,
+      "tags": [
+        "connectivity_increase",
+        "four_to_a_straight",
+        "undercard_or_brick"
+      ],
+      "rendered": "**Runout \u2014 the 9d.** The board is now four-to-a-straight; some holdings can complete a straight. Reassess: Some holdings can now complete a straight -- reassess one-pair holdings. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "five_suited_board",
+      "evidence": "DETERMINISTIC FIXTURE (not real-session)",
+      "hand": "TM99500001 (FIXTURE)",
+      "street": "river",
+      "pot_type": "SRP",
+      "board": "7h-6h-2h-Th-Qh",
+      "category_before": "high_card",
+      "category_after": "flush",
+      "tags": [
+        "monotone_complete",
+        "overcard"
+      ],
+      "rendered": "**Runout \u2014 the Qh.** A heart flush is now present on the board and is shared unless a player can make a higher flush. An overcard (Qh) arrived above the previous board. Reassess: A heart flush is on the board -- reassess unless you hold a higher card of that suit. An overcard arrived -- a prior top pair or overpair may no longer be top of the board. **Strategic read: insufficient evidence** -- relative strength and the correct action are not determinable from objective facts alone."
+    },
+    {
+      "category": "unresolved_suppressed",
+      "hand": "TM6039184349",
+      "street": "river",
+      "reason": "all_in_or_no_future_decision",
+      "rendered": ""
+    },
+    {
+      "category": "unresolved_suppressed",
+      "hand": "TM6039026288",
+      "street": "turn",
+      "reason": "not_a_turn_or_river_node",
+      "rendered": ""
+    },
+    {
+      "category": "unresolved_suppressed",
+      "hand": "TM6039026288",
+      "street": "river",
+      "reason": "not_a_turn_or_river_node",
+      "rendered": ""
+    },
+    {
+      "category": "unresolved_suppressed",
+      "hand": "TM6040063027",
+      "street": "turn",
+      "reason": "all_in_or_no_future_decision",
+      "rendered": ""
+    }
+  ]
+}

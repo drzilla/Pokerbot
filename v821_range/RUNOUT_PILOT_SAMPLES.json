@@ -1,0 +1,609 @@
+{
+  "shared_board_change": [
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039961024",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "5c",
+      "board": "8c-8h-5d-5c",
+      "cat": "pair->two_pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039960337",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "5h",
+      "board": "Tc-3h-5d-Qc-5h",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039246260",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "2s",
+      "board": "2h-2d-Ad-2s",
+      "cat": "pair->trips",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair",
+        "trips_on_board"
+      ],
+      "changed": [
+        "The board paired (2s); trips are on the board, shared by every remaining player, with kickers and full houses still depending on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039246260",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "Ah",
+      "board": "2h-2d-Ad-2s-Ah",
+      "cat": "trips->full_house",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "top_card_pair",
+        "trips_on_board"
+      ],
+      "changed": [
+        "The board paired (Ah); all five community cards now form your complete best five (full house), shared by every remaining player."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    }
+  ],
+  "hero_private_improvement": [
+    {
+      "hand": "TM6039960546",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "8d",
+      "board": "Qs-2c-Kd-8d",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [],
+      "changed": [
+        "Your hole cards now make two pair (was pair)."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6039184349",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Kc",
+      "board": "Kd-3h-9d-Kc",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "board_paired",
+        "top_card_pair"
+      ],
+      "changed": [
+        "Your hole cards now make two pair (was pair).",
+        "The board paired (Kc)."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039026447",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Ad",
+      "board": "2c-8d-5c-Ad",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "connectivity_increase",
+        "overcard"
+      ],
+      "changed": [
+        "Your hole cards now make two pair (was pair).",
+        "The board became more connected.",
+        "An overcard (Ad) arrived above the previous board."
+      ],
+      "reassess": [
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
+      ]
+    },
+    {
+      "hand": "TM6039246995",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Ah",
+      "board": "7h-5d-Kc-Ah",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "overcard"
+      ],
+      "changed": [
+        "Your hole cards now make two pair (was pair).",
+        "An overcard (Ah) arrived above the previous board."
+      ],
+      "reassess": [
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
+      ]
+    },
+    {
+      "hand": "TM6039246536",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "4h",
+      "board": "Jh-3d-4s-4h",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your hole cards now make two pair (was pair).",
+        "The board paired (4h)."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    }
+  ],
+  "flush_threat": [
+    {
+      "hand": "TM6040064088",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "7d",
+      "board": "8c-6d-9d-5h-7d",
+      "cat": "high_card->straight",
+      "contributes": false,
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "four_to_a_straight",
+        "straight_on_board"
+      ],
+      "changed": [
+        "A third diamond arrived; a flush is now possible for holdings containing two diamonds.",
+        "A straight is now present on the board and is shared unless a player can make a higher straight."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs."
+      ]
+    },
+    {
+      "hand": "TM6040063154",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qs",
+      "board": "7s-6d-5s-Qs",
+      "cat": "high_card->high_card",
+      "contributes": false,
+      "tags": [
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "A third spade arrived; a flush is now possible for holdings containing two spades.",
+        "An overcard (Qs) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs.",
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
+      ]
+    },
+    {
+      "hand": "TM6040091108",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qd",
+      "board": "8d-Td-3h-Qd",
+      "cat": "pair->pair",
+      "contributes": true,
+      "tags": [
+        "connectivity_increase",
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "A third diamond arrived; a flush is now possible for holdings containing two diamonds.",
+        "The board became more connected.",
+        "An overcard (Qd) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs.",
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
+      ]
+    },
+    {
+      "hand": "TM6040424612",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qs",
+      "board": "Ts-7s-9h-Qs",
+      "cat": "high_card->straight",
+      "contributes": true,
+      "tags": [
+        "flush_card",
+        "overcard"
+      ],
+      "changed": [
+        "Your straight draw completed: your hole cards now make a straight.",
+        "A third spade arrived; a flush is now possible for holdings containing two spades.",
+        "An overcard (Qs) arrived above the previous board."
+      ],
+      "reassess": [
+        "A flush is now possible -- reassess thin value bets and continued bluffs.",
+        "An overcard arrived -- a prior top pair or overpair may no longer be top of the board."
+      ]
+    }
+  ],
+  "board_paired": [
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039961024",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "5c",
+      "board": "8c-8h-5d-5c",
+      "cat": "pair->two_pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039960337",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "5h",
+      "board": "Tc-3h-5d-Qc-5h",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The paired board (5h) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039184349",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Kc",
+      "board": "Kd-3h-9d-Kc",
+      "cat": "pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "board_paired",
+        "top_card_pair"
+      ],
+      "changed": [
+        "Your hole cards now make two pair (was pair).",
+        "The board paired (Kc)."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    }
+  ],
+  "blank": [
+    {
+      "hand": "TM6039528259",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Ks",
+      "board": "2h-8s-Ad-Ks",
+      "cat": "high_card->high_card",
+      "contributes": false,
+      "tags": [
+        "blank"
+      ],
+      "changed": [
+        "The Ks is a blank: it did not change your best five, your draws, or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040509970",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "6d",
+      "board": "8s-8h-3c-6d",
+      "cat": "pair->pair",
+      "contributes": false,
+      "tags": [
+        "blank"
+      ],
+      "changed": [
+        "The 6d is a blank: it did not change your best five, your draws, or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040062700",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "Qd",
+      "board": "8h-3s-As-Qd",
+      "cat": "pair->pair",
+      "contributes": true,
+      "tags": [
+        "blank"
+      ],
+      "changed": [
+        "The Qd is a blank: it did not change your best five, your draws, or the board structure."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040364610",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "Tc",
+      "board": "As-4c-Ks-3d-Tc",
+      "cat": "two_pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "blank"
+      ],
+      "changed": [
+        "The Tc is a blank: it did not change your best five, your draws, or the board structure."
+      ],
+      "reassess": []
+    }
+  ],
+  "draw_missed": [
+    {
+      "hand": "TM6039528131",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "5s",
+      "board": "9d-5c-Jh-8d-5s",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your draw did not complete and your hole cards do not make a hand on this board.",
+        "The paired board (5s) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6040091108",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "6c",
+      "board": "8d-Td-3h-Qd-6c",
+      "cat": "pair->pair",
+      "contributes": true,
+      "tags": [],
+      "changed": [
+        "Your draw did not complete, though your hole cards still make pair."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6040363511",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "4s",
+      "board": "Kd-As-Tc-Jc-4s",
+      "cat": "two_pair->two_pair",
+      "contributes": true,
+      "tags": [
+        "four_to_a_straight",
+        "undercard_or_brick"
+      ],
+      "changed": [
+        "Your draw did not complete, though your hole cards still make two pair.",
+        "The board is now four-to-a-straight; some holdings can complete a straight."
+      ],
+      "reassess": [
+        "Some holdings can now complete a straight -- reassess one-pair holdings."
+      ]
+    },
+    {
+      "hand": "TM6040363204",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "3c",
+      "board": "6s-9s-5h-3h-3c",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "Your draw did not complete and your hole cards do not make a hand on this board.",
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    }
+  ],
+  "multiway": [
+    {
+      "hand": "TM6039962804",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3c",
+      "board": "Ad-3d-8d-3c",
+      "cat": "high_card->pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The paired board (3c) gives every remaining player at least one pair; kickers and stronger hands still depend on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039961024",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "5c",
+      "board": "8c-8h-5d-5c",
+      "cat": "pair->two_pair",
+      "contributes": false,
+      "tags": [
+        "board_paired",
+        "double_paired",
+        "low_card_pair"
+      ],
+      "changed": [
+        "The board paired (5c) and is now double-paired; every remaining player has at least two pair, with kickers and stronger hands still depending on the hole cards."
+      ],
+      "reassess": [
+        "A paired board makes trips and full houses possible for some holdings -- reassess one-pair and overpair holdings."
+      ]
+    },
+    {
+      "hand": "TM6039026432",
+      "session": "live_test_2026-06-04",
+      "street": "turn",
+      "card": "3h",
+      "board": "8c-2c-5c-3h",
+      "cat": "pair->pair",
+      "contributes": true,
+      "tags": [
+        "connectivity_increase"
+      ],
+      "changed": [
+        "The board became more connected."
+      ],
+      "reassess": []
+    },
+    {
+      "hand": "TM6039026432",
+      "session": "live_test_2026-06-04",
+      "street": "river",
+      "card": "7c",
+      "board": "8c-2c-5c-3h-7c",
+      "cat": "pair->pair",
+      "contributes": true,
+      "tags": [
+        "four_flush"
+      ],
+      "changed": [
+        "The board is now four-club; any player holding one club can make a flush."
+      ],
+      "reassess": [
+        "Four to a flush is on the board -- reassess thin value bets and continued bluffs."
+      ]
+    }
+  ],
+  "threebet": [],
+  "unresolved": [
+    {
+      "hand": "TM6039184349",
+      "street": "river",
+      "reason": "all_in_or_no_future_decision"
+    },
+    {
+      "hand": "TM6039026288",
+      "street": "turn",
+      "reason": "not_a_turn_or_river_node"
+    },
+    {
+      "hand": "TM6039026288",
+      "street": "river",
+      "reason": "not_a_turn_or_river_node"
+    },
+    {
+      "hand": "TM6040063027",
+      "street": "turn",
+      "reason": "all_in_or_no_future_decision"
+    }
+  ]
+}

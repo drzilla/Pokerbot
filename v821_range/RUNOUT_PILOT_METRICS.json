@@ -1,0 +1,56 @@
+{
+  "corpus": [
+    "live_test_2026-06-04",
+    "hh_today_2026-06-09",
+    "session_2026-05-27"
+  ],
+  "unique_hands": 3609,
+  "eligible_street_transitions": 529,
+  "resolved_complete_evidence": 482,
+  "unresolved_suppressed": 47,
+  "unresolved_reasons": {
+    "all_in_or_no_future_decision": 18,
+    "not_a_turn_or_river_node": 29
+  },
+  "rendered_blocks": 482,
+  "resolved_rate": 0.911,
+  "hero_hole_card_contribution": {
+    "board_or_shared": 201,
+    "contributes": 281
+  },
+  "category_change": {
+    "changed": 136,
+    "unchanged": 346
+  },
+  "transition_tag_distribution": {
+    "connectivity_increase": 179,
+    "undercard_or_brick": 102,
+    "overcard": 95,
+    "board_paired": 85,
+    "low_card_pair": 54,
+    "flush_card": 53,
+    "blank": 49,
+    "four_to_a_straight": 41,
+    "top_card_pair": 31,
+    "double_paired": 18,
+    "four_flush": 11,
+    "trips_on_board": 9,
+    "straight_on_board": 2
+  },
+  "MEASURED_trust_audit": {
+    "result_field_leakage": 0,
+    "later_card_leakage": 0,
+    "unsupported_range_terms": 0,
+    "unsupported_strategic_directives": 0,
+    "banned_strength_words(improved/weakened/counterfeit/showdown-value)": 0,
+    "shared_board_false_improvement": 0,
+    "static_texture_duplication": 0,
+    "duplicate_records_per_street": 0,
+    "accidentally_rendered_unresolved": 0
+  },
+  "rule_backed_strategic_coaching": 0,
+  "analyst_workload_added": 0,
+  "avg_record_bytes": 1968,
+  "runtime_seconds": 0.485,
+  "MEASURED_trust_audit_all_zero": true
+}

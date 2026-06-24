@@ -1,0 +1,30 @@
+{
+  "packet_hash": "dae3ea4f3096c54aa669f420132e390ec93df837341f316efc7cc40f8578410c",
+  "session_id": "Knockman",
+  "runtime_commit": "b207457db509",
+  "schema": "analyst_packet_v1",
+  "allowed_verdicts": [
+    "CONFIRMED_MISTAKE",
+    "JUSTIFIED",
+    "READ_DEPENDENT",
+    "INSUFFICIENT_EVIDENCE",
+    "DETECTOR_BUG"
+  ],
+  "required_count_before": 34,
+  "required_count_after": 34,
+  "optional_count_before": 8,
+  "optional_count_after": 8,
+  "unresolved_count": 17,
+  "analyst_output_verdicts": 42,
+  "analyst_output_binds_packet": true,
+  "runout_transition_decisions_in_packet": 0,
+  "packet_builder_references_runout_module": false,
+  "decision_families": {
+    "legacy_required_review": 48,
+    "sb_flat_vs_late_open": 3,
+    "river_curiosity": 1,
+    "deep_preflop_stackoff": 1,
+    "short_stack_coldcall": 6
+  },
+  "note": "The Runout Transition feature lives entirely in the RENDER path (gem_runout_transition + the _split_argument_into_notes wiring in sections_xiv.py). gem_analyst_packet.py does not import or reference it, so the sealed packet (required/optional/unresolved decisions, hash, schema) is identical with or without the feature. required_count == optional_count before == after."
+}

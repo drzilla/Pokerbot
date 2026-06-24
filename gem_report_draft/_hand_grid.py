@@ -256,7 +256,7 @@ def _emit_structured_note(doc, note, note_num, is_bound, analyst_verdict=''):
 
 def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
                                 hero_actions_by_street, analyst_street=None,
-                                hero_action_verbs_by_street=None):
+                                hero_action_verbs_by_street=None, hand=None):
     """Break analyst commentary into numbered notes aligned to hero actions.
 
     Returns: (notes, action_to_note_num, action_to_tone) where:
@@ -287,6 +287,56 @@ def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
     action_to_tone = {}
     single_narrative_note_num = None  # B142 (v7.69): set if B83 override fires
 
+    # ── v8.21 Runout Transition ──────────────────────────────────────────────
+    # Compute the descriptive turn/river transition note ONCE per hand from the
+    # canonical module (resolved records only; unresolved → nothing). Every
+    # return path is routed through _attach_runout_transition() so the note
+    # survives the structured-argument fast path and the single-narrative
+    # override, and is ADDITIVE: it binds at most one note to the FIRST hero
+    # action on the turn/river street (merging into an existing note there),
+    # never renumbering existing notes or changing existing tone/attachment.
+    _tx_by_street = {}
+    if hand is not None:
+        try:
+            import gem_runout_transition as _rt
+            for _r in _rt.transitions_for_hand(hand):
+                if _r.get('unresolved'):
+                    continue
+                _st = _r.get('street')
+                if _st in ('turn', 'river') and _st not in _tx_by_street:
+                    _n = _rt.transition_note_text(_r)
+                    if _n:
+                        _tx_by_street[_st] = _n
+        except Exception:
+            _tx_by_street = {}
+
+    def _attach_runout_transition(_notes, _a2n, _a2t, _snn):
+        for _st in ('turn', 'river'):
+            _note = _tx_by_street.get(_st)
+            if not _note:
+                continue
+            _acts = hero_actions_by_street.get(_st) or []
+            if not _acts:
+                continue
+            _key = (_st, _acts[0])
+            _existing = _a2n.get(_key)
+            if _existing is not None and 0 <= _existing - 1 < len(_notes) and not _notes[_existing - 1].lstrip().startswith('**TL;DR'):
+                _notes[_existing - 1] = _notes[_existing - 1] + ' ' + _note
+            elif _existing is None:
+                _a2n[_key] = len(_notes) + 1
+                _a2t[_key] = 'critical'
+                _notes.append(_note)
+            else:
+                # the street's first action already holds a structured TL;DR note: bind to a later hero action
+                # on the street if one exists, otherwise leave the TL;DR untouched (no inline note this street).
+                for _alt in _acts[1:]:
+                    if (_st, _alt) not in _a2n:
+                        _a2n[(_st, _alt)] = len(_notes) + 1
+                        _a2t[(_st, _alt)] = 'critical'
+                        _notes.append(_note)
+                        break
+        return _notes, _a2n, _a2t, _snn
+
     # B146 (v7.71, Ron 2026-05-23): structured-argument fast path. When the
     # analyst writes the argument in the Output-Formatting structure (leads
     # with "**TL;DR:**", then ### sections + bullets per Analyst_Writing_
@@ -312,9 +362,9 @@ def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
             _tidx = _pick_key_action_idx(_verbs, key_dec)
             _target = (_acts[_tidx] if (_tidx is not None and _acts)
                        else (_acts[-1] if _acts else 0))
-            return ([note_txt], {(key_street, _target): 1},
-                    {(key_street, _target): 'critical'}, 1)
-        return [note_txt], {}, {}, 1
+            return _attach_runout_transition([note_txt], {(key_street, _target): 1},
+                                             {(key_street, _target): 'critical'}, 1)
+        return _attach_runout_transition([note_txt], {}, {}, 1)
 
     # B57: Tone detector — applies per-note text
     _positive_kw = _re.compile(
@@ -354,7 +404,7 @@ def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
     if one_two: full_text_parts.append(one_two)
     full_text = ' '.join(full_text_parts).strip()
     if not full_text and not matchup:
-        return [], {}, {}, None
+        return _attach_runout_transition([], {}, {}, None)
 
     sentences = _re.split(r'(?<=[.!?])\s+(?=[A-Z(*\[])', full_text)
     sentences = [s.strip() for s in sentences if s.strip()]
@@ -487,7 +537,7 @@ def _split_argument_into_notes(argument, key_dec, one_two, matchup, spot,
     if matchup:
         notes.append('**Math:** ' + matchup.strip())
 
-    return notes, action_to_note_num, action_to_tone, single_narrative_note_num
+    return _attach_runout_transition(notes, action_to_note_num, action_to_tone, single_narrative_note_num)
 
 
 # ── v8.13.1 P1: verdict-contradiction reconciliation ──────────────────────

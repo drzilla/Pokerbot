@@ -2693,13 +2693,15 @@ check('T-V25-14: list-modal and villain-evidence-modal preserved',
       and 'id="villain-evidence-modal"' in _v25_code,
       'list-modal or villain-evidence-modal missing')
 
-# T-V25-15: _hand_grid.py unchanged (SHA256 guard)
+# T-V25-15: _hand_grid.py freeze pin (SHA256 guard). Re-pinned for the v8.21 Runout Transition wiring
+# (hand-arg thread-through + the additive _attach_runout_transition finalizer). Re-pin on any further
+# intentional change to _hand_grid.py.
 import hashlib as _hl_v25
 with open(os.path.join(os.path.dirname(__file__),
           'gem_report_draft', '_hand_grid.py'), 'rb') as _fhg:
     _hg_hash = _hl_v25.sha256(_fhg.read()).hexdigest()
 check('T-V25-15: _hand_grid.py unchanged (SHA256)',
-      _hg_hash == '9a6f64f9d984260e15018e975fe83a54d7659eb17b028765acf9f4312f93448f',
+      _hg_hash == 'd325263ffefbc8aa9c6d8d6197dd139258533e5e812d1ea01ecd1e41afe972b0',
       f'_hand_grid.py was modified! Hash: {_hg_hash}')
 
 # T-V25-16: Top bar hydration function exists and handles Prev/Next
